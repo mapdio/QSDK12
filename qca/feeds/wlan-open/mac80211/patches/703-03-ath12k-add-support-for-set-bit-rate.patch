@@ -16,7 +16,7 @@ Signed-off-by: Aaradhana Sahu <quic_aarasahu@quicinc.com>
 
 --- a/drivers/net/wireless/ath/ath12k/mac.c
 +++ b/drivers/net/wireless/ath/ath12k/mac.c
-@@ -5367,6 +5367,7 @@ ath12k_mac_set_peer_vht_fixed_rate(struc
+@@ -5362,6 +5362,7 @@ ath12k_mac_set_peer_vht_fixed_rate(struc
  	int ret, i;
  	struct ath12k_sta *ahsta = arsta->ahsta;
  	struct ieee80211_sta *sta;
@@ -24,7 +24,7 @@ Signed-off-by: Aaradhana Sahu <quic_aarasahu@quicinc.com>
  
  	sta = container_of((void *)ahsta, struct ieee80211_sta, drv_priv);
  
-@@ -5387,6 +5388,16 @@ ath12k_mac_set_peer_vht_fixed_rate(struc
+@@ -5382,6 +5383,16 @@ ath12k_mac_set_peer_vht_fixed_rate(struc
  		return -EINVAL;
  	}
  
@@ -41,7 +41,7 @@ Signed-off-by: Aaradhana Sahu <quic_aarasahu@quicinc.com>
  	ath12k_dbg(ar->ab, ATH12K_DBG_MAC,
  		   "Setting Fixed VHT Rate for peer %pM. Device will not switch to any other selected rates",
  		   arsta->addr);
-@@ -5417,6 +5428,7 @@ ath12k_mac_set_peer_he_fixed_rate(struct
+@@ -5412,6 +5423,7 @@ ath12k_mac_set_peer_he_fixed_rate(struct
  	int ret, i;
  	struct ath12k_sta *ahsta = arsta->ahsta;
  	struct ieee80211_sta *sta;
@@ -49,7 +49,7 @@ Signed-off-by: Aaradhana Sahu <quic_aarasahu@quicinc.com>
  
  	sta = container_of((void *)ahsta, struct ieee80211_sta, drv_priv);
  
-@@ -5438,9 +5450,15 @@ ath12k_mac_set_peer_he_fixed_rate(struct
+@@ -5433,9 +5445,15 @@ ath12k_mac_set_peer_he_fixed_rate(struct
  	}
  
  	/* Avoid updating invalid nss as fixed rate*/
@@ -66,7 +66,7 @@ Signed-off-by: Aaradhana Sahu <quic_aarasahu@quicinc.com>
  	ath12k_dbg(ar->ab, ATH12K_DBG_MAC,
  		   "Setting Fixed HE Rate for peer %pM. Device will not switch to any other selected rates",
  		   arsta->addr);
-@@ -5472,6 +5490,7 @@ ath12k_mac_set_peer_ht_fixed_rate(struct
+@@ -5467,6 +5485,7 @@ ath12k_mac_set_peer_ht_fixed_rate(struct
  	int ret, i;
  	struct ath12k_sta *ahsta = arsta->ahsta;
  	struct ieee80211_sta *sta;
@@ -74,7 +74,7 @@ Signed-off-by: Aaradhana Sahu <quic_aarasahu@quicinc.com>
  
  	sta = container_of((void *)ahsta, struct ieee80211_sta, drv_priv);
  
-@@ -5493,9 +5512,15 @@ ath12k_mac_set_peer_ht_fixed_rate(struct
+@@ -5488,9 +5507,15 @@ ath12k_mac_set_peer_ht_fixed_rate(struct
  	}
  
  	/* Avoid updating invalid nss as fixed rate*/
@@ -91,7 +91,7 @@ Signed-off-by: Aaradhana Sahu <quic_aarasahu@quicinc.com>
  	ath12k_dbg(ar->ab, ATH12K_DBG_MAC,
  			"Setting Fixed HT Rate for peer %pM. Device will not switch to any other selected rates",
  		  sta->addr);
-@@ -5527,6 +5552,7 @@ ath12k_mac_set_peer_eht_fixed_rate(struc
+@@ -5522,6 +5547,7 @@ ath12k_mac_set_peer_eht_fixed_rate(struc
  	int ret, i;
  	struct ath12k_sta *ahsta = arsta->ahsta;
  	struct ieee80211_sta *sta;
@@ -99,7 +99,7 @@ Signed-off-by: Aaradhana Sahu <quic_aarasahu@quicinc.com>
  
  	sta = container_of((void *)ahsta, struct ieee80211_sta, drv_priv);
  
-@@ -5548,9 +5574,15 @@ ath12k_mac_set_peer_eht_fixed_rate(struc
+@@ -5543,9 +5569,15 @@ ath12k_mac_set_peer_eht_fixed_rate(struc
  	}
  
  	/* Avoid updating invalid nss as fixed rate*/
@@ -116,7 +116,7 @@ Signed-off-by: Aaradhana Sahu <quic_aarasahu@quicinc.com>
  	ath12k_dbg(ar->ab, ATH12K_DBG_MAC,
  		   "Setting Fixed EHT Rate for peer %pM. Device will not switch to any other selected rates",
  		   arsta->addr);
-@@ -5832,6 +5864,8 @@ static void ath12k_sta_rc_update_wk(stru
+@@ -5826,6 +5858,8 @@ static void ath12k_sta_rc_update_wk(stru
  	struct peer_assoc_params peer_arg;
  	enum wmi_phy_mode peer_phymode;
  	struct ath12k_sta *ahsta;
@@ -125,7 +125,7 @@ Signed-off-by: Aaradhana Sahu <quic_aarasahu@quicinc.com>
  
  	arsta = container_of(wk, struct ath12k_link_sta, update_wk);
  	ahsta = arsta->ahsta;
-@@ -5840,8 +5874,7 @@ static void ath12k_sta_rc_update_wk(stru
+@@ -5834,8 +5868,7 @@ static void ath12k_sta_rc_update_wk(stru
  	ahvif = arvif->ahvif;
  	ar = arvif->ar;
  
@@ -135,7 +135,7 @@ Signed-off-by: Aaradhana Sahu <quic_aarasahu@quicinc.com>
  		return;
  
  	band = def.chan->band;
-@@ -5962,16 +5995,31 @@ static void ath12k_sta_rc_update_wk(stru
+@@ -5956,16 +5989,31 @@ static void ath12k_sta_rc_update_wk(stru
  		 * TODO: Check RATEMASK_CMDID to support auto rates selection
  		 * across HT/VHT and for multiple VHT MCS support.
  		 */
@@ -171,7 +171,7 @@ Signed-off-by: Aaradhana Sahu <quic_aarasahu@quicinc.com>
  			ath12k_mac_set_peer_ht_fixed_rate(arvif, arsta, mask,
  							  band);
  		} else {
-@@ -12449,7 +12497,7 @@ ath12k_mac_check_fixed_rate_settings_for
+@@ -12394,7 +12442,7 @@ ath12k_mac_check_fixed_rate_settings_for
  
  static int
  ath12k_mac_op_set_bitrate_mask(struct ieee80211_hw *hw,
@@ -180,7 +180,7 @@ Signed-off-by: Aaradhana Sahu <quic_aarasahu@quicinc.com>
  			       const struct cfg80211_bitrate_mask *mask)
  {
  	struct ath12k_hw *ah = hw->priv;
-@@ -12477,8 +12525,6 @@ ath12k_mac_op_set_bitrate_mask(struct ie
+@@ -12422,8 +12470,6 @@ ath12k_mac_op_set_bitrate_mask(struct ie
  	bool he_fixed_rate = false;
  	bool eht_fixed_rate = false;
  	struct ath12k_link_vif *arvif;
@@ -189,16 +189,3 @@ Signed-off-by: Aaradhana Sahu <quic_aarasahu@quicinc.com>
  
  	if (ath12k_mac_vif_chan(vif, &def, link_id))
  		return -EPERM;
-@@ -12508,6 +12554,12 @@ ath12k_mac_op_set_bitrate_mask(struct ie
- 	eht_mcs_mask = mask->control[band].eht_mcs;
- 	ldpc = !!(ar->ht_cap_info & WMI_HT_CAP_LDPC);
- 
-+	if (vif->valid_links && ath12k_peer_assoc_h_eht_masked(eht_mcs_mask)) {
-+		ath12k_warn(ar->ab, "cannot disable EHT rates on a ML bss\n");
-+		ret = -EINVAL;
-+		goto out;
-+	}
-+
- 	sgi = mask->control[band].gi;
- 	if (sgi == NL80211_TXRATE_FORCE_LGI) {
- 		ret = -EINVAL;

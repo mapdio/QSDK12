@@ -20,6 +20,7 @@
 #include <linux/reset.h>
 #include <linux/soc/qcom/mdt_loader.h>
 #include <linux/qcom_scm.h>
+#include <linux/soc/qcom/smem.h>
 #ifdef CONFIG_IPQ_SUBSYSTEM_RAMDUMP
 #include <soc/qcom/ramdump.h>
 #endif
@@ -215,6 +216,7 @@ struct wcss_data {
 	bool need_auto_boot;
 	int q6ss_version;
 	int wcss_version;
+	bool clear_smp2p_last_value;
 };
 
 struct wcss_clk {
@@ -288,6 +290,10 @@ static void crashdump_init(struct rproc *rproc, struct rproc_dump_segment *segme
 
 	do_elf_ramdump(handle, segs, index);
 
+	for (index = 0; index < num_segs; index++) {
+		if (segs[index].v_address)
+			iounmap(segs[index].v_address);
+	}
 put_node:
 	kfree(segs);
 	of_node_put(np);
@@ -837,6 +843,9 @@ static int q6v5_wcss_start(struct rproc *rproc)
 	}
 
 	qcom_q6v5_prepare(&wcss->q6v5);
+
+	if (desc->clear_smp2p_last_value)
+		qcom_clear_smp2p_last_value();
 
 	if (wcss->need_mem_protection) {
 		ret = qcom_scm_pas_auth_and_reset(WCNSS_PAS_ID, debug_wcss,
@@ -2243,6 +2252,7 @@ static const struct wcss_data wcss_ipq9574_res_init = {
 	.q6_version = Q6V7,
 	.q6ss_version = QDSP6SS_Q6V7_VERSION,
 	.wcss_version = WCSS_VERSION,
+	.clear_smp2p_last_value = true,
 };
 
 static const struct wcss_data wcss_qcs404_res_init = {

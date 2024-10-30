@@ -1,19 +1,13 @@
-config GCC_VERSION_5
-	default y if GCC_USE_VERSION_5
+config GCC_VERSION_11
+	default y if GCC_USE_VERSION_11
 	bool
 
-config GCC_VERSION_8
-	default y if GCC_USE_VERSION_8
-	default y if arc
-	bool
-
-config GCC_USE_EMBEDDED_PATH_REMAP
-	default y if GCC_VERSION_8
-	default n
+config GCC_VERSION_13
+	default y if GCC_USE_VERSION_13
 	bool
 
 config GCC_VERSION
 	string
-	default "5.5.0"		if GCC_VERSION_5
-	default "8.3.0"		if GCC_VERSION_8
-	default "7.5.0"
+	default "11.3.0"	if GCC_VERSION_11
+	default "13.1.0"	if GCC_VERSION_13
+	default "12.3.0"

@@ -12,9 +12,11 @@ Signed-off-by: Vishal Kumar <quic_visk@quicinc.com>
  drivers/net/wireless/ath/ath12k/mac.c | 31 ++++++++++++++++++++++-----
  1 file changed, 26 insertions(+), 5 deletions(-)
 
+diff --git a/drivers/net/wireless/ath/ath12k/mac.c b/drivers/net/wireless/ath/ath12k/mac.c
+index 06d6dae..5393aa3 100644
 --- a/drivers/net/wireless/ath/ath12k/mac.c
 +++ b/drivers/net/wireless/ath/ath12k/mac.c
-@@ -483,6 +483,18 @@ ath12k_mac_max_eht_nss(const u16 eht_mcs
+@@ -483,6 +483,18 @@ ath12k_mac_max_eht_nss(const u16 eht_mcs_mask[NL80211_EHT_NSS_MAX])
  	return 1;
  }
  
@@ -33,7 +35,7 @@ Signed-off-by: Vishal Kumar <quic_visk@quicinc.com>
  static u8 ath12k_parse_mpdudensity(u8 mpdudensity)
  {
  /* 802.11n D2.0 defined values for "Minimum MPDU Start Spacing":
-@@ -2810,6 +2822,8 @@ static void ath12k_peer_assoc_h_eht(stru
+@@ -2808,6 +2820,8 @@ static void ath12k_peer_assoc_h_eht(struct ath12k *ar,
  	struct ieee80211_bss_conf* link_conf;
  	struct ieee80211_link_sta *link_sta;
  	u32 peer_eht_ops;
@@ -42,7 +44,7 @@ Signed-off-by: Vishal Kumar <quic_visk@quicinc.com>
  
  	link_conf = ath12k_get_link_bss_conf(arvif);
  
-@@ -2840,6 +2854,9 @@ static void ath12k_peer_assoc_h_eht(stru
+@@ -2838,6 +2852,9 @@ static void ath12k_peer_assoc_h_eht(struct ath12k *ar,
  	band = def.chan->band;
  	eht_mcs_mask = arvif->bitrate_mask.control[band].eht_mcs;
  
@@ -52,7 +54,7 @@ Signed-off-by: Vishal Kumar <quic_visk@quicinc.com>
  	if (ath12k_peer_assoc_h_eht_masked(eht_mcs_mask))
  		return;
  
-@@ -2864,7 +2881,8 @@ static void ath12k_peer_assoc_h_eht(stru
+@@ -2862,7 +2879,8 @@ static void ath12k_peer_assoc_h_eht(struct ath12k *ar,
  	       sizeof(eht_cap->eht_cap_elem.phy_cap_info));
  	arg->peer_eht_ops = peer_eht_ops;;
  
@@ -62,23 +64,21 @@ Signed-off-by: Vishal Kumar <quic_visk@quicinc.com>
  
  	if (eht_nss > link_sta->rx_nss) {
  		user_rate_valid = false;
-@@ -2935,14 +2953,17 @@ static void ath12k_peer_assoc_h_eht(stru
+@@ -2933,14 +2951,17 @@ static void ath12k_peer_assoc_h_eht(struct ath12k *ar,
  			max_nss = mcs_nss->only_20mhz.rx_tx_mcs7_max_nss;
  	} else {
  		if (mcs_nss_supp_bw->rx_tx_mcs13_max_nss)
 -			max_nss = mcs_nss_supp_bw->rx_tx_mcs13_max_nss;
--		else if (mcs_nss_supp_bw->rx_tx_mcs11_max_nss)
--			max_nss = mcs_nss_supp_bw->rx_tx_mcs11_max_nss;
--		else
--			max_nss = mcs_nss_supp_bw->rx_tx_mcs9_max_nss;
 +			max_nss = u8_get_bits(mcs_nss_supp_bw->rx_tx_mcs13_max_nss,
 +					      IEEE80211_EHT_MCS_NSS_RX);
-+		if (mcs_nss_supp_bw->rx_tx_mcs11_max_nss)
-+			max_nss = max(max_nss, u8_get_bits(mcs_nss_supp_bw->rx_tx_mcs11_max_nss,
-+					      IEEE80211_EHT_MCS_NSS_RX));
-+		if (mcs_nss_supp_bw->rx_tx_mcs9_max_nss)
-+			max_nss = max(max_nss, u8_get_bits(mcs_nss_supp_bw->rx_tx_mcs9_max_nss,
-+					      IEEE80211_EHT_MCS_NSS_RX));
+ 		else if (mcs_nss_supp_bw->rx_tx_mcs11_max_nss)
+-			max_nss = mcs_nss_supp_bw->rx_tx_mcs11_max_nss;
++			max_nss = u8_get_bits(mcs_nss_supp_bw->rx_tx_mcs11_max_nss,
++					      IEEE80211_EHT_MCS_NSS_RX);
+ 		else
+-			max_nss = mcs_nss_supp_bw->rx_tx_mcs9_max_nss;
++			max_nss = u8_get_bits(mcs_nss_supp_bw->rx_tx_mcs9_max_nss,
++					      IEEE80211_EHT_MCS_NSS_RX);
  	}
  
 -	max_nss = max(max_nss, (uint8_t)eht_nss);
@@ -86,3 +86,6 @@ Signed-off-by: Vishal Kumar <quic_visk@quicinc.com>
  
  	arg->peer_nss = min(link_sta->rx_nss, max_nss);
  	arg->ru_punct_bitmap = ~def.ru_punct_bitmap;
+-- 
+2.17.1
+

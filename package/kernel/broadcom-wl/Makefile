@@ -10,10 +10,10 @@ include $(INCLUDE_DIR)/kernel.mk
 
 PKG_NAME:=broadcom-wl
 PKG_VERSION:=5.10.56.27.3
-PKG_RELEASE:=9
+PKG_RELEASE:=10
 
 PKG_SOURCE:=$(PKG_NAME)-$(PKG_VERSION)_$(ARCH).tar.bz2
-PKG_SOURCE_URL:=http://downloads.openwrt.org/sources
+PKG_SOURCE_URL:=@OPENWRT
 
 ifeq ($(ARCH),mipsel)
 PKG_HASH:=26a8c370f48fc129d0731cfd751c36cae1419b0bc8ca35781126744e60eae009
@@ -24,7 +24,7 @@ endif
 
 PKG_EXTMOD_SUBDIRS:=driver driver-mini glue
 
-PKG_USE_MIPS16:=0
+PKG_BUILD_FLAGS:=no-mips16
 PKG_FLAGS:=nonshared
 
 include $(INCLUDE_DIR)/package.mk
@@ -34,13 +34,13 @@ define Package/broadcom-wl/Default
   CATEGORY:=Kernel modules
   DEPENDS:=@(PACKAGE_kmod-brcm-wl||PACKAGE_kmod-brcm-wl-mini)
   SUBMENU:=Proprietary BCM43xx WiFi driver
-  SUBMENUDEP:=(TARGET_brcm47xx||TARGET_brcm63xx)
+  SUBMENUDEP:=(TARGET_bcm47xx||TARGET_bcm63xx)
 endef
 
 define KernelPackage/brcm-wl/Default
   $(call Package/broadcom-wl/Default)
   SECTION:=kernel
-  DEPENDS:=@(TARGET_brcm47xx||TARGET_brcm63xx) +wireless-tools
+  DEPENDS:=@(TARGET_bcm47xx||TARGET_bcm63xx) +wireless-tools +@KERNEL_WIRELESS_EXT
   TITLE:=Kernel driver for BCM43xx chipsets
   FILES:=$(PKG_BUILD_DIR)/driver$(1)/wl.ko $(PKG_BUILD_DIR)/glue/wl_glue.ko
   AUTOLOAD:=$(call AutoProbe,wl)
@@ -99,13 +99,21 @@ define Package/nas/description
  proprietary Broadcom wl driver.
 endef
 
-MAKE_KMOD := $(MAKE) -C "$(LINUX_DIR)" \
-		$(KERNEL_MAKE_FLAGS) \
+MAKE_KMOD := $(KERNEL_MAKE) \
 		PATH="$(TARGET_PATH)" \
-		SUBDIRS="$(PKG_BUILD_DIR)/kmod" \
+		M="$(PKG_BUILD_DIR)/kmod" \
 
 define Build/Prepare
 	$(call Build/Prepare/Default)
+
+	# New kernel version changed the sysmbol exported from printk to _printk
+	# The object file provided by broadcom require modification to correctly
+	# modprobe and generate a .ko
+	$(TARGET_CROSS)objcopy $(PKG_BUILD_DIR)/driver/wl_apsta/wl_prebuilt.o \
+	  --redefine-sym printk=_printk
+	$(TARGET_CROSS)objcopy $(PKG_BUILD_DIR)/driver/wl_apsta_mini/wl_prebuilt.o \
+	  --redefine-sym printk=_printk
+
 	$(CP) $(PKG_BUILD_DIR)/driver $(PKG_BUILD_DIR)/driver-mini
 	$(CP) ./src/glue $(PKG_BUILD_DIR)/glue
 endef
@@ -113,18 +121,18 @@ endef
 define Build/Compile
 	# Compile glue driver
 	$(MAKE_KMOD) -C "$(LINUX_DIR)" \
-		SUBDIRS="$(PKG_BUILD_DIR)/glue" \
+		M="$(PKG_BUILD_DIR)/glue" \
 		modules
 
 	# Compile the kernel part
 	$(MAKE_KMOD) \
-		SUBDIRS="$(PKG_BUILD_DIR)/driver" \
+		M="$(PKG_BUILD_DIR)/driver" \
 		MODFLAGS="-DMODULE -mlong-calls" \
 		KBUILD_EXTRA_SYMBOLS="$(PKG_BUILD_DIR)/glue/Module.symvers" \
 		modules
 
 	$(MAKE_KMOD) \
-		SUBDIRS="$(PKG_BUILD_DIR)/driver-mini" \
+		M="$(PKG_BUILD_DIR)/driver-mini" \
 		MODFLAGS="-DMODULE -mlong-calls" \
 		BUILD_TYPE="wl_apsta_mini" \
 		KBUILD_EXTRA_SYMBOLS="$(PKG_BUILD_DIR)/glue/Module.symvers" \

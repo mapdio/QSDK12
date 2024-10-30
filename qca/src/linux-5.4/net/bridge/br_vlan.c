@@ -826,9 +826,8 @@ EXPORT_SYMBOL_GPL(br_vlan_get_tag_skb);
  * 	Returns 0, when device(port or bridge device) has a valid bridge
  * 	vlan filter configuration and returns error otherwise.
  */
-int br_dev_is_vlan_filter_enabled(const struct net_device *dev)
+int br_dev_is_vlan_filter_enabled(struct net_device *dev)
 {
-	struct net_bridge *br;
 	struct net_bridge_port *p;
 	struct net_bridge_vlan_group *vg = NULL;
 	struct net_device *master = NULL;

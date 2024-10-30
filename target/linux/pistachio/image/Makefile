@@ -1,14 +1,11 @@
+# SPDX-License-Identifier: GPL-2.0-only
 #
 # Copyright (C) 2017 OpenWrt.org
-#
-# This is free software, licensed under the GNU General Public License v2.
-# See /LICENSE for more information.
-#
 
 include $(TOPDIR)/rules.mk
 include $(INCLUDE_DIR)/image.mk
 
-KERNEL_LOADADDR := 0x80400000
+KERNEL_LOADADDR := 0x80100000
 
 define Device/Default
   PROFILES := Default
@@ -18,21 +15,25 @@ define Device/Default
   KERNEL_SUFFIX := -kernel.itb
   KERNEL_INSTALL := 1
   KERNEL_IN_UBI := 1
+  DEVICE_DTS_CONFIG := config@1
   IMAGES := factory.ubi sysupgrade.tar
   IMAGE/factory.ubi := append-ubi
   IMAGE/sysupgrade.tar := sysupgrade-tar
 endef
 
-define Device/marduk
+define Device/img_creator-ci40
+  DEVICE_VENDOR := Imagination Technologies
+  DEVICE_MODEL := Creator Ci40 (VL-62899)
+  DEVICE_ALT0_VENDOR := Imagination Technologies
+  DEVICE_ALT0_MODEL := Marduk board
   BOARD_NAME := img,pistachio-marduk
   DEVICE_DTS := img/pistachio_marduk
   BLOCKSIZE := 256KiB
   PAGESIZE := 4KiB
-  DEVICE_TITLE := Creator Ci40
-  DEVICE_PACKAGES := kmod-tpm-i2c-infineon
+  DEVICE_PACKAGES := kmod-tpm-i2c-infineon kmod-ca8210 wpan-tools
 endef
 
-TARGET_DEVICES += marduk
+TARGET_DEVICES += img_creator-ci40
 
 
 $(eval $(call BuildImage))

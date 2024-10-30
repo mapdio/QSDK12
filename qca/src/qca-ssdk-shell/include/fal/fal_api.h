@@ -1,6 +1,6 @@
 /*
  * Copyright (c) 2014-2019, 2021, The Linux Foundation. All rights reserved.
- * Copyright (c) 2021-2022, Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2021-2024, Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for any
  * purpose with or without fee is hereby granted, provided that the above
@@ -147,7 +147,8 @@ extern "C" {
     SW_API_DEF(SW_API_PT_CNT_CFG_GET, fal_port_cnt_cfg_get), \
     SW_API_DEF(SW_API_PT_CNT_GET, fal_port_cnt_get), \
     SW_API_DEF(SW_API_PT_CNT_FLUSH, fal_port_cnt_flush), \
-    SW_API_DEF(SW_API_PT_COMBO_LINK_STATUS_GET, fal_port_combo_link_status_get ),
+    SW_API_DEF(SW_API_PT_COMBO_LINK_STATUS_GET, fal_port_combo_link_status_get ), \
+    SW_API_DEF(SW_API_PT_ERP_POWER_MODE_SET, fal_port_erp_power_mode_set),
 /*qca808x_start*/\
 /*end of PORTCONTROL_API*/
 #define PORTCONTROL_API_PARAM \
@@ -272,7 +273,8 @@ extern "C" {
     SW_API_DESC(SW_API_PT_CNT_CFG_GET) \
     SW_API_DESC(SW_API_PT_CNT_GET) \
     SW_API_DESC(SW_API_PT_CNT_FLUSH) \
-    SW_API_DESC(SW_API_PT_COMBO_LINK_STATUS_GET)
+    SW_API_DESC(SW_API_PT_COMBO_LINK_STATUS_GET) \
+    SW_API_DESC(SW_API_PT_ERP_POWER_MODE_SET)
 /*qca808x_start*/\
 /*end of PORTCONTROL_API_PARAM*/
 /*qca808x_end*/
@@ -614,7 +616,8 @@ extern "C" {
     SW_API_DEF(SW_API_ACL_VPGROUP_SET, fal_acl_vpgroup_set),\
     SW_API_DEF(SW_API_ACL_VPGROUP_GET, fal_acl_vpgroup_get), \
     SW_API_DEF(SW_API_ACL_MAC_ENTRY_SET, fal_acl_mac_entry_set), \
-    SW_API_DEF(SW_API_ACL_MAC_ENTRY_DUMP, fal_acl_mac_entry_dump),
+    SW_API_DEF(SW_API_ACL_MAC_ENTRY_DUMP, fal_acl_mac_entry_dump), \
+    SW_API_DEF(SW_API_ACL_COUNTER_GET, fal_acl_counter_get),
 
 #define ACL_API_PARAM \
     SW_API_DESC(SW_API_ACL_LIST_CREAT) \
@@ -645,7 +648,8 @@ extern "C" {
     SW_API_DESC(SW_API_ACL_VPGROUP_SET) \
     SW_API_DESC(SW_API_ACL_VPGROUP_GET) \
     SW_API_DESC(SW_API_ACL_MAC_ENTRY_SET) \
-    SW_API_DESC(SW_API_ACL_MAC_ENTRY_DUMP)
+    SW_API_DESC(SW_API_ACL_MAC_ENTRY_DUMP) \
+    SW_API_DESC(SW_API_ACL_COUNTER_GET)
 #else
 #define ACL_API
 #define ACL_API_PARAM
@@ -1096,11 +1100,15 @@ extern "C" {
 #ifdef IN_LED
 #define LED_API \
     SW_API_DEF(SW_API_LED_PATTERN_SET, fal_led_ctrl_pattern_set), \
-    SW_API_DEF(SW_API_LED_PATTERN_GET, fal_led_ctrl_pattern_get),
+    SW_API_DEF(SW_API_LED_PATTERN_GET, fal_led_ctrl_pattern_get), \
+    SW_API_DEF(SW_API_LED_PT_SRC_PATTERN_SET, fal_port_led_source_pattern_set), \
+    SW_API_DEF(SW_API_LED_PT_SRC_PATTERN_GET, fal_port_led_source_pattern_get),
 
 #define LED_API_PARAM \
     SW_API_DESC(SW_API_LED_PATTERN_SET) \
-    SW_API_DESC(SW_API_LED_PATTERN_GET)
+    SW_API_DESC(SW_API_LED_PATTERN_GET) \
+    SW_API_DESC(SW_API_LED_PT_SRC_PATTERN_SET) \
+    SW_API_DESC(SW_API_LED_PT_SRC_PATTERN_GET)
 #else
 #define LED_API
 #define LED_API_PARAM
@@ -1435,7 +1443,14 @@ extern "C" {
     SW_API_DEF(SW_API_FLOW_ENTRY_EN_SET, fal_flow_entry_en_set), \
     SW_API_DEF(SW_API_FLOW_ENTRY_EN_GET, fal_flow_entry_en_get), \
     SW_API_DEF(SW_API_FLOW_QOS_SET, fal_flow_qos_set), \
-    SW_API_DEF(SW_API_FLOW_QOS_GET, fal_flow_qos_get),
+    SW_API_DEF(SW_API_FLOW_QOS_GET, fal_flow_qos_get), \
+    SW_API_DEF(SW_API_FLOW_NPT66_PREFIX_ADD, fal_flow_npt66_prefix_add), \
+    SW_API_DEF(SW_API_FLOW_NPT66_PREFIX_GET, fal_flow_npt66_prefix_get), \
+    SW_API_DEF(SW_API_FLOW_NPT66_PREFIX_DEL, fal_flow_npt66_prefix_del), \
+    SW_API_DEF(SW_API_FLOW_NPT66_IID_CAL, fal_flow_npt66_iid_cal), \
+    SW_API_DEF(SW_API_FLOW_NPT66_IID_ADD, fal_flow_npt66_iid_add), \
+    SW_API_DEF(SW_API_FLOW_NPT66_IID_GET, fal_flow_npt66_iid_get), \
+    SW_API_DEF(SW_API_FLOW_NPT66_IID_DEL, fal_flow_npt66_iid_del),
 
 #define FLOW_API_PARAM \
     SW_API_DESC(SW_API_FLOW_STATUS_SET) \
@@ -1458,7 +1473,15 @@ extern "C" {
     SW_API_DESC(SW_API_FLOW_ENTRY_EN_SET) \
     SW_API_DESC(SW_API_FLOW_ENTRY_EN_GET) \
     SW_API_DESC(SW_API_FLOW_QOS_SET) \
-    SW_API_DESC(SW_API_FLOW_QOS_GET)
+    SW_API_DESC(SW_API_FLOW_QOS_GET) \
+    SW_API_DESC(SW_API_FLOW_NPT66_PREFIX_ADD) \
+    SW_API_DESC(SW_API_FLOW_NPT66_PREFIX_GET) \
+    SW_API_DESC(SW_API_FLOW_NPT66_PREFIX_DEL) \
+    SW_API_DESC(SW_API_FLOW_NPT66_IID_CAL) \
+    SW_API_DESC(SW_API_FLOW_NPT66_IID_ADD) \
+    SW_API_DESC(SW_API_FLOW_NPT66_IID_GET) \
+    SW_API_DESC(SW_API_FLOW_NPT66_IID_DEL)
+
 #else
 #define FLOW_API
 #define FLOW_API_PARAM
@@ -1576,8 +1599,6 @@ extern "C" {
 #define INTERFACECTRL_API \
     SW_API_DEF(SW_API_MAC_MODE_SET, fal_interface_mac_mode_set), \
     SW_API_DEF(SW_API_MAC_MODE_GET, fal_interface_mac_mode_get), \
-    SW_API_DEF(SW_API_PORT_3AZ_STATUS_SET, fal_port_3az_status_set), \
-    SW_API_DEF(SW_API_PORT_3AZ_STATUS_GET, fal_port_3az_status_get), \
     SW_API_DEF(SW_API_PHY_MODE_SET, fal_interface_phy_mode_set), \
     SW_API_DEF(SW_API_PHY_MODE_GET, fal_interface_phy_mode_get), \
     SW_API_DEF(SW_API_FX100_CTRL_SET, fal_interface_fx100_ctrl_set), \
@@ -1589,8 +1610,6 @@ extern "C" {
 #define INTERFACECTRL_API_PARAM \
     SW_API_DESC(SW_API_MAC_MODE_SET)  \
     SW_API_DESC(SW_API_MAC_MODE_GET)  \
-    SW_API_DESC(SW_API_PORT_3AZ_STATUS_SET)  \
-    SW_API_DESC(SW_API_PORT_3AZ_STATUS_GET)  \
     SW_API_DESC(SW_API_PHY_MODE_SET)  \
     SW_API_DESC(SW_API_PHY_MODE_GET)  \
     SW_API_DESC(SW_API_FX100_CTRL_SET)  \
@@ -1919,11 +1938,26 @@ extern "C" {
 #ifdef IN_RSS_HASH
 #define RSS_HASH_API \
     SW_API_DEF(SW_API_RSS_HASH_CONFIG_SET, fal_rss_hash_config_set), \
-    SW_API_DEF(SW_API_RSS_HASH_CONFIG_GET, fal_rss_hash_config_get),
-
+    SW_API_DEF(SW_API_RSS_HASH_CONFIG_GET, fal_rss_hash_config_get), \
+    SW_API_DEF(SW_API_TOEPLITZ_HASH_SECRET_KEY_SET, fal_toeplitz_hash_secret_key_set), \
+	SW_API_DEF(SW_API_TOEPLITZ_HASH_SECRET_KEY_GET, fal_toeplitz_hash_secret_key_get), \
+	SW_API_DEF(SW_API_TOEPLITZ_HASH_RSS_ALGM_SET, fal_rsshash_algm_set), \
+	SW_API_DEF(SW_API_TOEPLITZ_HASH_RSS_ALGM_GET, fal_rsshash_algm_get), \
+	SW_API_DEF(SW_API_TOEPLITZ_HASH_CONFIG_ADD, fal_toeplitz_hash_config_add), \
+	SW_API_DEF(SW_API_TOEPLITZ_HASH_CONFIG_DEL, fal_toeplitz_hash_config_del), \
+	SW_API_DEF(SW_API_TOEPLITZ_HASH_CONFIG_GETFIRST, fal_toeplitz_hash_config_getfirst), \
+	SW_API_DEF(SW_API_TOEPLITZ_HASH_CONFIG_GETNEXT, fal_toeplitz_hash_config_getnext),
 #define RSS_HASH_API_PARAM \
     SW_API_DESC(SW_API_RSS_HASH_CONFIG_SET) \
-    SW_API_DESC(SW_API_RSS_HASH_CONFIG_GET)
+    SW_API_DESC(SW_API_RSS_HASH_CONFIG_GET) \
+	SW_API_DESC(SW_API_TOEPLITZ_HASH_SECRET_KEY_SET) \
+	SW_API_DESC(SW_API_TOEPLITZ_HASH_SECRET_KEY_GET) \
+	SW_API_DESC(SW_API_TOEPLITZ_HASH_RSS_ALGM_SET) \
+	SW_API_DESC(SW_API_TOEPLITZ_HASH_RSS_ALGM_GET) \
+	SW_API_DESC(SW_API_TOEPLITZ_HASH_CONFIG_ADD) \
+	SW_API_DESC(SW_API_TOEPLITZ_HASH_CONFIG_DEL) \
+	SW_API_DESC(SW_API_TOEPLITZ_HASH_CONFIG_GETFIRST) \
+	SW_API_DESC(SW_API_TOEPLITZ_HASH_CONFIG_GETNEXT)
 #else
 #define RSS_HASH_API
 #define RSS_HASH_API_PARAM
@@ -2414,6 +2448,18 @@ extern "C" {
 #define ATHTAG_API_PARAM
 #endif
 
+#ifdef IN_PKTEDIT
+#define PKTEDIT_API \
+	SW_API_DEF(SW_API_PKTEDIT_PADDING_SET, fal_pktedit_padding_set), \
+	SW_API_DEF(SW_API_PKTEDIT_PADDING_GET, fal_pktedit_padding_get),
+#define PKTEDIT_API_PARAM \
+	SW_API_DESC(SW_API_PKTEDIT_PADDING_SET) \
+	SW_API_DESC(SW_API_PKTEDIT_PADDING_GET)
+#else
+#define PKTEDIT_API
+#define PKTEDIT_API_PARAM
+#endif
+
 /* auto_insert_flag */
 
 /*qca808x_start*/
@@ -2421,8 +2467,6 @@ extern "C" {
 /*qca808x_end*/\
     SW_API_DEF(SW_API_SWITCH_RESET, fal_reset), \
     SW_API_DEF(SW_API_SSDK_CFG, fal_ssdk_cfg), \
-    SW_API_DEF(SW_API_MODULE_FUNC_CTRL_SET, fal_module_func_ctrl_set), \
-    SW_API_DEF(SW_API_MODULE_FUNC_CTRL_GET, fal_module_func_ctrl_get), \
     SW_API_DEF(SW_API_PPE_CAPACITY_GET, fal_ppe_capacity_get), \
     /*qca808x_start*/\
     PORTCONTROL_API \
@@ -2468,6 +2512,7 @@ extern "C" {
     MAPT_API \
     TUNNEL_PROGRAM_API \
     ATHTAG_API \
+    PKTEDIT_API \
 /* auto_insert_flag_1 */ \
 /*qca808x_start*/\
     SW_API_DEF(SW_API_MAX, NULL),
@@ -2478,12 +2523,6 @@ extern "C" {
     SW_PARAM_DEF(SW_API_SWITCH_RESET, SW_UINT32, 4, SW_PARAM_IN, "Dev ID"), \
     SW_PARAM_DEF(SW_API_SSDK_CFG, SW_UINT32, 4, SW_PARAM_IN, "Dev ID"), \
     SW_PARAM_DEF(SW_API_SSDK_CFG, SW_SSDK_CFG, sizeof(ssdk_cfg_t), SW_PARAM_PTR|SW_PARAM_OUT, "ssdk configuration"), \
-    SW_PARAM_DEF(SW_API_MODULE_FUNC_CTRL_SET, SW_UINT32, 4, SW_PARAM_IN, "Dev ID"), \
-    SW_PARAM_DEF(SW_API_MODULE_FUNC_CTRL_SET, SW_MODULE, 4, SW_PARAM_IN, "Module"), \
-    SW_PARAM_DEF(SW_API_MODULE_FUNC_CTRL_SET, SW_FUNC_CTRL, sizeof(fal_func_ctrl_t), SW_PARAM_PTR|SW_PARAM_IN, "Function bitmap"), \
-    SW_PARAM_DEF(SW_API_MODULE_FUNC_CTRL_GET, SW_UINT32, 4, SW_PARAM_IN, "Dev ID"), \
-    SW_PARAM_DEF(SW_API_MODULE_FUNC_CTRL_GET, SW_MODULE, 4, SW_PARAM_IN, "Module"), \
-    SW_PARAM_DEF(SW_API_MODULE_FUNC_CTRL_GET, SW_FUNC_CTRL, sizeof(fal_func_ctrl_t), SW_PARAM_PTR|SW_PARAM_OUT, "Function bitmap"), \
     SW_PARAM_DEF(SW_API_PPE_CAPACITY_GET, SW_UINT32, 4, SW_PARAM_IN, "Dev ID"), \
     SW_PARAM_DEF(SW_API_PPE_CAPACITY_GET, SW_PPE_CAPACITY, sizeof(fal_ppe_tbl_caps_t), SW_PARAM_PTR|SW_PARAM_OUT, "PPE capacity"), \
     MIB_API_PARAM \
@@ -2530,6 +2569,7 @@ extern "C" {
     MAPT_API_PARAM \
     TUNNEL_PROGRAM_API_PARAM \
     ATHTAG_API_PARAM \
+    PKTEDIT_API_PARAM \
 /* auto_insert_flag_2 */ \
 /*qca808x_start*/\
     SW_PARAM_DEF(SW_API_MAX, SW_UINT32, 4, SW_PARAM_IN, "Dev ID"),

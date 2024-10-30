@@ -28,6 +28,9 @@ CONFIGURE_ARGS += \
 	--disable-websockets \
 	--disable-stomp
 
+TARGET_CFLAGS+= \
+	-Wno-error
+
 define Package/obuspa/conffiles
 /etc/config/obuspa
 endef

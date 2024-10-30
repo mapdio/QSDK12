@@ -1,6 +1,6 @@
 /*
  * Copyright (c) 2012, 2015-2019, The Linux Foundation. All rights reserved.
- * Copyright (c) 2021-2023 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2021-2024 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for any
  * purpose with or without fee is hereby granted, provided that the above
@@ -26,7 +26,7 @@
 #include "hsl_api.h"
 /*qca808x_end*/
 #include "adpt.h"
-
+#include "ssdk_dts.h"
 #include <linux/kernel.h>
 #include <linux/module.h>
 /*qca808x_start*/
@@ -181,24 +181,7 @@ _fal_port_duplex_get (a_uint32_t dev_id, fal_port_t port_id,
 static sw_error_t
 _fal_port_autoneg_enable (a_uint32_t dev_id, fal_port_t port_id)
 {
-  sw_error_t rv;
-  hsl_api_t *p_api;
-/*qca808x_end*/
-    adpt_api_t *p_adpt_api;
-
-    if((p_adpt_api = adpt_api_ptr_get(dev_id)) != NULL &&
-        p_adpt_api->adpt_port_autoneg_enable != NULL) {
-        rv = p_adpt_api->adpt_port_autoneg_enable(dev_id, port_id);
-        return rv;
-    }
-/*qca808x_start*/
-  SW_RTN_ON_NULL (p_api = hsl_api_ptr_get (dev_id));
-
-  if (NULL == p_api->port_autoneg_enable)
-    return SW_NOT_SUPPORTED;
-
-  rv = p_api->port_autoneg_enable (dev_id, port_id);
-  return rv;
+	return hsl_port_phy_autoneg_enable(dev_id, port_id);
 }
 
 static sw_error_t
@@ -219,31 +202,14 @@ static sw_error_t
 _fal_port_autoneg_status_get (a_uint32_t dev_id, fal_port_t port_id,
 			      a_bool_t * status)
 {
-  sw_error_t rv;
-  hsl_api_t *p_api;
-/*qca808x_end*/
-    adpt_api_t *p_adpt_api;
-
-    if((p_adpt_api = adpt_api_ptr_get(dev_id)) != NULL &&
-        p_adpt_api->adpt_port_autoneg_status_get != NULL) {
-        rv = p_adpt_api->adpt_port_autoneg_status_get(dev_id, port_id, status);
-        return rv;
-    }
-/*qca808x_start*/
-  SW_RTN_ON_NULL (p_api = hsl_api_ptr_get (dev_id));
-
-  if (NULL == p_api->port_autoneg_status_get)
-    return SW_NOT_SUPPORTED;
-
-  rv = p_api->port_autoneg_status_get (dev_id, port_id, status);
-  return rv;
+	return hsl_port_phy_autoneg_status_get(dev_id, port_id, status);
 }
 
 static sw_error_t
 _fal_port_autoneg_adv_get (a_uint32_t dev_id, fal_port_t port_id,
 			   a_uint32_t * autoadv)
 {
-  return hsl_port_phy_autoadv_get(dev_id, port_id, autoadv);
+	return hsl_port_phy_autoadv_get(dev_id, port_id, autoadv);
 }
 /*qca808x_end*/
 
@@ -335,71 +301,21 @@ static sw_error_t
 _fal_port_powersave_set (a_uint32_t dev_id, fal_port_t port_id,
 			 a_bool_t enable)
 {
-  sw_error_t rv;
-  hsl_api_t *p_api;
-    adpt_api_t *p_adpt_api;
-
-    if((p_adpt_api = adpt_api_ptr_get(dev_id)) != NULL &&
-        p_adpt_api->adpt_port_powersave_set != NULL) {
-        rv = p_adpt_api->adpt_port_powersave_set(dev_id, port_id, enable);
-        return rv;
-    }
-
-  SW_RTN_ON_NULL (p_api = hsl_api_ptr_get (dev_id));
-
-  if (NULL == p_api->port_powersave_set)
-    return SW_NOT_SUPPORTED;
-
-  rv = p_api->port_powersave_set (dev_id, port_id, enable);
-  return rv;
+	return hsl_port_phy_powersave_set(dev_id, port_id, enable);
 }
-
 
 static sw_error_t
 _fal_port_powersave_get (a_uint32_t dev_id, fal_port_t port_id,
 			 a_bool_t * enable)
 {
-  sw_error_t rv;
-  hsl_api_t *p_api;
-    adpt_api_t *p_adpt_api;
-
-    if((p_adpt_api = adpt_api_ptr_get(dev_id)) != NULL &&
-        p_adpt_api->adpt_port_powersave_get != NULL) {
-        rv = p_adpt_api->adpt_port_powersave_get(dev_id, port_id, enable);
-        return rv;
-    }
-
-  SW_RTN_ON_NULL (p_api = hsl_api_ptr_get (dev_id));
-
-  if (NULL == p_api->port_powersave_get)
-    return SW_NOT_SUPPORTED;
-
-  rv = p_api->port_powersave_get (dev_id, port_id, enable);
-  return rv;
+	return hsl_port_phy_powersave_get(dev_id, port_id, enable);
 }
 /*qca808x_start*/
 static sw_error_t
 _fal_port_hibernate_set (a_uint32_t dev_id, fal_port_t port_id,
 			 a_bool_t enable)
 {
-  sw_error_t rv;
-  hsl_api_t *p_api;
-/*qca808x_end*/
-    adpt_api_t *p_adpt_api;
-
-    if((p_adpt_api = adpt_api_ptr_get(dev_id)) != NULL &&
-        p_adpt_api->adpt_port_hibernate_set != NULL) {
-        rv = p_adpt_api->adpt_port_hibernate_set(dev_id, port_id, enable);
-        return rv;
-    }
-/*qca808x_start*/
-  SW_RTN_ON_NULL (p_api = hsl_api_ptr_get (dev_id));
-
-  if (NULL == p_api->port_hibernate_set)
-    return SW_NOT_SUPPORTED;
-
-  rv = p_api->port_hibernate_set (dev_id, port_id, enable);
-  return rv;
+	return hsl_port_phy_hibernate_set(dev_id, port_id, enable);
 }
 
 
@@ -407,50 +323,20 @@ static sw_error_t
 _fal_port_hibernate_get (a_uint32_t dev_id, fal_port_t port_id,
 			 a_bool_t * enable)
 {
-  sw_error_t rv;
-  hsl_api_t *p_api;
-/*qca808x_end*/
-    adpt_api_t *p_adpt_api;
-
-    if((p_adpt_api = adpt_api_ptr_get(dev_id)) != NULL &&
-        p_adpt_api->adpt_port_hibernate_get != NULL) {
-        rv = p_adpt_api->adpt_port_hibernate_get(dev_id, port_id, enable);
-        return rv;
-    }
-/*qca808x_start*/
-  SW_RTN_ON_NULL (p_api = hsl_api_ptr_get (dev_id));
-
-  if (NULL == p_api->port_hibernate_get)
-    return SW_NOT_SUPPORTED;
-
-  rv = p_api->port_hibernate_get (dev_id, port_id, enable);
-  return rv;
+	return hsl_port_phy_hibernate_get(dev_id, port_id, enable);
 }
-
+/*qca808x_end*/
+#endif
+/*qca808x_start*/
 static sw_error_t
 _fal_port_cdt (a_uint32_t dev_id, fal_port_t port_id, a_uint32_t mdi_pair,
-	       a_uint32_t * cable_status, a_uint32_t * cable_len)
+	       fal_cable_status_t * cable_status, a_uint32_t * cable_len)
 {
-  sw_error_t rv;
-  hsl_api_t *p_api;
-/*qca808x_end*/
-    adpt_api_t *p_adpt_api;
-
-    if((p_adpt_api = adpt_api_ptr_get(dev_id)) != NULL &&
-        p_adpt_api->adpt_port_cdt != NULL) {
-        rv = p_adpt_api->adpt_port_cdt(dev_id, port_id, mdi_pair, cable_status, cable_len);
-        return rv;
-    }
-/*qca808x_start*/
-  SW_RTN_ON_NULL (p_api = hsl_api_ptr_get (dev_id));
-
-  if (NULL == p_api->port_cdt)
-    return SW_NOT_SUPPORTED;
-
-  rv = p_api->port_cdt (dev_id, port_id, mdi_pair, cable_status, cable_len);
-  return rv;
+	return hsl_port_phy_cdt(dev_id, port_id, mdi_pair, cable_status,
+		cable_len);
 }
 /*qca808x_end*/
+#ifndef IN_PORTCONTROL_MINI
 static sw_error_t
 _fal_port_rxhdr_mode_get (a_uint32_t dev_id, fal_port_t port_id,
 			  fal_port_header_mode_t * mode)
@@ -730,47 +616,13 @@ _fal_port_link_status_get (a_uint32_t dev_id, fal_port_t port_id,
 static sw_error_t
 _fal_port_power_off (a_uint32_t dev_id, fal_port_t port_id)
 {
-  sw_error_t rv;
-  hsl_api_t *p_api;
-/*qca808x_end*/
-    adpt_api_t *p_adpt_api;
-
-    if((p_adpt_api = adpt_api_ptr_get(dev_id)) != NULL &&
-        p_adpt_api->adpt_port_power_off != NULL) {
-        rv = p_adpt_api->adpt_port_power_off(dev_id, port_id);
-        return rv;
-    }
-/*qca808x_start*/
-  SW_RTN_ON_NULL (p_api = hsl_api_ptr_get (dev_id));
-
-  if (NULL == p_api->port_power_off)
-    return SW_NOT_SUPPORTED;
-
-  rv = p_api->port_power_off (dev_id, port_id);
-  return rv;
+	return hsl_port_phy_power_off(dev_id, port_id);
 }
 
 static sw_error_t
 _fal_port_power_on (a_uint32_t dev_id, fal_port_t port_id)
 {
-  sw_error_t rv;
-  hsl_api_t *p_api;
-/*qca808x_end*/
-    adpt_api_t *p_adpt_api;
-
-    if((p_adpt_api = adpt_api_ptr_get(dev_id)) != NULL &&
-        p_adpt_api->adpt_port_power_on != NULL) {
-        rv = p_adpt_api->adpt_port_power_on(dev_id, port_id);
-        return rv;
-    }
-/*qca808x_start*/
-  SW_RTN_ON_NULL (p_api = hsl_api_ptr_get (dev_id));
-
-  if (NULL == p_api->port_power_on)
-    return SW_NOT_SUPPORTED;
-
-  rv = p_api->port_power_on (dev_id, port_id);
-  return rv;
+	return hsl_port_phy_power_on(dev_id, port_id);
 }
 /*qca808x_end*/
 static sw_error_t
@@ -1025,24 +877,7 @@ _fal_ring_flow_ctrl_thres_get (a_uint32_t dev_id, a_uint32_t ring_id,
 static sw_error_t
 _fal_port_8023az_set (a_uint32_t dev_id, fal_port_t port_id, a_bool_t enable)
 {
-  sw_error_t rv;
-  hsl_api_t *p_api;
-/*qca808x_end*/
-    adpt_api_t *p_adpt_api;
-
-    if((p_adpt_api = adpt_api_ptr_get(dev_id)) != NULL &&
-        p_adpt_api->adpt_port_8023az_set != NULL) {
-        rv = p_adpt_api->adpt_port_8023az_set(dev_id, port_id, enable);
-        return rv;
-    }
-/*qca808x_start*/
-  SW_RTN_ON_NULL (p_api = hsl_api_ptr_get (dev_id));
-
-  if (NULL == p_api->port_8023az_set)
-    return SW_NOT_SUPPORTED;
-
-  rv = p_api->port_8023az_set (dev_id, port_id, enable);
-  return rv;
+	return hsl_port_phy_8023az_set(dev_id, port_id, enable);
 }
 
 
@@ -1050,96 +885,28 @@ static sw_error_t
 _fal_port_8023az_get (a_uint32_t dev_id, fal_port_t port_id,
 		      a_bool_t * enable)
 {
-  sw_error_t rv;
-  hsl_api_t *p_api;
-/*qca808x_end*/
-    adpt_api_t *p_adpt_api;
-
-    if((p_adpt_api = adpt_api_ptr_get(dev_id)) != NULL &&
-        p_adpt_api->adpt_port_8023az_get != NULL) {
-        rv = p_adpt_api->adpt_port_8023az_get(dev_id, port_id, enable);
-        return rv;
-    }
-/*qca808x_start*/
-  SW_RTN_ON_NULL (p_api = hsl_api_ptr_get (dev_id));
-
-  if (NULL == p_api->port_8023az_get)
-    return SW_NOT_SUPPORTED;
-
-  rv = p_api->port_8023az_get (dev_id, port_id, enable);
-  return rv;
+	return hsl_port_phy_8023az_get(dev_id, port_id, enable);
 }
 
 static sw_error_t
 _fal_port_mdix_set (a_uint32_t dev_id, fal_port_t port_id,
 		    fal_port_mdix_mode_t mode)
 {
-  sw_error_t rv;
-  hsl_api_t *p_api;
-/*qca808x_end*/
-    adpt_api_t *p_adpt_api;
-
-    if((p_adpt_api = adpt_api_ptr_get(dev_id)) != NULL &&
-        p_adpt_api->adpt_port_mdix_set != NULL) {
-        rv = p_adpt_api->adpt_port_mdix_set(dev_id, port_id, mode);
-        return rv;
-    }
-/*qca808x_start*/
-  SW_RTN_ON_NULL (p_api = hsl_api_ptr_get (dev_id));
-
-  if (NULL == p_api->port_mdix_set)
-    return SW_NOT_SUPPORTED;
-
-  rv = p_api->port_mdix_set (dev_id, port_id, mode);
-  return rv;
+	return hsl_port_phy_mdix_set (dev_id, port_id, mode);
 }
 
 static sw_error_t
 _fal_port_mdix_get (a_uint32_t dev_id, fal_port_t port_id,
 		    fal_port_mdix_mode_t * mode)
 {
-  sw_error_t rv;
-  hsl_api_t *p_api;
-/*qca808x_end*/
-    adpt_api_t *p_adpt_api;
-
-    if((p_adpt_api = adpt_api_ptr_get(dev_id)) != NULL &&
-        p_adpt_api->adpt_port_mdix_get != NULL) {
-        rv = p_adpt_api->adpt_port_mdix_get(dev_id, port_id, mode);
-        return rv;
-    }
-/*qca808x_start*/
-  SW_RTN_ON_NULL (p_api = hsl_api_ptr_get (dev_id));
-
-  if (NULL == p_api->port_mdix_get)
-    return SW_NOT_SUPPORTED;
-
-  rv = p_api->port_mdix_get (dev_id, port_id, mode);
-  return rv;
+	return hsl_port_phy_mdix_get (dev_id, port_id, mode);
 }
 
 static sw_error_t
 _fal_port_mdix_status_get (a_uint32_t dev_id, fal_port_t port_id,
 			   fal_port_mdix_status_t * mode)
 {
-  sw_error_t rv;
-  hsl_api_t *p_api;
-/*qca808x_end*/
-    adpt_api_t *p_adpt_api;
-
-    if((p_adpt_api = adpt_api_ptr_get(dev_id)) != NULL &&
-        p_adpt_api->adpt_port_mdix_status_get != NULL) {
-        rv = p_adpt_api->adpt_port_mdix_status_get(dev_id, port_id, mode);
-        return rv;
-    }
-/*qca808x_start*/
-  SW_RTN_ON_NULL (p_api = hsl_api_ptr_get (dev_id));
-
-  if (NULL == p_api->port_mdix_status_get)
-    return SW_NOT_SUPPORTED;
-
-  rv = p_api->port_mdix_status_get (dev_id, port_id, mode);
-  return rv;
+	return hsl_port_phy_mdix_status_get (dev_id, port_id, mode);
 }
 /*qca808x_end*/
 #endif
@@ -1195,142 +962,42 @@ static sw_error_t
 _fal_port_combo_medium_status_get (a_uint32_t dev_id, fal_port_t port_id,
 				   fal_port_medium_t * medium)
 {
-  sw_error_t rv;
-  hsl_api_t *p_api;
-    adpt_api_t *p_adpt_api;
-
-    if((p_adpt_api = adpt_api_ptr_get(dev_id)) != NULL &&
-        p_adpt_api->adpt_port_combo_medium_status_get != NULL) {
-        rv = p_adpt_api->adpt_port_combo_medium_status_get(dev_id, port_id, medium);
-        return rv;
-    }
-
-  SW_RTN_ON_NULL (p_api = hsl_api_ptr_get (dev_id));
-
-  if (NULL == p_api->port_combo_medium_status_get)
-    return SW_NOT_SUPPORTED;
-
-  rv = p_api->port_combo_medium_status_get (dev_id, port_id, medium);
-  return rv;
+	return hsl_port_phy_combo_medium_status_get(dev_id, port_id, medium);
 }
 
 static sw_error_t
 _fal_port_combo_fiber_mode_set (a_uint32_t dev_id, fal_port_t port_id,
 				fal_port_fiber_mode_t mode)
 {
-  sw_error_t rv;
-  hsl_api_t *p_api;
-    adpt_api_t *p_adpt_api;
-
-    if((p_adpt_api = adpt_api_ptr_get(dev_id)) != NULL &&
-        p_adpt_api->adpt_port_combo_fiber_mode_set != NULL) {
-        rv = p_adpt_api->adpt_port_combo_fiber_mode_set(dev_id, port_id, mode);
-        return rv;
-    }
-
-  SW_RTN_ON_NULL (p_api = hsl_api_ptr_get (dev_id));
-
-  if (NULL == p_api->port_combo_fiber_mode_set)
-    return SW_NOT_SUPPORTED;
-
-  rv = p_api->port_combo_fiber_mode_set (dev_id, port_id, mode);
-  return rv;
+	return hsl_port_phy_combo_fiber_mode_set(dev_id, port_id, mode);
 }
 
 static sw_error_t
 _fal_port_combo_fiber_mode_get (a_uint32_t dev_id, fal_port_t port_id,
 				fal_port_fiber_mode_t * mode)
 {
-  sw_error_t rv;
-  hsl_api_t *p_api;
-    adpt_api_t *p_adpt_api;
-
-    if((p_adpt_api = adpt_api_ptr_get(dev_id)) != NULL &&
-        p_adpt_api->adpt_port_combo_fiber_mode_get != NULL) {
-        rv = p_adpt_api->adpt_port_combo_fiber_mode_get(dev_id, port_id, mode);
-        return rv;
-    }
-
-  SW_RTN_ON_NULL (p_api = hsl_api_ptr_get (dev_id));
-
-  if (NULL == p_api->port_combo_fiber_mode_get)
-    return SW_NOT_SUPPORTED;
-
-  rv = p_api->port_combo_fiber_mode_get (dev_id, port_id, mode);
-  return rv;
+	return hsl_port_phy_combo_fiber_mode_get(dev_id, port_id, mode);
 }
 /*qca808x_start*/
 static sw_error_t
 _fal_port_local_loopback_set (a_uint32_t dev_id, fal_port_t port_id,
 			      a_bool_t enable)
 {
-  sw_error_t rv;
-  hsl_api_t *p_api;
-/*qca808x_end*/
-    adpt_api_t *p_adpt_api;
-
-    if((p_adpt_api = adpt_api_ptr_get(dev_id)) != NULL &&
-        p_adpt_api->adpt_port_local_loopback_set != NULL) {
-        rv = p_adpt_api->adpt_port_local_loopback_set(dev_id, port_id, enable);
-        return rv;
-    }
-/*qca808x_start*/
-  SW_RTN_ON_NULL (p_api = hsl_api_ptr_get (dev_id));
-
-  if (NULL == p_api->port_local_loopback_set)
-    return SW_NOT_SUPPORTED;
-
-  rv = p_api->port_local_loopback_set (dev_id, port_id, enable);
-  return rv;
+	return hsl_port_phy_local_loopback_set(dev_id, port_id, enable);
 }
-
 
 static sw_error_t
 _fal_port_local_loopback_get (a_uint32_t dev_id, fal_port_t port_id,
 			      a_bool_t * enable)
 {
-  sw_error_t rv;
-  hsl_api_t *p_api;
-/*qca808x_end*/
-    adpt_api_t *p_adpt_api;
-
-    if((p_adpt_api = adpt_api_ptr_get(dev_id)) != NULL &&
-        p_adpt_api->adpt_port_local_loopback_get != NULL) {
-        rv = p_adpt_api->adpt_port_local_loopback_get(dev_id, port_id, enable);
-        return rv;
-    }
-/*qca808x_start*/
-  SW_RTN_ON_NULL (p_api = hsl_api_ptr_get (dev_id));
-
-  if (NULL == p_api->port_local_loopback_get)
-    return SW_NOT_SUPPORTED;
-
-  rv = p_api->port_local_loopback_get (dev_id, port_id, enable);
-  return rv;
+	return hsl_port_phy_local_loopback_get(dev_id, port_id, enable);
 }
 
 static sw_error_t
 _fal_port_remote_loopback_set (a_uint32_t dev_id, fal_port_t port_id,
 			       a_bool_t enable)
 {
-  sw_error_t rv;
-  hsl_api_t *p_api;
-/*qca808x_end*/
-    adpt_api_t *p_adpt_api;
-
-    if((p_adpt_api = adpt_api_ptr_get(dev_id)) != NULL &&
-        p_adpt_api->adpt_port_remote_loopback_set != NULL) {
-        rv = p_adpt_api->adpt_port_remote_loopback_set(dev_id, port_id, enable);
-        return rv;
-    }
-/*qca808x_start*/
-  SW_RTN_ON_NULL (p_api = hsl_api_ptr_get (dev_id));
-
-  if (NULL == p_api->port_remote_loopback_set)
-    return SW_NOT_SUPPORTED;
-
-  rv = p_api->port_remote_loopback_set (dev_id, port_id, enable);
-  return rv;
+	return hsl_port_phy_remote_loopback_set(dev_id, port_id, enable);
 }
 
 
@@ -1338,163 +1005,44 @@ static sw_error_t
 _fal_port_remote_loopback_get (a_uint32_t dev_id, fal_port_t port_id,
 			       a_bool_t * enable)
 {
-  sw_error_t rv;
-  hsl_api_t *p_api;
-/*qca808x_end*/
-    adpt_api_t *p_adpt_api;
-
-    if((p_adpt_api = adpt_api_ptr_get(dev_id)) != NULL &&
-        p_adpt_api->adpt_port_remote_loopback_get!= NULL) {
-        rv = p_adpt_api->adpt_port_remote_loopback_get(dev_id, port_id, enable);
-        return rv;
-    }
-/*qca808x_start*/
-  SW_RTN_ON_NULL (p_api = hsl_api_ptr_get (dev_id));
-
-  if (NULL == p_api->port_remote_loopback_get)
-    return SW_NOT_SUPPORTED;
-
-  rv = p_api->port_remote_loopback_get (dev_id, port_id, enable);
-  return rv;
+	return hsl_port_phy_remote_loopback_get(dev_id, port_id, enable);
 }
 
 static sw_error_t
 _fal_port_reset (a_uint32_t dev_id, fal_port_t port_id)
 {
-  sw_error_t rv;
-  hsl_api_t *p_api;
-/*qca808x_end*/
-    adpt_api_t *p_adpt_api;
-
-    if((p_adpt_api = adpt_api_ptr_get(dev_id)) != NULL &&
-        p_adpt_api->adpt_port_reset != NULL) {
-        rv = p_adpt_api->adpt_port_reset(dev_id, port_id);
-        return rv;
-    }
-/*qca808x_start*/
-  SW_RTN_ON_NULL (p_api = hsl_api_ptr_get (dev_id));
-
-  if (NULL == p_api->port_reset)
-    return SW_NOT_SUPPORTED;
-
-  rv = p_api->port_reset (dev_id, port_id);
-  return rv;
+	return hsl_port_phy_reset(dev_id, port_id);
 }
 
 
 static sw_error_t
 _fal_port_phy_id_get (a_uint32_t dev_id, fal_port_t port_id,a_uint16_t * org_id, a_uint16_t * rev_id)
 {
-  sw_error_t rv;
-  hsl_api_t *p_api;
-/*qca808x_end*/
-    adpt_api_t *p_adpt_api;
-
-    if((p_adpt_api = adpt_api_ptr_get(dev_id)) != NULL &&
-        p_adpt_api->adpt_port_phy_id_get != NULL) {
-        rv = p_adpt_api->adpt_port_phy_id_get(dev_id, port_id, org_id, rev_id);
-        return rv;
-    }
-/*qca808x_start*/
-  SW_RTN_ON_NULL (p_api = hsl_api_ptr_get (dev_id));
-
-  if (NULL == p_api->port_phy_id_get)
-    return SW_NOT_SUPPORTED;
-
-  rv = p_api->port_phy_id_get (dev_id, port_id,org_id,rev_id);
-  return rv;
+	return hsl_port_phy_phyid_get(dev_id, port_id, org_id, rev_id);
 }
 
 static sw_error_t
 _fal_port_wol_status_set (a_uint32_t dev_id, fal_port_t port_id, a_bool_t enable)
 {
-  sw_error_t rv;
-  hsl_api_t *p_api;
-/*qca808x_end*/
-    adpt_api_t *p_adpt_api;
-
-    if((p_adpt_api = adpt_api_ptr_get(dev_id)) != NULL &&
-        p_adpt_api->adpt_port_wol_status_set != NULL) {
-        rv = p_adpt_api->adpt_port_wol_status_set(dev_id, port_id, enable);
-        return rv;
-    }
-/*qca808x_start*/
-  SW_RTN_ON_NULL (p_api = hsl_api_ptr_get (dev_id));
-
-  if (NULL == p_api->port_wol_status_set)
-    return SW_NOT_SUPPORTED;
-
-  rv = p_api->port_wol_status_set (dev_id, port_id,enable);
-  return rv;
+	return hsl_port_phy_wol_status_set(dev_id, port_id, enable);
 }
 
 static sw_error_t
 _fal_port_wol_status_get (a_uint32_t dev_id, fal_port_t port_id, a_bool_t *enable)
 {
-  sw_error_t rv;
-  hsl_api_t *p_api;
-/*qca808x_end*/
-    adpt_api_t *p_adpt_api;
-
-    if((p_adpt_api = adpt_api_ptr_get(dev_id)) != NULL &&
-        p_adpt_api->adpt_port_wol_status_get != NULL) {
-        rv = p_adpt_api->adpt_port_wol_status_get(dev_id, port_id, enable);
-        return rv;
-    }
-/*qca808x_start*/
-  SW_RTN_ON_NULL (p_api = hsl_api_ptr_get (dev_id));
-
-  if (NULL == p_api->port_wol_status_get)
-    return SW_NOT_SUPPORTED;
-
-  rv = p_api->port_wol_status_get (dev_id, port_id,enable);
-  return rv;
+	return hsl_port_phy_wol_status_get(dev_id, port_id, enable);
 }
 
 static sw_error_t
 _fal_port_magic_frame_mac_set (a_uint32_t dev_id, fal_port_t port_id, fal_mac_addr_t * mac)
 {
-  sw_error_t rv;
-  hsl_api_t *p_api;
-/*qca808x_end*/
-    adpt_api_t *p_adpt_api;
-
-    if((p_adpt_api = adpt_api_ptr_get(dev_id)) != NULL &&
-        p_adpt_api->adpt_port_magic_frame_mac_set != NULL) {
-        rv = p_adpt_api->adpt_port_magic_frame_mac_set(dev_id, port_id, mac);
-        return rv;
-    }
-/*qca808x_start*/
-  SW_RTN_ON_NULL (p_api = hsl_api_ptr_get (dev_id));
-
-  if (NULL == p_api->port_magic_frame_mac_set)
-    return SW_NOT_SUPPORTED;
-
-  rv = p_api->port_magic_frame_mac_set (dev_id, port_id, mac);
-  return rv;
+	return hsl_port_phy_magic_frame_mac_set(dev_id, port_id, mac);
 }
 
 static sw_error_t
 _fal_port_magic_frame_mac_get (a_uint32_t dev_id, fal_port_t port_id, fal_mac_addr_t * mac)
 {
-  sw_error_t rv;
-  hsl_api_t *p_api;
-/*qca808x_end*/
-    adpt_api_t *p_adpt_api;
-
-    if((p_adpt_api = adpt_api_ptr_get(dev_id)) != NULL &&
-        p_adpt_api->adpt_port_magic_frame_mac_get != NULL) {
-        rv = p_adpt_api->adpt_port_magic_frame_mac_get(dev_id, port_id, mac);
-        return rv;
-    }
-/*qca808x_start*/
-  SW_RTN_ON_NULL (p_api = hsl_api_ptr_get (dev_id));
-
-  if (NULL == p_api->port_magic_frame_mac_get)
-    return SW_NOT_SUPPORTED;
-
-  rv = p_api->port_magic_frame_mac_get (dev_id, port_id, mac);
-  return rv;
+	return hsl_port_phy_magic_frame_mac_get(dev_id, port_id, mac);
 }
 /*qca808x_end*/
 static sw_error_t
@@ -1808,42 +1356,6 @@ _fal_port_source_filter_config_get(a_uint32_t dev_id,
 			src_filter_config);
 	return rv;
 }
-#ifndef IN_PORTCONTROL_MINI
-static sw_error_t
-_fal_port_interface_3az_status_set(a_uint32_t dev_id, fal_port_t port_id,
-		a_bool_t enable)
-{
-
-	adpt_api_t *p_api;
-	sw_error_t rv = SW_OK;
-
-	SW_RTN_ON_NULL(p_api = adpt_api_ptr_get(dev_id));
-
-	if (NULL == p_api->adpt_port_interface_3az_status_set)
-		return SW_NOT_SUPPORTED;
-
-	rv = p_api->adpt_port_interface_3az_status_set(dev_id, port_id, enable);
-	return rv;
-
-}
-
-static sw_error_t
-_fal_port_interface_3az_status_get(a_uint32_t dev_id, fal_port_t port_id,
-		a_bool_t * enable)
-{
-	adpt_api_t *p_api;
-	sw_error_t rv = SW_OK;
-
-	SW_RTN_ON_NULL(p_api = adpt_api_ptr_get(dev_id));
-
-	if (NULL == p_api->adpt_port_interface_3az_status_get)
-		return SW_NOT_SUPPORTED;
-
-	rv = p_api->adpt_port_interface_3az_status_get(dev_id, port_id, enable);
-	return rv;
-
-}
-#endif
 
 static sw_error_t
 _fal_port_promisc_mode_get(a_uint32_t dev_id, fal_port_t port_id, a_bool_t *enable)
@@ -1885,36 +1397,75 @@ static sw_error_t
 _fal_port_interface_eee_cfg_set(a_uint32_t dev_id, fal_port_t port_id,
 	fal_port_eee_cfg_t *port_eee_cfg)
 {
+    hsl_api_t *p_api = NULL;
+    adpt_api_t *p_adpt_api = NULL;
 
-	adpt_api_t *p_api;
-	sw_error_t rv = SW_OK;
+    if((p_adpt_api = adpt_api_ptr_get(dev_id)) != NULL &&
+        p_adpt_api->adpt_port_interface_eee_cfg_set != NULL) {
+        return p_adpt_api->adpt_port_interface_eee_cfg_set(dev_id, port_id, port_eee_cfg);
+    }
 
-	SW_RTN_ON_NULL(p_api = adpt_api_ptr_get(dev_id));
+  SW_RTN_ON_NULL(p_api = hsl_api_ptr_get (dev_id));
+  if (NULL == p_api->port_interface_eee_cfg_set)
+    return SW_NOT_SUPPORTED;
 
-	if (NULL == p_api->adpt_port_interface_eee_cfg_set)
-		return SW_NOT_SUPPORTED;
-
-	rv = p_api->adpt_port_interface_eee_cfg_set(dev_id, port_id, port_eee_cfg);
-	return rv;
-
+  return p_api->port_interface_eee_cfg_set(dev_id, port_id, port_eee_cfg);
 }
 
 static sw_error_t
 _fal_port_interface_eee_cfg_get(a_uint32_t dev_id, fal_port_t port_id,
 	fal_port_eee_cfg_t *port_eee_cfg)
 {
-	adpt_api_t *p_api;
-	sw_error_t rv = SW_OK;
+	hsl_api_t *p_api = NULL;
+	adpt_api_t *p_adpt_api = NULL;
 
-	SW_RTN_ON_NULL(p_api = adpt_api_ptr_get(dev_id));
+	if((p_adpt_api = adpt_api_ptr_get(dev_id)) != NULL &&
+		p_adpt_api->adpt_port_interface_eee_cfg_get != NULL) {
+			return p_adpt_api->adpt_port_interface_eee_cfg_get(dev_id, port_id,
+				port_eee_cfg);
+	}
 
-	if (NULL == p_api->adpt_port_interface_eee_cfg_get)
+	SW_RTN_ON_NULL(p_api = hsl_api_ptr_get (dev_id));
+	if (NULL == p_api->port_interface_eee_cfg_get)
 		return SW_NOT_SUPPORTED;
 
-	rv = p_api->adpt_port_interface_eee_cfg_get(dev_id, port_id, port_eee_cfg);
-	return rv;
-
+	return p_api->port_interface_eee_cfg_get(dev_id, port_id, port_eee_cfg);
 }
+
+#ifndef IN_PORTCONTROL_MINI
+static sw_error_t
+_fal_port_interface_3az_status_set(a_uint32_t dev_id, fal_port_t port_id,
+		a_bool_t enable)
+{
+	sw_error_t rv = SW_OK;
+	fal_port_eee_cfg_t port_eee_cfg = {0};
+
+	rv = _fal_port_interface_eee_cfg_get(dev_id, port_id, &port_eee_cfg);
+	SW_RTN_ON_ERROR(rv);
+	port_eee_cfg.enable = enable;
+	if(enable)
+		port_eee_cfg.advertisement = FAL_PHY_EEE_ALL_ADV;
+	port_eee_cfg.lpi_tx_enable = enable;
+	rv = _fal_port_interface_eee_cfg_set(dev_id, port_id, &port_eee_cfg);
+
+	return rv;
+}
+
+static sw_error_t
+_fal_port_interface_3az_status_get(a_uint32_t dev_id, fal_port_t port_id,
+		a_bool_t * enable)
+{
+	sw_error_t rv = SW_OK;
+	fal_port_eee_cfg_t port_eee_cfg = {0};
+
+	rv = _fal_port_interface_eee_cfg_get(dev_id, port_id, &port_eee_cfg);
+	SW_RTN_ON_ERROR(rv);
+	*enable = (port_eee_cfg.enable && port_eee_cfg.lpi_tx_enable);
+
+	return SW_OK;
+}
+#endif
+
 static sw_error_t
 _fal_switch_port_loopback_set(a_uint32_t dev_id, fal_port_t port_id,
 	fal_loopback_config_t *loopback_cfg)
@@ -2212,6 +1763,31 @@ _fal_port_combo_link_status_get (a_uint32_t dev_id, fal_port_t port_id,
 	return hsl_port_combo_phy_link_status_get(dev_id, port_id, status);;
 }
 
+static sw_error_t
+_fal_port_erp_power_mode_set (a_uint32_t dev_id, fal_port_t port_id,
+				fal_port_erp_power_mode_t power_mode)
+{
+	sw_error_t rv;
+	hsl_api_t *p_api;
+	adpt_api_t *p_adpt_api;
+
+	if((p_adpt_api = adpt_api_ptr_get(dev_id)) != NULL) {
+		if (NULL == p_adpt_api->adpt_port_erp_power_mode_set)
+			return SW_NOT_SUPPORTED;
+
+		rv = p_adpt_api->adpt_port_erp_power_mode_set(dev_id, port_id, power_mode);
+		return rv;
+	}
+
+	SW_RTN_ON_NULL (p_api = hsl_api_ptr_get (dev_id));
+
+	if (NULL == p_api->port_erp_power_mode_set)
+		return SW_NOT_SUPPORTED;
+
+	rv = p_api->port_erp_power_mode_set (dev_id, port_id, power_mode);
+	return rv;
+}
+
 /*qca808x_start*/
 /*insert flag for inner fal, don't remove it*/
 /**
@@ -2499,7 +2075,9 @@ fal_port_hibernate_get (a_uint32_t dev_id, fal_port_t port_id,
   FAL_API_UNLOCK;
   return rv;
 }
-
+/*qca808x_end*/
+#endif
+/*qca808x_start*/
 /**
  * @brief cable diagnostic test.
  * @param[in] dev_id device id
@@ -2511,7 +2089,7 @@ fal_port_hibernate_get (a_uint32_t dev_id, fal_port_t port_id,
  */
 sw_error_t
 fal_port_cdt (a_uint32_t dev_id, fal_port_t port_id, a_uint32_t mdi_pair,
-	      a_uint32_t * cable_status, a_uint32_t * cable_len)
+	      fal_cable_status_t * cable_status, a_uint32_t * cable_len)
 {
   sw_error_t rv;
 
@@ -2521,6 +2099,7 @@ fal_port_cdt (a_uint32_t dev_id, fal_port_t port_id, a_uint32_t mdi_pair,
   return rv;
 }
 /*qca808x_end*/
+#ifndef IN_PORTCONTROL_MINI
 /**
  * @brief Get status of Atheros header packets parsed on a particular port.
  * @param[in] dev_id device id
@@ -4100,6 +3679,56 @@ fal_port_combo_link_status_get (a_uint32_t dev_id,
 	return rv;
 }
 
+sw_error_t
+fal_port_erp_power_mode_set (a_uint32_t dev_id, fal_port_t port_id,
+				fal_port_erp_power_mode_t power_mode)
+{
+	sw_error_t rv;
+
+	FAL_API_LOCK;
+	rv = _fal_port_erp_power_mode_set (dev_id, port_id, power_mode);
+	FAL_API_UNLOCK;
+	return rv;
+}
+
+sw_error_t
+fal_erp_standby_enter (a_uint32_t dev_id, a_uint32_t active_pbmap)
+{
+	a_uint32_t port_id = 0, pbmp = 0;
+	pbmp = ssdk_wan_bmp_get(dev_id) | ssdk_lan_bmp_get(dev_id);
+	while (pbmp) {
+		if (pbmp & 1) {
+			if (!SW_IS_PBMP_MEMBER(active_pbmap, port_id)) {
+				if (!hsl_port_feature_get(dev_id, port_id, PHY_F_FORCE)) {
+					SW_RTN_ON_ERROR(fal_port_erp_power_mode_set(dev_id,
+						port_id, FAL_ERP_LOW_POWER));
+				}
+			}
+		}
+		pbmp >>= 1;
+		port_id ++;
+	}
+	return SW_OK;
+}
+
+sw_error_t
+fal_erp_standby_exit (a_uint32_t dev_id)
+{
+	a_uint32_t port_id = 0, pbmp = 0;
+	pbmp = ssdk_wan_bmp_get(dev_id) | ssdk_lan_bmp_get(dev_id);
+	while (pbmp) {
+		if (pbmp & 1) {
+			if (hsl_port_feature_get(dev_id, port_id, PHY_F_ERP_LOW_POWER)) {
+				SW_RTN_ON_ERROR(fal_port_erp_power_mode_set(dev_id,
+					port_id, FAL_ERP_ACTIVE));
+			}
+		}
+		pbmp >>= 1;
+		port_id ++;
+	}
+	return SW_OK;
+}
+
 /*insert flag for outter fal, don't remove it*/
 /**
  * @}
@@ -4132,7 +3761,9 @@ EXPORT_SYMBOL(fal_port_powersave_set);
 EXPORT_SYMBOL(fal_port_powersave_get);
 EXPORT_SYMBOL(fal_port_hibernate_set);
 EXPORT_SYMBOL(fal_port_hibernate_get);
+#endif
 EXPORT_SYMBOL(fal_port_cdt);
+#ifndef IN_PORTCONTROL_MINI
 EXPORT_SYMBOL(fal_port_txmac_status_get);
 #endif
 EXPORT_SYMBOL(fal_port_txmac_status_set);
@@ -4219,3 +3850,6 @@ EXPORT_SYMBOL(fal_port_cnt_cfg_get);
 EXPORT_SYMBOL(fal_port_cnt_get);
 EXPORT_SYMBOL(fal_port_cnt_flush);
 EXPORT_SYMBOL(fal_port_combo_link_status_get);
+EXPORT_SYMBOL(fal_port_erp_power_mode_set);
+EXPORT_SYMBOL(fal_erp_standby_enter);
+EXPORT_SYMBOL(fal_erp_standby_exit);

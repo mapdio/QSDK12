@@ -1173,18 +1173,33 @@ int __qcom_scm_io_readl(struct device *dev, phys_addr_t addr,
 			unsigned int *val)
 {
 	int ret;
+	struct scm_desc desc = {0};
 
-	ret = qcom_scm_call_atomic1(QCOM_SCM_SVC_IO, QCOM_SCM_IO_READ, addr);
+	desc.args[0] = addr;
+	desc.arginfo = SCM_ARGS(1);
+
+	ret = qti_scm_call2(dev, SCM_SIP_FNID(QCOM_SCM_SVC_IO,
+				QCOM_SCM_IO_READ), &desc);
+
 	if (ret >= 0)
-		*val = ret;
+		*val = desc.ret[0];
 
 	return ret < 0 ? ret : 0;
 }
 
 int __qcom_scm_io_writel(struct device *dev, phys_addr_t addr, unsigned int val)
 {
-	return qcom_scm_call_atomic2(QCOM_SCM_SVC_IO, QCOM_SCM_IO_WRITE,
-				     addr, val);
+	int ret;
+	struct scm_desc desc = {0};
+
+	desc.args[0] = addr;
+	desc.args[1] = val;
+	desc.arginfo = SCM_ARGS(2);
+
+	ret = qti_scm_call2(dev, SCM_SIP_FNID(QCOM_SCM_SVC_IO,
+				QCOM_SCM_IO_WRITE), &desc);
+
+	return ret;
 }
 
 int __qti_qfprom_show_authenticate(struct device *dev, char *buf)
@@ -1433,10 +1448,16 @@ static int __qti_scm_dload_v8(struct device *dev, void *cmd_buf,
 	struct scm_desc desc = {0};
 	int ret;
 	unsigned int enable;
+	uint32_t val;
 
 	enable = cmd_buf ? *((unsigned int *)cmd_buf) : 0;
+
+	ret = qti_read_dload_reg(&val);
+	if (ret)
+		return ret;
+
 	desc.args[0] = dload_mode_addr;
-	desc.args[1] = readl(dload_reg);
+	desc.args[1] = val;
 	if (enable == SET_MAGIC_WARMRESET)
 		desc.args[1] |= DLOAD_MODE_ENABLE_WARMRESET;
 	else if (enable == ABNORMAL_MAGIC)
@@ -1762,7 +1783,7 @@ int __qti_scm_get_ecdsa_blob(struct device *dev, u32 svc_id, u32 cmd_id,
 }
 
 /**
- * __qti_scm_get_ipq5332_fuse_list() - Get OEM Fuse parameter from TME-L
+ * __qti_scm_get_ipq_fuse_list() - Get OEM Fuse parameter from TME-L
  *
  * @svc_id: SCM service id
  * @cmd_id: SCM command id
@@ -1771,8 +1792,8 @@ int __qti_scm_get_ecdsa_blob(struct device *dev, u32 svc_id, u32 cmd_id,
  *
  * This function can be used to get the OEM Fuse parameters from TME-L.
  */
-int __qti_scm_get_ipq5332_fuse_list(struct device *dev, u32 svc_id,
-		u32 cmd_id, struct fuse_payload *fuse,  size_t size)
+int __qti_scm_get_ipq_fuse_list(struct device *dev, u32 svc_id, u32 cmd_id,
+				void *fuse,  size_t size)
 {
 	int ret;
 	struct scm_desc desc = {0};
@@ -1799,6 +1820,30 @@ int __qti_scm_get_ipq5332_fuse_list(struct device *dev, u32 svc_id,
 	}
 
 	dma_unmap_single(dev, dma_fuse, size, DMA_FROM_DEVICE);
+	return ret;
+}
+
+/**
+ * __qti_scm_is_feature_available() - Check if a given feature is enabled by TZ,
+ *                   and its version if enabled.
+ * @feature_id: ID of the feature to check in TZ for availablilty/version.
+ *
+ * Return: 0 on success and the version of the feature in result.
+ *
+ * TZ returns 0xFFFFFFFF if this smc call is not supported or
+ * if smc call supported but feature ID not supported
+ */
+long  __qti_scm_is_feature_available(struct device *dev, u32 svc_id, u32 cmd_id,
+		u32 feature_id)
+{
+	long ret;
+	struct scm_desc desc = {0};
+
+	desc.args[0] = feature_id;
+	desc.arginfo = SCM_ARGS(1, QCOM_SCM_VAL);
+	ret = qti_scm_call2(dev, SCM_SIP_FNID(svc_id, cmd_id), &desc);
+	if (!ret)
+		ret = le32_to_cpu(desc.ret[0]);
 	return ret;
 }
 

@@ -149,6 +149,34 @@ ppe_drv_ret_t ppe_drv_br_fdb_lrn_ctrl(struct ppe_drv_iface *br_iface, bool enabl
 ppe_drv_ret_t ppe_drv_br_stp_state_set(struct ppe_drv_iface *br_iface, struct net_device *member, fal_stp_state_t state);
 
 /**
+ * ppe_drv_br_wanif_clear
+ *	clear ppe_drv_iface PPE_DRV_IFACE_FLAG_WAN_IF_VALID flag.
+ *
+ * @datatypes
+ * net_device
+ *
+ * @param[in] member    Pointer to the member net device.
+ *
+ * @return
+ * void.
+ */
+void ppe_drv_br_wanif_clear(struct net_device *member);
+
+/**
+ * ppe_drv_br_wanif_set
+ *	Set ppe_drv_iface flag to PPE_DRV_IFACE_FLAG_WAN_IF_VALID.
+ *
+ * @datatypes
+ * net_device
+ *
+ * @param[in] member	Pointer to the member net device.
+ *
+ * @return
+ * void.
+ */
+void ppe_drv_br_wanif_set(struct net_device *member);
+
+/**
  * ppe_drv_br_leave
  *	Remove a member from bridge interface in PPE.
  *

@@ -8,25 +8,34 @@
 include $(TOPDIR)/rules.mk
 
 PKG_NAME:=libqmi
-PKG_VERSION:=1.24.12
+PKG_SOURCE_VERSION:=1.32.4
 PKG_RELEASE:=1
 
-PKG_SOURCE:=$(PKG_NAME)-$(PKG_VERSION).tar.xz
-PKG_SOURCE_URL:=https://www.freedesktop.org/software/libqmi
-PKG_HASH:=2d3b91a2b8a882b17b16403c9ef7bdce522db4f0ceaa3e4dff76033885428b69
+PKG_SOURCE_PROTO:=git
+PKG_SOURCE_URL:=https://gitlab.freedesktop.org/mobile-broadband/libqmi.git
+PKG_MIRROR_HASH:=674f5848c56c11cdc2fbc82c52e5bc2a3a0fddb56315dc4220544688a7b0e17a
 
-PKG_MAINTAINER:=Nicholas Smith <nicholas.smith@telcoantennas.com.au>
+PKG_BUILD_FLAGS:=gc-sections
 
-PKG_INSTALL:=1
-PKG_BUILD_PARALLEL:=1
+PKG_MAINTAINER:=Nicholas Smith <nicholas@nbembedded.com>
 
 include $(INCLUDE_DIR)/package.mk
 include $(INCLUDE_DIR)/nls.mk
+include $(INCLUDE_DIR)/meson.mk
+
+TARGET_CFLAGS += -fno-merge-all-constants -fmerge-constants
+
+define Package/libqmi/config
+  source "$(SOURCE)/Config.in"
+endef
 
 define Package/libqmi
   SECTION:=libs
   CATEGORY:=Libraries
-  DEPENDS:=+libmbim
+  DEPENDS:= \
+    +glib2 \
+    +LIBQMI_WITH_MBIM_QMUX:libmbim \
+    +LIBQMI_WITH_QRTR_GLIB:libqrtr-glib
   TITLE:=Helper library to talk to QMI enabled modems
   URL:=https://www.freedesktop.org/wiki/Software/libqmi
   LICENSE:=LGPL-2.0-or-later
@@ -52,17 +61,16 @@ define Package/libqmi-utils/description
   Utils to talk to QMI enabled modems
 endef
 
-CONFIGURE_ARGS += \
-	--disable-static \
-	--disable-gtk-doc \
-	--disable-gtk-doc-html \
-	--disable-gtk-doc-pdf \
-	--disable-silent-rules \
-	--enable-firmware-update \
-	--enable-mbim-qmux \
-	--enable-more-warnings=yes \
-	--without-udev \
-	--without-udev-base-dir
+MESON_ARGS += \
+	-Dudev=false \
+	-Dintrospection=false \
+	-Dman=false \
+	-Dbash_completion=false \
+	-Db_lto=true \
+	-Dmbim_qmux=$(if $(CONFIG_LIBQMI_WITH_MBIM_QMUX),true,false) \
+	-Dqrtr=$(if $(CONFIG_LIBQMI_WITH_QRTR_GLIB),true,false) \
+	-Dcollection=$(if $(CONFIG_LIBQMI_COLLECTION_MINIMAL),minimal\
+		    ,$(if $(CONFIG_LIBQMI_COLLECTION_BASIC),basic,full))
 
 define Build/InstallDev
 	$(INSTALL_DIR) $(1)/usr/include
@@ -82,12 +90,15 @@ define Build/InstallDev
 endef
 
 define Package/libqmi/install
-	$(INSTALL_DIR) $(1)/usr/lib
+	$(INSTALL_DIR) \
+		$(1)/usr/lib \
+		$(1)/usr/libexec
+
 	$(CP) \
 		$(PKG_INSTALL_DIR)/usr/lib/libqmi*.so.* \
 		$(1)/usr/lib/
 
-	$(INSTALL_BIN) $(PKG_INSTALL_DIR)/usr/lib/qmi-proxy $(1)/usr/lib/
+	$(INSTALL_BIN) $(PKG_INSTALL_DIR)/usr/libexec/qmi-proxy $(1)/usr/libexec/
 endef
 
 define Package/qmi-utils/install

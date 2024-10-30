@@ -1709,6 +1709,9 @@ static int call_netdevice_notifiers_mtu(unsigned long val,
 	return call_netdevice_notifiers_info(val, &info.info);
 }
 
+bool fast_tc_filter = false;
+EXPORT_SYMBOL_GPL(fast_tc_filter);
+
 #ifdef CONFIG_NET_INGRESS
 static DEFINE_STATIC_KEY_FALSE(ingress_needed_key);
 
@@ -4091,13 +4094,15 @@ bool dev_fast_xmit_qdisc(struct sk_buff *skb, struct net_device *top_qdisc_dev, 
 	qdisc_pkt_len_init(skb);
 #ifdef CONFIG_NET_CLS_ACT
 	skb->tc_at_ingress = 0;
-# ifdef CONFIG_NET_EGRESS
+#ifdef CONFIG_NET_EGRESS
 	if (static_branch_unlikely(&egress_needed_key)) {
 		skb = sch_handle_egress(skb, &rc, top_qdisc_dev);
-		if (!skb)
-			goto out;
+		if (!skb) {
+			rcu_read_unlock_bh();
+			return true;
+		}
 	}
-# endif
+#endif
 #endif
 	/* If device/qdisc don't need skb->dst, release it right now while
 	 * its hot in this cpu cache.
@@ -4115,7 +4120,6 @@ bool dev_fast_xmit_qdisc(struct sk_buff *skb, struct net_device *top_qdisc_dev, 
 	skb->fast_qdisc = 1;
 	rc = __dev_xmit_skb_qdisc(skb, q, top_qdisc_dev, txq);
 
-out:
 	rcu_read_unlock_bh();
 	return true;
 }
@@ -4512,8 +4516,20 @@ static int get_rps_cpu(struct net_device *dev, struct sk_buff *skb,
 
 	flow_table = rcu_dereference(rxqueue->rps_flow_table);
 	map = rcu_dereference(rxqueue->rps_map);
-	if (!flow_table && !map)
-		goto done;
+	if (!flow_table) {
+		if (!map) {
+			goto done;
+		}
+
+		/* Skip hash calculation & lookup if we have only one CPU to transmit and RFS is disabled */
+		if (map->len == 1) {
+			tcpu = map->cpus[0];
+			if (cpu_online(tcpu)) {
+				cpu = tcpu;
+				goto done;
+			}
+		}
+	}
 
 	skb_reset_network_header(skb);
 	hash = skb_get_hash(skb);
@@ -5330,11 +5346,13 @@ another_round:
 		skb_reset_mac_len(skb);
 	}
 
-	fast_recv = rcu_dereference(athrs_fast_nat_recv);
-	if (fast_recv) {
-		if (fast_recv(skb)) {
-			ret = NET_RX_SUCCESS;
-			goto out;
+	if (likely(!fast_tc_filter)) {
+		fast_recv = rcu_dereference(athrs_fast_nat_recv);
+		if (fast_recv) {
+			if (fast_recv(skb)) {
+				ret = NET_RX_SUCCESS;
+				goto out;
+			}
 		}
 	}
 
@@ -5376,6 +5394,7 @@ skip_taps:
 #endif
 	skb_reset_redirect(skb);
 skip_classify:
+
 	if (pfmemalloc && !skb_pfmemalloc_protocol(skb))
 		goto drop;
 
@@ -5389,6 +5408,24 @@ skip_classify:
 		else if (unlikely(!skb))
 			goto out;
 	}
+
+	if (unlikely(!fast_tc_filter)) {
+		goto skip_fast_recv;
+	}
+
+	fast_recv = rcu_dereference(athrs_fast_nat_recv);
+	if (fast_recv) {
+		if (pt_prev) {
+			ret = deliver_skb(skb, pt_prev, orig_dev);
+			pt_prev = NULL;
+		}
+
+		if (fast_recv(skb)) {
+			ret = NET_RX_SUCCESS;
+			goto out;
+		}
+	}
+skip_fast_recv:
 
 	rx_handler = rcu_dereference(skb->dev->rx_handler);
 	if (rx_handler) {
@@ -6463,10 +6500,16 @@ static int process_backlog(struct napi_struct *napi, int quota)
 
 	napi->weight = READ_ONCE(dev_rx_weight);
 	while (again) {
-		struct sk_buff *skb;
+		struct sk_buff *skb, *next_skb;
 
 		while ((skb = __skb_dequeue(&sd->process_queue))) {
 			rcu_read_lock();
+
+			next_skb = skb_peek(&sd->process_queue);
+			if (likely(next_skb)) {
+				prefetch(next_skb->data);
+			}
+
 			__netif_receive_skb(skb);
 			rcu_read_unlock();
 			input_queue_head_incr(sd);
@@ -9828,6 +9871,13 @@ int register_netdevice(struct net_device *dev)
 	 */
 	dev->mpls_features |= NETIF_F_SG;
 
+	/*
+	 * Disable default qdisc on the netdevice if required.
+	 */
+#ifdef CONFIG_DEFAULT_QDISC_DISABLE
+	dev->priv_flags |= IFF_NO_QUEUE;
+#endif
+
 	ret = call_netdevice_notifiers(NETDEV_POST_INIT, dev);
 	ret = notifier_to_errno(ret);
 	if (ret)
@@ -10174,6 +10224,40 @@ struct rtnl_link_stats64 *dev_get_stats(struct net_device *dev,
 	return storage;
 }
 EXPORT_SYMBOL(dev_get_stats);
+
+/**
+ *	dev_fetch_sw_netstats - get per-cpu network device statistics
+ *	@s: place to store stats
+ *	@netstats: per-cpu network stats to read from
+ *
+ *	Read per-cpu network statistics and populate the related fields in @s.
+ */
+void dev_fetch_sw_netstats(struct rtnl_link_stats64 *s,
+			   const struct pcpu_sw_netstats __percpu *netstats)
+{
+	int cpu;
+
+	for_each_possible_cpu(cpu) {
+		const struct pcpu_sw_netstats *stats;
+		struct pcpu_sw_netstats tmp;
+		unsigned int start;
+
+		stats = per_cpu_ptr(netstats, cpu);
+		do {
+			start = u64_stats_fetch_begin_irq(&stats->syncp);
+			tmp.rx_packets = stats->rx_packets;
+			tmp.rx_bytes   = stats->rx_bytes;
+			tmp.tx_packets = stats->tx_packets;
+			tmp.tx_bytes   = stats->tx_bytes;
+		} while (u64_stats_fetch_retry_irq(&stats->syncp, start));
+
+		s->rx_packets += tmp.rx_packets;
+		s->rx_bytes   += tmp.rx_bytes;
+		s->tx_packets += tmp.tx_packets;
+		s->tx_bytes   += tmp.tx_bytes;
+	}
+}
+EXPORT_SYMBOL_GPL(dev_fetch_sw_netstats);
 
 struct netdev_queue *dev_ingress_queue_create(struct net_device *dev)
 {

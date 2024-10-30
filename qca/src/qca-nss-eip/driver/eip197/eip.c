@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2022, Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2023, Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for any
  * purpose with or without fee is hereby granted, provided that the above
@@ -27,7 +27,12 @@
 #include <asm/cacheflush.h>
 
 #include <crypto/md5.h>
+#if (LINUX_VERSION_CODE < KERNEL_VERSION(6, 1, 0))
 #include <crypto/sha.h>
+#else
+#include <crypto/sha1.h>
+#include <crypto/sha2.h>
+#endif
 #include <crypto/sha3.h>
 #include <crypto/aes.h>
 #include <crypto/des.h>
@@ -36,7 +41,10 @@
 
 struct eip_drv eip_drv_g;     /* Global Driver object */
 
-static const struct of_device_id eip_dev_dt_id = { .compatible =  "qcom,eip" };
+static const struct of_device_id eip_dev_dt_id[] = {
+	{ .compatible =  "qcom,eip" },
+	{},
+};
 
 /*
  * eip_device_probe()
@@ -70,7 +78,7 @@ static int eip_device_probe(struct platform_device *pdev)
 	 * remap the I/O addresses
 	 */
 	paddr = res.start + reg_offset;
-	vaddr = ioremap_nocache(paddr, resource_size(&res));
+	vaddr = ioremap(paddr, resource_size(&res));
 	if (!vaddr) {
 		pr_warn("%px: unable to remap crypto_addr(0x%px)\n", pdev, (void *)paddr);
 		return -EIO;
@@ -184,9 +192,22 @@ static struct platform_driver eip_device = {
 	.driver         = {
 		.owner  = THIS_MODULE,
 		.name   = "nss-eip-device",
-		.of_match_table = of_match_ptr(&eip_dev_dt_id),
+		.of_match_table = of_match_ptr(eip_dev_dt_id),
 	}
 };
+
+/*
+ * eip_is_inline_supported
+ * 	Check if inline port is supported in EIP.
+ */
+bool eip_is_inline_supported(void)
+{
+	struct eip_drv *drv = &eip_drv_g;
+	struct eip_pdev *ep = platform_get_drvdata(drv->pdev);
+
+	return ep->inline_support;
+}
+EXPORT_SYMBOL(eip_is_inline_supported);
 
 /*
  * eip_init_module()

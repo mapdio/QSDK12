@@ -5,13 +5,13 @@
 include $(TOPDIR)/rules.mk
 
 PKG_NAME:=Flask
-PKG_VERSION:=1.1.2
-PKG_RELEASE:=1
+PKG_VERSION:=2.0.2
+PKG_RELEASE:=6
 
 PYPI_NAME:=$(PKG_NAME)
-PKG_HASH:=4efa1ae2d7c9865af48986de8aeb8504bf32c7f3d6fdc9353d34b21f4b127060
+PKG_HASH:=7b2fb8e934ddd50731893bdcdb00fc8c0315916f9fcd50d22c7cc1a95ab634e2
 
-PKG_MAINTAINER:=Daniel Golle <daniel@makrotopia.org>
+PKG_MAINTAINER:=Michal Vasilek <michal.vasilek@nic.cz>
 PKG_LICENSE:=BSD-3-Clause
 PKG_LICENSE_FILES:=LICENSE.rst
 PKG_CPE_ID:=cpe:/a:palletsprojects:flask
@@ -30,7 +30,6 @@ define Package/python3-flask
            +python3-itsdangerous +python3-jinja2 +python3 +python3-logging \
            +python3-markupsafe +python3-multiprocessing +python3-setuptools \
            +python3-werkzeug
-  VARIANT:=python3
 endef
 
 define Package/python3-flask/description

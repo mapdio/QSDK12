@@ -492,6 +492,7 @@ struct mhi_device {
 	struct mhi_chan *ul_chan;
 	struct mhi_chan *dl_chan;
 	struct device dev;
+	void *priv_data;
 	enum mhi_device_type dev_type;
 	int ul_chan_id;
 	int dl_chan_id;
@@ -609,6 +610,17 @@ int __mhi_driver_register(struct mhi_driver *mhi_drv, struct module *owner);
  * @mhi_drv: Driver associated with the device
  */
 void mhi_driver_unregister(struct mhi_driver *mhi_drv);
+
+static inline void mhi_device_set_devdata(struct mhi_device *mhi_dev,
+                                          void *priv)
+{
+        mhi_dev->priv_data = priv;
+}
+
+static inline void *mhi_device_get_devdata(struct mhi_device *mhi_dev)
+{
+        return mhi_dev->priv_data;
+}
 
 static inline void *mhi_controller_get_devdata(struct mhi_controller *mhi_cntrl)
 {

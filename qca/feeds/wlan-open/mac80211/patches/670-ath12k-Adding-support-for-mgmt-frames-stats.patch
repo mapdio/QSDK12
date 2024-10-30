@@ -24,7 +24,7 @@ Signed-off-by: Manish Dharanenthiran <quic_mdharane@quicinc.com>
 
 --- a/drivers/net/wireless/ath/ath12k/core.h
 +++ b/drivers/net/wireless/ath/ath12k/core.h
-@@ -282,6 +282,16 @@ struct ath12k_reg_tpc_power_info {
+@@ -281,6 +281,16 @@ struct ath12k_reg_tpc_power_info {
          struct chan_power_info chan_power_info[IEEE80211_MAX_NUM_PWR_LEVEL];
  };
  
@@ -41,7 +41,7 @@ Signed-off-by: Manish Dharanenthiran <quic_mdharane@quicinc.com>
  struct ath12k_tx_conf {
  	bool changed;
  	u16 ac;
-@@ -368,6 +378,7 @@ struct ath12k_vif {
+@@ -367,6 +377,7 @@ struct ath12k_vif {
  	struct work_struct update_bcn_template_work;
  	u64 obss_color_bitmap;
  	struct work_struct update_obss_color_notify_work;
@@ -51,7 +51,7 @@ Signed-off-by: Manish Dharanenthiran <quic_mdharane@quicinc.com>
  struct ath12k_vif_iter {
 --- a/drivers/net/wireless/ath/ath12k/debugfs.c
 +++ b/drivers/net/wireless/ath/ath12k/debugfs.c
-@@ -2348,6 +2348,89 @@ static const struct file_operations fops
+@@ -2209,6 +2209,89 @@ static const struct file_operations fops
          .open = simple_open
  };
  
@@ -141,7 +141,7 @@ Signed-off-by: Manish Dharanenthiran <quic_mdharane@quicinc.com>
  int ath12k_debugfs_register(struct ath12k *ar)
  {
  	struct ath12k_base *ab = ar->ab;
-@@ -2406,6 +2489,10 @@ int ath12k_debugfs_register(struct ath12
+@@ -2273,6 +2356,10 @@ int ath12k_debugfs_register(struct ath12
  				ar->debug.debugfs_pdev, ar,
  				&fops_tpc_stats_type);
  
@@ -154,7 +154,7 @@ Signed-off-by: Manish Dharanenthiran <quic_mdharane@quicinc.com>
  
 --- a/drivers/net/wireless/ath/ath12k/mac.c
 +++ b/drivers/net/wireless/ath/ath12k/mac.c
-@@ -6839,9 +6839,9 @@ static int ath12k_mac_mgmt_tx(struct ath
+@@ -6833,9 +6833,9 @@ static int ath12k_mac_mgmt_tx(struct ath
  	 */
  	if (is_prb_rsp &&
  	    atomic_read(&ar->num_pending_mgmt_tx) > ATH12K_PRB_RSP_DROP_THRESHOLD) {
@@ -166,7 +166,7 @@ Signed-off-by: Manish Dharanenthiran <quic_mdharane@quicinc.com>
  	}
  
  	if (skb_queue_len_lockless(q) >= ATH12K_TX_MGMT_NUM_PENDING_MAX) {
-@@ -6868,10 +6868,12 @@ static void ath12k_mac_op_tx(struct ieee
+@@ -6862,10 +6862,12 @@ static void ath12k_mac_op_tx(struct ieee
  	struct ath12k_hw *ah = ar->ah;
  	struct ieee80211_hdr *hdr = (struct ieee80211_hdr *)skb->data;
  	struct ieee80211_key_conf *key = info->control.hw_key;
@@ -179,7 +179,7 @@ Signed-off-by: Manish Dharanenthiran <quic_mdharane@quicinc.com>
  	int ret;
  
  	if (arvif->vdev_type == WMI_VDEV_TYPE_MONITOR) {
-@@ -6895,12 +6897,21 @@ static void ath12k_mac_op_tx(struct ieee
+@@ -6889,12 +6891,21 @@ static void ath12k_mac_op_tx(struct ieee
  	if (info_flags & IEEE80211_TX_CTL_HW_80211_ENCAP) {
  		skb_cb->flags |= ATH12K_SKB_HW_80211_ENCAP;
  	} else if (ieee80211_is_mgmt(hdr->frame_control)) {
@@ -190,7 +190,7 @@ Signed-off-by: Manish Dharanenthiran <quic_mdharane@quicinc.com>
 -			ath12k_warn(ar->ab, "failed to queue management frame %d\n",
 -				    ret);
 +			if (ret != -EBUSY)
-+				ath12k_warn(ar->ab, "failed to queue mgmt stype 0x%x frame %d\n", frm_type, ret);
++				ath12k_warn(ar->ab, "failed to queue management frame %d\n", ret);
 +
  			ieee80211_free_txskb(ah->hw, skb);
 +			spin_lock_bh(&ar->data_lock);
@@ -203,8 +203,8 @@ Signed-off-by: Manish Dharanenthiran <quic_mdharane@quicinc.com>
  		}
  		return;
  	}
-@@ -8033,8 +8044,10 @@ static void ath12k_mac_op_remove_interfa
- err_vdev_del:
+@@ -8013,8 +8024,10 @@ err_vdev_del:
+ 
  	ath12k_peer_cleanup(ar, arvif->vdev_id);
  
 +	spin_lock_bh(&ar->data_lock);
@@ -269,7 +269,7 @@ Signed-off-by: Manish Dharanenthiran <quic_mdharane@quicinc.com>
  	info = IEEE80211_SKB_CB(msdu);
  	if ((!(info->flags & IEEE80211_TX_CTL_NO_ACK)) && !status)
  		info->flags |= IEEE80211_TX_STAT_ACK;
-@@ -7129,6 +7159,11 @@ static void ath12k_mgmt_rx_event(struct
+@@ -7132,6 +7162,11 @@ static void ath12k_mgmt_rx_event(struct
  	struct ieee80211_hdr *hdr;
  	u16 fc;
  	struct ieee80211_supported_band *sband;
@@ -281,7 +281,7 @@ Signed-off-by: Manish Dharanenthiran <quic_mdharane@quicinc.com>
  
  	if (ath12k_pull_mgmt_rx_params_tlv(ab, skb, &rx_ev) != 0) {
  		ath12k_warn(ab, "failed to extract mgmt rx event");
-@@ -7194,6 +7229,34 @@ static void ath12k_mgmt_rx_event(struct
+@@ -7197,6 +7232,34 @@ static void ath12k_mgmt_rx_event(struct
  
  	hdr = (struct ieee80211_hdr *)skb->data;
  	fc = le16_to_cpu(hdr->frame_control);

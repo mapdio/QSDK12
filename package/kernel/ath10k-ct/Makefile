@@ -1,21 +1,21 @@
 include $(TOPDIR)/rules.mk
 
 PKG_NAME:=ath10k-ct
-PKG_RELEASE=1
+PKG_RELEASE:=5
 
 PKG_LICENSE:=GPLv2
 PKG_LICENSE_FILES:=
 
 PKG_SOURCE_URL:=https://github.com/greearb/ath10k-ct.git
 PKG_SOURCE_PROTO:=git
-PKG_SOURCE_DATE:=2021-06-03
-PKG_SOURCE_VERSION:=b44cd7b2e7b0df5995ece18f358d4dfc40834ba1
-PKG_MIRROR_HASH:=59f961ad425eb1a48fa9c391a325cc0f23845daec9d12673445d3077f9756cf0
+PKG_SOURCE_DATE:=2022-05-13
+PKG_SOURCE_VERSION:=f808496fcc6b1f68942914117aebf8b3f8d52bb3
+PKG_MIRROR_HASH:=39527b3408696594eda5579521a9fb798417be4dda73fa08e8b3a8c7b0d3f3d9
 
-# Build the 4.19 ath10k-ct driver version.  Other options are "-4.16", or
-# leave un-defined for 4.7 kernel.  Probably this should match as closely as
+# Build the 5.15 ath10k-ct driver version.
+# Probably this should match as closely as
 # possible to whatever mac80211 backports version is being used.
-CT_KVER="-4.19"
+CT_KVER="-5.15"
 
 PKG_MAINTAINER:=Ben Greear <greearb@candelatech.com>
 PKG_BUILD_PARALLEL:=1
@@ -29,7 +29,7 @@ include $(INCLUDE_DIR)/package.mk
 define KernelPackage/ath10k-ct
   SUBMENU:=Wireless Drivers
   TITLE:=ath10k-ct driver optimized for CT ath10k firmware
-  DEPENDS:=+kmod-mac80211 +kmod-ath +@DRIVER_11N_SUPPORT +@DRIVER_11AC_SUPPORT +@DRIVER_11W_SUPPORT @PCI_SUPPORT +kmod-hwmon-core
+  DEPENDS:=+kmod-mac80211 +kmod-ath +@DRIVER_11AC_SUPPORT @PCI_SUPPORT +kmod-hwmon-core
   FILES:=\
 	$(PKG_BUILD_DIR)/ath10k$(CT_KVER)/ath10k_pci.ko \
 	$(PKG_BUILD_DIR)/ath10k$(CT_KVER)/ath10k_core.ko
@@ -52,7 +52,8 @@ $(call KernelPackage/ath10k-ct)
   VARIANT:=smallbuffers
 endef
 
-NOSTDINC_FLAGS = \
+NOSTDINC_FLAGS := \
+	$(KERNEL_NOSTDINC_FLAGS) \
 	-I$(PKG_BUILD_DIR) \
 	-I$(STAGING_DIR)/usr/include/mac80211-backport/uapi \
 	-I$(STAGING_DIR)/usr/include/mac80211-backport \
@@ -110,9 +111,8 @@ ifneq ($(findstring c,$(OPENWRT_VERBOSE)),)
 endif
 
 define Build/Compile
-	+$(MAKE) $(CT_MAKEDEFS) $(PKG_JOBS) -C "$(LINUX_DIR)" \
-		$(KERNEL_MAKE_FLAGS) \
-		SUBDIRS="$(PKG_BUILD_DIR)/ath10k$(CT_KVER)" \
+	+$(KERNEL_MAKE) $(CT_MAKEDEFS) $(PKG_JOBS) \
+		M="$(PKG_BUILD_DIR)/ath10k$(CT_KVER)" \
 		NOSTDINC_FLAGS="$(NOSTDINC_FLAGS)" \
 		modules
 endef

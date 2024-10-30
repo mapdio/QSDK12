@@ -16,6 +16,7 @@
 #include <linux/netdevice.h>
 #include <linux/switch.h>
 #include <linux/phy.h>
+#include <linux/version.h>
 
 #define PSB6970_MAX_VLANS		16
 #define PSB6970_NUM_PORTS		7
@@ -59,11 +60,13 @@ struct psb6970_priv {
 	struct mutex reg_mutex;
 
 	/* all fields below are cleared on reset */
-	bool vlan;
-	u16 vlan_id[PSB6970_MAX_VLANS];
-	u8 vlan_table[PSB6970_MAX_VLANS];
-	u8 vlan_tagged;
-	u16 pvid[PSB6970_NUM_PORTS];
+	struct_group(psb6970_priv_volatile,
+		bool vlan;
+		u16 vlan_id[PSB6970_MAX_VLANS];
+		u8 vlan_table[PSB6970_MAX_VLANS];
+		u8 vlan_tagged;
+		u16 pvid[PSB6970_NUM_PORTS];
+	);
 };
 
 #define to_psb6970(_dev) container_of(_dev, struct psb6970_priv, dev)
@@ -271,8 +274,8 @@ static int psb6970_reset_switch(struct switch_dev *dev)
 
 	mutex_lock(&priv->reg_mutex);
 
-	memset(&priv->vlan, 0, sizeof(struct psb6970_priv) -
-	       offsetof(struct psb6970_priv, vlan));
+	memset(&priv->psb6970_priv_volatile, 0,
+		sizeof(priv->psb6970_priv_volatile));
 
 	for (i = 0; i < PSB6970_MAX_VLANS; i++)
 		priv->vlan_id[i] = i;
@@ -306,7 +309,6 @@ static const struct switch_dev_ops psb6970_ops = {
 static int psb6970_config_init(struct phy_device *pdev)
 {
 	struct psb6970_priv *priv;
-	struct net_device *dev = pdev->attached_dev;
 	struct switch_dev *swdev;
 	int ret;
 
@@ -325,7 +327,9 @@ static int psb6970_config_init(struct phy_device *pdev)
 		return 0;
 	}
 
-	pdev->supported = pdev->advertising = SUPPORTED_100baseT_Full;
+	linkmode_zero(pdev->supported);
+	linkmode_set_bit(ETHTOOL_LINK_MODE_100baseT_Full_BIT, pdev->supported);
+	linkmode_copy(pdev->advertising, pdev->supported);
 
 	mutex_init(&priv->reg_mutex);
 	priv->read = psb6970_mii_read;
@@ -351,8 +355,6 @@ static int psb6970_config_init(struct phy_device *pdev)
 		kfree(priv);
 		goto done;
 	}
-
-	dev->phy_ptr = priv;
 
 done:
 	return ret;

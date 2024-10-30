@@ -2,8 +2,8 @@
 include $(TOPDIR)/rules.mk
 
 PKG_NAME:=samba
-PKG_VERSION:=4.14.12
-PKG_RELEASE:=$(AUTORELEASE)
+PKG_VERSION:=4.18.8
+PKG_RELEASE:=1
 
 PKG_SOURCE:=$(PKG_NAME)-$(PKG_VERSION).tar.gz
 PKG_SOURCE_URL:= \
@@ -13,20 +13,22 @@ PKG_SOURCE_URL:= \
 		http://www.nic.funet.fi/index/samba/pub/samba/stable/ \
 		http://samba.mirror.bit.nl/samba/ftp/stable/ \
 		https://download.samba.org/pub/samba/stable/
-PKG_HASH:=155d9c2dfb06a18104422987590858bfe5e9783ebebe63882e7e7f07eaaa512d
+PKG_HASH:=4fb87bceaeb01d832a59046c197a044b7e8e8000581548b5d577a6cda03344d1
 
-PKG_MAINTAINER:=Andy Walsh <andy.walsh44+github@gmail.com>
+PKG_BUILD_FLAGS:=gc-sections
+
 PKG_LICENSE:=GPL-3.0-only
 PKG_LICENSE_FILES:=COPYING
 PKG_CPE_ID:=cpe:/a:samba:samba
 
 # samba4=(asn1_compile,compile_et) rpcsvc-proto=(rpcgen)
 HOST_BUILD_DEPENDS:=python3/host rpcsvc-proto/host perl/host perl-parse-yapp/host
-PKG_BUILD_DEPENDS:=samba4/host libtasn1/host
+PKG_BUILD_DEPENDS:=samba4/host libtasn1/host perl/host
 
 PKG_CONFIG_DEPENDS:= \
 	CONFIG_SAMBA4_SERVER_NETBIOS \
 	CONFIG_SAMBA4_SERVER_AVAHI \
+	CONFIG_SAMBA4_SERVER_QUOTAS \
 	CONFIG_SAMBA4_SERVER_VFS \
 	CONFIG_SAMBA4_SERVER_VFSX \
 	CONFIG_SAMBA4_SERVER_AD_DC \
@@ -121,13 +123,13 @@ define Package/samba4-utils
 endef
 
 define Package/samba4-utils/description
-  installs: smbstatus smbtree mvxattr smbtar smbcquotas
+  installs: smbstatus smbtree mvxattr smbtar (smbcquotas)
 
   Utilities collection
 endef
 
-TARGET_CFLAGS += $(FPIC) -ffunction-sections -fdata-sections
-TARGET_LDFLAGS += -Wl,--gc-sections,--as-needed
+TARGET_CFLAGS += $(FPIC)
+TARGET_LDFLAGS += -Wl,--as-needed
 # dont mess with sambas private rpath!
 RSTRIP:=:
 
@@ -178,7 +180,6 @@ CONFIGURE_ARGS += \
 		--without-automount \
 		--without-iconv \
 		--without-lttng \
-		--without-ntvfs-fileserver \
 		--without-pam \
 		--without-systemd \
 		--without-utmp \
@@ -203,7 +204,6 @@ HOST_CONFIGURE_ARGS += \
 		--without-automount \
 		--without-iconv \
 		--without-lttng \
-		--without-ntvfs-fileserver \
 		--without-pam \
 		--without-systemd \
 		--without-utmp \
@@ -215,7 +215,7 @@ HOST_CONFIGURE_ARGS += \
 
 HOST_CONFIGURE_ARGS += --disable-avahi --without-quotas --without-acl-support --without-winbind \
 	--without-ad-dc --without-json --without-libarchive --disable-python --nopyc --nopyo \
-	--without-dnsupdate --without-ads --without-ldap --without-ldb-lmdb
+	--without-ads --without-ldap --without-ldb-lmdb
 
 # Optional AES-NI support - https://lists.samba.org/archive/samba-technical/2017-September/122738.html
 # Support for Nettle wasn't comitted
@@ -232,7 +232,7 @@ CONFIGURE_ARGS += \
 		--with-privatedir=/etc/samba
 
 # features
-ifeq ($(CONFIG_SAMBA4_SERVER_VFS),y)
+ifeq ($(CONFIG_SAMBA4_SERVER_QUOTAS),y)
 	CONFIGURE_ARGS += --with-quotas
 else
 	CONFIGURE_ARGS += --without-quotas
@@ -247,7 +247,7 @@ ifeq ($(CONFIG_SAMBA4_SERVER_AD_DC),y)
 	CONFIGURE_ARGS += --without-winbind --without-ldb-lmdb --with-acl-support
 else
 	CONFIGURE_ARGS += --without-winbind --without-ads --without-ldap --without-ldb-lmdb --without-ad-dc \
-		--without-json --without-libarchive --disable-python --nopyc --nopyo --without-dnsupdate --without-acl-support
+		--without-json --without-libarchive --disable-python --nopyc --nopyo --without-acl-support
 endif
 
 SAMBA4_PDB_MODULES :=pdb_smbpasswd,pdb_tdbsam,
@@ -259,7 +259,10 @@ ifdef CONFIG_KERNEL_IO_URING
 	SAMBA4_VFS_MODULES_SHARED :=$(SAMBA4_VFS_MODULES_SHARED)vfs_io_uring,
 endif
 ifeq ($(CONFIG_SAMBA4_SERVER_VFS),y)
-	SAMBA4_VFS_MODULES_SHARED :=$(SAMBA4_VFS_MODULES_SHARED)vfs_fruit,vfs_shadow_copy2,vfs_recycle,vfs_fake_perms,vfs_readonly,vfs_cap,vfs_offline,vfs_crossrename,vfs_catia,vfs_streams_xattr,vfs_xattr_tdb,vfs_default_quota,vfs_widelinks,
+	SAMBA4_VFS_MODULES_SHARED :=$(SAMBA4_VFS_MODULES_SHARED)vfs_fruit,vfs_shadow_copy2,vfs_recycle,vfs_fake_perms,vfs_readonly,vfs_cap,vfs_offline,vfs_crossrename,vfs_catia,vfs_streams_xattr,vfs_xattr_tdb,vfs_widelinks,
+ifeq ($(CONFIG_SAMBA4_SERVER_QUOTAS),y)
+	SAMBA4_VFS_MODULES_SHARED :=$(SAMBA4_VFS_MODULES_SHARED)vfs_default_quota,
+endif
 ifdef CONFIG_PACKAGE_kmod-fs-btrfs
 	SAMBA4_VFS_MODULES_SHARED :=$(SAMBA4_VFS_MODULES_SHARED)vfs_btrfs,
 endif
@@ -310,6 +313,7 @@ CONFIGURE_ARGS += --private-libraries=$(SYSTEM_PRIVATE_BUNDLED_LIBS)
 
 export COMPILE_ET=$(STAGING_DIR_HOSTPKG)/bin/compile_et_samba
 export ASN1_COMPILE=$(STAGING_DIR_HOSTPKG)/bin/asn1_compile_samba
+export PYTHONHASHSEED=1
 
 # make sure we use the hostpkg build toolset and we need to find host 'yapp'
 HOST_CONFIGURE_VARS+= \
@@ -328,6 +332,9 @@ define Host/Prepare
 	$(call Host/Prepare/Default)
 	$(SED) 's,mandatory=True,mandatory=False,g' $(HOST_BUILD_DIR)/wscript_configure_system_gnutls
 	$(SED) 's,gnutls_version =.*,gnutls_version = gnutls_min_required_version,g' $(HOST_BUILD_DIR)/wscript_configure_system_gnutls
+	$(SED) 's,gnutls_version_str.*,gnutls_version_str = "3.7.7",g' $(HOST_BUILD_DIR)/wscript_configure_system_gnutls
+	$(SED) 's,(gnutls_version > .*,(parse_version(gnutls_version) > parse_version("3.6.10")):,g' $(HOST_BUILD_DIR)/wscript_configure_system_gnutls
+	$(SED) 's,(gnutls_version < .*,(parse_version(gnutls_version) < parse_version("3.5.2")):,g' $(HOST_BUILD_DIR)/wscript_configure_system_gnutls
 endef
 define Host/Compile
 	(cd $(HOST_BUILD_DIR); \
@@ -351,11 +358,10 @@ ifeq ($(CONFIG_SAMBA4_SERVER_AD_DC),)
 	# unbundle iso8601
 	$(SED) '/"iso8601":/d' $(PKG_BUILD_DIR)/third_party/wscript
 endif
-endef
-
-ifeq ($(ARCH),aarch64_be)
-ARCH=aarch64
+ifeq ($(CONFIG_HOST_OS_MACOS),y)
+	$(SED) "/^VERSION=/i sys.platform='linux'" $(PKG_BUILD_DIR)/buildtools/bin/waf
 endif
+endef
 
 define Build/Configure
 	$(CP) ./waf-cross-answers/$(ARCH).txt $(PKG_BUILD_DIR)/cross-answers.txt
@@ -405,7 +411,7 @@ endef
 define Package/samba4-utils/install
 	$(INSTALL_DIR) $(1)/usr/bin
 	$(INSTALL_BIN) $(PKG_INSTALL_DIR)/usr/bin/{smbstatus,smbtree,mvxattr,smbtar} $(1)/usr/bin/
-ifeq ($(CONFIG_SAMBA4_SERVER_VFS),y)
+ifeq ($(CONFIG_SAMBA4_SERVER_QUOTAS),y)
 	$(INSTALL_BIN) $(PKG_INSTALL_DIR)/usr/bin/smbcquotas $(1)/usr/bin/
 endif
 endef

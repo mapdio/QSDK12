@@ -309,7 +309,6 @@ bool sch_direct_xmit_fast(struct sk_buff *first, struct Qdisc *q, struct net_dev
 {
 	struct sk_buff *skb = first;
 	int rc = NETDEV_TX_OK;
-	bool requeue = false;
 	struct netdev_queue *txq;
 	int cpu;
 

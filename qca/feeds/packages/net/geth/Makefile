@@ -8,12 +8,12 @@
 include $(TOPDIR)/rules.mk
 
 PKG_NAME:=go-ethereum
-PKG_VERSION:=1.9.9
+PKG_VERSION:=1.10.20
 PKG_RELEASE:=1
 
 PKG_SOURCE:=$(PKG_NAME)-$(PKG_VERSION).tar.gz
 PKG_SOURCE_URL:=https://codeload.github.com/ethereum/go-ethereum/tar.gz/v${PKG_VERSION}?
-PKG_HASH:=52fd34920841c9915d67f28c416ce7e98b654c116b03edee94f6ef06e5a8cf92
+PKG_HASH:=15ff54f0a4444eb9faa7c1f6219d3a1db5d547178b4eef6679bb601abc681f9d
 
 PKG_MAINTAINER:=Mislav Novakovic <mislav.novakovic@sartura.hr>
 PKG_LICENSE:=GPL-3.0-or-later LGPL-3.0-or-later
@@ -21,12 +21,14 @@ PKG_LICENSE_FILES:=COPYING COPYING.LESSER
 
 PKG_BUILD_DEPENDS:=golang/host
 PKG_BUILD_PARALLEL:=1
-PKG_USE_MIPS16:=0
+PKG_BUILD_FLAGS:=no-mips16
+PKG_CONFIG_DEPENDS:=CONFIG_BUILD_NLS
 
 GO_PKG:=github.com/ethereum/go-ethereum
 GO_PKG_BUILD_PKG:=github.com/ethereum/go-ethereum/cmd/geth
 
 include $(INCLUDE_DIR)/package.mk
+include $(INCLUDE_DIR)/nls.mk
 include ../../lang/golang/golang-package.mk
 
 define Package/geth
@@ -34,8 +36,7 @@ define Package/geth
   CATEGORY:=Network
   TITLE:=Ethereum Go client
   URL:=https://geth.ethereum.org/
-  DEPENDS:=$(GO_ARCH_DEPENDS)
-  PKGARCH:=all
+  DEPENDS:=$(GO_ARCH_DEPENDS) $(ICONV_DEPENDS)
 endef
 
 define Package/geth/description
@@ -43,6 +44,8 @@ Ethereum is a decentralized platform that runs smart contracts, applications
 that run exactly as programmed without possibility of downtime, censorship,
 fraud or third party interference.
 endef
+
+TARGET_LDFLAGS += $(if $(ICONV_FULL),-liconv)
 
 define Package/geth/install
 	$(call GoPackage/Package/Install/Bin,$(1))

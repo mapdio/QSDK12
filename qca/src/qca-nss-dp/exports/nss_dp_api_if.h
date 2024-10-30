@@ -60,6 +60,18 @@
  */
 #define NSS_PTP_EVENT_SERVICE_CODE	0x9
 
+#define MAX_MHT_PORTS	4
+
+/**
+ * nss_dp_eth_netdev_info
+ * 	Structure for retrieving the eth info
+ */
+struct nss_dp_eth_netdev_info {
+	struct net_device *netdev;      /**< Holds the netdev of eth ifaces */
+	bool switch_connected;	/**< If the dev is MHT port, the flag will be true, otherwise it is false */
+	bool mht_port_status[MAX_MHT_PORTS];	/**< Holds the status of each MHT port */
+};
+
 /**
  * nss_dp_data_plane_ctx
  *	Data plane context base class.
@@ -283,6 +295,17 @@ void nss_dp_point_offload_info_get(uint32_t *txdesc_ring, uint32_t *txcmpl_ring,
  */
 extern bool nss_dp_nsm_sawf_sc_stats_read(struct nss_dp_hal_nsm_sawf_sc_stats *nsm_stats, uint8_t service_class);
 
+/**
+ * nss_dp_get_eth_info
+ * 	Retrieve the info related to ethernet ports
+ *
+ * @param[in, out] ethlist	Array of structure to hold the dev pointers of eth ifaces
+ * @param[in] array_size	Size of the array of structure
+ *
+ * @return
+ * True - success, False - Failure
+ */
+bool nss_dp_get_eth_info(struct nss_dp_eth_netdev_info ethlist[], uint8_t array_size);
 /**
  *@}
  */

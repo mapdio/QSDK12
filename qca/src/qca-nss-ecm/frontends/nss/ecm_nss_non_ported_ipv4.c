@@ -1,7 +1,7 @@
 /*
  **************************************************************************
  * Copyright (c) 2014-2021 The Linux Foundation. All rights reserved.
- * Copyright (c) 2022-2023 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2024 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
@@ -819,6 +819,13 @@ static void ecm_nss_non_ported_ipv4_connection_accelerate(struct ecm_front_end_c
 
 			nircm->conn_rule.flow_interface_num = ecm_nss_common_ipsec_get_ifnum(from_nss_iface_id);
 			nircm->nexthop_rule.flow_nexthop = ecm_nss_common_ipsec_get_ifnum(nircm->nexthop_rule.flow_nexthop);
+
+			/*
+			 * Override the MTU size in the decap direction, this will apply to IPsec->WAN rule
+			 */
+			if (IPCB(skb)->flags & IPSKB_XFRM_TRANSFORMED) {
+				nircm->conn_rule.flow_mtu = ECM_DB_IFACE_MTU_MAX;
+			}
 #else
 			rule_invalid = true;
 			DEBUG_TRACE("%px: IPSEC - unsupported\n", feci);
@@ -845,6 +852,14 @@ static void ecm_nss_non_ported_ipv4_connection_accelerate(struct ecm_front_end_c
 #else
 			rule_invalid = true;
 			DEBUG_TRACE("%px: PPTP - unsupported\n", feci);
+#endif
+			break;
+		case ECM_DB_IFACE_TYPE_RAWIP:
+#ifdef ECM_INTERFACE_RAWIP_ENABLE
+			nircm->valid_flags |= NSS_IPV4_RULE_CREATE_RAWIP_VALID;
+#else
+			rule_invalid = true;
+			DEBUG_TRACE("%px: RAWIP - unsupported\n", feci);
 #endif
 			break;
 		default:
@@ -1054,6 +1069,14 @@ static void ecm_nss_non_ported_ipv4_connection_accelerate(struct ecm_front_end_c
 #else
 			rule_invalid = true;
 			DEBUG_TRACE("%px: IPSEC - unsupported\n", feci);
+#endif
+			break;
+		case ECM_DB_IFACE_TYPE_RAWIP:
+#ifdef ECM_INTERFACE_RAWIP_ENABLE
+			nircm->valid_flags |= NSS_IPV4_RULE_CREATE_RAWIP_VALID;
+#else
+			rule_invalid = true;
+			DEBUG_TRACE("%px: RAWIP - unsupported\n", feci);
 #endif
 			break;
 		default:
@@ -1830,7 +1853,7 @@ struct ecm_front_end_connection_instance *ecm_nss_non_ported_ipv4_connection_ins
  */
 bool ecm_nss_non_ported_ipv4_debugfs_init(struct dentry *dentry)
 {
-	if (!debugfs_create_u32("non_ported_accelerated_count", S_IRUGO, dentry,
+	if (!ecm_debugfs_create_u32("non_ported_accelerated_count", S_IRUGO, dentry,
 					(u32 *)&ecm_nss_non_ported_ipv4_accelerated_count)) {
 		DEBUG_ERROR("Failed to create ecm nss ipv4 non_ported_accelerated_count file in debugfs\n");
 		return false;

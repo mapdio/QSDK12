@@ -185,6 +185,7 @@
 	/* QCN9224 split-radio 5G + 6G */
 	hremote_node = <&qcn9224_pcie1>;
 	board_id = <0x1006>;
+	hw_link_id = <0 1>;
 	status = "ok";
 };
 

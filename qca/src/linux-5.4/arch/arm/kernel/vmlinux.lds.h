@@ -134,7 +134,7 @@
 									\
 	__stubs_lma = .;						\
 	.stubs ADDR(.vectors) + 0x1000 : AT(__stubs_lma) {		\
-		*(.stubs)						\
+		KEEP(*(.stubs))						\
 	}								\
 	ARM_LMA(__stubs, .stubs);					\
 	. = __stubs_lma + SIZEOF(.stubs);				\

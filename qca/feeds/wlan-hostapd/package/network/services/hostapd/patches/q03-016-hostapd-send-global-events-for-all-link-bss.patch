@@ -29,7 +29,7 @@ Signed-off-by: Sriram R <quic_srirrama@quicinc.com>
 
 --- a/src/ap/hostapd.c
 +++ b/src/ap/hostapd.c
-@@ -1678,6 +1678,37 @@ void hostapd_channel_list_updated(struct
+@@ -1662,6 +1662,37 @@ void hostapd_channel_list_updated(struct
  	setup_interface2(iface);
  }
  
@@ -67,7 +67,7 @@ Signed-off-by: Sriram R <quic_srirrama@quicinc.com>
  
  static int setup_interface(struct hostapd_iface *iface)
  {
-@@ -1710,6 +1741,21 @@ static int setup_interface(struct hostap
+@@ -1694,6 +1725,21 @@ static int setup_interface(struct hostap
  		iface->bss[i]->drv_priv = hapd->drv_priv;
  	}
  
@@ -89,7 +89,7 @@ Signed-off-by: Sriram R <quic_srirrama@quicinc.com>
  	if (hostapd_validate_bssid_configuration(iface))
  		return -1;
  
-@@ -2271,19 +2317,6 @@ static int hostapd_setup_interface_compl
+@@ -2167,19 +2213,6 @@ static int hostapd_setup_interface_compl
  	hostapd_ubus_add_iface(iface);
  	wpa_printf(MSG_DEBUG, "Completing interface initialization");
  
@@ -109,7 +109,7 @@ Signed-off-by: Sriram R <quic_srirrama@quicinc.com>
  	if (iface->freq) {
  #ifdef NEED_AP_MLME
  		int res;
-@@ -2613,21 +2646,15 @@ int hostapd_setup_interface_complete(str
+@@ -2507,21 +2540,15 @@ int hostapd_setup_interface_complete(str
  	/* Once all link bss of the ifaces are setup, now start each beacon and chain these bsses*/
  #ifdef CONFIG_IEEE80211BE
  	for (i = 0; i < interfaces->mld_count; i++) {
@@ -138,7 +138,7 @@ Signed-off-by: Sriram R <quic_srirrama@quicinc.com>
  	}
 --- a/src/drivers/driver_nl80211.c
 +++ b/src/drivers/driver_nl80211.c
-@@ -8284,13 +8284,6 @@ static void i802_chain_link_bss(void *pr
+@@ -8239,13 +8239,6 @@ static void i802_chain_link_bss(void *pr
  		return;
  	}
  
@@ -182,7 +182,7 @@ Signed-off-by: Sriram R <quic_srirrama@quicinc.com>
  			continue;
  		}
  		wpa_printf(MSG_DEBUG,
-@@ -3328,15 +3331,75 @@ nl80211_color_change_announcement_comple
+@@ -3324,15 +3327,75 @@ nl80211_color_change_announcement_comple
  
  #endif /* CONFIG_IEEE80211AX */
  
@@ -261,7 +261,7 @@ Signed-off-by: Sriram R <quic_srirrama@quicinc.com>
  
  #ifdef CONFIG_DRIVER_NL80211_QCA
  	if (cmd == NL80211_CMD_ROAM &&
-@@ -3606,8 +3669,34 @@ static void do_process_drv_event(struct
+@@ -3602,6 +3665,12 @@ static void do_process_drv_event(struct
  			"(cmd=%d)", cmd);
  		break;
  	}
@@ -273,39 +273,12 @@ Signed-off-by: Sriram R <quic_srirrama@quicinc.com>
 +		route_drv_event(bss, cmd, tb);
  }
  
-+/* Wiphy event coming to drv should be routed to all participating drvs in that
-+ * MLD as well */
-+static int process_global_mlo_wiphy_event(struct nl80211_global *global, int cmd,
-+					  struct nlattr **tb)
-+{
-+	struct wpa_driver_nl80211_data *drv, *tmp;
-+	int wiphy_idx;
-+
-+	if (tb[NL80211_ATTR_WIPHY])
-+		wiphy_idx = nla_get_u32(tb[NL80211_ATTR_WIPHY]);
-+	else
-+		return NL_SKIP;
-+
-+	dl_list_for_each_safe(drv, tmp, &global->interfaces,
-+			      struct wpa_driver_nl80211_data, list) {
-+		if (nl80211_get_wiphy_index(drv->first_bss) == wiphy_idx)
-+			do_process_drv_event(drv->first_bss, cmd, tb, false);
-+	}
-+	return NL_SKIP;
-+}
  
- int process_global_event(struct nl_msg *msg, void *arg)
- {
-@@ -3644,7 +3733,12 @@ int process_global_event(struct nl_msg *
+@@ -3640,7 +3709,7 @@ int process_global_event(struct nl_msg *
  			    (wiphy_idx_set && wiphy_idx == wiphy_idx_rx) ||
  			    (wdev_id_set && bss->wdev_id_set &&
  			     wdev_id == bss->wdev_id)) {
 -				do_process_drv_event(bss, gnlh->cmd, tb);
-+				if (wiphy_idx_set)
-+					return process_global_mlo_wiphy_event(global,
-+									      gnlh->cmd,
-+									      tb);
-+
 +				do_process_drv_event(bss, gnlh->cmd, tb, true);
  				return NL_SKIP;
  			}

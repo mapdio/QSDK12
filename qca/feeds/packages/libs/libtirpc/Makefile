@@ -1,14 +1,13 @@
 include $(TOPDIR)/rules.mk
 
 PKG_NAME:=libtirpc
-PKG_VERSION:=1.2.6
-PKG_RELEASE:=2
+PKG_VERSION:=1.3.3
+PKG_RELEASE:=1
 
 PKG_SOURCE_URL:=@SF/libtirpc
 PKG_SOURCE:=$(PKG_NAME)-$(PKG_VERSION).tar.bz2
-PKG_HASH:=4278e9a5181d5af9cd7885322fdecebc444f9a3da87c526e7d47f7a12a37d1cc
+PKG_HASH:=6474e98851d9f6f33871957ddee9714fdcd9d8a5ee9abb5a98d63ea2e60e12f3
 
-PKG_MAINTAINER:=Andy Walsh <andy.walsh44+github@gmail.com>
 PKG_LICENSE:=BSD-3-Clause
 PKG_LICENSE_FILES:=COPYING
 
@@ -28,7 +27,7 @@ define Package/libtirpc
 endef
 
 CONFIGURE_ARGS += --disable-gssapi
-HOST_CONFIGURE_ARGS += --disable-gssapi
+HOST_CONFIGURE_ARGS += --disable-gssapi --disable-shared
 
 ifeq ($(HOST_OS),Darwin)
 HOST_CONFIGURE_ARGS += --disable-symvers
@@ -50,7 +49,6 @@ define Build/InstallDev
 	$(INSTALL_DIR) $(1)/usr/lib/pkgconfig
 	$(CP) $(PKG_INSTALL_DIR)/usr/lib/libtirpc.{a,so*} $(1)/usr/lib
 	$(CP) $(PKG_INSTALL_DIR)/usr/include/* $(1)/usr/include
-	$(SED) 's,/usr,${STAGING_DIR}/usr,g' $(PKG_INSTALL_DIR)/usr/lib/pkgconfig/libtirpc.pc
 	$(CP) $(PKG_INSTALL_DIR)/usr/lib/pkgconfig/libtirpc.pc $(1)/usr/lib/pkgconfig/libtirpc.pc
 endef
 

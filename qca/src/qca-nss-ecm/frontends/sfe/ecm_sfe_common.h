@@ -118,7 +118,7 @@ static inline int32_t ecm_sfe_common_get_interface_type(struct ecm_front_end_con
 	return 0;
 }
 
-void ecm_sfe_common_fast_xmit_set(uint16_t *rule_flags, uint16_t *valid_flags, struct sfe_qdisc_rule *qdisc_rule, struct ecm_db_iface_instance *from_ifaces[ECM_DB_IFACE_HEIRARCHY_MAX], struct ecm_db_iface_instance *to_ifaces[ECM_DB_IFACE_HEIRARCHY_MAX], int32_t from_interfaces_first, int32_t to_interfaces_first);
+void ecm_sfe_common_fast_xmit_set(uint32_t *rule_flags, uint32_t *valid_flags, struct sfe_qdisc_rule *qdisc_rule, struct ecm_db_iface_instance *from_ifaces[ECM_DB_IFACE_HEIRARCHY_MAX], struct ecm_db_iface_instance *to_ifaces[ECM_DB_IFACE_HEIRARCHY_MAX], int32_t from_interfaces_first, int32_t to_interfaces_first);
 
 /*
  * ecm_sfe_common_dummy_get_stats_bitmap()
@@ -147,6 +147,11 @@ void ecm_sfe_common_tuple_set(struct ecm_front_end_connection_instance *feci,
 			      struct ecm_sfe_common_tuple *tuple);
 bool ecm_sfe_feature_check(struct sk_buff *skb, struct ecm_tracker_ip_header *ip_hdr, bool is_routed);
 #ifdef ECM_BRIDGE_VLAN_FILTERING_ENABLE
-void ecm_sfe_common_ipv4_vlan_filter_set(struct ecm_db_connection_instance *ci, struct sfe_ipv4_rule_create_msg *nircm);
-void ecm_sfe_common_ipv6_vlan_filter_set(struct ecm_db_connection_instance *ci, struct sfe_ipv6_rule_create_msg *nircm);
+bool ecm_sfe_common_vlan_filter_set(struct ecm_db_connection_instance *ci, struct sfe_vlan_filter_rule *vlan_filter_rule, bool is_flow_dir);
+#endif
+#ifdef ECM_MHT_ENABLE
+bool ecm_sfe_common_get_mht_port_id(struct ecm_front_end_connection_instance *feci,
+				    struct ecm_db_iface_instance *from_sfe_iface,
+				    struct ecm_db_iface_instance *to_sfe_iface,
+				    u32 *valid_flags, struct sfe_mark_rule *mark_rule);
 #endif

@@ -1,7 +1,7 @@
 /*
  **************************************************************************
  * Copyright (c) 2014-2020, The Linux Foundation. All rights reserved.
- * Copyright (c) 2022-2023 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2024 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
@@ -124,23 +124,29 @@
 #define NSS_CAPWAPMGR_ACL_DSCP_LIST_PRIO 1
 
 /*
- * Trustsec tx l2 tunnel edit parameters.
+ * Tx l2 tunnel edit parameters.
  */
-#define NSS_CAPWAPMGR_TRUSTSEC_TX_INNER_PAYLOAD_TYPE_IP 0
-#define NSS_CAPWAPMGR_TRUSTSEC_TX_SVLAN_ENABLED 1
-#define NSS_CAPWAPMGR_TRUSTSEC_TX_CVLAN_ENABLED 1
-#define NSS_CAPWAPMGR_TRUSTSEC_TX_VLAN_OFFSET 12
-#define NSS_CAPWAPMGR_TRUSTSEC_TX_VLAN_TPID_MASK 0xFFFF0000
-#define NSS_CAPWAPMGR_TRUSTSEC_TX_VLAN_TPID_SHIFT 16
-#define NSS_CAPWAPMGR_TRUSTSEC_TX_VLAN_TPID_SIZE 2
+#define NSS_CAPWAPMGR_TX_INNER_PAYLOAD_TYPE_ETHER 0
+#define NSS_CAPWAPMGR_TX_INNER_PAYLOAD_TYPE_IP 1
+#define NSS_CAPWAPMGR_TX_SVLAN_ENABLED 1
+#define NSS_CAPWAPMGR_TX_CVLAN_ENABLED 1
+#define NSS_CAPWAPMGR_TX_VLAN_OFFSET 12
+#define NSS_CAPWAPMGR_TX_VLAN_TPID_MASK 0xFFFF0000
+#define NSS_CAPWAPMGR_TX_VLAN_TPID_SHIFT 16
+#define NSS_CAPWAPMGR_TX_VLAN_TPID_SIZE 2
 
-#define NSS_CAPWAPMGR_TRUSTSEC_TX_VLAN_TCI_MASK 0xFFFF
-#define NSS_CAPWAPMGR_TRUSTSEC_TX_VLAN_TCI_SIZE 2
+#define NSS_CAPWAPMGR_TX_VLAN_TCI_MASK 0xFFFF
+#define NSS_CAPWAPMGR_TX_VLAN_TCI_SIZE 2
 
 /*
  * Number of ports to which the acl rule can be attached.
  */
 #define NSS_CAPWAPMGR_ACL_TRUSTSEC_PORT_MAX 6
+
+/*
+ * CAPWAP VP MTU.
+ */
+#define NSS_CAPWAPMGR_VP_MTU 9216
 
 /*
  * nss_capwapmgr_acl

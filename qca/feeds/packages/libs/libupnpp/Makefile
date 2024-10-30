@@ -8,14 +8,14 @@
 include $(TOPDIR)/rules.mk
 
 PKG_NAME:=libupnpp
-PKG_VERSION:=0.17.2
+PKG_VERSION:=0.24.1
 PKG_RELEASE:=1
 
 PKG_SOURCE:=$(PKG_NAME)-$(PKG_VERSION).tar.gz
 PKG_SOURCE_URL:=https://www.lesbonscomptes.com/upmpdcli/downloads
-PKG_HASH:=5abaaf353a1e9c3482d61ef2627b650285d59f27c1ee60d35b8951952261374f
+PKG_HASH:=f09d5162f237bcb971ef4bbd45de9e93a073d96555cd691374eb1a3f338b2d0b
 
-PKG_MAINTAINER:=Petko Bordjukov <bordjukov@gmail.com>
+PKG_MAINTAINER:=
 PKG_LICENSE:=LGPL-2.1-or-later
 PKG_LICENSE_FILES:=COPYING
 
@@ -28,7 +28,7 @@ define Package/libupnpp
   SECTION:=libs
   CATEGORY:=Libraries
   URL:=https://www.lesbonscomptes.com/upmpdcli
-  DEPENDS+= +libstdcpp +libexpat +librt +libcurl +libupnp
+  DEPENDS+=+libnpupnp
   TITLE:=The libupnpp C++ library wraps libupnp for easier use by upmpdcli and upplay
 endef
 
@@ -36,8 +36,6 @@ define Package/libupnpp/description
 libupnpp defines useful objects over libupnp and can be used to create both devices
 and control points. It is shared by upmpdcli and upplay.
 endef
-
-TARGET_LDFLAGS += $(if $(CONFIG_USE_GLIBC),-lm)
 
 define Build/InstallDev
 	$(INSTALL_DIR) $(1)/usr/include

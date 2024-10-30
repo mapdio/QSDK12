@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2022-2023 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2024 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for any
  * purpose with or without fee is hereby granted, provided that the above
@@ -62,6 +62,10 @@
 #define PPE_DRV_V6_RULE_FLAG_DS_FLOW			0x0080	/**< Rule creation for DS flow */
 #define PPE_DRV_V6_RULE_FLAG_VP_FLOW			0x0100	/**< Rule creation for VP flow */
 #define PPE_DRV_V6_RULE_FLAG_SRC_INTERFACE_CHECK	0x0200	/**< Rule creation for source interface check */
+#define PPE_DRV_V6_RULE_TO_BRIDGE_VLAN_NETDEV		0x0400  /**< VLAN over bridge in egress direction */
+#define PPE_DRV_V6_RULE_FROM_BRIDGE_VLAN_NETDEV		0x0800  /**< VLAN over bridge in ingress direction */
+#define PPE_DRV_V6_RULE_NOEDIT_FLOW_RULE		0x1000  /**< Noedit rule creation for flow direction */
+#define PPE_DRV_V6_RULE_NOEDIT_RETURN_RULE		0x2000  /**< Noedit rule creation for return direction */
 
 /*
  * v6 valid flags
@@ -72,6 +76,13 @@
 #define PPE_DRV_V6_VALID_FLAG_QOS		0x0008  /**< QoS fields are valid. */
 #define PPE_DRV_V6_VALID_FLAG_DSCP_MARKING	0x0010  /**< DSCP fields are valid. */
 #define PPE_DRV_V6_VALID_FLAG_SAWF		0x0020  /**< SAWF fields are valid. */
+#define PPE_DRV_V6_VALID_FLAG_ACL_POLICER	0x0040  /**< ACL/Policer fields are valid. */
+#define PPE_DRV_V6_VALID_FLAG_WIFI_TID		0x0080	/**< HLOS TID fields are valid. */
+#define PPE_DRV_V6_VALID_FLAG_SCS		0x0100	/**< SCS fields are valid. */
+#define PPE_DRV_V6_VALID_FLAG_FLOW_WIFI_MDATA	0x0200  /**< Wi-Fi flow metadata is valid. */
+#define PPE_DRV_V6_VALID_FLAG_RETURN_WIFI_MDATA	0x0400  /**< Wi-Fi return metadata is valid. */
+#define PPE_DRV_V6_VALID_FLAG_FLOW_WIFI_DS	0x0800  /**< Wi-Fi DS flow field is valid. */
+#define PPE_DRV_V6_VALID_FLAG_RETURN_WIFI_DS	0x1000  /**< Wi-Fi DS return field is valid. */
 
 #define PPE_DRV_V6_MAX_CONN_COUNT               1024
 
@@ -118,6 +129,8 @@ struct ppe_drv_v6_rule_create {
 	struct ppe_drv_vlan_rule vlan_rule;		/**< VLAN-related acceleration parameters. */
 	struct ppe_drv_top_if_rule top_rule;		/**< Parameters related to the top interface in hierarchy. */
 	struct ppe_drv_service_class_rule sawf_rule;    /**< Service class related information. */
+	struct ppe_drv_acl_policer_rule ap_rule;	/**< ACL/Policer rule ID information. */
+	struct ppe_drv_wifi_mdata_rule wifi_rule;	/**< Wi-Fi metadata rule ID information. */
 };
 
 /**
@@ -147,6 +160,15 @@ struct ppe_drv_v6_conn_sync {
         uint32_t return_tx_packet_count;		/**< Return interface's TX packet count. */
         uint32_t return_tx_byte_count;			/**< Return interface's TX byte count. */
         enum ppe_drv_stats_sync_reason reason;		/**< Reason for the sync. */
+};
+
+/*
+ * ppe_drv_v6_flow_conn_stats
+ *	PPE connection stats for a single connection
+ */
+struct ppe_drv_v6_flow_conn_stats {
+	struct ppe_drv_v6_5tuple tuple;			/**< Holds value of 5 tuple. */
+	struct ppe_drv_v6_conn_sync conn_sync;		/**< Connection stats */
 };
 
 /*
@@ -190,6 +212,17 @@ void ppe_drv_v6_stats_callback_unregister(void);
 bool ppe_drv_v6_stats_callback_register(ppe_drv_v6_sync_callback_t cb, void *app_data);
 
 /**
+ * ppe_drv_v6_get_conn_stats
+ *	API to get a single connection stats.
+ *
+ * @param[in] conn_stats	Pointer to the connection stats structure.
+ *
+ * @return
+ * Status of the stats sync.
+ */
+ppe_drv_ret_t ppe_drv_v6_get_conn_stats(struct ppe_drv_v6_flow_conn_stats *conn_stats);
+
+/**
  * ppe_drv_v6_conn_sync_many
  *	API to get v6 connection stats.
  *
@@ -203,7 +236,8 @@ void ppe_drv_v6_conn_sync_many(struct ppe_drv_v6_conn_sync_many *cn_syn, uint8_t
 
 /**
  * ppe_drv_v6_rfs_destroy
- *	Destroys IPv6 RFS connection rule in PPE.
+ * 	Destroys IPv6 RFS connection rule in PPE.
+ *	This function is deprecated, pls use ppe_drv_v6_assist_rule_destroy() instead
  *
  * @datatypes
  * ppe_drv_v6_rfs_destroy
@@ -217,7 +251,8 @@ ppe_drv_ret_t ppe_drv_v6_rfs_destroy(struct ppe_drv_v6_rule_destroy *destroy);
 
 /**
  * ppe_drv_v6_rfs_create
- *	Creates IPv6 RFS connection rule in PPE.
+ *      Creates IPv6 RFS connection rule in PPE.
+ *	This function is deprecated, pls use ppe_drv_v6_assist_rule_create() instead
  *
  * @datatypes
  * ppe_drv_v6_rfs_create
@@ -228,6 +263,58 @@ ppe_drv_ret_t ppe_drv_v6_rfs_destroy(struct ppe_drv_v6_rule_destroy *destroy);
  * Status of the create operation.
  */
 ppe_drv_ret_t ppe_drv_v6_rfs_create(struct ppe_drv_v6_rule_create *create);
+
+/**
+ * ppe_drv_v6_assist_rule_destroy
+ *	Destroys IPv6 Assist connection rule in PPE.
+ *
+ * @param[in] rule_type PPE Assist rule type.
+ * @param[in] destroy   Pointer to the NSS PPE IPv6 destroy rule message.
+ *
+ * @return
+ * Status of the destroy operation.
+ */
+ppe_drv_ret_t ppe_drv_v6_assist_rule_destroy(struct ppe_drv_v6_rule_destroy *destroy);
+
+/**
+ * ppe_drv_v6_assist_rule_create
+ *	Creates IPv6 Assist connection rule in PPE.
+ *
+ * @param[in] create	Pointer to the NSS PPE ASSIST IPv6 create rule message.
+ * @param[in] feature 	PPE Assist feature type.
+ *
+ * @return
+ * Status of the create operation.
+ */
+ppe_drv_ret_t ppe_drv_v6_assist_rule_create(struct ppe_drv_v6_rule_create *create, uint32_t feature);
+
+/**
+ * ppe_drv_v6_policer_flow_create
+ *	Creates IPv6 policer rule in PPE.
+ *
+ * @datatypes
+ * ppe_drv_v6_policer_create
+ *
+ * @param[in] create   Pointer to the NSS PPE IPv6 create rule message.
+ *
+ * @return
+ * Status of the create operation.
+ */
+ppe_drv_ret_t ppe_drv_v6_policer_flow_create(struct ppe_drv_v6_rule_create *create);
+
+/**
+ * ppe_drv_v6_policer_flow_destroy
+ *	Destroy IPv6 policer rule in PPE.
+ *
+ * @datatypes
+ * ppe_drv_v6_policer_destroy
+ *
+ * @param[in] destroy   Pointer to the NSS PPE IPv6 destroy rule message.
+ *
+ * @return
+ * Status of the destroy operation.
+ */
+ppe_drv_ret_t ppe_drv_v6_policer_flow_destroy(struct ppe_drv_v6_rule_destroy *destroy);
 
 /**
  * ppe_drv_v6_destroy

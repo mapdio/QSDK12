@@ -80,12 +80,19 @@ do_download() {
 	git clone ${PKG_KERNEL_SRC_URL} ${DL_DIR}/mac80211-kernel || (rm -rf ${DL_DIR}/mac80211-kernel &&  git clone ${PKG_KERNEL_SRC_URL} ${DL_DIR}/mac80211-kernel)
 	(cd ${DL_DIR}/mac80211-kernel;git remote add src ${PKG_KERNEL_SRC_URL}; git fetch src)
 
-	(cd  ${DL_DIR}/mac80211-kernel&& git checkout ${PKG_KERNEL_VERSION})
+	(cd  ${DL_DIR}/mac80211-kernel&& git checkout ${PKG_KERNEL_VERSION} && \
+	git revert --no-edit bde292c07b && \
+	git revert --no-edit 4dc84c06a && git revert --no-edit 1241e329c && \
+	git revert --no-edit db3bdcb9 && git revert --no-edit 48a54f6bc && \
+	git revert --no-edit b55379e34 && git revert --no-edit 47c662486 && \
+	git revert --no-edit 36b0cefe9 && git revert --no-edit dfcb63ce && \
+	git revert --no-edit e72aeb9e && git revert --no-edit de1352ead8 && \
+	git revert --no-edit fb5f6a0e && git revert --no-edit 74624944)
 
 	git clone ${PKG_BACKPORTS_SOURCE_URL} ${DL_DIR}/mac80211-source  ||
         (rm -rf ${DL_DIR}/mac80211-source && git  clone ${PKG_BACKPORTS_SOURCE_URL} ${DL_DIR}/mac80211-source)
 	cp ${TOPDIR}/../poky/meta-ipq/recipes-openwifi/wlan-open/mac80211/files/copy-list.ath ${DL_DIR}/mac80211-source
-	(cd  ${DL_DIR}/mac80211-source && git checkout ${PKG_BACKPORTS_VERSION} && rm -f ${DL_DIR}/mac80211-source/patches/0073-netdevice-mtu-range.cocci && rm -f ${DL_DIR}/mac80211-source/patches/0075-ndo-stats-64.cocci && rm -f ${DL_DIR}/mac80211-source/patches/0105-remove-const-from-rchan_callbacks.patch && backports_mlo_support &&./gentree.py --clean --copy-list ./copy-list.ath ${DL_DIR}/mac80211-kernel ${DL_DIR}/${SUBDIR})
+	(cd  ${DL_DIR}/mac80211-source && git checkout ${PKG_BACKPORTS_VERSION} && rm -f ${DL_DIR}/mac80211-source/patches/0073-netdevice-mtu-range.cocci && rm -f ${DL_DIR}/mac80211-source/patches/0075-ndo-stats-64.cocci && git revert --no-edit 49432781 && git revert --no-edit 8afac3a8 && backports_mlo_support &&./gentree.py --clean --copy-list ./copy-list.ath ${DL_DIR}/mac80211-kernel ${DL_DIR}/${SUBDIR})
 	echo "before making tar"
 	(cd ${DL_DIR}; if [ -z " tar --numeric-owner --owner=0 --group=0 --mode=a-s --sort=name ${TAR_TIMESTAMP:+--mtime="$TAR_TIMESTAMP"} -c ${SUBDIR} |  bzip2 -c > ${DL_DIR}/${SUBDIR}.tar.bz2" ]; then bzip2 -c > ${DL_DIR}/${SUBDIR}.tar.bz2; else : ; fi; tar --numeric-owner --owner=0 --group=0 --mode=a-s --sort=name ${TAR_TIMESTAMP:+--mtime="$TAR_TIMESTAMP"} -c ${SUBDIR} | bzip2 -c > ${DL_DIR}/${SUBDIR}.tar.bz2)
 

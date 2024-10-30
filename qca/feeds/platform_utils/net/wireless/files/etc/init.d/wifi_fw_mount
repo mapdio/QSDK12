@@ -18,85 +18,11 @@ STOP=95
 
 create_soft_link()
 {
-	if [ -e /sys/firmware/devicetree/base/AUTO_MOUNT ]; then
+	if [ -e /sys/firmware/devicetree/base/MP_256 ]; then
 		cp -f $*
-	elif [ ! -e /sys/firmware/devicetree/base/AUTO_MOUNT ]; then
+	elif [ ! -e /sys/firmware/devicetree/base/MP_256 ]; then
 		ln -s $*
 	fi
-}
-
-create_caldata_bin()
-{
-	local board=ap$(echo $(board_name) | awk -F 'ap' '{print$2}')
-	local mtdblock=$(find_mtd_part 0:ART)
-
-	local apdk="/tmp"
-
-	if [ -z "$mtdblock" ]; then
-		# read from mmc
-		mtdblock=$(find_mmc_part 0:ART)
-	fi
-
-	[ -n "$mtdblock" ] || return
-
-	# load board.bin
-	case "$board" in
-		ap-al02-c4*|ap-al02-c6*|ap-al06*|ap-al02-c7*|ap-al02-c8*|ap-al02-c9*|ap-al02-c10*|ap-al02-c11*|ap-al02-c12*|ap-al02-c14*|ap-al02-c15*|ap-al02-c16*|ap-al03-c1*|ap-al03-c2*)
-			echo caldata >> /log.log
-			AL_BD_FILENAME=/lib/firmware/IPQ9574/bdwlan.bin
-			mkdir -p ${apdk}/IPQ9574
-			if [ -f "$AL_BD_FILENAME" ]; then
-				FILESIZE=$(stat -Lc%s "$AL_BD_FILENAME")
-			else
-				FILESIZE=131072
-			fi
-			dd if=${mtdblock} of=${apdk}/IPQ9574/caldata.bin bs=1 count=$FILESIZE skip=4096
-			[ -L /lib/firmware/IPQ9574/caldata.bin ] || \
-				cp ${apdk}/IPQ9574/caldata.bin /lib/firmware/IPQ9574/caldata.bin
-
-			WKK_FILESIZE=184320
-			mkdir -p ${apdk}/qcn9224
-			dd if=${mtdblock} of=${apdk}/qcn9224/caldata_1.bin bs=1 count=$WKK_FILESIZE skip=157696
-			dd if=${mtdblock} of=${apdk}/qcn9224/caldata_2.bin bs=1 count=$WKK_FILESIZE skip=362496
-			dd if=${mtdblock} of=${apdk}/qcn9224/caldata_3.bin bs=1 count=$WKK_FILESIZE skip=567296
-			dd if=${mtdblock} of=${apdk}/qcn9224/caldata_4.bin bs=1 count=$WKK_FILESIZE skip=772096
-			cp ${apdk}/qcn9224/caldata_1.bin /lib/firmware/qcn9224/caldata_1.bin
-			cp ${apdk}/qcn9224/caldata_2.bin /lib/firmware/qcn9224/caldata_2.bin
-			cp ${apdk}/qcn9224/caldata_3.bin /lib/firmware/qcn9224/caldata_3.bin
-			cp ${apdk}/qcn9224/caldata_4.bin /lib/firmware/qcn9224/caldata_4.bin
-		;;
-		ap-mi01.1*|ap-mi01.2*|ap-mi01.4*|ap-mi01.6*|ap-mi01.9*)
-			MI_BD_FILENAME=/lib/firmware/IPQ5332/bdwlan.bin
-			mkdir -p ${apdk}/IPQ5332
-			if [ -f "$MI_BD_FILENAME" ]; then
-				FILESIZE=$(stat -Lc%s "$MI_BD_FILENAME")
-			else
-				FILESIZE=131072
-			fi
-			dd if=${mtdblock} of=${apdk}/IPQ5332/caldata.bin bs=1 count=$FILESIZE skip=4096
-			[ -L /lib/firmware/IPQ5332/caldata.bin ] || \
-			cp ${apdk}/IPQ5332/caldata.bin /lib/firmware/IPQ5332/caldata.bin
-
-			WKK_FILESIZE=184320
-			mkdir -p ${apdk}/qcn9224
-			dd if=${mtdblock} of=${apdk}/qcn9224/caldata_1.bin bs=1 count=$WKK_FILESIZE skip=157696
-			dd if=${mtdblock} of=${apdk}/qcn9224/caldata_2.bin bs=1 count=$WKK_FILESIZE skip=362496
-			cp ${apdk}/qcn9224/caldata_1.bin /lib/firmware/qcn9224/caldata_1.bin
-			cp ${apdk}/qcn9224/caldata_2.bin /lib/firmware/qcn9224/caldata_2.bin
-		;;
-		ap-mi*)
-			MI_BD_FILENAME=/lib/firmware/IPQ5332/bdwlan.bin
-			mkdir -p ${apdk}/IPQ5332
-			if [ -f "$MI_BD_FILENAME" ]; then
-				FILESIZE=$(stat -Lc%s "$MI_BD_FILENAME")
-			else
-				FILESIZE=131072
-			fi
-			dd if=${mtdblock} of=${apdk}/IPQ5332/caldata.bin bs=1 count=$FILESIZE skip=4096
-			[ -L /lib/firmware/IPQ5332/caldata.bin ] || \
-			cp ${apdk}/IPQ5332/caldata.bin /lib/firmware/IPQ5332/caldata.bin
-		;;
-	esac
 }
 
 mount_wifi_fw (){
@@ -265,7 +191,7 @@ mount_wifi_fw (){
 	if [ -d /lib/firmware/$arch/WIFI_FW/qcn6432 ]; then
 		cd $fwfolder && mkdir -p qcn6432 && mkdir -p /vendor/firmware/qcn6432
 		cd qcn6432 && ln -s /lib/firmware/$arch/WIFI_FW/qcn6432/*.* . && ln -s /lib/firmware/$arch/WIFI_FW/q6_fw.* .
-		cd /vendor/firmware/qcn6432 && ln -s /lib/firmware/$arch/WIFI_FW/qcn6432/Data.msc .
+		cd /vendor/firmware/qcn6432 && create_soft_link /lib/firmware/$arch/WIFI_FW/qcn6432/Data.msc .
 		mkdir -p /lib/firmware/qcn6432 && cd /lib/firmware/qcn6432 && create_soft_link /lib/firmware/$arch/WIFI_FW/qcn6432/qdss* .
         fi
 
@@ -304,7 +230,6 @@ mount_wifi_fw (){
 
 	if [ -e /lib/firmware/$arch/WIFI_FW/board-2.bin ]; then
 
-		create_caldata_bin
 		case "$arch" in
 			IPQ5332)
 				mkdir -p /lib/firmware/ath12k/$arch/$hw
@@ -313,11 +238,60 @@ mount_wifi_fw (){
 			*)
 				mkdir -p /lib/firmware/ath11k/$arch/$hw
 				cd /lib/firmware/ath11k/$arch/$hw/
+				ln -s /lib/firmware/$arch/caldata.bin .
 				;;
 		esac
 		ln -s /lib/firmware/$arch/WIFI_FW/board-2.bin .
-		ln -s /lib/firmware/$arch/caldata.bin .
 		ln -s /lib/firmware/$arch/qdss_trace_config.bin .
+
+		case $board_name in
+			ap-mi01.3|ap-mi04.1|ap-mi01.2|ap-mi01.2-c2|ap-mi01.6)
+				#caldata.bin --> ahb 2GHz
+				if [ -e /lib/firmware/IPQ5332/caldata.bin ]; then
+					ln -sf /lib/firmware/IPQ5332/caldata.bin cal-ahb-c000000.wifi.bin
+				fi
+			;;
+			*)
+				#No sym links
+			;;
+		esac
+	fi
+
+	if [ -d /lib/firmware/$arch/WIFI_FW/qcn6432 ]; then
+		if [ -e /lib/firmware/$arch/WIFI_FW/qcn6432/board-2.bin ]; then
+			mkdir -p /lib/firmware/ath12k/QCN6432/hw1.0/
+			cd /lib/firmware/ath12k/QCN6432/hw1.0/
+			ln -s /lib/firmware/$arch/WIFI_FW/qcn6432/board-2.bin .
+			ln -s /lib/firmware/$arch/WIFI_FW/qcn6432/qdss_trace_config.bin .
+
+			case $board_name in
+				ap-mi01.3)
+					#caldata_1.b0060 --> ahb 5GHz
+					if [ -e /lib/firmware/qcn6432/caldata_1.b0060 ]; then
+						ln -sf /lib/firmware/qcn6432/caldata_1.b0060 cal-ahb-soc@0:wifi1@c0000000.bin
+					fi
+
+					#caldata_2.b00b0 --> ahb 6GHz
+					if [ -e /lib/firmware/qcn6432/caldata_2.b00b0 ]; then
+						ln -sf /lib/firmware/qcn6432/caldata_2.b00b0 cal-ahb-soc@0:wifi2@c0000000.bin
+					fi
+				;;
+				ap-mi04.1)
+					#caldata_1.b0052 --> ahb 5GHz
+					if [ -e /lib/firmware/qcn6432/caldata_1.b0052 ]; then
+						ln -sf /lib/firmware/qcn6432/caldata_1.b0052 cal-ahb-soc@0:wifi1@c0000000.bin
+					fi
+
+					#caldata_2.b0091 --> ahb 6GHz
+					if [ -e /lib/firmware/qcn6432/caldata_2.b0091 ]; then
+						ln -sf /lib/firmware/qcn6432/caldata_2.b0091 cal-ahb-soc@0:wifi2@c0000000.bin
+					fi
+				;;
+				*)
+					#No sym links
+				;;
+			esac
+		fi
 	fi
 
 	if [ -d /lib/firmware/$arch/WIFI_FW/qcn9000 ]; then
@@ -371,88 +345,82 @@ mount_wifi_fw (){
 			fi
 			ln -s /lib/firmware/$arch/WIFI_FW/qcn9224/qdss_trace_config.bin .
 			case $board_name in
-				ap-al02-c4)
-					#caldata_2.bin --> PCI1 2.4 GHz
-					if [ -e /lib/firmware/qcn9224/caldata_2.bin ]; then
-						ln -s /lib/firmware/qcn9224/caldata_2.bin cal-pci-0002:01:00.0.bin
+				ap-al02-c4 |\
+				ap-al05)
+					#caldata_2.b0001 --> PCI1 2.4 GHz
+					if [ -e /lib/firmware/qcn9224/caldata_2.b0001 ]; then
+						ln -sf /lib/firmware/qcn9224/caldata_2.b0001 cal-pci-0001:01:00.0.bin
 					fi
 
-					#caldata_3.bin --> PCI2 6 GHz
-					if [ -e /lib/firmware/qcn9224/caldata_3.bin ]; then
-						ln -s /lib/firmware/qcn9224/caldata_3.bin cal-pci-0003:01:00.0.bin
+					#caldata_3.b0004 --> PCI2 6 GHz
+					if [ -e /lib/firmware/qcn9224/caldata_3.b0004 ]; then
+						ln -sf /lib/firmware/qcn9224/caldata_3.b0004 cal-pci-0002:01:00.0.bin
 					fi
 
-					#caldata_4.bin --> PCI3 5 GHz
-					if [ -e /lib/firmware/qcn9224/caldata_4.bin ]; then
-						ln -s /lib/firmware/qcn9224/caldata_4.bin cal-pci-0004:01:00.0.bin
+					#caldata_4.b0002 --> PCI3 5 GHz
+					if [ -e /lib/firmware/qcn9224/caldata_4.b0002 ]; then
+						ln -sf /lib/firmware/qcn9224/caldata_4.b0002 cal-pci-0003:01:00.0.bin
 					fi
 				;;
 				ap-al02-c6)
-					#caldata_3.bin --> PCI2 6 GHz
-					if [ -e /lib/firmware/qcn9224/caldata_3.bin ]; then
-						ln -s /lib/firmware/qcn9224/caldata_3.bin cal-pci-0003:01:00.0.bin
+					#caldata_3.b0004 --> PCI2 6 GHz
+					if [ -e /lib/firmware/qcn9224/caldata_3.b0004 ]; then
+						ln -sf /lib/firmware/qcn9224/caldata_3.b0004 cal-pci-0002:01:00.0.bin
 					fi
 
-					#caldata_4.bin --> PCI3 5 GHz
-					if [ -e /lib/firmware/qcn9224/caldata_4.bin ]; then
-						ln -s /lib/firmware/qcn9224/caldata_4.bin cal-pci-0004:01:00.0.bin
+					#caldata_4.b0002 --> PCI3 5 GHz
+					if [ -e /lib/firmware/qcn9224/caldata_4.b0002 ]; then
+						ln -sf /lib/firmware/qcn9224/caldata_4.b0002 cal-pci-0003:01:00.0.bin
 					fi
 				;;
 				ap-al06)
-                                        #caldata_3.bin --> PCI2 6 GHz
-                                        if [ -e /lib/firmware/qcn9224/caldata_3.bin ]; then
-                                                ln -s /lib/firmware/qcn9224/caldata_3.bin cal-pci-0003:01:00.0.bin
-                                        fi
+                                       #caldata_3.b001e --> PCI2 6 GHz
+                                       if [ -e /lib/firmware/qcn9224/caldata_3.b001e ]; then
+                                                ln -sf /lib/firmware/qcn9224/caldata_3.b001e cal-pci-0002:01:00.0.bin
+                                       fi
 
-                                        #caldata_4.bin --> PCI3 5 GHz
-                                        if [ -e /lib/firmware/qcn9224/caldata_4.bin ]; then
-                                                ln -s /lib/firmware/qcn9224/caldata_4.bin cal-pci-0004:01:00.0.bin
-                                        fi
+                                       #caldata_4.b0015 --> PCI3 5 GHz
+                                       if [ -e /lib/firmware/qcn9224/caldata_4.b0015 ]; then
+                                                ln -sf /lib/firmware/qcn9224/caldata_4.b0015 cal-pci-0003:01:00.0.bin
+                                       fi
                                 ;;
 				ap-al02-c9)
-					if [ -e /lib/firmware/qcn9224/caldata_1.bin ]; then
-						ln -s /lib/firmware/qcn9224/caldata_1.bin cal-pci-0001:01:00.0.bin
+                                        #caldata_1.b1010 --> PCI0 2.4 GHz + 5L GHz
+					if [ -e /lib/firmware/qcn9224/caldata_1.b1010 ]; then
+						ln -sf /lib/firmware/qcn9224/caldata_1.b1010 cal-pci-0000:01:00.0.bin
 					fi
 
-					if [ -e /lib/firmware/qcn9224/caldata_3.bin ]; then
-						ln -s /lib/firmware/qcn9224/caldata_3.bin cal-pci-0003:01:00.0.bin
+                                        #caldata_3.b100e --> PCI2 5H GHz + 6 GHz
+					if [ -e /lib/firmware/qcn9224/caldata_3.b100e ]; then
+						ln -sf /lib/firmware/qcn9224/caldata_3.b100e cal-pci-0002:01:00.0.bin
 					fi
 				;;
-				ap-mi01.2)
-					#caldata.bin --> ahb 2GHz
-					if [ -e /lib/firmware/IPQ5332/caldata.bin ]; then
-						ln -s /lib/firmware/IPQ5332/caldata.bin cal-ahb-c000000.wifi.bin
+				ap-mi01.2 |\
+				ap-mi01.2-c2)
+                                        #caldata_1.b0015 --> PCI0 5GHz
+                                        if [ -e /lib/firmware/qcn9224/caldata_1.b0015 ]; then
+                                                ln -sf /lib/firmware/qcn9224/caldata_1.b0015 cal-pci-0000:01:00.0.bin
 					fi
 
-					#caldata_1.bin --> cal-pci-0001:01:00.0.bin
-					if [ -e /lib/firmware/qcn9224/caldata_1.bin ]; then
-						ln -s /lib/firmware/qcn9224/caldata_1.bin cal-pci-0001:01:00.0.bin
-					fi
-
-					#caldata_2.bin --> cal-pci-0001:01:00.0.bin
-					if [ -e /lib/firmware/qcn9224/caldata_2.bin ]; then
-						ln -s /lib/firmware/qcn9224/caldata_2.bin cal-pci-0000:01:00.0.bin
+					#caldata_2.b0016 --> PCI1 6 GHz
+					if [ -e /lib/firmware/qcn9224/caldata_2.b0016 ]; then
+						ln -sf /lib/firmware/qcn9224/caldata_2.b0016 cal-pci-0001:01:00.0.bin
 					fi
 				;;
 				ap-mi01.6)
-					#caldata.bin --> ahb 2GHz
-					if [ -e /lib/firmware/IPQ5332/caldata.bin ]; then
-						ln -s /lib/firmware/IPQ5332/caldata.bin cal-ahb-c000000.wifi.bin
-					fi
-
-					#caldata_1.bin --> cal-pci-0001:01:00.0.bin
-					if [ -e /lib/firmware/qcn9224/caldata_1.bin ]; then
-						ln -s /lib/firmware/qcn9224/caldata_1.bin cal-pci-0001:01:00.0.bin
+                                        #caldata_2.b1019 --> PCI1 5GHz + 6GHz
+                                        if [ -e /lib/firmware/qcn9224/caldata_2.b1019 ]; then
+                                                ln -sf /lib/firmware/qcn9224/caldata_2.b1019 cal-pci-0001:01:00.0.bin
 					fi
 				;;
 				ap-mi01.9)
-					#caldata_1.bin --> cal-pci-0001:01:00.0.bin
-					if [ -e /lib/firmware/qcn9224/caldata_1.bin ]; then
-						ln -s /lib/firmware/qcn9224/caldata_1.bin cal-pci-0001:01:00.0.bin
+					#caldata_1.b001d --> cal-pci-0001:01:00.0.bin
+					if [ -e /lib/firmware/qcn9224/caldata_1.b001d ]; then
+						ln -s /lib/firmware/qcn9224/caldata_1.b001d cal-pci-0001:01:00.0.bin
 					fi
-					#caldata_2.bin --> cal-pci-0001:01:00.0.bin
-					if [ -e /lib/firmware/qcn9224/caldata_2.bin ]; then
-						ln -s /lib/firmware/qcn9224/caldata_2.bin cal-pci-0000:01:00.0.bin
+					#caldata_2.b0015 --> cal-pci-0001:01:00.0.bin
+					if [ -e /lib/firmware/qcn9224/caldata_2.b0015 ]; then
+						ln -s /lib/firmware/qcn9224/caldata_2.b0015 cal-pci-0000:01:00.0.bin
 					fi
 				;;
 				*)
@@ -463,7 +431,7 @@ mount_wifi_fw (){
 	fi
 
 	mkdir -p /vendor/firmware/$arch
-	cd /vendor/firmware/$arch && ln -s /lib/firmware/$arch/WIFI_FW/Data.msc .
+	cd /vendor/firmware/$arch && create_soft_link /lib/firmware/$arch/WIFI_FW/Data.msc .
 }
 
 mount_adsp_fw (){
@@ -598,7 +566,7 @@ stop_wifi_fw() {
 	local nor_flash=""
 	arch=$1
 
-	if [[ "$arch" == "IPQ6018" ]] || [[ "$arch" == "IPQ5018" ]]; then
+	if [[ "$arch" == "IPQ6018" ]] || [[ "$arch" == "IPQ5018" ]] || [[ "$arch" == "IPQ9574" ]] || [[ "$arch" == "IPQ5332" ]]; then
 		part_name="rootfs"
 		wifi_on_rootfs="1"
 	fi
@@ -639,6 +607,11 @@ stop_wifi_fw() {
 			ubidetach -f -p  /dev/$PART
 			sync
 		fi
+	fi
+	if [ -f /lib/firmware/$arch/WIFI_FW/q6_fw.mdt ] || ([ -f /lib/firmware/$arch/WIFI_FW/q6_fw0.mdt ] && [ -f /lib/firmware/$arch/WIFI_FW/q6_fw1.mdt ]); then
+		echo " WIFI FW umount not successful" > /dev/console 2>&1
+	else
+		echo " WIFI FW umount successful" > /dev/console 2>&1
 	fi
 }
 

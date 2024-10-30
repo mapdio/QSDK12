@@ -51,6 +51,9 @@
  * same context.
  */
 
+extern unsigned long long nr_rmnet_pkts;
+extern unsigned long long rmnet_rx_bytes;
+
 /* Local Definitions and Declarations */
 
 enum {
@@ -106,22 +109,27 @@ static int rmnet_unregister_real_device(struct net_device *real_dev,
 
 	kfree(port);
 
-	/* release reference on real_dev */
-	dev_put(real_dev);
-
 	netdev_dbg(real_dev, "Removed from rmnet\n");
 	return 0;
 }
 
-static int rmnet_register_real_device(struct net_device *real_dev)
+static int rmnet_register_real_device(struct net_device *real_dev,
+				      struct netlink_ext_ack *extack)
 {
 	struct rmnet_port *port;
 	int rc, entry;
 
 	ASSERT_RTNL();
 
-	if (rmnet_is_real_dev_registered(real_dev))
+	if (rmnet_is_real_dev_registered(real_dev)) {
+		port = rmnet_get_port_rtnl(real_dev);
+		if (port->rmnet_mode != RMNET_EPMODE_VND) {
+			NL_SET_ERR_MSG_MOD(extack, "bridge device already exists");
+			return -EINVAL;
+		}
+
 		return 0;
+	}
 
 	port = kzalloc(sizeof(*port), GFP_ATOMIC);
 	if (!port)
@@ -133,8 +141,6 @@ static int rmnet_register_real_device(struct net_device *real_dev)
 		kfree(port);
 		return -EBUSY;
 	}
-	/* hold on to real dev for MAP data */
-	dev_hold(real_dev);
 
 	for (entry = 0; entry < RMNET_MAX_LOGICAL_EP; entry++)
 		INIT_HLIST_HEAD(&port->muxed_ep[entry]);
@@ -220,6 +226,9 @@ static int rmnet_newlink(struct net *src_net, struct net_device *dev,
 	int err = 0;
 	u16 mux_id;
 
+	nr_rmnet_pkts = 0;
+	rmnet_rx_bytes = 0;
+
 	real_dev = __dev_get_by_index(src_net, nla_get_u32(tb[IFLA_LINK]));
 	if (!real_dev || !dev)
 		return -ENODEV;
@@ -233,7 +242,7 @@ static int rmnet_newlink(struct net *src_net, struct net_device *dev,
 
 	mux_id = nla_get_u16(data[IFLA_RMNET_MUX_ID]);
 
-	err = rmnet_register_real_device(real_dev);
+	err = rmnet_register_real_device(real_dev, extack);
 	if (err)
 		goto err0;
 
@@ -241,6 +250,10 @@ static int rmnet_newlink(struct net *src_net, struct net_device *dev,
 	err = rmnet_vnd_newlink(mux_id, dev, port, real_dev, ep);
 	if (err)
 		goto err1;
+
+	err = netdev_upper_dev_link(real_dev, dev, extack);
+	if (err < 0)
+		goto err2;
 
 	port->rmnet_mode = mode;
 
@@ -275,6 +288,8 @@ static int rmnet_newlink(struct net *src_net, struct net_device *dev,
 
 	return 0;
 
+err2:
+	unregister_netdevice(dev);
 err1:
 	rmnet_unregister_real_device(real_dev, port);
 err0:
@@ -311,19 +326,18 @@ static void rmnet_dellink(struct net_device *dev, struct list_head *head)
 	if (!port->nr_rmnet_devs)
 		qmi_rmnet_qmi_exit(port->qmi_info, port);
 
-	unregister_netdevice(dev);
-
 	qmi_rmnet_qos_exit_post();
 
 	if (priv->offload)
 		rmnet_nss_unregister(dev, priv);
 
+	netdev_upper_dev_unlink(real_dev, dev);
 	rmnet_unregister_real_device(real_dev, port);
+	unregister_netdevice(dev);
 }
 
-static void rmnet_force_unassociate_device(struct net_device *dev)
+static void rmnet_force_unassociate_device(struct net_device *real_dev)
 {
-	struct net_device *real_dev = dev;
 	struct hlist_node *tmp_ep;
 	struct rmnet_endpoint *ep;
 	struct rmnet_port *port;
@@ -336,10 +350,10 @@ static void rmnet_force_unassociate_device(struct net_device *dev)
 
 	ASSERT_RTNL();
 
-	port = rmnet_get_port_rtnl(dev);
+	port = rmnet_get_port_rtnl(real_dev);
 	qmi_rmnet_qmi_exit(port->qmi_info, port);
 
-	rmnet_unregister_bridge(dev, port);
+	rmnet_unregister_bridge(real_dev, port);
 
 	hash_for_each_safe(port->muxed_ep, bkt_ep, tmp_ep, ep, hlnode) {
 		struct rmnet_priv *priv = netdev_priv(ep->egress_dev);
@@ -347,6 +361,7 @@ static void rmnet_force_unassociate_device(struct net_device *dev)
 		if (priv->offload)
 			rmnet_nss_unregister(ep->egress_dev, priv);
 
+		netdev_upper_dev_unlink(real_dev, ep->egress_dev);
 		unregister_netdevice_queue(ep->egress_dev, &list);
 		rmnet_vnd_dellink(ep->mux_id, port, ep);
 
@@ -374,16 +389,16 @@ static void rmnet_force_unassociate_device(struct net_device *dev)
 static int rmnet_config_notify_cb(struct notifier_block *nb,
 				  unsigned long event, void *data)
 {
-	struct net_device *dev = netdev_notifier_info_to_dev(data);
+	struct net_device *real_dev = netdev_notifier_info_to_dev(data);
 	int rc;
 
-	if (!dev)
+	if (!real_dev)
 		return NOTIFY_DONE;
 
 	switch (event) {
 	case NETDEV_REGISTER:
-		if (dev->rtnl_link_ops == &rmnet_link_ops) {
-			rc = netdev_rx_handler_register(dev,
+		if (real_dev->rtnl_link_ops == &rmnet_link_ops) {
+			rc = netdev_rx_handler_register(real_dev,
 							rmnet_rx_priv_handler,
 							NULL);
 
@@ -394,13 +409,13 @@ static int rmnet_config_notify_cb(struct notifier_block *nb,
 		break;
 
 	case NETDEV_UNREGISTER:
-		if (dev->rtnl_link_ops == &rmnet_link_ops) {
-			netdev_rx_handler_unregister(dev);
+		if (real_dev->rtnl_link_ops == &rmnet_link_ops) {
+			netdev_rx_handler_unregister(real_dev);
 			break;
 		}
 
-		netdev_dbg(dev, "Kernel unregister\n");
-		rmnet_force_unassociate_device(dev);
+		netdev_dbg(real_dev, "Kernel unregister\n");
+		rmnet_force_unassociate_device(real_dev);
 		break;
 
 	default:
@@ -622,7 +637,7 @@ int rmnet_add_bridge(struct net_device *rmnet_dev,
 	if (rmnet_is_real_dev_registered(slave_dev))
 		return -EBUSY;
 
-	err = rmnet_register_real_device(slave_dev);
+	err = rmnet_register_real_device(slave_dev, extack);
 	if (err)
 		return -EBUSY;
 
@@ -861,8 +876,8 @@ static int __init rmnet_init(void)
 
 static void __exit rmnet_exit(void)
 {
-	unregister_netdevice_notifier(&rmnet_dev_notifier);
 	rtnl_link_unregister(&rmnet_link_ops);
+	unregister_netdevice_notifier(&rmnet_dev_notifier);
 	rmnet_core_genl_deinit();
 
 	module_put(THIS_MODULE);

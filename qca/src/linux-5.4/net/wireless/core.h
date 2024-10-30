@@ -157,6 +157,7 @@ struct cfg80211_internal_bss {
 	unsigned long ts;
 	unsigned long refcount;
 	atomic_t hold;
+	bool in_rbtree;
 
 	/* time at the start of the reception of the first octet of the
 	 * timestamp field of the last beacon/probe received for this BSS.
@@ -306,6 +307,7 @@ int cfg80211_dev_rename(struct cfg80211_registered_device *rdev,
 void ieee80211_set_bitrate_flags(struct wiphy *wiphy);
 
 void cfg80211_bss_expire(struct cfg80211_registered_device *rdev);
+void cfg80211_bss_expire_entry(struct wiphy *wiphy, unsigned long expire_time);
 void cfg80211_bss_age(struct cfg80211_registered_device *rdev,
                       unsigned long age_secs);
 void cfg80211_update_assoc_bss_entry(struct wireless_dev *wdev,

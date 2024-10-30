@@ -1,15 +1,18 @@
 /*
  * Copyright (c) 2014, 2016, 2018, The Linux Foundation. All rights reserved.
- * Permission to use, copy, modify, and/or distribute this software for
- * any purpose with or without fee is hereby granted, provided that the
- * above copyright notice and this permission notice appear in all copies.
+ * Copyright (c) 2022, Qualcomm Innovation Center, Inc. All rights reserved.
+ *
+ * Permission to use, copy, modify, and/or distribute this software for any
+ * purpose with or without fee is hereby granted, provided that the above
+ * copyright notice and this permission notice appear in all copies.
+ *
  * THE SOFTWARE IS PROVIDED "AS IS" AND THE AUTHOR DISCLAIMS ALL WARRANTIES
  * WITH REGARD TO THIS SOFTWARE INCLUDING ALL IMPLIED WARRANTIES OF
  * MERCHANTABILITY AND FITNESS. IN NO EVENT SHALL THE AUTHOR BE LIABLE FOR
  * ANY SPECIAL, DIRECT, INDIRECT, OR CONSEQUENTIAL DAMAGES OR ANY DAMAGES
  * WHATSOEVER RESULTING FROM LOSS OF USE, DATA OR PROFITS, WHETHER IN AN
- * ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT
- * OF OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
+ * ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF
+ * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  */
 
 //#include <osal_common.h>
@@ -605,7 +608,6 @@ int cli_str_2_list(const char *str, const sa_u32_t min, const sa_u32_t max,
 #define CLI_LIST_MAX_SECTION_LEN 21	/* max "4294967294-4294967295" */
 
 	int strLen;
-	sa_u32_t i;
 	const char *sectionStart;
 	const char *pComma;	/* pointer to ',' or '\0' */
 	char *pDash;		/* pointer to '-' or '\0' */
@@ -614,7 +616,7 @@ int cli_str_2_list(const char *str, const sa_u32_t min, const sa_u32_t max,
 	int decimalStrLen;
 	char sectionStr[CLI_LIST_MAX_SECTION_LEN + 1];
 	int sectionStrLen;
-	sa_u32_t val, start, end, lastVal = 0;
+	sa_ul_t i, val, start, end, lastVal = 0;
 	sa_bool_t lastValValid = SA_FALSE;
 	char *endPtr;
 	sa_bool_t endFlag = SA_FALSE;

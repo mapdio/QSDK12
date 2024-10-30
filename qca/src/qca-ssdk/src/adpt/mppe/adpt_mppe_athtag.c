@@ -14,7 +14,6 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  */
 
-
 /**
  * @defgroup
  * @{
@@ -27,9 +26,6 @@
 #include "appe_portvlan.h"
 #include "hsl.h"
 #include "hsl_dev.h"
-#if defined(MHT)
-#include "ssdk_mht.h"
-#endif
 
 sw_error_t
 adpt_mppe_athtag_pri_mapping_set(a_uint32_t dev_id,
@@ -213,6 +209,8 @@ _adpt_mppe_athtag_slave_switch_set (a_uint32_t dev_id, a_uint32_t ath_port)
 	a_uint32_t port_id = 0;
 	if (hsl_get_current_chip_type(dev_id) == CHIP_MHT)
 	{
+		fal_header_type_set(dev_id, A_TRUE, MHT_ATHTAG_TYPE);
+		fal_port_rxhdr_mode_set(dev_id, SSDK_PHYSICAL_PORT0, FAL_ONLY_MANAGE_FRAME_EN);
 		fal_port_txhdr_mode_set(dev_id, SSDK_PHYSICAL_PORT0, FAL_ALL_TYPE_FRAME_EN);
 		if ((ath_port & (ath_port -1)) == 0)
 		{
@@ -246,7 +244,12 @@ adpt_mppe_athtag_port_mapping_set(a_uint32_t dev_id,
 	{
 		/* enable rx athtag for mppe port1 */
 		rx_cfg.athtag_en = A_TRUE;
-		rx_cfg.athtag_type = MHT_HEADER_TYPE_VAL;
+#if defined(MHT)
+		if (hsl_get_current_chip_type(dev_id + 1) == CHIP_MHT)
+		{
+			rx_cfg.athtag_type = MHT_ATHTAG_TYPE;
+		}
+#endif
 		adpt_mppe_port_athtag_rx_set(dev_id, SSDK_PHYSICAL_PORT1, &rx_cfg);
 
 		/* ingress port mapping */
@@ -271,7 +274,10 @@ adpt_mppe_athtag_port_mapping_set(a_uint32_t dev_id,
 			tx_cfg.version = FAL_ATHTAG_VER3;
 		tx_cfg.athtag_en = A_TRUE;
 #if defined(MHT)
-		tx_cfg.athtag_type = MHT_HEADER_TYPE_VAL;
+		if (hsl_get_current_chip_type(dev_id + 1) == CHIP_MHT)
+		{
+			tx_cfg.athtag_type = MHT_ATHTAG_TYPE;
+		}
 #endif
 		tx_cfg.action = FAL_ATHTAG_ACTION_DISABLE_LEARN;
 		tx_cfg.bypass_fwd_en = A_TRUE;
@@ -355,45 +361,6 @@ adpt_mppe_athtag_port_mapping_get(a_uint32_t dev_id,
 	return SW_OK;
 }
 
-void adpt_mppe_athtag_func_bitmap_init(a_uint32_t dev_id)
-{
-	adpt_api_t *p_adpt_api = NULL;
-
-	p_adpt_api = adpt_api_ptr_get(dev_id);
-
-	if(p_adpt_api == NULL)
-	{
-		return;
-	}
-	p_adpt_api->adpt_athtag_func_bitmap = ((1<<FUNC_ATHTAG_PRI_MAPPING_SET) |
-						(1<<FUNC_ATHTAG_PRI_MAPPING_GET) |
-						(1<<FUNC_ATHTAG_PORT_MAPPING_SET) |
-						(1<<FUNC_ATHTAG_PORT_MAPPING_GET) |
-						(1<<FUNC_PORT_ATHTAG_RX_SET) |
-						(1<<FUNC_PORT_ATHTAG_RX_GET) |
-						(1<<FUNC_PORT_ATHTAG_TX_SET) |
-						(1<<FUNC_PORT_ATHTAG_TX_GET));
-	return;
-}
-
-static void adpt_mppe_athtag_func_unregister(a_uint32_t dev_id, adpt_api_t *p_adpt_api)
-{
-	if(p_adpt_api == NULL)
-	{
-		return;
-	}
-
-	p_adpt_api->adpt_athtag_pri_mapping_set = NULL;
-	p_adpt_api->adpt_athtag_pri_mapping_get = NULL;
-	p_adpt_api->adpt_athtag_port_mapping_set = NULL;
-	p_adpt_api->adpt_athtag_port_mapping_get = NULL;
-	p_adpt_api->adpt_port_athtag_rx_set = NULL;
-	p_adpt_api->adpt_port_athtag_rx_get = NULL;
-	p_adpt_api->adpt_port_athtag_tx_set = NULL;
-	p_adpt_api->adpt_port_athtag_tx_get = NULL;
-	return;
-}
-
 sw_error_t adpt_mppe_athtag_init(a_uint32_t dev_id)
 {
 	adpt_api_t *p_adpt_api = NULL;
@@ -402,43 +369,17 @@ sw_error_t adpt_mppe_athtag_init(a_uint32_t dev_id)
 
 	ADPT_NULL_POINT_CHECK(p_adpt_api);
 
-	adpt_mppe_athtag_func_unregister(dev_id, p_adpt_api);
+	p_adpt_api->adpt_athtag_pri_mapping_set = adpt_mppe_athtag_pri_mapping_set;
+	p_adpt_api->adpt_athtag_pri_mapping_get = adpt_mppe_athtag_pri_mapping_get;
+	p_adpt_api->adpt_athtag_port_mapping_set = adpt_mppe_athtag_port_mapping_set;
+	p_adpt_api->adpt_athtag_port_mapping_get = adpt_mppe_athtag_port_mapping_get;
+	p_adpt_api->adpt_port_athtag_rx_set = adpt_mppe_port_athtag_rx_set;
+	p_adpt_api->adpt_port_athtag_rx_get = adpt_mppe_port_athtag_rx_get;
+	p_adpt_api->adpt_port_athtag_tx_set = adpt_mppe_port_athtag_tx_set;
+	p_adpt_api->adpt_port_athtag_tx_get = adpt_mppe_port_athtag_tx_get;
 
-	if(p_adpt_api->adpt_athtag_func_bitmap & (1<<FUNC_ATHTAG_PRI_MAPPING_SET))
-	{
-		p_adpt_api->adpt_athtag_pri_mapping_set = adpt_mppe_athtag_pri_mapping_set;
-	}
-	if(p_adpt_api->adpt_athtag_func_bitmap & (1<<FUNC_ATHTAG_PRI_MAPPING_GET))
-	{
-		p_adpt_api->adpt_athtag_pri_mapping_get = adpt_mppe_athtag_pri_mapping_get;
-	}
-	if(p_adpt_api->adpt_athtag_func_bitmap & (1<<FUNC_ATHTAG_PORT_MAPPING_SET))
-	{
-		p_adpt_api->adpt_athtag_port_mapping_set = adpt_mppe_athtag_port_mapping_set;
-	}
-	if(p_adpt_api->adpt_athtag_func_bitmap & (1<<FUNC_ATHTAG_PORT_MAPPING_GET))
-	{
-		p_adpt_api->adpt_athtag_port_mapping_get = adpt_mppe_athtag_port_mapping_get;
-	}
-	if(p_adpt_api->adpt_athtag_func_bitmap & (1<<FUNC_PORT_ATHTAG_RX_SET))
-	{
-		p_adpt_api->adpt_port_athtag_rx_set = adpt_mppe_port_athtag_rx_set;
-	}
-	if(p_adpt_api->adpt_athtag_func_bitmap & (1<<FUNC_PORT_ATHTAG_RX_GET))
-	{
-		p_adpt_api->adpt_port_athtag_rx_get = adpt_mppe_port_athtag_rx_get;
-	}
-	if(p_adpt_api->adpt_athtag_func_bitmap & (1<<FUNC_PORT_ATHTAG_TX_SET))
-	{
-		p_adpt_api->adpt_port_athtag_tx_set = adpt_mppe_port_athtag_tx_set;
-	}
-	if(p_adpt_api->adpt_athtag_func_bitmap & (1<<FUNC_PORT_ATHTAG_TX_GET))
-	{
-		p_adpt_api->adpt_port_athtag_tx_get = adpt_mppe_port_athtag_tx_get;
-	}
 	return SW_OK;
 }
-
 
 /**
  * @}

@@ -1,6 +1,6 @@
 /*
  * Copyright (c) 2012, 2015-2019, 2021, The Linux Foundation. All rights reserved.
- * Copyright (c) 2021-2022, Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2021-2024, Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for any
  * purpose with or without fee is hereby granted, provided that the above
@@ -207,8 +207,6 @@ typedef enum
 	SW_SHAPER_TOKEN_CONFIG,
 	SW_PORT_SHAPER_CONFIG,
 	SW_SHAPER_CONFIG,
-	SW_MODULE,
-	SW_FUNC_CTRL,
 	SW_QM_CNT,
 	SW_POLICER_COUNTER,
 	SW_POLICER_PORT_CONFIG,
@@ -316,6 +314,13 @@ typedef enum
 	SW_ATHTAG_TX_CFG,
 	SW_SERVCODE_ATHTAG,
 	SW_COMBO_LINK,
+	SW_ERP_POWER_MODE,
+	SW_TOEPLITZ_SECRET_KEY,
+	SW_RSS_HASH_ALGM,
+	SW_TOEPLITZ_CONFIG,
+	SW_FLOW_NPT66_IID_CAL,
+	SW_FLOW_NPT66_IID,
+	SW_PKTEDIT_PADDING,
 /* auto_insert_flag */
 } sw_data_type_e;
 

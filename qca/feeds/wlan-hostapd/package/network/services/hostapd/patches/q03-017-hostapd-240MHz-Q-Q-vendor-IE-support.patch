@@ -12,8 +12,10 @@ advertised to mac80211 through NL attribute.
 
 Signed-off-by: Ramya Gnanasekar <quic_rgnanase@quicinc.com>
 
---- a/src/ap/ap_drv_ops.c
-+++ b/src/ap/ap_drv_ops.c
+Index: b/src/ap/ap_drv_ops.c
+===================================================================
+--- a/src/ap/ap_drv_ops.c	2023-01-20 17:57:32.744224390 +0530
++++ b/src/ap/ap_drv_ops.c	2023-01-20 17:57:32.708224679 +0530
 @@ -447,7 +447,9 @@ int hostapd_sta_add(struct hostapd_data
  		    size_t eht_capab_len,
  		    const struct ieee80211_he_6ghz_band_cap *he_6ghz_capab,
@@ -34,8 +36,10 @@ Signed-off-by: Ramya Gnanasekar <quic_rgnanase@quicinc.com>
  
  	if (link_add_mod)
  		return hapd->driver->link_sta_add_mod(hapd->drv_priv, &params);
---- a/src/ap/ap_drv_ops.h
-+++ b/src/ap/ap_drv_ops.h
+Index: b/src/ap/ap_drv_ops.h
+===================================================================
+--- a/src/ap/ap_drv_ops.h	2023-01-20 17:57:32.744224390 +0530
++++ b/src/ap/ap_drv_ops.h	2023-01-20 17:57:32.716224615 +0530
 @@ -47,7 +47,9 @@ int hostapd_sta_add(struct hostapd_data
  		    size_t eht_capab_len,
  		    const struct ieee80211_he_6ghz_band_cap *he_6ghz_capab,
@@ -47,9 +51,11 @@ Signed-off-by: Ramya Gnanasekar <quic_rgnanase@quicinc.com>
  int hostapd_set_privacy(struct hostapd_data *hapd, int enabled);
  int hostapd_set_generic_elem(struct hostapd_data *hapd, const u8 *elem,
  			     size_t elem_len);
---- a/src/ap/beacon.c
-+++ b/src/ap/beacon.c
-@@ -955,6 +955,10 @@ static u8 * hostapd_gen_probe_resp(struc
+Index: b/src/ap/beacon.c
+===================================================================
+--- a/src/ap/beacon.c	2023-01-20 17:57:32.744224390 +0530
++++ b/src/ap/beacon.c	2023-01-20 17:57:32.716224615 +0530
+@@ -914,6 +914,10 @@ static u8 * hostapd_gen_probe_resp(struc
  		if (include_mle)
  			buflen += hostapd_eid_basic_mle_len(hapd, WLAN_FC_STYPE_PROBE_RESP,
  							    ml_data);
@@ -60,7 +66,7 @@ Signed-off-by: Ramya Gnanasekar <quic_rgnanase@quicinc.com>
  	}
  #endif /* CONFIG_IEEE80211BE */
  
-@@ -1118,6 +1122,7 @@ static u8 * hostapd_gen_probe_resp(struc
+@@ -1077,6 +1081,7 @@ static u8 * hostapd_gen_probe_resp(struc
  			pos = hostapd_eid_basic_mle(hapd, pos,
  						    WLAN_FC_STYPE_PROBE_RESP,
  						    ml_data);
@@ -68,7 +74,7 @@ Signed-off-by: Ramya Gnanasekar <quic_rgnanase@quicinc.com>
  	}
  #endif /* CONFIG_IEEE80211BE */
  
-@@ -2126,6 +2131,9 @@ int ieee802_11_build_ap_params(struct ho
+@@ -2085,6 +2090,9 @@ int ieee802_11_build_ap_params(struct ho
  
  		tail_len += hostapd_eid_basic_mle_len(hapd, WLAN_FC_STYPE_BEACON,
  						      NULL);
@@ -78,7 +84,7 @@ Signed-off-by: Ramya Gnanasekar <quic_rgnanase@quicinc.com>
  	}
  #endif /* CONFIG_IEEE80211BE */
  
-@@ -2295,6 +2303,7 @@ int ieee802_11_build_ap_params(struct ho
+@@ -2254,6 +2262,7 @@ int ieee802_11_build_ap_params(struct ho
  		tailpos = hostapd_eid_basic_mle(hapd, tailpos,
  						WLAN_FC_STYPE_BEACON,
  						NULL);
@@ -86,9 +92,11 @@ Signed-off-by: Ramya Gnanasekar <quic_rgnanase@quicinc.com>
  	}
  #endif /* CONFIG_IEEE80211BE */
  
---- a/src/ap/ieee802_11.c
-+++ b/src/ap/ieee802_11.c
-@@ -4894,6 +4894,9 @@ static int check_assoc_ies(struct hostap
+Index: b/src/ap/ieee802_11.c
+===================================================================
+--- a/src/ap/ieee802_11.c	2023-01-20 18:01:18.538414920 +0530
++++ b/src/ap/ieee802_11.c	2023-01-20 18:01:31.262312820 +0530
+@@ -4885,6 +4885,9 @@ static int check_assoc_ies(struct hostap
  					  elems.he_capabilities_len,
  					  elems.eht_capabilities,
  					  elems.eht_capabilities_len);
@@ -98,7 +106,7 @@ Signed-off-by: Ramya Gnanasekar <quic_rgnanase@quicinc.com>
  		if (resp != WLAN_STATUS_SUCCESS)
  			return resp;
  
-@@ -5277,6 +5280,7 @@ static int add_associated_sta(struct hos
+@@ -5268,6 +5271,7 @@ static int add_associated_sta(struct hos
  	struct ieee80211_vht_capabilities vht_cap;
  	struct ieee80211_he_capabilities he_cap;
  	struct ieee80211_eht_capabilities eht_cap;
@@ -106,7 +114,7 @@ Signed-off-by: Ramya Gnanasekar <quic_rgnanase@quicinc.com>
  	int set = 1;
  	u8 *mld_addr = NULL;
  	int link_id = -1;
-@@ -5350,9 +5354,13 @@ static int add_associated_sta(struct hos
+@@ -5341,9 +5345,13 @@ static int add_associated_sta(struct hos
  	}
  #endif /* CONFIG_IEEE80211AX */
  #ifdef CONFIG_IEEE80211BE
@@ -121,7 +129,7 @@ Signed-off-by: Ramya Gnanasekar <quic_rgnanase@quicinc.com>
  #endif /* CONFIG_IEEE80211BE */
  
  	/*
-@@ -5372,7 +5380,9 @@ static int add_associated_sta(struct hos
+@@ -5363,7 +5371,9 @@ static int add_associated_sta(struct hos
  			    sta->he_6ghz_capab,
  			    sta->flags | WLAN_STA_ASSOC, sta->qosinfo,
  			    sta->vht_opmode, sta->p2p_ie ? 1 : 0,
@@ -132,7 +140,7 @@ Signed-off-by: Ramya Gnanasekar <quic_rgnanase@quicinc.com>
  		hostapd_logger(hapd, link_addr,
  			       HOSTAPD_MODULE_IEEE80211, HOSTAPD_LEVEL_NOTICE,
  			       "Could not %s %s STA to kernel ",
-@@ -5430,6 +5440,9 @@ u8 * hostapd_gen_assoc_resp(struct hosta
+@@ -5421,6 +5431,9 @@ u8 * hostapd_gen_assoc_resp(struct hosta
  			buflen += hostapd_eid_basic_mle_len(hapd,
  							    WLAN_FC_STYPE_ASSOC_RESP,
  							    ml_data);
@@ -142,7 +150,7 @@ Signed-off-by: Ramya Gnanasekar <quic_rgnanase@quicinc.com>
  	}
  #endif /* CONFIG_IEEE80211BE */
  
-@@ -5583,6 +5596,7 @@ rsnxe_done:
+@@ -5574,6 +5587,7 @@ rsnxe_done:
  	if (hapd->iconf->ieee80211be && !hapd->conf->disable_11be) {
  		p = hostapd_eid_eht_capab(hapd, p, IEEE80211_MODE_AP);
  		p = hostapd_eid_eht_operation(hapd, p, IEEE80211_MODE_AP);
@@ -150,7 +158,7 @@ Signed-off-by: Ramya Gnanasekar <quic_rgnanase@quicinc.com>
  	}
  #endif /* CONFIG_IEEE80211BE */
  
-@@ -5926,7 +5940,7 @@ static u16 prepare_link_sta_assoc_resp(s
+@@ -5905,7 +5919,7 @@ static u16 prepare_link_sta_assoc_resp(s
  				    0, NULL, NULL, NULL, 0, NULL, 0, NULL,
  				    sta->flags, 0, 0, 0, 0, false,
  				    hapd->iface->mlo_link_id,
@@ -159,8 +167,10 @@ Signed-off-by: Ramya Gnanasekar <quic_rgnanase@quicinc.com>
  				return WLAN_STATUS_AP_UNABLE_TO_HANDLE_NEW_STA;
  		}
  
---- a/src/ap/ieee802_11.h
-+++ b/src/ap/ieee802_11.h
+Index: b/src/ap/ieee802_11.h
+===================================================================
+--- a/src/ap/ieee802_11.h	2023-01-20 17:57:32.744224390 +0530
++++ b/src/ap/ieee802_11.h	2023-01-20 17:57:32.716224615 +0530
 @@ -95,6 +95,10 @@ void hostapd_get_eht_capab(struct hostap
  			   const struct ieee80211_eht_capabilities *src,
  			   struct ieee80211_eht_capabilities *dest,
@@ -188,8 +198,10 @@ Signed-off-by: Ramya Gnanasekar <quic_rgnanase@quicinc.com>
  void ru_punct_update_bw(u16 bitmap, u8 pri_chan, enum oper_chan_width *width, u8 *seg0, u8 *seg1);
  size_t hostapd_eid_basic_mle_len(struct hostapd_data *hapd, u32 type,
  				 struct multi_link_data *ml_data);
---- a/src/ap/ieee802_11_eht.c
-+++ b/src/ap/ieee802_11_eht.c
+Index: b/src/ap/ieee802_11_eht.c
+===================================================================
+--- a/src/ap/ieee802_11_eht.c	2023-01-20 17:57:32.744224390 +0530
++++ b/src/ap/ieee802_11_eht.c	2023-01-20 17:57:32.716224615 +0530
 @@ -8,6 +8,7 @@
  
  #include "utils/includes.h"
@@ -219,7 +231,7 @@ Signed-off-by: Ramya Gnanasekar <quic_rgnanase@quicinc.com>
  		cap->phy_cap[EHT_PHYCAP_320MHZ_IN_6GHZ_SUPPORT_IDX] &=
  			~EHT_PHYCAP_320MHZ_IN_6GHZ_SUPPORT_MASK;
  	if (!hapd->iface->conf->eht_phy_capab.su_beamformer)
-@@ -298,6 +297,70 @@ u8 * hostapd_eid_eht_operation(struct ho
+@@ -290,6 +289,70 @@ u8 * hostapd_eid_eht_operation(struct ho
  	return pos;
  }
  
@@ -290,7 +302,7 @@ Signed-off-by: Ramya Gnanasekar <quic_rgnanase@quicinc.com>
  
  static bool check_valid_eht_mcs_nss(struct hostapd_data *hapd, const u8 *ap_mcs,
  				    const u8 *sta_mcs, u8 mcs_count, u8 map_len)
-@@ -448,3 +511,41 @@ void hostapd_get_eht_capab(struct hostap
+@@ -440,3 +503,41 @@ void hostapd_get_eht_capab(struct hostap
  	os_memset(dest, 0, sizeof(*dest));
  	os_memcpy(dest, src, len);
  }
@@ -332,8 +344,10 @@ Signed-off-by: Ramya Gnanasekar <quic_rgnanase@quicinc.com>
 +
 +	os_memcpy(dest, src, len);
 +}
---- a/src/ap/sta_info.c
-+++ b/src/ap/sta_info.c
+Index: b/src/ap/sta_info.c
+===================================================================
+--- a/src/ap/sta_info.c	2023-01-20 17:57:32.744224390 +0530
++++ b/src/ap/sta_info.c	2023-01-20 17:57:32.716224615 +0530
 @@ -359,6 +359,7 @@ void ap_free_sta(struct hostapd_data *ha
  	os_free(sta->he_capab);
  	os_free(sta->he_6ghz_capab);
@@ -342,17 +356,19 @@ Signed-off-by: Ramya Gnanasekar <quic_rgnanase@quicinc.com>
  	hostapd_free_psk_list(sta->psk);
  	os_free(sta->identity);
  	os_free(sta->radius_cui);
-@@ -1695,7 +1696,7 @@ int ap_sta_re_add(struct hostapd_data *h
+@@ -1698,7 +1699,7 @@ int ap_sta_re_add(struct hostapd_data *h
  			    sta->supported_rates,
  			    sta->supported_rates_len,
  			    0, NULL, NULL, NULL, 0, NULL, 0, NULL,
--			    sta->flags, 0, 0, 0, 0, false, link_id, mld_addr)) {
-+			    sta->flags, 0, 0, 0, 0, false, link_id, mld_addr, NULL, 0)) {
+-			    sta->flags, 0, 0, 0, 0, ml_sta, link_id, mld_addr)) {
++			    sta->flags, 0, 0, 0, 0, ml_sta, link_id, mld_addr, NULL, 0)) {
  		hostapd_logger(hapd, sta->addr,
  			       HOSTAPD_MODULE_IEEE80211,
  			       HOSTAPD_LEVEL_NOTICE,
---- a/src/ap/sta_info.h
-+++ b/src/ap/sta_info.h
+Index: b/src/ap/sta_info.h
+===================================================================
+--- a/src/ap/sta_info.h	2023-01-20 17:57:32.744224390 +0530
++++ b/src/ap/sta_info.h	2023-01-20 17:57:32.716224615 +0530
 @@ -361,6 +361,8 @@ struct sta_info {
  #ifdef CONFIG_PASN
  	struct pasn_data *pasn;
@@ -362,8 +378,10 @@ Signed-off-by: Ramya Gnanasekar <quic_rgnanase@quicinc.com>
  };
  
  
---- a/src/common/ieee802_11_common.c
-+++ b/src/common/ieee802_11_common.c
+Index: b/src/common/ieee802_11_common.c
+===================================================================
+--- a/src/common/ieee802_11_common.c	2023-01-20 17:57:32.744224390 +0530
++++ b/src/common/ieee802_11_common.c	2023-01-20 17:57:32.720224583 +0530
 @@ -22,6 +22,7 @@ static int ieee802_11_parse_vendor_speci
  					    int show_errors)
  {
@@ -417,8 +435,10 @@ Signed-off-by: Ramya Gnanasekar <quic_rgnanase@quicinc.com>
  			if (ieee802_11_parse_vendor_specific(pos, elen,
  							     elems,
  							     show_errors))
---- a/src/common/ieee802_11_common.h
-+++ b/src/common/ieee802_11_common.h
+Index: b/src/common/ieee802_11_common.h
+===================================================================
+--- a/src/common/ieee802_11_common.h	2023-01-20 17:57:32.744224390 +0530
++++ b/src/common/ieee802_11_common.h	2023-01-20 17:57:32.724224551 +0530
 @@ -195,6 +195,7 @@ struct ieee802_11_elems {
  	const u8 *eht_operation;
  	const u8 *mbssid_known_bss;
@@ -435,8 +455,10 @@ Signed-off-by: Ramya Gnanasekar <quic_rgnanase@quicinc.com>
  
  	struct mb_ies_info mb_ies;
  	struct frag_ies_info frag_ies;
---- a/src/common/ieee802_11_defs.h
-+++ b/src/common/ieee802_11_defs.h
+Index: b/src/common/ieee802_11_defs.h
+===================================================================
+--- a/src/common/ieee802_11_defs.h	2023-01-20 17:57:32.744224390 +0530
++++ b/src/common/ieee802_11_defs.h	2023-01-20 17:57:32.724224551 +0530
 @@ -2507,6 +2507,13 @@ struct ieee80211_he_mu_edca_parameter_se
  
  #define DISABLED_SUBCHANNEL_BITMAP_BYTES_SIZE          2
@@ -471,8 +493,10 @@ Signed-off-by: Ramya Gnanasekar <quic_rgnanase@quicinc.com>
  /*
   * IEEE Std 802.11ai-2016, 9.6.8.36 FILS Discovery frame format,
   * Figure 9-687b - FILS Discovery Frame Control subfield format
---- a/src/common/qca-vendor.h
-+++ b/src/common/qca-vendor.h
+Index: b/src/common/qca-vendor.h
+===================================================================
+--- a/src/common/qca-vendor.h	2023-01-20 17:57:32.744224390 +0530
++++ b/src/common/qca-vendor.h	2023-01-20 17:57:32.728224519 +0530
 @@ -19,6 +19,10 @@
   */
  
@@ -484,18 +508,20 @@ Signed-off-by: Ramya Gnanasekar <quic_rgnanase@quicinc.com>
  
  #ifndef BIT
  #define BIT(x) (1U << (x))
---- a/src/drivers/driver.h
-+++ b/src/drivers/driver.h
-@@ -187,6 +187,8 @@ struct hostapd_channel_data {
- 	 * ru_punct_bitmap - RU puncturing bitmap
- 	 */
+Index: b/src/drivers/driver.h
+===================================================================
+--- a/src/drivers/driver.h	2023-01-20 17:57:32.744224390 +0530
++++ b/src/drivers/driver.h	2023-01-20 17:57:32.732224487 +0530
+@@ -1325,6 +1325,8 @@ struct wpa_driver_associate_params {
+ 	 * lowest bit for the channel with the lowest frequency.
+ 	 * Bit set to 1 indicates that the subchannel is punctured, otherwise active.*/
  	u16 ru_punct_bitmap;
 +	const struct ieee80211_240mhz_vendor_oper *eht_240mhz_capab;
 +	size_t eht_240mhz_len;
  };
  
- #define HE_MAC_CAPAB_0		0
-@@ -2456,6 +2458,8 @@ struct hostapd_sta_add_params {
+ enum hide_ssid {
+@@ -2451,6 +2453,8 @@ struct hostapd_sta_add_params {
  	u16 ru_punct_bitmap;
  	int link_id; /* Link id of the ML STA */
  	const u8 *mld_addr; /* MLD MAC address */
@@ -504,8 +530,10 @@ Signed-off-by: Ramya Gnanasekar <quic_rgnanase@quicinc.com>
  };
  
  struct mac_address {
---- a/src/drivers/driver_nl80211.c
-+++ b/src/drivers/driver_nl80211.c
+Index: b/src/drivers/driver_nl80211.c
+===================================================================
+--- a/src/drivers/driver_nl80211.c	2023-01-20 17:57:32.744224390 +0530
++++ b/src/drivers/driver_nl80211.c	2023-01-20 17:57:32.736224454 +0530
 @@ -5591,6 +5591,14 @@ static int wpa_driver_nl80211_sta_add(vo
  				goto fail;
  		}
@@ -521,8 +549,10 @@ Signed-off-by: Ramya Gnanasekar <quic_rgnanase@quicinc.com>
  		if (params->ext_capab) {
  			wpa_hexdump(MSG_DEBUG, "  * ext_capab",
  				    params->ext_capab, params->ext_capab_len);
---- a/src/drivers/nl80211_copy.h
-+++ b/src/drivers/nl80211_copy.h
+Index: b/src/drivers/nl80211_copy.h
+===================================================================
+--- a/src/drivers/nl80211_copy.h	2023-01-20 17:57:32.744224390 +0530
++++ b/src/drivers/nl80211_copy.h	2023-01-20 17:57:32.740224422 +0530
 @@ -3325,7 +3325,7 @@ enum nl80211_attrs {
  
  	NL80211_ATTR_MULTI_HW_MACS,

@@ -20,7 +20,8 @@ create_symbols() {
             fi
             `$DIR_PATH/dump_syms $BIN_FILE > $DIR_PATH/"${SYM_FILE_NAME}".sym`
             local app_name="$(head -n1 $DIR_PATH/"${SYM_FILE_NAME}".sym | awk '{print $5}')"
-            local sym_folder="$(head -n1 $DIR_PATH/"${SYM_FILE_NAME}".sym | awk '{print $4}')"
+            #local sym_folder="$(head -n1 $DIR_PATH/"${SYM_FILE_NAME}".sym | awk '{print $4}')"
+            local sym_folder="000000000000000000000000000000000"
             mkdir -p $DIR_PATH/symbols/$app_name/$sym_folder
             mv $DIR_PATH/"${SYM_FILE_NAME}".sym $DIR_PATH/symbols/$app_name/$sym_folder
         fi

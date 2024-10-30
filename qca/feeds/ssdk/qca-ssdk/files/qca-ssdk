@@ -1,6 +1,6 @@
 #!/bin/sh /etc/rc.common
 # Copyright (c) 2018, 2021, The Linux Foundation. All rights reserved.
-# Copyright (c) 2022-2023, Qualcomm Innovation Center, Inc. All rights reserved.
+# Copyright (c) 2022-2024, Qualcomm Innovation Center, Inc. All rights reserved.
 #
 # Permission to use, copy, modify, and/or distribute this software for any
 # purpose with or without fee is hereby granted, provided that the above
@@ -99,7 +99,7 @@ function create_war_cosmap(){
 function create_acl_byp_egstp_rules(){
 	chip_ver=$1
 	cmd="ssdk_sh servcode config set 1 n 0 0xfffefc7f 0xffbdff 0 0 0 0 0 0"
-	if [ "$chip_ver" == "0x2000" ] || [ "$chip_ver" = "0x2001" ]; then
+	if [ "$chip_ver" == "0x2000" ] || [ "$chip_ver" = "0x2001" ] || [ "$chip_ver" = "0x2100" ]; then
 		cmd="$cmd 0"
 	fi
 	#echo $cmd
@@ -108,8 +108,10 @@ function create_acl_byp_egstp_rules(){
 	ssdk_sh acl list create 56 48
 	#action bypass eg stp check
 	action="y n n n n n n n n n n 0 0 n n n n n n n n n n n n n y n n n n n n n n n n n n y n n n n n n n n n n n n n n n n n n"
-	if [ "$chip_ver" == "0x2000" ] || [ "$chip_ver" = "0x2001" ]; then
+	if [ "$chip_ver" == "0x2000" ]; then
 		action="$action n n 0"
+	elif [ "$chip_ver" = "0x2001" ] || [ "$chip_ver" = "0x2100" ]; then
+		action="$action n n n 0"
 	else
 		action="$action 0"
 	fi
@@ -123,7 +125,7 @@ function create_acl_byp_egstp_rules(){
 		else
 			cmd="ssdk_sh acl rule add 56 2 1 n 0 0 mac n n n n n n n yes 0x888e 0xffff n n n n n n n n n n n n n n n n n n n n n"
 		fi
-		if [ "$chip_ver" == "0x2000" ] || [ "$chip_ver" = "0x2001" ]; then
+		if [ "$chip_ver" == "0x2000" ] || [ "$chip_ver" = "0x2001" ] || [ "$chip_ver" = "0x2100" ]; then
 			cmd="$cmd n $action"
 		else
 			cmd="$cmd $action"
@@ -184,7 +186,7 @@ function delete_war_cosmap(){
 function delete_acl_byp_egstp_rules(){
 	chip_ver=$1
 	cmd="ssdk_sh servcode config set 1 n 0 0xfffefcff 0xffbfff 0 0 0 0 0 0"
-	if [ "$chip_ver" == "0x2000" ] || [ "$chip_ver" = "0x2001" ]; then
+	if [ "$chip_ver" == "0x2000" ] || [ "$chip_ver" = "0x2001" ] || [ "$chip_ver" = "0x2100" ]; then
 		cmd="$cmd 0"
 	fi
 	#echo $cmd
@@ -272,7 +274,7 @@ start() {
 		echo ''
 	fi
 	#The following commands should be uncommented to add acl egress stp bypass rules
-	if [ "$chip_ver" = "0x1500" ] || [ "$chip_ver" = "0x1501" ] || [ "$chip_ver" = "0x2000" ] || [ "$chip_ver" = "0x2001" ]; then
+	if [ "$chip_ver" = "0x1500" ] || [ "$chip_ver" = "0x1501" ] || [ "$chip_ver" = "0x2000" ] || [ "$chip_ver" = "0x2001" ] || [ "$chip_ver" = "0x2100" ]; then
 		#create_acl_byp_egstp_rules $chip_ver
 		echo ''
 	fi
@@ -296,7 +298,7 @@ stop() {
 		echo ''
 	fi
 	#The following commands should be uncommented to delete acl egress stp bypass rules
-	if [ "$chip_ver" = "0x1500" ] || [ "$chip_ver" = "0x1501" ] || [ "$chip_ver" = "0x2000" ] || [ "$chip_ver" = "0x2001" ]; then
+	if [ "$chip_ver" = "0x1500" ] || [ "$chip_ver" = "0x1501" ] || [ "$chip_ver" = "0x2000" ] || [ "$chip_ver" = "0x2001" ] || [ "$chip_ver" = "0x2100" ]; then
 		#delete_acl_byp_egstp_rules $chip_ver
 		echo ''
 	fi

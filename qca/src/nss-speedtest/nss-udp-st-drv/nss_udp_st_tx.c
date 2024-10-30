@@ -1,6 +1,6 @@
 /*
  **************************************************************************
- * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2024 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
@@ -19,6 +19,7 @@
 #include <linux/list.h>
 #include <linux/string.h>
 #include <linux/hrtimer.h>
+#include <linux/math64.h>
 #include <net/act_api.h>
 #include <net/netfilter/nf_conntrack_core.h>
 #include <linux/if_vlan.h>
@@ -97,7 +98,7 @@ static void nss_udp_st_generate_udp_hdr(struct udphdr *uh, uint16_t udp_len, str
 		uh->check = csum_ipv6_magic(&saddr, &daddr, udp_len, IPPROTO_UDP,
 		csum_partial(uh, udp_len, 0));
 	} else {
-		atomic_long_inc(&nust.stats.errors[NSS_UDP_ST_ERROR_INCORRECT_IP_VERSION]);
+		atomic64_inc(&nust.stats.errors[NSS_UDP_ST_ERROR_INCORRECT_IP_VERSION]);
 		return;
 	}
 
@@ -110,7 +111,7 @@ static void nss_udp_st_generate_udp_hdr(struct udphdr *uh, uint16_t udp_len, str
  * nss_udp_st_generate_eth_hdr()
  *	generate L2 header
  */
-static inline void nss_udp_st_generate_eth_hdr(struct sk_buff *skb, uint8_t *src_mac, uint8_t *dst_mac)
+static inline void nss_udp_st_generate_eth_hdr(struct sk_buff *skb, const uint8_t *src_mac, uint8_t *dst_mac)
 {
 	struct ethhdr *eh = (struct ethhdr *)skb_push(skb, ETH_HLEN);
 	skb_reset_mac_header(skb);
@@ -198,7 +199,7 @@ static void nss_udp_st_tx_packets(struct net_device *ndev, struct nss_udp_st_rul
 	} else if (rules->flags & NSS_UDP_ST_FLAG_IPV6) {
 		udp_len = pkt_sz - sizeof(*ipv6h);
 	} else {
-		atomic_long_inc(&nust.stats.errors[NSS_UDP_ST_ERROR_INCORRECT_IP_VERSION]);
+		atomic64_inc(&nust.stats.errors[NSS_UDP_ST_ERROR_INCORRECT_IP_VERSION]);
 		return;
 	}
 
@@ -206,7 +207,7 @@ static void nss_udp_st_tx_packets(struct net_device *ndev, struct nss_udp_st_rul
 
 	skb = dev_alloc_skb(skb_sz);
 	if (!skb) {
-		atomic_long_inc(&nust.stats.errors[NSS_UDP_ST_ERROR_MEMORY_FAILURE]);
+		atomic64_inc(&nust.stats.errors[NSS_UDP_ST_ERROR_MEMORY_FAILURE]);
 		return;
 	}
 
@@ -239,7 +240,7 @@ static void nss_udp_st_tx_packets(struct net_device *ndev, struct nss_udp_st_rul
 		data = skb_put(skb, pkt_sz - sizeof(*ipv6h) - sizeof(*uh));
 		memset(data, 0, pkt_sz - sizeof(*ipv6h) - sizeof(*uh));
 	} else {
-		atomic_long_inc(&nust.stats.errors[NSS_UDP_ST_ERROR_INCORRECT_IP_VERSION]);
+		atomic64_inc(&nust.stats.errors[NSS_UDP_ST_ERROR_INCORRECT_IP_VERSION]);
 		kfree_skb(skb);
 		return;
 	}
@@ -291,7 +292,7 @@ static void nss_udp_st_tx_packets(struct net_device *ndev, struct nss_udp_st_rul
 	skb->dev = xmit_dev;
 	if (xmit_dev->netdev_ops->ndo_start_xmit(skb, xmit_dev) != NETDEV_TX_OK) {
 		kfree_skb(skb);
-		atomic_long_inc(&nust.stats.errors[NSS_UDP_ST_ERROR_PACKET_DROP]);
+		atomic64_inc(&nust.stats.errors[NSS_UDP_ST_ERROR_PACKET_DROP]);
 		return;
 	}
 
@@ -318,7 +319,7 @@ static bool nss_udp_st_set_dev(void)
  */
 bool nss_udp_st_tx_valid(void)
 {
-	long long elapsed = atomic_long_read(&nust.stats.timer_stats[NSS_UDP_ST_STATS_TIME_ELAPSED]);
+	long long elapsed = atomic64_read(&nust.stats.timer_stats[NSS_UDP_ST_STATS_TIME_ELAPSED]);
 
 	if (elapsed < (nust.time * 1000)) {
 		return true;
@@ -464,12 +465,12 @@ static bool nss_udp_st_tx_init(void)
 	uint64_t total_bps;
 
 	if (nust.config.rate > NSS_UDP_ST_RATE_MAX) {
-		atomic_long_inc(&nust.stats.errors[NSS_UDP_ST_ERROR_INCORRECT_RATE]);
+		atomic64_inc(&nust.stats.errors[NSS_UDP_ST_ERROR_INCORRECT_RATE]);
 		return false;
 	}
 
 	if (nust.config.buffer_sz > NSS_UDP_ST_BUFFER_SIZE_MAX) {
-		atomic_long_inc(&nust.stats.errors[NSS_UDP_ST_ERROR_INCORRECT_BUFFER_SIZE]);
+		atomic64_inc(&nust.stats.errors[NSS_UDP_ST_ERROR_INCORRECT_BUFFER_SIZE]);
 		return false;
 	}
 	total_bps = (uint64_t)nust.config.rate * 1024 * 1024;
@@ -477,7 +478,7 @@ static bool nss_udp_st_tx_init(void)
 	/*
 	 * calculate number of pkts to send per rule per 10 ms
 	 */
-	nss_udp_st_tx_num_pkt = total_bps / (nust.rule_count * (nust.config.buffer_sz + sizeof(struct ethhdr)) * 8 * NSS_UDP_ST_TX_TIMER);
+	nss_udp_st_tx_num_pkt = div_u64(total_bps , (nust.rule_count * (nust.config.buffer_sz + sizeof(struct ethhdr)) * 8 * NSS_UDP_ST_TX_TIMER));
 	nss_udp_st_tx_num_pkt ++;
 	pr_debug("total number of packets to tx every 100ms %llu\n",nss_udp_st_tx_num_pkt);
 	if(!nss_udp_st_set_dev()) {
@@ -517,8 +518,12 @@ static enum hrtimer_restart nss_udp_st_hrtimer_callback(struct hrtimer *timer)
 void nss_udp_st_hrtimer_init(void)
 {
 	tx_hr_restart = HRTIMER_RESTART;
-	kt = ktime_set(0,10000000);
-	hrtimer_init(&tx_hr_timer, CLOCK_REALTIME, HRTIMER_MODE_ABS_HARD);
+	/*
+	 * Increasing interval by 1 second allows nss_udp_st_ioctl()
+	 * to complete before entering hrtimer callback for the first time
+	 */
+	kt = ktime_set(1,10000000);
+	hrtimer_init(&tx_hr_timer, CLOCK_MONOTONIC, HRTIMER_MODE_REL);
 	tx_hr_timer.function = &nss_udp_st_hrtimer_callback;
 }
 
@@ -567,7 +572,8 @@ bool nss_udp_st_tx(void)
 
 	if (!tx_timer_flag) {
 		nss_udp_st_hrtimer_init();
-		hrtimer_start(&tx_hr_timer, kt, HRTIMER_MODE_ABS_HARD);
+		hrtimer_start(&tx_hr_timer, kt, HRTIMER_MODE_REL);
+		kt = ktime_set(0,10000000);
 		tx_timer_flag = 1;
 	} else {
 		hrtimer_restart(&tx_hr_timer);

@@ -14,9 +14,11 @@ Signed-off-by: Muna Sinada <quic_msinada@quicinc.com>
  drivers/net/wireless/ath/ath12k/mac.c   |   3 +
  3 files changed, 270 insertions(+), 2 deletions(-)
 
+diff --git a/drivers/net/wireless/ath/ath12k/dp_tx.c b/drivers/net/wireless/ath/ath12k/dp_tx.c
+index 2a1864f20c10..d79007b39519 100644
 --- a/drivers/net/wireless/ath/ath12k/dp_tx.c
 +++ b/drivers/net/wireless/ath/ath12k/dp_tx.c
-@@ -117,6 +117,43 @@ static void ath12k_hal_tx_cmd_ext_desc_s
+@@ -117,6 +117,43 @@ static void ath12k_hal_tx_cmd_ext_desc_setup(struct ath12k_base *ab, void *cmd,
  						HAL_TX_MSDU_EXT_INFO1_ENCRYPT_TYPE);
  }
  
@@ -60,7 +62,7 @@ Signed-off-by: Muna Sinada <quic_msinada@quicinc.com>
  int ath12k_dp_tx(struct ath12k *ar, struct ath12k_link_vif *arvif,
  		 struct ath12k_sta *ahsta, struct sk_buff *skb)
  {
-@@ -141,6 +178,8 @@ int ath12k_dp_tx(struct ath12k *ar, stru
+@@ -141,6 +178,8 @@ int ath12k_dp_tx(struct ath12k *ar, struct ath12k_link_vif *arvif,
  	bool tcl_ring_retry;
  	u16 peer_id;
  	bool msdu_ext_desc = false;
@@ -69,43 +71,27 @@ Signed-off-by: Muna Sinada <quic_msinada@quicinc.com>
  
  	if (unlikely(test_bit(ATH12K_FLAG_CRASH_FLUSH, &ar->ab->dev_flags)))
  		return -ESHUTDOWN;
-@@ -224,7 +263,11 @@ tcl_ring_sel:
+@@ -224,7 +263,10 @@ tcl_ring_sel:
  
  	switch (ti.encap_type) {
  	case HAL_TCL_ENCAP_TYPE_NATIVE_WIFI:
 -		ath12k_dp_tx_encap_nwifi(skb);
-+		if ((ahvif->vif->offload_flags & IEEE80211_OFFLOAD_ENCAP_ENABLED) &&
-+		     skb->protocol == cpu_to_be16(ETH_P_PAE))
++		if (ahvif->vif->offload_flags & IEEE80211_OFFLOAD_ENCAP_ENABLED)
 +			is_diff_encap = true;
 +		else
 +			ath12k_dp_tx_encap_nwifi(skb);
  		break;
  	case HAL_TCL_ENCAP_TYPE_RAW:
  		if (!test_bit(ATH12K_FLAG_RAW_MODE, &ag->dev_flags)) {
-@@ -243,14 +286,6 @@ tcl_ring_sel:
- 		goto fail_remove_tx_buf;
- 	}
- 
--	ti.paddr = dma_map_single(ab->dev, skb->data, skb->len, DMA_TO_DEVICE);
--	if (unlikely(dma_mapping_error(ab->dev, ti.paddr))) {
--		atomic_inc(&ab->soc_stats.tx_err.misc_fail);
--		ath12k_warn(ab, "failed to DMA map data Tx buffer\n");
--		ret = -ENOMEM;
--		goto fail_remove_tx_buf;
--	}
--
- 	if (unlikely((ahvif->tx_encap_type == HAL_TCL_ENCAP_TYPE_ETHERNET &&
- 	     !(info->flags & IEEE80211_TX_CTL_HW_80211_ENCAP)))) {
- 		msdu_ext_desc = true;
-@@ -279,10 +314,40 @@ tcl_ring_sel:
+@@ -279,10 +321,32 @@ tcl_ring_sel:
  		}
  	}
  
 +	/* Add metadata for sw encrypted vlan group traffic */
-+	if ((!test_bit(ATH12K_FLAG_HW_CRYPTO_DISABLED, &ar->ab->ag->dev_flags) &&
++	if ((!test_bit(ATH12K_FLAG_HW_CRYPTO_DISABLED, &ar->ab->dev_flags) &&
 +	     !(info->control.flags & IEEE80211_TX_CTL_HW_80211_ENCAP) &&
 +	     !info->control.hw_key && ieee80211_has_protected(hdr->frame_control)) ||
-+	     is_diff_encap) {
++	    (skb->protocol == cpu_to_be16(ETH_P_PAE) && is_diff_encap)) {
 +		align_pad = ((unsigned long)skb->data) & (HTT_META_DATA_ALIGNMENT - 1);
 +		ret = ath12k_dp_metadata_align_skb(skb, align_pad);
 +		if (unlikely(ret))
@@ -123,14 +109,6 @@ Signed-off-by: Muna Sinada <quic_msinada@quicinc.com>
 +		ti.encrypt_type = HAL_ENCRYPT_TYPE_OPEN;
 +	}
 +
-+	ti.paddr = dma_map_single(ab->dev, skb->data, skb->len, DMA_TO_DEVICE);
-+	if (unlikely(dma_mapping_error(ab->dev, ti.paddr))) {
-+		atomic_inc(&ab->soc_stats.tx_err.misc_fail);
-+		ath12k_warn(ab, "failed to DMA map data Tx buffer\n");
-+		ret = -ENOMEM;
-+		goto fail_remove_tx_buf;
-+	}
-+
  	tx_desc->skb = skb;
  	tx_desc->mac_id = ar->pdev_idx;
  	ti.desc_id = tx_desc->desc_id;
@@ -139,7 +117,7 @@ Signed-off-by: Muna Sinada <quic_msinada@quicinc.com>
  	skb_cb->paddr = ti.paddr;
  	skb_cb->vif = ahvif->vif;
  	skb_cb->ar = ar;
-@@ -373,6 +438,9 @@ fail_unmap_dma:
+@@ -373,6 +437,9 @@ fail_unmap_dma:
  
  fail_remove_tx_buf:
  	ath12k_dp_tx_release_txbuf(dp, tx_desc, ti.ring_id);
@@ -149,6 +127,8 @@ Signed-off-by: Muna Sinada <quic_msinada@quicinc.com>
  	if (tcl_ring_retry)
  		goto tcl_ring_sel;
  
+diff --git a/drivers/net/wireless/ath/ath12k/dp_tx.h b/drivers/net/wireless/ath/ath12k/dp_tx.h
+index 85655f80ffad..930a8900b0e8 100644
 --- a/drivers/net/wireless/ath/ath12k/dp_tx.h
 +++ b/drivers/net/wireless/ath/ath12k/dp_tx.h
 @@ -15,6 +15,204 @@ struct ath12k_dp_htt_wbm_tx_status {
@@ -356,9 +336,11 @@ Signed-off-by: Muna Sinada <quic_msinada@quicinc.com>
  void ath12k_dp_tx_update_txcompl(struct ath12k *ar, struct hal_tx_status *ts);
  int ath12k_dp_tx_htt_h2t_ver_req_msg(struct ath12k_base *ab);
  int ath12k_dp_tx(struct ath12k *ar, struct ath12k_link_vif *arvif,
+diff --git a/drivers/net/wireless/ath/ath12k/mac.c b/drivers/net/wireless/ath/ath12k/mac.c
+index 69d74ad8ebc3..5728982958c2 100644
 --- a/drivers/net/wireless/ath/ath12k/mac.c
 +++ b/drivers/net/wireless/ath/ath12k/mac.c
-@@ -14266,6 +14266,9 @@ static int __ath12k_mac_register(struct
+@@ -13982,6 +13982,9 @@ static int __ath12k_mac_register(struct ath12k *ar)
  	ar->max_num_stations = TARGET_NUM_STATIONS;
  	ar->max_num_peers = TARGET_NUM_PEERS_PDEV;
  
@@ -368,46 +350,6 @@ Signed-off-by: Muna Sinada <quic_msinada@quicinc.com>
  	if (cap->nss_ratio_enabled)
  		ieee80211_hw_set(hw, SUPPORTS_VHT_EXT_NSS_BW);
  
---- a/net/mac80211/chan.c
-+++ b/net/mac80211/chan.c
-@@ -2049,6 +2049,9 @@ void ieee80211_link_vlan_copy_chanctx(st
- 	conf = rcu_dereference_protected(ap_conf->chanctx_conf,
- 					 lockdep_is_held(&local->chanctx_mtx));
- 	rcu_assign_pointer(link_conf->chanctx_conf, conf);
-+	memcpy(&sdata->vif.link_conf[link_id]->chandef,
-+	       &ap->vif.link_conf[link_id]->chandef,
-+	       sizeof(struct cfg80211_chan_def));
- 	rcu_read_unlock();
- 	mutex_unlock(&local->chanctx_mtx);
- }
---- a/net/mac80211/tx.c
-+++ b/net/mac80211/tx.c
-@@ -2692,8 +2692,15 @@ static struct sk_buff *ieee80211_build_h
- 			ap_sdata = container_of(sdata->bss,
- 						struct ieee80211_sub_if_data,
- 						u.ap);
--			chanctx_conf =
--				rcu_dereference(ap_sdata->vif.bss_conf.chanctx_conf);
-+
-+			/* TODO: change index of link_conf[] to link id of corresponding
-+			 * AP for MLO cases */
-+			if (ap_sdata->vif.valid_links)
-+				chanctx_conf =
-+				 rcu_dereference(ap_sdata->vif.link_conf[0]->chanctx_conf);
-+			else
-+				chanctx_conf =
-+				 rcu_dereference(ap_sdata->vif.bss_conf.chanctx_conf);
- 		}
- 		if (sdata->wdev.use_4addr)
- 			break;
---- a/net/wireless/nl80211.c
-+++ b/net/wireless/nl80211.c
-@@ -4737,7 +4737,7 @@ static int nl80211_validate_key_link_id(
- 			GENL_SET_ERR_MSG(info, "invalid link ID for MLO group key");
- 			return -EINVAL;
- 		}
--	} else if (link_id != -1) {
-+	} else if (link_id != -1 && wdev->iftype != NL80211_IFTYPE_AP_VLAN) {
- 		GENL_SET_ERR_MSG(info, "link ID not allowed for non-MLO group key");
- 		return -EINVAL;
- 	}
+-- 
+2.7.4
+

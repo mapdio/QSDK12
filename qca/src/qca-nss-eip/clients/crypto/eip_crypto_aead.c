@@ -14,10 +14,16 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  */
 
+#include <linux/version.h>
 #include <linux/of.h>
 
 #include <crypto/aes.h>
+#if (LINUX_VERSION_CODE < KERNEL_VERSION(6, 1, 0))
 #include <crypto/sha.h>
+#else
+#include <crypto/sha1.h>
+#include <crypto/sha2.h>
+#endif
 #include <crypto/md5.h>
 #include <crypto/aead.h>
 #include <crypto/ctr.h>
@@ -605,7 +611,9 @@ static int eip_crypto_aead_setkey_noauth(struct crypto_aead *tfm, const u8 *key,
 	tr = eip_tr_alloc(aead_g.dma_ctx, &info);
 	if (!tr) {
 		pr_warn("%px: Unable to allocate new TR.\n", tfm_ctx);
+#if (LINUX_VERSION_CODE < KERNEL_VERSION(6, 1, 0))
 		crypto_aead_set_flags(tfm, CRYPTO_TFM_RES_BAD_FLAGS);
+#endif
 		return -EBUSY;
 	}
 
@@ -651,7 +659,9 @@ static int eip_crypto_aead_setkey(struct crypto_aead *tfm, const u8 *key, unsign
 	 */
 	if (crypto_authenc_extractkeys(&keys, key, keylen)) {
 		pr_warn("%px: Unable to extract keys.\n", tfm_ctx);
+#if (LINUX_VERSION_CODE < KERNEL_VERSION(6, 1, 0))
 		crypto_aead_set_flags(tfm, CRYPTO_TFM_RES_BAD_KEY_LEN);
+#endif
 		aead_stats->invalid_key++;
 		tfm_stats->invalid_key++;
 		return -EINVAL;
@@ -693,7 +703,9 @@ static int eip_crypto_aead_setkey(struct crypto_aead *tfm, const u8 *key, unsign
 	tr = eip_tr_alloc(aead_g.dma_ctx, &info);
 	if (!tr) {
 		pr_warn("%px: Unable to allocate new TR.\n", tfm_ctx);
+#if (LINUX_VERSION_CODE < KERNEL_VERSION(6, 1, 0))
 		crypto_aead_set_flags(tfm, CRYPTO_TFM_RES_BAD_FLAGS);
+#endif
 		tfm_stats->tr_alloc_err++;
 		aead_stats->tr_alloc_err++;
 		return -EBUSY;

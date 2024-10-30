@@ -8,16 +8,21 @@
 include $(TOPDIR)/rules.mk
 
 PKG_NAME:=acpid
-PKG_VERSION:=2.0.30
+PKG_VERSION:=2.0.34
 PKG_RELEASE:=1
 
 PKG_SOURCE:=$(PKG_NAME)-$(PKG_VERSION).tar.xz
 PKG_SOURCE_URL:=@SF/acpid2
-PKG_HASH:=28b77b62d3f64ebd1c2a3d16bccc6d4333b4e24a86aeacebec255fad223cf4cb
+PKG_HASH:=2d095c8cfcbc847caec746d62cdc8d0bff1ec1bc72ef7c674c721e04da6ab333
+
 PKG_MAINTAINER:=Thomas Heil <heil@terminal-consulting.de>
-PKG_LICENSE:=GPL-2.0
+PKG_LICENSE:=GPL-2.0-or-later
 PKG_LICENSE_FILES:=COPYING
 PKG_CPE_ID:=cpe:/a:tedfelix:acpid
+
+PKG_INSTALL:=1
+PKG_BUILD_PARALLEL:=1
+PKG_BUILD_FLAGS:=gc-sections lto
 
 include $(INCLUDE_DIR)/package.mk
 
@@ -33,18 +38,14 @@ define Package/acpid/description
   The ACPI Daemon (acpid) With Netlink Support
 endef
 
-define Build/Compile
-	$(MAKE) -C $(PKG_BUILD_DIR) \
-		CC="$(TARGET_CC)" \
-		LD="$(TARGET_CC)" \
-		LDFLAGS="$(TARGET_LDFLAGS)" \
-		all
-endef
+TARGET_LDFLAGS += -Wl,--as-needed
 
 define Package/acpid/install
 	$(INSTALL_DIR) $(1)/usr/sbin
-	$(INSTALL_BIN) $(PKG_BUILD_DIR)/acpid $(1)/usr/sbin/
-	$(INSTALL_BIN) $(PKG_BUILD_DIR)/acpi_listen $(1)/usr/sbin/
+	$(INSTALL_BIN) $(PKG_INSTALL_DIR)/usr/sbin/acpid $(1)/usr/sbin/
+	$(INSTALL_BIN) $(PKG_INSTALL_DIR)/usr/sbin/kacpimon $(1)/usr/sbin/
+	$(INSTALL_DIR) $(1)/usr/bin
+	$(INSTALL_BIN) $(PKG_INSTALL_DIR)/usr/bin/acpi_listen $(1)/usr/sbin/
 	$(INSTALL_DIR) $(1)/etc/acpi/events
 	$(INSTALL_CONF) ./files/default $(1)/etc/acpi/events/default
 	$(INSTALL_DIR) $(1)/etc/init.d

@@ -18,6 +18,7 @@
 #include <soc/qcom/memory_dump.h>
 #include <soc/qcom/minidump.h>
 #include <dt-bindings/soc/qcom,dcc_v2.h>
+#include <soc/qcom/dcc_tprobe.h>
 
 #define TIMEOUT_US		(100)
 
@@ -178,6 +179,8 @@ struct dcc_drvdata {
 	struct clk_bulk_data	*clks;
 	int num_clks;
 };
+
+static struct dcc_drvdata *g_drvdata;
 
 static uint32_t dcc_offset_conv(struct dcc_drvdata *drvdata, uint32_t off)
 {
@@ -640,7 +643,7 @@ static bool is_dcc_enabled(struct dcc_drvdata *drvdata)
 	bool dcc_enable = false;
 	int list;
 
-	for (list = 0; list < DCC_MAX_LINK_LIST; list++) {
+	for (list = 0; list < drvdata->nr_link_list; list++) {
 		if (drvdata->enable[list]) {
 			dcc_enable = true;
 			break;
@@ -778,6 +781,37 @@ static ssize_t curr_list_show(struct device *dev,
 err:
 	mutex_unlock(&drvdata->mutex);
 	return ret;
+}
+
+int curr_list_clear(unsigned long val)
+{
+	bool dcc_enable = false;
+	uint32_t lock_reg;
+
+        if (val >= g_drvdata->nr_link_list)
+                return -EINVAL;
+
+        mutex_lock(&g_drvdata->mutex);
+
+        dcc_enable = is_dcc_enabled(g_drvdata);
+
+        if (g_drvdata->curr_list != DCC_INVALID_LINK_LIST && dcc_enable) {
+                dev_err(g_drvdata->dev, "DCC is enabled, please disable it first.\n");
+                mutex_unlock(&g_drvdata->mutex);
+                return -EINVAL;
+        }
+
+        lock_reg = dcc_readl(g_drvdata, DCC_LL_LOCK(val));
+        if (lock_reg & 0x1) {
+                dev_err(g_drvdata->dev, "DCC linked list is already configured\n");
+                mutex_unlock(&g_drvdata->mutex);
+                return -EINVAL;
+        }
+
+        g_drvdata->curr_list = val;
+        mutex_unlock(&g_drvdata->mutex);
+
+        return val;
 }
 
 static ssize_t curr_list_store(struct device *dev,
@@ -931,6 +965,14 @@ out:
 }
 static DEVICE_ATTR_RW(data_sink);
 
+void trigger_dcc_store(unsigned long val)
+{
+	if (val != 1)
+                return;
+
+        dcc_sw_trigger(g_drvdata);
+}
+
 static ssize_t trigger_store(struct device *dev,
 				 struct device_attribute *attr,
 				 const char *buf, size_t size)
@@ -973,6 +1015,14 @@ static ssize_t enable_show(struct device *dev,
 err:
 	mutex_unlock(&drvdata->mutex);
 	return ret;
+}
+
+void enable_dcc(unsigned long val)
+{
+	if (val)
+                dcc_enable(g_drvdata);
+        else
+                dcc_disable(g_drvdata);
 }
 
 static ssize_t enable_store(struct device *dev,
@@ -1154,6 +1204,11 @@ err:
 	return ret;
 }
 
+void config_add_dcc(unsigned int addr, unsigned int len)
+{
+	dcc_config_add(g_drvdata, addr, len, 0) ;
+}
+
 static ssize_t config_store(struct device *dev,
 				struct device_attribute *attr,
 				const char *buf, size_t size)
@@ -1204,6 +1259,14 @@ static void dcc_config_reset(struct dcc_drvdata *drvdata)
 	drvdata->ram_start = 0;
 	drvdata->ram_cfg = 0;
 	mutex_unlock(&drvdata->mutex);
+}
+
+void config_reset_dcc(unsigned long val)
+{
+        if (val)
+                dcc_config_reset(g_drvdata);
+
+        return;
 }
 
 static ssize_t config_reset_store(struct device *dev,
@@ -1321,6 +1384,15 @@ static int dcc_add_loop(struct dcc_drvdata *drvdata, unsigned long loop_cnt)
 	return 0;
 }
 
+void loop_add_dcc(unsigned long loop_cnt)
+{
+	mutex_lock(&g_drvdata->mutex);
+
+        dcc_add_loop(g_drvdata, loop_cnt);
+
+        mutex_unlock(&g_drvdata->mutex);
+}
+
 static ssize_t loop_store(struct device *dev,
 				    struct device_attribute *attr,
 				    const char *buf, size_t size)
@@ -1434,6 +1506,18 @@ static int dcc_add_write(struct dcc_drvdata *drvdata, unsigned int addr,
 	list_add_tail(&entry->list, &drvdata->cfg_head[drvdata->curr_list]);
 
 	return 0;
+}
+
+void config_write_dcc(unsigned int addr, unsigned int write_val)
+{
+        int ret;
+
+        mutex_lock(&g_drvdata->mutex);
+
+        ret = dcc_add_write(g_drvdata, addr, write_val, 0);
+        mutex_unlock(&g_drvdata->mutex);
+
+	return;
 }
 
 static ssize_t config_write_store(struct device *dev,
@@ -1800,6 +1884,7 @@ static int dcc_probe(struct platform_device *pdev)
 	if (!drvdata)
 		return -ENOMEM;
 
+	g_drvdata = drvdata;
 	drvdata->dev = &pdev->dev;
 	platform_set_drvdata(pdev, drvdata);
 

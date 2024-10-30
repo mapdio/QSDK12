@@ -8,16 +8,20 @@
 include $(TOPDIR)/rules.mk
 
 PKG_NAME:=rp-pppoe
-PKG_VERSION:=3.12
-PKG_RELEASE:=7
-PKG_LICENSE:=LGPL-2.0-or-later
-PKG_CPE_ID:=cpe:/a:roaring_penguin:pppoe
+PKG_VERSION:=3.15
+PKG_RELEASE:=1
 
 PKG_SOURCE:=$(PKG_NAME)-$(PKG_VERSION).tar.gz
-PKG_SOURCE_URL:=http://roaringpenguin.com/files/download
-PKG_HASH:=00794e04031546b0e9b8cf286f2a6d1ccfc4a621b2a3abb2d7ef2a7ab7cc86c2
+PKG_SOURCE_URL:=https://dianne.skoll.ca/projects/rp-pppoe/download
+PKG_HASH:=b1f318bc7e4e5b0fd8a8e23e8803f5e6e43165245a5a10a7162a92a6cf17829a
+
+PKG_MAINTAINER:=
+PKG_LICENSE:=LGPL-2.0-or-later
+PKG_LICENSE_FILES:=doc/LICENSE
+PKG_CPE_ID:=cpe:/a:roaring_penguin:pppoe
 
 PKG_BUILD_DEPENDS:=ppp
+PKG_BUILD_PARALLEL:=1
 
 include $(INCLUDE_DIR)/package.mk
 
@@ -25,8 +29,8 @@ define Package/rp-pppoe/Default
   SECTION:=net
   CATEGORY:=Network
   TITLE:=PPPoE (PPP over Ethernet)
-  URL:=http://roaringpenguin.com/products/pppoe
-  SUBMENU:=dial-in/up
+  URL:=https://dianne.skoll.ca/projects/rp-pppoe/
+  SUBMENU:=Dial-in/up
 endef
 
 define Package/rp-pppoe/Default/description
@@ -99,10 +103,10 @@ $(call Package/rp-pppoe/Default/description)
  This package contains pppoe-sniff.
 endef
 
-TARGET_CFLAGS += -I$(PKG_BUILD_DIR)/src/libevent -isystem $(PKG_BUILD_DIR)/missing-headers
+TARGET_CFLAGS += -I$(PKG_BUILD_DIR)/src/libevent -isystem $(PKG_BUILD_DIR)/missing-headers -D_BSD_SOURCE
 CONFIGURE_PATH := ./src
 CONFIGURE_ARGS += ac_cv_path_PPPD=/usr/sbin/pppd --enable-plugin=$(STAGING_DIR)/usr/include/
-MAKE_FLAGS := DESTDIR="$(PKG_INSTALL_DIR)" PLUGIN_PATH=rp-pppoe.so install
+MAKE_FLAGS := DESTDIR="$(PKG_INSTALL_DIR)" PLUGIN_PATH=pppoe.so install
 MAKE_PATH := ./src
 
 define Build/Prepare
@@ -122,8 +126,6 @@ define Package/rp-pppoe-relay/install
 	$(INSTALL_DIR) $(1)/usr/sbin
 	$(CP) $(PKG_INSTALL_DIR)/usr/sbin/pppoe-relay $(1)/usr/sbin/
 	$(INSTALL_DATA) ./files/pppoe-relay.default $(1)/etc/uci-defaults/
-	$(INSTALL_DIR) $(1)/etc/hotplug.d/iface
-	$(INSTALL_BIN) ./files/pppoe.hotplug $(1)/etc/hotplug.d/iface/65-pppoe
 endef
 
 define Package/rp-pppoe-server/install

@@ -189,7 +189,11 @@ static inline struct net_bridge_port *mc_bridge_get_dst(const struct net_bridge_
 
 	dst = os_br_fdb_get((struct net_bridge *)br, eth_hdr(*skb)->h_dest);
 
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(6, 0, 0))
+	if (dst && !test_bit(BR_FDB_LOCAL, &dst->flags))
+#else
 	if (dst && !dst->is_local)
+#endif
 		return dst->dst;
 
 	return NULL;

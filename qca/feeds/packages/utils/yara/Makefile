@@ -8,18 +8,21 @@
 include $(TOPDIR)/rules.mk
 
 PKG_NAME:=yara
-PKG_VERSION:=3.10.0
+PKG_VERSION:=4.2.0
 PKG_RELEASE:=1
-PKG_LICENSE:=BSD-3-Clause
 
 PKG_SOURCE:=$(PKG_NAME)-$(PKG_VERSION).tar.gz
 PKG_SOURCE_URL:=https://codeload.github.com/VirusTotal/yara/tar.gz/v$(PKG_VERSION)?
-PKG_HASH:=3281d43d6b49a4ca8d3a5d2521e06a0b72863702022f981b051856c2b83449c2
+PKG_HASH:=6f567d4e4b79a210cd57a820f59f19ee69b024188ef4645b1fc11488a4660951
 
+PKG_MAINTAINER:=Marko Ratkaj <markoratkaj@gmail.com>
+PKG_LICENSE:=BSD-3-Clause
+PKG_LICENSE_FILES:=COPYING
 PKG_CPE_ID:=cpe:/a:virustotal:yara
+
 PKG_FIXUP:=autoreconf
-PKG_BUILD_PARALLEL:=1
 PKG_INSTALL:=1
+PKG_BUILD_PARALLEL:=1
 
 include $(INCLUDE_DIR)/package.mk
 
@@ -28,7 +31,6 @@ define Package/yara
   CATEGORY:=Utilities
   TITLE:=Pattern matching swiss knife for malware researchers
   URL:=http://virustotal.github.io/yara/
-  MAINTAINER:=Marko Ratkaj <marko.ratkaj@sartura.hr>
   DEPENDS:= +libopenssl
   DEPENDS+= +YARA_module_magic:file
   DEPENDS+= +YARA_module_cuckoo:jansson

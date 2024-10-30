@@ -1,6 +1,6 @@
 /*
  **************************************************************************
- * Copyright (c) 2023, Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2023-2024, Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for any
  * purpose with or without fee is hereby granted, provided that the above
@@ -24,10 +24,15 @@
 #include <linux/fs.h>
 #include <linux/uaccess.h>
 #include <linux/poll.h>
+#include <linux/version.h>
+#include <linux/delay.h>
 
 #include "fls_debug.h"
 #include "fls_chardev.h"
 #include "fls_conn.h"
+
+DEFINE_SPINLOCK(fls_conn_lock);
+
 struct fls_event_log {
 	uint32_t read_index;
 	uint32_t write_index;
@@ -36,17 +41,11 @@ struct fls_event_log {
 	spinlock_t write_lock;
 };
 
-struct fls_chardev {
-	struct cdev cdev;
-	struct class *cl;
-	dev_t devid;
-	wait_queue_head_t readq;
-};
-
 static struct fls_chardev chardev;
 
 static struct fls_event_log event_log;
 static struct fls_event temp;
+static struct sk_buff dummy_skb;
 
 static int fls_chardev_fopen(struct inode *inode, struct file *file)
 {
@@ -66,7 +65,7 @@ static ssize_t fls_chardev_fread(struct file *file, char *buffer, size_t length,
 	}
 
 	if (length < sizeof(struct fls_event)) {
-		FLS_ERROR("Buffer too small to hold flow event data.\n");
+		FLS_ERROR("Buffer too small to hold flow event data. %d < %d\n", length, sizeof(struct fls_event));
 		return -EINVAL;
 	}
 
@@ -93,8 +92,127 @@ static ssize_t fls_chardev_fread(struct file *file, char *buffer, size_t length,
 
 static ssize_t fls_chardev_fwrite(struct file *file, const char *buffer, size_t length, loff_t *offset)
 {
-	return -EINVAL;
+	int count;
+	struct fls_cmdinfo packetinfo;
+	struct fls_conn *conn;
+
+	count = min(length, sizeof(struct fls_cmdinfo));
+	if (copy_from_user((char*)&packetinfo, buffer, count)) {
+		FLS_ERROR("copy from user failed.\n");
+		return -EFAULT;
+	}
+
+	if(count < sizeof(packetinfo)) {
+		FLS_ERROR("packet size not correct\n");
+		return 0;
+	}
+
+	/* FLSP debug info */
+	if (packetinfo.version == 4) {
+
+		FLS_TRACE("Protocol: %pI4:%u-> %pI4:%u, size = %d bytes\n",
+						packetinfo.src_ip,
+						packetinfo.src_port,
+						packetinfo.dst_ip,
+						packetinfo.dst_port,
+						packetinfo.data.fls_packetinfo.packet_size);
+	} else {
+		FLS_TRACE("Protocol: %pI6:%u-> %pI6:%u, size = %d bytes\n",
+						packetinfo.src_ip,
+						packetinfo.src_port,
+						packetinfo.dst_ip,
+						packetinfo.dst_port,
+						packetinfo.data.fls_packetinfo.packet_size);
+
+	}
+
+	switch (packetinfo.cmd) {
+		case FLS_CHARDEV_FLUSH:
+			/* flush all external connections */
+			FLS_TRACE("Flush external connections.\n");
+			spin_lock(&fls_conn_lock);
+			fls_conn_flush();
+			spin_unlock(&fls_conn_lock);
+			return count;
+
+		case FLS_CHARDEV_EVENT:
+			break;
+
+		case FLS_CHARDEV_RESULT:
+			FLS_TRACE("\nFLS: Receive stop command.\n");
+			spin_lock(&fls_conn_lock);
+			conn = fls_conn_lookup(packetinfo.version, packetinfo.protocol,
+						packetinfo.src_ip,
+						packetinfo.src_port,
+						packetinfo.dst_ip,
+						packetinfo.dst_port);
+			if(conn) {
+				conn->stats.isd.sendevent = false;
+				if(conn->reverse)
+					conn->reverse->stats.isd.sendevent = false;
+				if (fls_def_sensor_max_events != -1 && fls_def_sensor_stop_forever)  {
+					FLS_TRACE("Lookup succeed! Stop XL collection (FOREVER).");
+					conn->flags &= ~FLS_CONNECTION_FLAG_DEF_ENABLE;
+					if (conn->reverse) {
+						conn->reverse->flags &= ~FLS_CONNECTION_FLAG_DEF_ENABLE;
+					}
+					spin_unlock(&fls_conn_lock);
+					return count;
+				}
+				FLS_TRACE("Lookup succeed! Stop XL collection (For this epoch).");
+			} else {
+				FLS_TRACE("Lookup failed!\n");
+			}
+			spin_unlock(&fls_conn_lock);
+			return count;
+		default:
+			FLS_ERROR("Unrecognized command %d.\n", packetinfo.cmd);
+			return 0;
+	}
+
+	/*TODO: To check if IPv6 is supported in FLSP.*/
+	spin_lock(&fls_conn_lock);
+	conn = fls_conn_lookup(4, packetinfo.protocol,
+						&packetinfo.src_ip[0],
+						packetinfo.src_port,
+						&packetinfo.dst_ip[0],
+						packetinfo.dst_port);
+	FLS_TRACE("Lookup finished\n");
+	if(!conn) {
+		FLS_TRACE("Creating external connection\n");
+		conn = fls_conn_create_bidiflow(4, packetinfo.protocol,
+						&packetinfo.src_ip[0],
+						packetinfo.src_port,
+						&packetinfo.dst_ip[0],
+						packetinfo.dst_port,
+						true, packetinfo.data.fls_packetinfo.timestamp_nsec);
+		if(!conn) {
+			FLS_ERROR("Cannot create new bidiflow\n");
+			spin_unlock(&fls_conn_lock);
+			return 0;
+		}
+	} else {
+		FLS_TRACE("Found connection %px, updating last packetarrival..\n", conn);
+		conn->last_ts = ktime_set(packetinfo.data.fls_packetinfo.timestamp_sec, packetinfo.data.fls_packetinfo.timestamp_nsec);
+		conn->reverse->last_ts = conn->last_ts;
+	}
+	FLS_TRACE("Receive skb for conn=%px sec = %llu nsec = %llu\n", conn,  packetinfo.data.fls_packetinfo.timestamp_sec, packetinfo.data.fls_packetinfo.timestamp_nsec);
+
+	dummy_skb.len = packetinfo.data.fls_packetinfo.packet_size;
+	dummy_skb.tstamp = ktime_set(packetinfo.data.fls_packetinfo.timestamp_sec, packetinfo.data.fls_packetinfo.timestamp_nsec);
+	fls_def_sensor_packet_cb(NULL, conn, &dummy_skb);
+	spin_unlock(&fls_conn_lock);
+
+	//limit the speed of creating events.	
+	if (((event_log.write_index - event_log.read_index + FLS_CHARDEV_EVENT_MASK) & FLS_CHARDEV_EVENT_MASK) > FLS_CHARDEV_EVENTS_LIMIT){
+		while(event_log.write_index != event_log.read_index)
+				msleep(1);
+	}
+
+	return count;
 }
+
+
 
 static int fls_chardev_fmmap(struct file *file, struct vm_area_struct *vma)
 {
@@ -192,7 +310,11 @@ int fls_chardev_init(void)
 		return ret;
 	}
 
+#if (LINUX_VERSION_CODE < KERNEL_VERSION(6, 6, 0))
 	chardev.cl = class_create(THIS_MODULE, FLS_CHARDEV_NAME);
+#else
+	chardev.cl = class_create(FLS_CHARDEV_NAME);
+#endif
 	device_create(chardev.cl, NULL, chardev.devid, NULL, FLS_CHARDEV_NAME);
 
 	return 0;

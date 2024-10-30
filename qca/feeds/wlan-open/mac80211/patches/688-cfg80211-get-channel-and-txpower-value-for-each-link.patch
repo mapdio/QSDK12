@@ -16,17 +16,25 @@ Signed-off-by: Aaradhana Sahu <quic_aarasahu@quicinc.com>
 
 --- a/net/wireless/nl80211.c
 +++ b/net/wireless/nl80211.c
-@@ -4070,25 +4070,6 @@ static int nl80211_send_iface(struct sk_
+@@ -4071,33 +4071,6 @@ static int nl80211_send_iface(struct sk_
  	    nla_put_u8(msg, NL80211_ATTR_4ADDR, wdev->use_4addr))
  		goto nla_put_failure;
  
 -	if (rdev->ops->get_channel && !wdev->valid_links) {
 -		struct cfg80211_chan_def chandef = {};
--		int ret;
+-		int ret, dbm;
 -
 -		ret = rdev_get_channel(rdev, wdev, 0, &chandef);
 -		if (ret == 0 && nl80211_send_chandef(msg, &chandef))
 -			goto nla_put_failure;
+-		if (chandef.chan && chandef.chan->max_power) {
+-			dbm = min(chandef.chan->max_power,
+-				  rdev->wiphy.rdev_max_txpower);
+-			if(nla_put_u32(msg,
+-				       NL80211_ATTR_WIPHY_MAX_TX_POWER_LEVEL,
+-				       DBM_TO_MBM(dbm)))
+-				goto nla_put_failure;
+-		}
 -	}
 -
 -	if (rdev->ops->get_tx_power) {
@@ -42,7 +50,7 @@ Signed-off-by: Aaradhana Sahu <quic_aarasahu@quicinc.com>
  	wdev_lock(wdev);
  	switch (wdev->iftype) {
  	case NL80211_IFTYPE_AP:
-@@ -4150,10 +4131,37 @@ static int nl80211_send_iface(struct sk_
+@@ -4159,10 +4132,44 @@ static int nl80211_send_iface(struct sk_
  			if (ret == 0 && nl80211_send_chandef(msg, &chandef))
  				goto nla_put_failure;
  
@@ -62,13 +70,20 @@ Signed-off-by: Aaradhana Sahu <quic_aarasahu@quicinc.com>
 +	} else {
 +		if (rdev->ops->get_channel) {
 +			struct cfg80211_chan_def chandef = {};
-+			int ret;
++			int ret, dbm;
 +
 +			ret = rdev_get_channel(rdev, wdev, 0, &chandef);
 +			if (ret == 0 && nl80211_send_chandef(msg, &chandef))
 +				goto nla_put_failure;
++			if (chandef.chan && chandef.chan->max_power) {
++				dbm = min(chandef.chan->max_power,
++					  rdev->wiphy.rdev_max_txpower);
++				if(nla_put_u32(msg,
++					       NL80211_ATTR_WIPHY_MAX_TX_POWER_LEVEL,
++					       DBM_TO_MBM(dbm)))
++					goto nla_put_failure;
++			}
 +		}
-+
 +		if (rdev->ops->get_tx_power) {
 +			int dbm, ret;
 +			ret = rdev_get_tx_power(rdev, wdev, &dbm);

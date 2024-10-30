@@ -1,5 +1,5 @@
 #
-# Copyright (C) 2015-2018 OpenWrt.org
+# Copyright (C) 2015-2016, 2018-2021, 2023 Jeffery To
 #
 # This is free software, licensed under the GNU General Public License v2.
 # See /LICENSE for more information.
@@ -8,64 +8,47 @@
 include $(TOPDIR)/rules.mk
 
 PKG_NAME:=python-cffi
-PKG_VERSION:=1.13.2
+PKG_VERSION:=1.16.0
 PKG_RELEASE:=1
 
-PKG_SOURCE:=cffi-$(PKG_VERSION).tar.gz
-PKG_SOURCE_URL:=https://files.pythonhosted.org/packages/source/c/cffi
-PKG_HASH:=599a1e8ff057ac530c9ad1778293c665cb81a791421f46922d80a86473c13346
-
-PKG_BUILD_DIR:=$(BUILD_DIR)/$(BUILD_VARIANT)-cffi-$(PKG_VERSION)
+PYPI_NAME:=cffi
+PKG_HASH:=bcb3ef43e58665bbda2fb198698fcae6776483e0c4a631aa5647806c25e02cc0
 
 PKG_LICENSE:=MIT
 PKG_LICENSE_FILES:=LICENSE
-PKG_MAINTAINER:=Jeffery To <jeffery.to@gmail.com>, Alexandru Ardelean <ardeleanalex@gmail.com>
+PKG_MAINTAINER:=Jeffery To <jeffery.to@gmail.com>
 
+HOST_BUILD_DEPENDS:= \
+	python3/host \
+	python-build/host \
+	python-installer/host \
+	python-wheel/host \
+	python-pycparser/host
+
+include ../pypi.mk
 include $(INCLUDE_DIR)/package.mk
-include ../python-package.mk
+include $(INCLUDE_DIR)/host-build.mk
 include ../python3-package.mk
+include ../python3-host-build.mk
 
-PKG_UNPACK:=$(HOST_TAR) -C $(PKG_BUILD_DIR) --strip-components=1 -xzf $(DL_DIR)/$(PKG_SOURCE)
-
-define Package/python-cffi/Default
+define Package/python3-cffi
   SECTION:=lang
   CATEGORY:=Languages
   SUBMENU:=Python
   TITLE:=C Foreign Function Interface
   URL:=https://cffi.readthedocs.org/
-  DEPENDS:=+libffi
-endef
-
-define Package/python-cffi
-$(call Package/python-cffi/Default)
-  DEPENDS+= \
-      +PACKAGE_python-cffi:python-light \
-      +PACKAGE_python-cffi:python-pycparser
-  VARIANT:=python
-endef
-
-define Package/python3-cffi
-$(call Package/python-cffi/Default)
-  DEPENDS+= \
-      +PACKAGE_python3-cffi:python3-light \
-      +PACKAGE_python3-cffi:python3-pycparser
-  VARIANT:=python3
-endef
-
-define Package/python-cffi/description
-Foreign Function Interface for Python calling C code.
+  DEPENDS:= \
+      +libffi \
+      +python3-light \
+      +python3-ctypes \
+      +python3-pycparser
 endef
 
 define Package/python3-cffi/description
-$(call Package/python-cffi/description)
-.
-(Variant for Python3)
+Foreign Function Interface for Python calling C code.
 endef
-
-$(eval $(call PyPackage,python-cffi))
-$(eval $(call BuildPackage,python-cffi))
-$(eval $(call BuildPackage,python-cffi-src))
 
 $(eval $(call Py3Package,python3-cffi))
 $(eval $(call BuildPackage,python3-cffi))
 $(eval $(call BuildPackage,python3-cffi-src))
+$(eval $(call HostBuild))

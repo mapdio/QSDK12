@@ -1,5 +1,7 @@
 /*
  * Copyright (c) 2014, 2015, 2017, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2023, Qualcomm Innovation Center, Inc. All rights reserved.
+ *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
  * above copyright notice and this permission notice appear in all copies.
@@ -255,6 +257,8 @@ typedef struct {
 	a_uint16_t ip6_mru; /* IPv6 Maximum Receive Unit, added for ipq95xx*/
 	a_uint16_t ip6_mtu; /* IPv6 Maximum Transmission Unit, added for ipq95xx*/
 	a_uint16_t vpn_id; /* vpn id, added for ipq95xx */
+	fal_mac_addr_t in_mac_addr; /* MAC address for routing decision, added for ipq54xx */
+	a_bool_t in_mac_valid; /* MAC address valid or not, added for ipq54xx */
 } fal_intf_entry_t;
 
 typedef enum

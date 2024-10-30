@@ -3,7 +3,7 @@
  * IPQ9574 SoC device tree source
  *
  * Copyright (c) 2020-2021 The Linux Foundation. All rights reserved.
- * Copyright (c) 2022-2023, Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2024, Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #include <dt-bindings/interrupt-controller/arm-gic.h>
@@ -118,11 +118,12 @@
 
 	ctx_save: ctx-save {
 		compatible = "qti,ctxt-save-ipq9574";
+		memory-region = <&minidump_mem>;
 	};
 
 	firmware {
 		qfprom {
-			compatible = "qcom,qfprom-sec";
+			compatible = "qcom,qfprom-ipq9574-sec";
 			img-addr = <0x4A100000>;
 			img-size = <0x00500000>;
 			scm-cmd-id = <0x1F>;
@@ -131,7 +132,7 @@
 
 	tcsr_mutex: hwlock {
 		compatible = "qcom,tcsr-mutex";
-		syscon = <&tcsr_mutex_regs 0 0x80>;
+		syscon = <&tcsr_mutex_regs 0 0x1000>;
 		#hwlock-cells = <1>;
 	};
 
@@ -158,7 +159,7 @@
 	smem {
 		compatible = "qcom,smem";
 		memory-region = <&smem_region>;
-		hwlocks = <&tcsr_mutex 0>;
+		hwlocks = <&tcsr_mutex 3>;
 	};
 
 	qseecom: qseecom {
@@ -366,7 +367,7 @@
 			#address-cells = <1>;
 			#size-cells = <1>;
 			compatible = "qcom,qca-mdio", "qcom,ipq40xx-mdio";
-			reg = <0x90000 0x64>, <0x9B780 8>;
+			reg = <0x90000 0x64>, <0x9B000 0x800>;
 			clocks = <&gcc GCC_MDIO_AHB_CLK>;
 			clock-names = "gcc_mdio_ahb_clk";
 			status = "disabled";
@@ -973,7 +974,7 @@
 
 		tcsr_mutex_regs: syscon@1905000 {
 			compatible = "syscon";
-			reg = <0x01905000 0x8000>;
+			reg = <0x01905000 0x20000>;
 		};
 
 		tcsr_boot_misc: syscon@193d100 {
@@ -1060,6 +1061,7 @@
 				 <&gcc GCC_BLSP1_AHB_CLK>;
 			clock-names = "core", "iface";
 			status = "disabled";
+			tx-watermark = <0>;
 		};
 
 		blsp1_uart3: serial@78b2000 {
@@ -1210,6 +1212,7 @@
 			clock-names = "core", "iface";
 			dmas = <&blsp_dma 12>, <&blsp_dma 13>;
 			dma-names = "tx", "rx";
+			spi-transfer-timeout = <200>;
 			status = "disabled";
 		};
 
@@ -1225,6 +1228,7 @@
 				 <&nsscc NSS_CC_NSSNOC_IMEM_QSB_CLK>,
 				 <&nsscc NSS_CC_IMEM_AHB_CLK>,
 				 <&nsscc NSS_CC_NSSNOC_IMEM_AHB_CLK>,
+				 <&nsscc NSS_CC_PPE_EDMA_CLK>,
 				 <&gcc GCC_MEM_NOC_NSSNOC_CLK>,
 				 <&gcc GCC_NSS_TBU_CLK>,
 				 <&gcc GCC_NSS_TS_CLK>,
@@ -1242,7 +1246,7 @@
 				 <&gcc GCC_NSSNOC_XO_DCD_CLK>;
 			clock-names = "nss-csr-clk", "nss-nssnoc-csr-clk",
 				      "nss-imem-qsb-clk", "nss-nssnoc-imem-qsb-clk",
-				      "nss-imem-ahb-clk", "nss-nssnoc-imem-ahb-clk",
+				      "nss-imem-ahb-clk", "nss-nssnoc-imem-ahb-clk", "nss-edma-clk",
 				      "nss-mem-noc-nssnoc-clk", "nss-tbu-clk", "nss-ts-clk",
 				      "nss-nsscc-clk", "nss-nsscfg-clk", "nss-nsscnoc-atb-clk",
 				      "nss-nssnoc-mem-noc-1-clk", "nss-nssnoc-memnoc-clk", "nss-nssnoc-nsscc-clk",
@@ -1561,28 +1565,28 @@
 
 			dma0 {
 				tx_cpu = /bits/ 8 <0>;
-				rx_cpu = /bits/ 8 <3>;
+				rx_cpu = /bits/ 8 <0>;
 				ring-name = "lookaside";
 				ring-id = /bits/ 8 <0>;
 			};
 
 			dma1 {
 				tx_cpu = /bits/ 8 <1>;
-				rx_cpu = /bits/ 8 <2>;
+				rx_cpu = /bits/ 8 <1>;
 				ring-name = "lookaside";
 				ring-id = /bits/ 8 <1>;
 			};
 
 			dma2 {
 				tx_cpu = /bits/ 8 <2>;
-				rx_cpu = /bits/ 8 <1>;
+				rx_cpu = /bits/ 8 <2>;
 				ring-name = "lookaside";
 				ring-id = /bits/ 8 <2>;
 			};
 
 			dma3 {
 				tx_cpu = /bits/ 8 <3>;
-				rx_cpu = /bits/ 8 <0>;
+				rx_cpu = /bits/ 8 <3>;
 				ring-name = "lookaside";
 				ring-id = /bits/ 8 <3>;
 			};
@@ -1854,8 +1858,14 @@
 				 <&gcc GCC_SNOC_PCIE0_1LANE_S_CLK>;
 			clock-names = "aux", "cfg_ahb", "anoc_lane", "snoc_lane";
 
-			assigned-clocks = <&gcc GCC_PCIE0_AUX_CLK>;
-			assigned-clock-rates = <20000000>;
+			assigned-clocks = <&gcc GCC_PCIE0_AUX_CLK>,
+					  <&gcc GCC_PCIE0_AHB_CLK>,
+					  <&gcc GCC_ANOC_PCIE0_1LANE_M_CLK>,
+					  <&gcc GCC_SNOC_PCIE0_1LANE_S_CLK>;
+			assigned-clock-rates = <20000000>,
+					       <100000000>,
+					       <240000000>,
+					       <240000000>;
 
 			resets = <&gcc GCC_PCIE0_PHY_BCR>,
 				<&gcc GCC_PCIE0PHY_PHY_BCR>;
@@ -1890,8 +1900,14 @@
 				 <&gcc GCC_SNOC_PCIE1_1LANE_S_CLK>;
 			clock-names = "aux", "cfg_ahb", "anoc_lane", "snoc_lane";
 
-			assigned-clocks = <&gcc GCC_PCIE1_AUX_CLK>;
-			assigned-clock-rates = <20000000>;
+			assigned-clocks = <&gcc GCC_PCIE1_AUX_CLK>,
+					  <&gcc GCC_PCIE1_AHB_CLK>,
+					  <&gcc GCC_ANOC_PCIE1_1LANE_M_CLK>,
+					  <&gcc GCC_SNOC_PCIE1_1LANE_S_CLK>;
+			assigned-clock-rates = <20000000>,
+					       <100000000>,
+					       <240000000>,
+					       <240000000>;
 
 			resets = <&gcc GCC_PCIE1_PHY_BCR>,
 				<&gcc GCC_PCIE1PHY_PHY_BCR>;
@@ -1926,8 +1942,14 @@
 				 <&gcc GCC_SNOC_PCIE2_2LANE_S_CLK>;
 			clock-names = "aux", "cfg_ahb", "anoc_lane", "snoc_lane";
 
-			assigned-clocks = <&gcc GCC_PCIE2_AUX_CLK>;
-			assigned-clock-rates = <20000000>;
+			assigned-clocks = <&gcc GCC_PCIE2_AUX_CLK>,
+					  <&gcc GCC_PCIE2_AHB_CLK>,
+					  <&gcc GCC_ANOC_PCIE2_2LANE_M_CLK>,
+					  <&gcc GCC_SNOC_PCIE2_2LANE_S_CLK>;
+			assigned-clock-rates = <20000000>,
+					       <100000000>,
+					       <342857143>,
+					       <240000000>;
 
 			resets = <&gcc GCC_PCIE2_PHY_BCR>,
 				<&gcc GCC_PCIE2PHY_PHY_BCR>;
@@ -1965,8 +1987,14 @@
 				 <&gcc GCC_SNOC_PCIE3_2LANE_S_CLK>;
 			clock-names = "aux", "cfg_ahb", "anoc_lane", "snoc_lane";
 
-			assigned-clocks = <&gcc GCC_PCIE3_AUX_CLK>;
-			assigned-clock-rates = <20000000>;
+			assigned-clocks = <&gcc GCC_PCIE3_AUX_CLK>,
+					  <&gcc GCC_PCIE3_AHB_CLK>,
+					  <&gcc GCC_ANOC_PCIE3_2LANE_M_CLK>,
+					  <&gcc GCC_SNOC_PCIE3_2LANE_S_CLK>;
+			assigned-clock-rates = <20000000>,
+					       <100000000>,
+					       <342857143>,
+					       <240000000>;
 
 			resets = <&gcc GCC_PCIE3_PHY_BCR>,
 				<&gcc GCC_PCIE3PHY_PHY_BCR>;
@@ -2008,6 +2036,7 @@
 			#size-cells = <2>;
 			slv-addr-space-sz = <0x8000000>;
 			axi-halt-val = <0x1e>; /* increase halt window size to 1GB */
+			enable-enum-retry;
 
 			ranges = <0x81000000 0 0x28200000 0x28200000
 				  0 0x00100000   /* downstream I/O */
@@ -2042,6 +2071,13 @@
 				      "axi_s",
 				      "axi_bridge",
 				      "rchng";
+
+			assigned-clocks = <&gcc GCC_PCIE0_AHB_CLK>,
+					  <&gcc GCC_PCIE0_AUX_CLK>,
+					  <&gcc GCC_PCIE0_AXI_S_BRIDGE_CLK>;
+			assigned-clock-rates = <100000000>,
+					       <20000000>,
+					       <240000000>;
 
 			resets = <&gcc GCC_PCIE0_PIPE_ARES>,
 				 <&gcc GCC_PCIE0_CORE_STICKY_ARES>,
@@ -2086,6 +2122,7 @@
 			#size-cells = <2>;
 			slv-addr-space-sz = <0x8000000>;
 			axi-halt-val = <0x1e>; /* increase halt window size to 1GB */
+			enable-enum-retry;
 
 			ranges = <0x81000000 0 0x10200000 0x10200000
 				  0 0x00100000   /* downstream I/O */
@@ -2120,6 +2157,13 @@
 				      "axi_s",
 				      "axi_bridge",
 				      "rchng";
+
+			assigned-clocks = <&gcc GCC_PCIE1_AHB_CLK>,
+					  <&gcc GCC_PCIE1_AUX_CLK>,
+					  <&gcc GCC_PCIE1_AXI_S_BRIDGE_CLK>;
+			assigned-clock-rates = <100000000>,
+					       <20000000>,
+					       <240000000>;
 
 			resets = <&gcc GCC_PCIE1_PIPE_ARES>,
 				 <&gcc GCC_PCIE1_CORE_STICKY_ARES>,
@@ -2163,6 +2207,7 @@
 			#size-cells = <2>;
 			slv-addr-space-sz = <0x8000000>;
 			axi-halt-val = <0x1e>; /* increase halt window size to 1GB */
+			enable-enum-retry;
 
 			ranges = <0x81000000 0 0x20200000 0x20200000
 				  0 0x00100000   /* downstream I/O */
@@ -2197,6 +2242,13 @@
 				      "axi_s",
 				      "axi_bridge",
 				      "rchng";
+
+			assigned-clocks = <&gcc GCC_PCIE2_AHB_CLK>,
+					  <&gcc GCC_PCIE2_AUX_CLK>,
+					  <&gcc GCC_PCIE2_AXI_S_BRIDGE_CLK>;
+			assigned-clock-rates = <100000000>,
+					       <20000000>,
+					       <240000000>;
 
 			resets = <&gcc GCC_PCIE2_PIPE_ARES>,
 				 <&gcc GCC_PCIE2_CORE_STICKY_ARES>,
@@ -2240,6 +2292,7 @@
 			#size-cells = <2>;
 			slv-addr-space-sz = <0x8000000>;
 			axi-halt-val = <0x1e>; /* increase halt window size to 1GB */
+			enable-enum-retry;
 
 			ranges = <0x81000000 0 0x18200000 0x18200000
 				  0 0x00100000   /* downstream I/O */
@@ -2274,6 +2327,13 @@
 				      "axi_s",
 				      "axi_bridge",
 				      "rchng";
+
+			assigned-clocks = <&gcc GCC_PCIE3_AHB_CLK>,
+					  <&gcc GCC_PCIE3_AUX_CLK>,
+					  <&gcc GCC_PCIE3_AXI_S_BRIDGE_CLK>;
+			assigned-clock-rates = <100000000>,
+					       <20000000>,
+					       <240000000>;
 
 			resets = <&gcc GCC_PCIE3_PIPE_ARES>,
 				 <&gcc GCC_PCIE3_CORE_STICKY_ARES>,
@@ -2458,7 +2518,7 @@
 			qrtr_node_id = <0x20>;
 			qca,auto-restart;
 			status = "disabled";
-			interrupt-bmap = <0x100503>;
+			interrupt-bmap = <0x100512>;
 		};
 
 		wifi2: wifi2@f00000 {
@@ -2467,7 +2527,7 @@
 			qrtr_node_id = <0x21>;
 			qca,auto-restart;
 			status = "disabled";
-			interrupt-bmap = <0x100503>;
+			interrupt-bmap = <0x100512>;
 		};
 
 		wifi3: wifi3@f00000 {
@@ -2476,7 +2536,7 @@
 			qrtr_node_id = <0x22>;
 			qca,auto-restart;
 			status = "disabled";
-			interrupt-bmap = <0x100503>;
+			interrupt-bmap = <0x100512>;
 		};
 
 		wifi4: wifi4@f00000 {
@@ -3609,6 +3669,11 @@
 		};
 	};
 
+	license_manager:license-manager {
+		compatible = "qti,license-manager-service";
+		license-file = "";
+	};
+
 	psci {
 		compatible = "arm,psci-1.0";
 		method = "smc";
@@ -3689,3 +3754,4 @@
 #include "ipq9574-coresight.dtsi"
 #include "ipq9574-thermal.dtsi"
 #include "ipq9574-cpr-regulator.dtsi"
+#include "ipq9574-noc.dtsi"

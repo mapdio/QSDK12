@@ -15,7 +15,7 @@ Signed-off-by: Karthik M <quic_karm@quicinc.com>
 
 --- a/drivers/net/wireless/ath/ath12k/testmode.c
 +++ b/drivers/net/wireless/ath/ath12k/testmode.c
-@@ -429,35 +429,45 @@ out:
+@@ -429,7 +429,7 @@ out:
  	return ret;
  }
  int ath12k_tm_cmd(struct ieee80211_hw *hw, struct ieee80211_vif *vif,
@@ -24,27 +24,13 @@ Signed-off-by: Karthik M <quic_karm@quicinc.com>
  {
  	struct ath12k_hw *ah = hw->priv;
  	struct ath12k *ar;
- 	struct ath12k_base *ab;
- 	struct nlattr *tb[ATH12K_TM_ATTR_MAX + 1];
--	int ret;
-+	enum ath12k_tm_cmd cmd_type;
-+	int ret = 0;
+@@ -439,8 +439,13 @@ int ath12k_tm_cmd(struct ieee80211_hw *h
  
-+	ret = nla_parse(tb, ATH12K_TM_ATTR_MAX, data, len, ath12k_tm_policy,
-+			NULL);
-+	if (ret)
-+		return ret;
-+
-+	if (!tb[ATH12K_TM_ATTR_CMD])
-+		return -EINVAL;
-+
-+	cmd_type = nla_get_u32(tb[ATH12K_TM_ATTR_CMD]);
  	mutex_lock(&ah->conf_mutex);
  
 -	if (ah->num_radio)
 -		ar = ah->radio;
-+	if (vif == NULL && (cmd_type == ATH12K_TM_CMD_WMI_FTM ||
-+	    cmd_type == ATH12K_TM_CMD_TESTMODE_START)) {
++	if (vif == NULL) {
 +		if (ah->num_radio)
 +			ar = ah->radio;
 +	} else {
@@ -52,29 +38,8 @@ Signed-off-by: Karthik M <quic_karm@quicinc.com>
 +	}
 +
  	if (!ar) {
-+		ath12k_err(NULL,
-+			   "unable to determine device\n");
  		mutex_unlock(&ah->conf_mutex);
  		return -EINVAL;
- 	}
--	ab = ar->ab;
- 
-+	ab = ar->ab;
- 	mutex_unlock(&ah->conf_mutex);
- 
--	ret = nla_parse(tb, ATH12K_TM_ATTR_MAX, data, len, ath12k_tm_policy,
--			NULL);
--	if (ret)
--		return ret;
--
--	if (!tb[ATH12K_TM_ATTR_CMD])
--		return -EINVAL;
--
--	switch (nla_get_u32(tb[ATH12K_TM_ATTR_CMD])) {
-+	switch (cmd_type) {
- 	case ATH12K_TM_CMD_WMI:
- 		return ath12k_tm_cmd_wmi(ar, tb);
- 	case ATH12K_TM_CMD_TESTMODE_START:
 --- a/drivers/net/wireless/ath/ath12k/testmode.h
 +++ b/drivers/net/wireless/ath/ath12k/testmode.h
 @@ -14,7 +14,7 @@ int ath12k_tm_process_event(struct ath12

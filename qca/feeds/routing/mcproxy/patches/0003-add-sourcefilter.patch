@@ -173,9 +173,9 @@
 +  else
 +    result = setsockopt (s, sol, MCAST_MSFILTER, gf, needed);
 +
-+    int save_errno = errno;
-+    free (gf);
-+    errno = save_errno;
++  int save_errno = errno;
++  free (gf);
++  errno = save_errno;
 +
 +  return result;
 +}

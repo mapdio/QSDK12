@@ -1,8 +1,6 @@
+# SPDX-License-Identifier: GPL-2.0-only
 #
-# Copyright (C) 2007-2009 OpenWrt.org
-#
-# This is free software, licensed under the GNU General Public License v2.
-# See /LICENSE for more information.
+# Copyright (C) 2007-2020 OpenWrt.org
 
 ifeq ($(TARGET_BUILD),1)
   PKG_BUILD_DIR:=$(LINUX_DIR)
@@ -36,7 +34,7 @@ endif
 ifneq ($(if $(DUMP),1,$(__quilt_inc)),1)
 __quilt_inc:=1
 
-FindPackage?=$(strip $(shell find $(TOPDIR)/qsdk-package -name $(1) 2>/dev/null))
+FindPackage?=$(strip $(shell find $(TOPDIR)/openwrt-patches -name $(1) 2>/dev/null))
 PATCH_DIR?=./patches
 FILES_DIR?=./files
 HOST_PATCH_DIR?=$(PATCH_DIR)
@@ -84,13 +82,12 @@ endef
 define Host/Patch/Default
 	$(if $(HOST_QUILT),rm -rf $(HOST_BUILD_DIR)/patches; mkdir -p $(HOST_BUILD_DIR)/patches)
 	$(call HostPatchDir,$(HOST_BUILD_DIR),$(HOST_PATCH_DIR),)
-	$(call HostPatchDir,$(HOST_BUILD_DIR),$(call FindPackage, $(basename $(notdir $(CURDIR))))/patches-host,)
 	$(if $(HOST_QUILT),touch $(HOST_BUILD_DIR)/.quilt_used)
 endef
 
 define Build/Patch/Default
 	$(if $(QUILT),rm -rf $(PKG_BUILD_DIR)/patches; mkdir -p $(PKG_BUILD_DIR)/patches)
-	$(call PatchDir, $(PKG_BUILD_DIR),$(PATCH_DIR),)
+	$(call PatchDir,$(PKG_BUILD_DIR),$(PATCH_DIR),)
 	$(call PatchDir, $(PKG_BUILD_DIR),$(call FindPackage, $(basename $(notdir $(CURDIR))))/patches,)
 	$(if $(QUILT),touch $(PKG_BUILD_DIR)/.quilt_used)
 endef
@@ -121,7 +118,7 @@ define Quilt/RefreshDir
 endef
 
 define Quilt/Refresh/Host
-	$(call Quilt/RefreshDir,$(HOST_BUILD_DIR),$(PATCH_DIR))
+	$(call Quilt/RefreshDir,$(HOST_BUILD_DIR),$(HOST_PATCH_DIR))
 endef
 
 define Quilt/Refresh/Package
@@ -164,7 +161,7 @@ define Quilt/Template
 		false; \
 	}
 	@[ -n "$$$$(ls $(1)/patches/series)" -o \
-	   "$$$$(cat $(1)/patches/series | mkhash md5)" = "$$(sort $(1)/patches/series | mkhash md5)" ] || { \
+	   "$$$$(cat $(1)/patches/series | $(MKHASH) md5)" = "$$(sort $(1)/patches/series | $(MKHASH) md5)" ] || { \
 		echo "The patches are not sorted in the right order. Please fix."; \
 		false; \
 	}

@@ -1,7 +1,7 @@
 /*
  * Copyright (c) 2016-2021, The Linux Foundation. All rights reserved.
  *
- * Copyright (c) 2021-2023, Qualcomm Innovation Center, Inc. All rights reserved
+ * Copyright (c) 2021-2024, Qualcomm Innovation Center, Inc. All rights reserved
  *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
@@ -21,9 +21,13 @@
 
 #include <linux/etherdevice.h>
 #include <linux/netdevice.h>
+#if defined(NSS_DP_NETSTANDBY)
+#include <linux/netstandby.h>
+#endif
 #include <linux/platform_device.h>
 #include <linux/switch.h>
 #include <linux/version.h>
+#include <linux/ethtool.h>
 
 #include "nss_dp_api_if.h"
 #include "nss_dp_hal_if.h"
@@ -99,13 +103,17 @@
  */
 #define NSS_DP_TX_MITIGATION_TIMER_DEF		250
 #define NSS_DP_TX_MITIGATION_PKT_CNT_DEF	16
-#define NSS_DP_RX_MITIGATION_TIMER_DEF		250
+#define NSS_DP_RX_MITIGATION_TIMER_DEF		25
 #define NSS_DP_RX_MITIGATION_PKT_CNT_DEF	16
 
 /*
  * Virtual Port dummy MAC ID
  */
 #define NSS_DP_VP_MAC_ID		(NSS_DP_HAL_MAX_PORTS + 2)
+#endif
+
+#if defined(NSS_DP_NETSTANDBY) && defined(NSS_DP_IPQ53XX)
+#define NSS_DP_EDMA_SWITCH_MHT_DEV_ID	1
 #endif
 
 /*
@@ -191,6 +199,22 @@ static const char nss_dp_priv_flg_str[][ETH_GSTRING_LEN] = {
 
 struct nss_dp_global_ctx;
 
+#if defined(NSS_DP_NETSTANDBY)
+/*
+ * nss_dp_netstandby_gbl_ctx
+ *	Global structure to be used as APP data with netstandby module
+ */
+struct nss_dp_netstandby_gbl_ctx {
+	struct nss_dp_global_ctx *ctx;	/* Global NSS DP context */
+
+	/*
+	 * ErP completion callbacks
+	 */
+	netstandby_event_compl_cb_t enter_cmp_cb;       /**< Callback enter completion event */
+	netstandby_event_compl_cb_t exit_cmp_cb;        /**< Callback exit completion event */
+};
+#endif
+
 /*
  * nss data plane device structure
  */
@@ -237,6 +261,12 @@ struct nss_dp_dev {
 #ifdef NSS_DP_ETHTOOL_MRR_OPS
 	uint32_t ethtool_priv_flags;	/* Ethtool private flags */
 #endif /* NSS_DP_ETHTOOL_MRR_OPS */
+	bool ppe_offload_disabled;
+	bool is_switch_connected;	/* If there is an additional Switch connected */
+#ifdef NSS_DP_MHT_SW_PORT_MAP
+	bool nss_dp_mht_dev;		/* Netdevice belongs to MHT switch */
+#endif
+	uint32_t fixed_link_speed;	/* Fixed link speed for the port connected to the switch */
 };
 
 /*
@@ -250,9 +280,17 @@ struct nss_dp_global_ctx {
 	uint8_t slowproto_acl_bm;	/* Port bitmap to allow slow protocol packets */
 	uint32_t rx_buf_size;		/* Buffer size to allocate */
 	uint32_t jumbo_mru;		/* Jumbo mru value for Rx processing */
+#if defined(NSS_DP_EDMA_LOOPBACK_SUPPORT)
+	uint32_t edma_loopback_ring_size;	/* Loopback ring size */
+	uint32_t edma_loopback_buffer_size;	/* Loopback ring size */
+	bool edma_disable_loopback;		/* Disable loopback ring configuration */
+#endif
 	bool overwrite_mode;		/* Overwrite mode for Rx processing */
 	bool page_mode;			/* Page mode for Rx processing */
 	bool tx_requeue_stop;		/* Disable queue stop for Tx processing */
+#ifdef NSS_DP_MHT_SW_PORT_MAP
+	bool is_mht_dev;		/* MHT switch ports tx ring mapping flag */
+#endif
 #if defined(NSS_DP_MAC_POLL_SUPPORT)
 	bool enable_polling_task;	/* enable SSDK PHY polling task */
 #endif
@@ -273,6 +311,11 @@ extern int nss_dp_tx_mitigation_pkt_cnt;
 extern int nss_dp_rx_mitigation_timer;
 extern int nss_dp_rx_mitigation_pkt_cnt;
 extern uint8_t nss_dp_pri_map[EDMA_PRI_MAX];
+extern int nss_dp_recovery_en;
+#endif
+
+#if defined(NSS_DP_NETSTANDBY)
+extern struct nss_dp_standby_gbl_ctx gbl_ctx;
 #endif
 
 /*
@@ -332,6 +375,7 @@ static inline uint32_t nss_dp_get_idx_from_macid(uint32_t macid)
 
 	return (macid - 2);
 }
+
 #else
 static inline uint32_t nss_dp_get_idx_from_macid(uint32_t macid)
 {

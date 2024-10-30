@@ -19,6 +19,7 @@
 #include "fls_chardev.h"
 #include "fls_conn.h"
 #include "fls_debug.h"
+#include "fls_tm.h"
 #include <sfe_api.h>
 #include <linux/module.h>
 
@@ -27,6 +28,7 @@ void __exit fls_exit(void)
 	sfe_fls_unregister();
 	fls_chardev_shutdown();
 	fls_debug_deinit();
+	fls_tm_deinit();
 }
 
 int __init fls_init(void)
@@ -46,6 +48,9 @@ int __init fls_init(void)
 
 	fls_debug_init();
 	sfe_fls_register(fls_conn_create, fls_conn_delete, fls_conn_stats_update);
+	if (!fls_tm_init()) {
+		return -1;
+	}
 	return 0;
 }
 

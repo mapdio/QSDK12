@@ -1,6 +1,7 @@
 #!/bin/sh
 #
 # Copyright (c) 2015-2016, The Linux Foundation. All rights reserved.
+# Copyright (c) 2023 Qualcomm Innovation Center, Inc. All rights reserved.
 #
 # Permission to use, copy, modify, and/or distribute this software for any
 # purpose with or without fee is hereby granted, provided that the above
@@ -20,9 +21,15 @@ uci -q batch << EOF
 	set firewall.qcanssecm=include
 	set firewall.qcanssecm.type=script
 	set firewall.qcanssecm.path=/etc/firewall.d/qca-nss-ecm
-	set firewall.qcanssecm.family=any
-	set firewall.qcanssecm.reload=1
 	commit firewall
 EOF
+
+grep -q "fw3" /etc/init.d/firewall && {
+	uci -q batch << EOF
+		set firewall.qcanssecm.family=any
+		set firewall.qcanssecm.reload=1
+		commit firewall
+EOF
+}
 
 exit 0

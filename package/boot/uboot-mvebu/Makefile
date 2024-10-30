@@ -8,10 +8,10 @@
 include $(TOPDIR)/rules.mk
 include $(INCLUDE_DIR)/kernel.mk
 
-PKG_VERSION:=2018.03
+PKG_VERSION:=2023.07.02
 PKG_RELEASE:=1
 
-PKG_HASH:=7e7477534409d5368eb1371ffde6820f0f79780a1a1f676161c48442cb303dfd
+PKG_HASH:=6b6a48581c14abb0f95bd87c1af4d740922406d7b801002a9f94727fdde021d5
 
 include $(INCLUDE_DIR)/u-boot.mk
 include $(INCLUDE_DIR)/package.mk
@@ -26,25 +26,55 @@ define U-Boot/clearfog
   NAME:=SolidRun ClearFog A1
   BUILD_DEVICES:=solidrun_clearfog-base-a1 solidrun_clearfog-pro-a1
   BUILD_SUBTARGET:=cortexa9
-  UBOOT_IMAGE:=u-boot-spl.kwb
+  UBOOT_IMAGE:=u-boot-with-spl.kwb
+endef
+
+define U-Boot/helios4
+  NAME:=Kobol Helios 4
+  BUILD_DEVICES:=kobol_helios4
+  BUILD_SUBTARGET:=cortexa9
+  UBOOT_IMAGE:=u-boot-with-spl.kwb
+endef
+
+define U-Boot/omnia
+  NAME:=Turris Omnia
+  BUILD_DEVICES:=cznic_turris-omnia
+  BUILD_SUBTARGET:=cortexa9
+  UBOOT_CONFIG:=turris_omnia
+  UBOOT_IMAGE:=u-boot-with-spl.kwb
+endef
+
+define U-Boot/espressobin
+  NAME:=Marvell ESPRESSObin
+  BUILD_SUBTARGET:=cortexa53
+  UBOOT_CONFIG:=mvebu_espressobin-88f3720
+endef
+
+define U-Boot/uDPU
+  NAME:=Methode uDPU
+  BUILD_SUBTARGET:=cortexa53
+endef
+
+define U-Boot/eDPU
+  NAME:=Methode eDPU
+  BUILD_SUBTARGET:=cortexa53
 endef
 
 UBOOT_TARGETS:= \
-	clearfog
+	clearfog \
+	helios4 \
+	omnia \
+	espressobin \
+	uDPU \
+	eDPU
 
-Build/Exports:=$(Host/Exports)
-
-define Build/Configure
-	# enable additional options beyond clearfog_defconfig
-	echo CONFIG_NET_RANDOM_ETHADDR=y >> $(PKG_BUILD_DIR)/configs/$(BUILD_VARIANT)_defconfig
-	echo CONFIG_CMD_SETEXPR=y >> $(PKG_BUILD_DIR)/configs/$(BUILD_VARIANT)_defconfig
-
-	+$(MAKE) $(PKG_JOBS) -C $(PKG_BUILD_DIR) $(UBOOT_CONFIGURE_VARS) $(UBOOT_CONFIG)_config
+define Package/u-boot/install
+	$(if $(findstring cortexa53,$(BUILD_SUBTARGET)),,$(Package/u-boot/install/default))
 endef
 
 define Build/InstallDev
 	$(INSTALL_DIR) $(STAGING_DIR_IMAGE)
-	$(CP) $(PKG_BUILD_DIR)/$(UBOOT_IMAGE) $(STAGING_DIR_IMAGE)/$(BUILD_VARIANT)-u-boot-spl.kwb
+	$(CP) $(PKG_BUILD_DIR)/$(UBOOT_IMAGE) $(STAGING_DIR_IMAGE)/$(BUILD_VARIANT)-$(UBOOT_IMAGE)
 endef
 
 $(eval $(call BuildPackage/U-Boot))

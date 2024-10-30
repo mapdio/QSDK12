@@ -1,9 +1,6 @@
+# SPDX-License-Identifier: GPL-2.0-only
 #
-# Copyright (C) 2006-2015 OpenWrt.org
-#
-# This is free software, licensed under the GNU General Public License v2.
-# See /LICENSE for more information.
-#
+# Copyright (C) 2006-2020 OpenWrt.org
 
 ifneq ($(filter check,$(MAKECMDGOALS)),)
 CHECK:=1
@@ -93,6 +90,8 @@ else ifneq (,$(findstring $(ARCH) , mipsel mips64 mips64el ))
   LINUX_KARCH := mips
 else ifneq (,$(findstring $(ARCH) , powerpc64 ))
   LINUX_KARCH := powerpc
+else ifneq (,$(findstring $(ARCH) , riscv64 ))
+  LINUX_KARCH := riscv
 else ifneq (,$(findstring $(ARCH) , sh2 sh3 sh4 ))
   LINUX_KARCH := sh
 else ifneq (,$(findstring $(ARCH) , i386 x86_64 ))
@@ -104,6 +103,7 @@ endif
 KERNEL_MAKE = $(MAKE) $(KERNEL_MAKEOPTS)
 
 KERNEL_MAKE_FLAGS = \
+	KCFLAGS="$(call iremap,$(BUILD_DIR),$(notdir $(BUILD_DIR))) $(filter-out -fno-plt,$(call qstrip,$(CONFIG_EXTRA_OPTIMIZATION))) $(call qstrip,$(CONFIG_KERNEL_CFLAGS))" \
 	HOSTCFLAGS="$(HOST_CFLAGS) -Wall -Wmissing-prototypes -Wstrict-prototypes" \
 	CROSS_COMPILE="$(KERNEL_CROSS)" \
 	ARCH="$(LINUX_KARCH)" \
@@ -112,36 +112,35 @@ KERNEL_MAKE_FLAGS = \
 	KBUILD_BUILD_HOST="$(call qstrip,$(CONFIG_KERNEL_BUILD_DOMAIN))" \
 	KBUILD_BUILD_TIMESTAMP="$(KBUILD_BUILD_TIMESTAMP)" \
 	KBUILD_BUILD_VERSION="0" \
-	HOST_LOADLIBES="-L$(STAGING_DIR_HOST)/lib" \
+	KBUILD_HOSTLDFLAGS="-L$(STAGING_DIR_HOST)/lib" \
 	CONFIG_SHELL="$(BASH)" \
 	$(if $(findstring c,$(OPENWRT_VERBOSE)),V=1,V='') \
 	$(if $(PKG_BUILD_ID),LDFLAGS_MODULE=--build-id=0x$(PKG_BUILD_ID)) \
-	cmd_syscalls=
+	cmd_syscalls= \
+	$(if $(__package_mk),KBUILD_EXTRA_SYMBOLS="$(wildcard $(PKG_SYMVERS_DIR)/*.symvers)")
+
+KERNEL_NOSTDINC_FLAGS = \
+	-nostdinc $(if $(DUMP),, -isystem $(shell $(TARGET_CC) -print-file-name=include))
 
 ifeq ($(call qstrip,$(CONFIG_EXTERNAL_KERNEL_TREE))$(call qstrip,$(CONFIG_KERNEL_GIT_CLONE_URI)),)
   KERNEL_MAKE_FLAGS += \
 	KERNELRELEASE=$(LINUX_VERSION)
 endif
 
-KERNEL_MAKEOPTS := -C $(LINUX_DIR) $(KERNEL_MAKE_FLAGS)
+ifneq ($(HOST_OS),Linux)
+  KERNEL_MAKE_FLAGS += CONFIG_STACK_VALIDATION=
+  export SKIP_STACK_VALIDATION:=1
+endif
+
+KERNEL_MAKEOPTS = -C $(LINUX_DIR) $(KERNEL_MAKE_FLAGS)
 
 ifdef CONFIG_USE_SPARSE
   KERNEL_MAKEOPTS += C=1 CHECK=$(STAGING_DIR_HOST)/bin/sparse
 endif
 
-ifeq ($(HOST_OS),Darwin)
-  export SKIP_STACK_VALIDATION:=1
-endif
-
 PKG_EXTMOD_SUBDIRS ?= .
 
-define populate_module_symvers
-	@mkdir -p $(PKG_INFO_DIR)
-	cat /dev/null > $(PKG_INFO_DIR)/$(PKG_NAME).symvers; \
-	for subdir in $(PKG_EXTMOD_SUBDIRS); do \
-		cat $(PKG_INFO_DIR)/*.symvers 2>/dev/null > $(PKG_BUILD_DIR)/$$$$subdir/Module.symvers; \
-	done
-endef
+PKG_SYMVERS_DIR = $(KERNEL_BUILD_DIR)/symvers
 
 define collect_module_symvers
 	for subdir in $(PKG_EXTMOD_SUBDIRS); do \
@@ -151,12 +150,12 @@ define collect_module_symvers
 			grep -F $$$$realdir $(PKG_BUILD_DIR)/$$$$subdir/Module.symvers >> $(PKG_BUILD_DIR)/Module.symvers.tmp; \
 	done; \
 	sort -u $(PKG_BUILD_DIR)/Module.symvers.tmp > $(PKG_BUILD_DIR)/Module.symvers; \
-	mv $(PKG_BUILD_DIR)/Module.symvers $(PKG_INFO_DIR)/$(PKG_NAME).symvers
+	mkdir -p $(PKG_SYMVERS_DIR); \
+	mv $(PKG_BUILD_DIR)/Module.symvers $(PKG_SYMVERS_DIR)/$(PKG_NAME).symvers
 endef
 
 define KernelPackage/hooks
   ifneq ($(PKG_NAME),kernel)
-    Hooks/Compile/Pre += populate_module_symvers
     Hooks/Compile/Post += collect_module_symvers
   endif
   define KernelPackage/hooks
@@ -237,7 +236,7 @@ $(call KernelPackage/$(1)/config)
   $(call KernelPackage/depends)
   $(call KernelPackage/hooks)
 
-  ifneq ($(if $(filter-out %=y %=n %=m,$(KCONFIG)),$(filter m y,$(foreach c,$(filter-out %=y %=n %=m,$(KCONFIG)),$($(c)))),.),)
+  ifneq ($(if $(filter-out %=y %=n %=m,$(KCONFIG)),$(filter m y,$(foreach c,$(call version_filter,$(filter-out %=y %=n %=m,$(KCONFIG))),$($(c)))),.),)
     define Package/kmod-$(1)/install
 		  @for mod in $$(call version_filter,$$(FILES)); do \
 			if grep -q "$$$$$$$${mod##$(LINUX_DIR)/}" "$(LINUX_DIR)/modules.builtin"; then \

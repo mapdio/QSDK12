@@ -1,7 +1,7 @@
 /*
  **************************************************************************
  * Copyright (c) 2013-2021, The Linux Foundation. All rights reserved.
- * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2023 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
@@ -529,7 +529,7 @@ static uint32_t nss_soc_mem_info(void)
 	if (ppp) {
 		n_items /= sizeof(ppp[0]);
 		nss_msize = be32_to_cpup(ppp + addr_cells + size_cells - 1);
-		nss_info_always("addr/size storage words %d %d # words %d in DTS, ddr size %x\n",
+		nss_info("addr/size storage words %d %d # words %d in DTS, ddr size %x\n",
 				addr_cells, size_cells, n_items, nss_msize);
 	}
 	of_node_put(snode);
@@ -571,7 +571,7 @@ static void nss_get_ddr_info(struct nss_mmu_ddr_info *mmu, char *name)
 		const __be32 *ppp = (__be32 *)of_get_property(node, "reg", &n_items);
 
 		n_items /= sizeof(ppp[0]);
-		nss_info_always("node size %d # items %d\n",
+		nss_info("node size %d # items %d\n",
 				of_n_size_cells(node), n_items);
 		if (ppp) {
 			if (n_items & 1) {	/* case 1 */
@@ -598,7 +598,7 @@ case3:
 				n_items = 0;
 			if (n_items) {
 				of_node_put(node);
-				nss_info_always("%s: %x %u (avl %u) items %d active_cores %d\n",
+				nss_info("%s: %x %u (avl %u) items %d active_cores %d\n",
 					name, mmu->start_address, mmu->ddr_size,
 					avail_ddr, n_items, mmu->num_active_cores);
 				/*

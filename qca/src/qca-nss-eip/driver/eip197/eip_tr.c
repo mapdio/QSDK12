@@ -138,7 +138,7 @@ static void eip_tr_inval(struct work_struct *work)
 {
 	struct delayed_work *dwork = to_delayed_work(work);
 	struct eip_sw_desc *sw;
-	uint32_t cmd_token_hdr;
+	uint32_t tk_hdr;
 	struct scatterlist sg;
 	struct eip_dma *dma;
 	struct eip_ctx *ctx;
@@ -156,8 +156,8 @@ static void eip_tr_inval(struct work_struct *work)
 	/*
 	 * Initialize command token header.
 	 */
-	cmd_token_hdr = EIP_HW_TOKEN_HDR_CMN;
-	cmd_token_hdr |= EIP_HW_TOKEN_HDR_REUSE_CTX;
+	tk_hdr = EIP_HW_TOKEN_HDR_CMN;
+	tk_hdr |= EIP_HW_TOKEN_HDR_REUSE_CTX;
 
 	/*
 	 * Allocate SW descriptor.
@@ -177,7 +177,7 @@ static void eip_tr_inval(struct work_struct *work)
 	sw->tk = NULL;
 	sw->comp = eip_tr_inval_done;
 	sw->err_comp = eip_tr_inval_err;
-	sw->cmd_token_hdr = cmd_token_hdr;
+	sw->tk_hdr = tk_hdr;
 	sw->tr_addr_type = tr->tr_addr_type;
 	sw->tk_addr = 0;
 	sw->tk_words = 0;
@@ -314,6 +314,14 @@ struct eip_tr *eip_tr_alloc(struct eip_ctx *ctx, struct eip_tr_info *info)
 	eip_ctx_add_tr(ctx, tr);
 
 	/*
+	 * Context is going to use hybrid ring, so refill it
+	 */
+	if (tr->svc == EIP_SVC_HYBRID_IPSEC && ep->dma_refill_req) {
+		eip_dma_hy_refill_all(ctx);
+		ep->dma_refill_req = false;
+	}
+
+	/*
 	 * If the TR is for hybrid encapsulation IPsec, then the flow is added
 	 * TODO: EIP Driver will send those packets to Linux for which there is no flow
 	 */
@@ -350,7 +358,7 @@ EXPORT_SYMBOL(eip_tr_alloc);
  */
 void eip_tr_free(struct eip_tr *tr)
 {
-	struct eip_tr_template *tmpl;
+	struct eip_tr_ops *ops;
 
 	/*
 	 * Mark TR as inactive.
@@ -370,25 +378,25 @@ void eip_tr_free(struct eip_tr *tr)
 	switch (tr->svc) {
 	case EIP_SVC_SKCIPHER:
 	case EIP_SVC_AEAD:
-		tmpl = &tr->crypto.enc;
-		xchg(&tmpl->cb, eip_tr_dummy_cb);
-		xchg(&tmpl->err_cb, eip_tr_dummy_err);
+		ops = &tr->crypto.enc;
+		xchg(&ops->cb, eip_tr_dummy_cb);
+		xchg(&ops->err_cb, eip_tr_dummy_err);
 
-		tmpl = &tr->crypto.dec;
-		xchg(&tmpl->cb, eip_tr_dummy_cb);
-		xchg(&tmpl->err_cb, eip_tr_dummy_err);
+		ops = &tr->crypto.dec;
+		xchg(&ops->cb, eip_tr_dummy_cb);
+		xchg(&ops->err_cb, eip_tr_dummy_err);
 		break;
 
 	case EIP_SVC_AHASH:
-		tmpl = &tr->crypto.auth;
-		xchg(&tmpl->cb, eip_tr_dummy_cb);
-		xchg(&tmpl->err_cb, eip_tr_dummy_err);
+		ops = &tr->crypto.auth;
+		xchg(&ops->cb, eip_tr_dummy_cb);
+		xchg(&ops->err_cb, eip_tr_dummy_err);
 		break;
 
 	case EIP_SVC_HYBRID_IPSEC:
-		tmpl = &tr->ipsec.op;
-		xchg(&tmpl->cb, eip_tr_dummy_cb);
-		xchg(&tmpl->err_cb, eip_tr_dummy_err);
+		ops = &tr->ipsec.ops;
+		xchg(&ops->cb, eip_tr_dummy_cb);
+		xchg(&ops->err_cb, eip_tr_dummy_err);
 		break;
 
 	default:
@@ -504,7 +512,7 @@ int eip_tr_genkey(struct eip_tr *tr, struct eip_tr_info *info, uint8_t *key, uin
 	 */
 	sk_tfm = crypto_alloc_sync_skcipher("ctr(aes-generic)", 0, 0);
 	if (IS_ERR(sk_tfm)) {
-		pr_err("%px: Error allocating tfm for skcipher: ctr(aes)\n", sk_tfm);
+		pr_err("%px: Error allocating tfm for skcipher: ctr(aes-generic)\n", sk_tfm);
 		return PTR_ERR(sk_tfm);
 	}
 
@@ -544,3 +552,14 @@ fail2:
 	crypto_free_sync_skcipher(sk_tfm);
         return err;
 }
+
+/*
+ * eip_tr_get_algo_info()
+ * 	Get algo info.
+ */
+void eip_tr_get_algo_info(struct eip_tr *tr, struct eip_tr_algo_info *algo)
+{
+	algo->iv_len = tr->iv_len;
+	algo->blk_len = tr->blk_len;
+}
+EXPORT_SYMBOL(eip_tr_get_algo_info);

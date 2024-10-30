@@ -42,7 +42,7 @@ static void wda_svc_config(struct work_struct *work);
 
 #define QMI_WDA_SET_POWERSAVE_MODE_REQ_V01 0x002E
 #define QMI_WDA_SET_POWERSAVE_MODE_RESP_V01 0x002E
-#define QMI_WDA_SET_POWERSAVE_MODE_REQ_V01_MAX_MSG_LEN 4
+#define QMI_WDA_SET_POWERSAVE_MODE_REQ_V01_MAX_MSG_LEN 12
 #define QMI_WDA_SET_POWERSAVE_MODE_RESP_V01_MAX_MSG_LEN 7
 
 enum wda_powersave_config_mask_enum_v01 {
@@ -73,6 +73,14 @@ struct wda_set_powersave_config_resp_msg_v01 {
 struct wda_set_powersave_mode_req_msg_v01 {
 	/* Mandatory */
 	uint8_t powersave_control_flag;
+
+	/* Optional */
+	/*
+	 * This to allow dfc flow enable/disable messages to the host
+	 * when PS mode is enabled
+	 */
+	uint8_t allow_dfc_notify_valid;
+	uint8_t allow_dfc_notify;
 };
 
 struct wda_set_powersave_mode_resp_msg_v01 {
@@ -177,6 +185,28 @@ static struct qmi_elem_info wda_set_powersave_mode_req_msg_v01_ei[] = {
 		.ei_array	= NULL,
 	},
 	{
+		.data_type	= QMI_OPT_FLAG,
+		.elem_len	= 1,
+		.elem_size	= sizeof(uint8_t),
+		.array_type	= NO_ARRAY,
+		.tlv_type	= 0x10,
+		.offset		= offsetof(struct
+					   wda_set_powersave_mode_req_msg_v01,
+					   allow_dfc_notify_valid),
+		.ei_array	= NULL,
+	},
+	{
+		.data_type	= QMI_UNSIGNED_1_BYTE,
+		.elem_len	= 1,
+		.elem_size	= sizeof(uint8_t),
+		.array_type	= NO_ARRAY,
+		.tlv_type	= 0x10,
+		.offset		= offsetof(struct
+					   wda_set_powersave_mode_req_msg_v01,
+					   allow_dfc_notify),
+		.ei_array	= NULL,
+	},
+	{
 		.data_type	= QMI_EOTI,
 		.array_type	= NO_ARRAY,
 		.tlv_type	= QMI_COMMON_TLV_TYPE,
@@ -232,6 +262,11 @@ static int wda_set_powersave_mode_req(void *wda_data, uint8_t enable)
 	}
 
 	req->powersave_control_flag = enable;
+
+	/* Always allow dfc flow contrl messages in PS mode */
+	req->allow_dfc_notify_valid = enable;
+	req->allow_dfc_notify = enable;
+
 	ret = qmi_send_request(&data->handle, &data->ssctl, &txn,
 			QMI_WDA_SET_POWERSAVE_MODE_REQ_V01,
 			QMI_WDA_SET_POWERSAVE_MODE_REQ_V01_MAX_MSG_LEN,

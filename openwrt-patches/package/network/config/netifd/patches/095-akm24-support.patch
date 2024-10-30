@@ -1,0 +1,47 @@
+From 2e7175f661b8315bc9c4545543bbfc0415555259 Mon Sep 17 00:00:00 2001
+From: Karthik M <quic_karm@quicinc.com>
+Date: Tue, 26 Sep 2023 15:59:06 +0530
+Subject: [PATCH] netifd-wireless.sh: Add AKM24 support
+
+Add support for AKM24 with GCMP as wpa_cipher and
+SAE-EXT-KEY as key management.
+
+Uses SAE for authentication and based on KCK length,
+hashing algorithm is detemined.
+
+ECC length   FCC length   HASH algo
+p<=256       p<=2048      SHA-256
+256<p<=384   2048<p<=3072 SHA-384
+384<p        3072<p       SHA-512
+
+Signed-off-by: Karthik M <quic_karm@quicinc.com>
+---
+ scripts/netifd-wireless.sh | 9 ++++++---
+ 1 file changed, 6 insertions(+), 3 deletions(-)
+
+--- a/scripts/netifd-wireless.sh
++++ b/scripts/netifd-wireless.sh
+@@ -222,11 +222,11 @@ wireless_vif_parse_encryption() {
+ 	case "$encryption" in
+ 		*tkip+aes|*tkip+ccmp|*aes+tkip|*ccmp+tkip) wpa_cipher="CCMP TKIP";;
+ 		*ccmp256) wpa_cipher="CCMP-256";;
++		sae-ext-key) wpa_cipher="GCMP";;
+ 		*aes|*ccmp| psk2 | wpa2 | sae* | owe) wpa_cipher="CCMP";;
+ 		*tkip | wpa | psk ) wpa_cipher="TKIP";;
+-		*gcmp256) wpa_cipher="GCMP-256";;
++		*gcmp256 | wpa3-192*) wpa_cipher="GCMP-256";;
+ 		*gcmp) wpa_cipher="GCMP";;
+-		wpa3-192*) wpa_cipher="GCMP-256";;
+ 	esac
+ 
+ 	# Examples:
+@@ -274,6 +274,9 @@ wireless_vif_parse_encryption() {
+ 		psk3-mixed*)
+ 			auth_type=psk-sae
+ 		;;
++		sae-ext-key)
++			auth_type=sae-ext-key
++		;;
+ 		psk3*|sae*)
+ 			auth_type=sae
+ 		;;

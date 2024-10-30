@@ -1,0 +1,20 @@
+commit 66468d4ff3fc0d6d37fa6c2f12555581ab3c2f3e
+Author: Ermine Jose <quic_erminejo@quicinc.com>
+Date:   Thu Oct 5 17:45:07 2023 +0530
+Subject: openwrt-patches: fix samba4 compilation error
+    
+Signed-off-by: Ermine Jose <quic_erminejo@quicinc.com>
+---
+Index: samba-4.18.6/third_party/heimdal/lib/gssapi/mech/compat.h
+===================================================================
+--- samba-4.18.6.orig/third_party/heimdal/lib/gssapi/mech/compat.h
++++ samba-4.18.6/third_party/heimdal/lib/gssapi/mech/compat.h
+@@ -30,6 +30,8 @@
+  * SUCH DAMAGE.
+  */
+ 
++#include "../gssapi/gssapi.h"
++
+ typedef OM_uint32 GSSAPI_CALLCONV _gss_inquire_saslname_for_mech_t (
+ 	       OM_uint32 *,           /* minor_status */
+ 	       const gss_OID,         /* desired_mech */

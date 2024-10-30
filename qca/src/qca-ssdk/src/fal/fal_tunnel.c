@@ -106,6 +106,7 @@ _fal_tunnel_encap_header_ctrl_get(a_uint32_t dev_id, fal_tunnel_encap_header_ctr
     return rv;
 }
 
+#ifndef IN_TUNNEL_MINI
 sw_error_t
 _fal_tunnel_decap_ecn_mode_set(a_uint32_t dev_id, fal_tunnel_decap_ecn_rule_t *ecn_rule,
 		fal_tunnel_decap_ecn_action_t *ecn_action)
@@ -173,6 +174,7 @@ _fal_tunnel_encap_ecn_mode_get(a_uint32_t dev_id, fal_tunnel_encap_ecn_t *ecn_ru
     rv = p_api->adpt_tunnel_encap_ecn_mode_get(dev_id, ecn_rule, ecn_value);
     return rv;
 }
+#endif
 
 sw_error_t
 _fal_tunnel_decap_key_set(a_uint32_t dev_id,
@@ -475,6 +477,7 @@ _fal_tunnel_intf_get(a_uint32_t dev_id, a_uint32_t l3_if, fal_tunnel_intf_t *int
     return rv;
 }
 
+#ifndef IN_TUNNEL_MINI
 static sw_error_t
 _fal_tunnel_vlan_intf_add(a_uint32_t dev_id, fal_tunnel_vlan_intf_t *vlan_cfg)
 {
@@ -538,6 +541,7 @@ _fal_tunnel_vlan_intf_del(a_uint32_t dev_id, fal_tunnel_vlan_intf_t *vlan_cfg)
     rv = p_api->adpt_tunnel_vlan_intf_del(dev_id, vlan_cfg);
     return rv;
 }
+#endif
 
 static sw_error_t
 _fal_tunnel_port_intf_set(a_uint32_t dev_id, fal_port_t port_id, fal_tunnel_port_intf_t *port_cfg)
@@ -954,6 +958,7 @@ fal_tunnel_port_intf_get(a_uint32_t dev_id, fal_port_t port_id, fal_tunnel_port_
     return rv;
 }
 
+#ifndef IN_TUNNEL_MINI
 /**
  * @brief Add the decapsulation VLAN match entry for tunnel interface
  * @param[in] dev_id device id
@@ -1025,6 +1030,7 @@ fal_tunnel_vlan_intf_del(a_uint32_t dev_id, fal_tunnel_vlan_intf_t *vlan_cfg)
 
     return rv;
 }
+#endif
 
 /**
  * @brief Set decapsulation tunnel interface config
@@ -1401,42 +1407,7 @@ fal_tunnel_udf_profile_cfg_get(a_uint32_t dev_id, a_uint32_t profile_id,
     return rv;
 }
 
-/**
- * @brief Set encap header control
- * @param[in] dev_id device id
- * @param[in] encapsulaiton header control
- * @return SW_OK or error code
- */
-sw_error_t
-fal_tunnel_encap_header_ctrl_set(a_uint32_t dev_id, fal_tunnel_encap_header_ctrl_t *header_ctrl)
-{
-    sw_error_t rv = SW_OK;
-
-    FAL_API_LOCK;
-    rv = _fal_tunnel_encap_header_ctrl_set(dev_id, header_ctrl);
-    FAL_API_UNLOCK;
-
-    return rv;
-}
-
-/**
- * @brief Get encap header control
- * @param[in] dev_id device id
- * @param[in] encapsulaiton header control
- * @return SW_OK or error code
- */
-sw_error_t
-fal_tunnel_encap_header_ctrl_get(a_uint32_t dev_id, fal_tunnel_encap_header_ctrl_t *header_ctrl)
-{
-    sw_error_t rv = SW_OK;
-
-    FAL_API_LOCK;
-    rv = _fal_tunnel_encap_header_ctrl_get(dev_id, header_ctrl);
-    FAL_API_UNLOCK;
-
-    return rv;
-}
-
+#ifndef IN_TUNNEL_MINI
 /**
  * @brief Set decap ECN mode
  * @param[in] dev_id device id
@@ -1512,6 +1483,43 @@ fal_tunnel_encap_ecn_mode_get(a_uint32_t dev_id, fal_tunnel_encap_ecn_t *ecn_rul
 
     FAL_API_LOCK;
     rv = _fal_tunnel_encap_ecn_mode_get(dev_id, ecn_rule, ecn_value);
+    FAL_API_UNLOCK;
+
+    return rv;
+}
+#endif
+
+/**
+ * @brief Set encap header control
+ * @param[in] dev_id device id
+ * @param[in] encapsulaiton header control
+ * @return SW_OK or error code
+ */
+sw_error_t
+fal_tunnel_encap_header_ctrl_set(a_uint32_t dev_id, fal_tunnel_encap_header_ctrl_t *header_ctrl)
+{
+    sw_error_t rv = SW_OK;
+
+    FAL_API_LOCK;
+    rv = _fal_tunnel_encap_header_ctrl_set(dev_id, header_ctrl);
+    FAL_API_UNLOCK;
+
+    return rv;
+}
+
+/**
+ * @brief Get encap header control
+ * @param[in] dev_id device id
+ * @param[in] encapsulaiton header control
+ * @return SW_OK or error code
+ */
+sw_error_t
+fal_tunnel_encap_header_ctrl_get(a_uint32_t dev_id, fal_tunnel_encap_header_ctrl_t *header_ctrl)
+{
+    sw_error_t rv = SW_OK;
+
+    FAL_API_LOCK;
+    rv = _fal_tunnel_encap_header_ctrl_get(dev_id, header_ctrl);
     FAL_API_UNLOCK;
 
     return rv;
@@ -1628,10 +1636,12 @@ EXPORT_SYMBOL(fal_tunnel_global_cfg_get);
 EXPORT_SYMBOL(fal_tunnel_global_cfg_set);
 EXPORT_SYMBOL(fal_tunnel_port_intf_set);
 EXPORT_SYMBOL(fal_tunnel_port_intf_get);
+#ifndef IN_TUNNEL_MINI
 EXPORT_SYMBOL(fal_tunnel_vlan_intf_add);
 EXPORT_SYMBOL(fal_tunnel_vlan_intf_getfirst);
 EXPORT_SYMBOL(fal_tunnel_vlan_intf_getnext);
 EXPORT_SYMBOL(fal_tunnel_vlan_intf_del);
+#endif
 EXPORT_SYMBOL(fal_tunnel_intf_set);
 EXPORT_SYMBOL(fal_tunnel_intf_get);
 EXPORT_SYMBOL(fal_tunnel_encap_port_tunnelid_set);
@@ -1651,12 +1661,14 @@ EXPORT_SYMBOL(fal_tunnel_udf_profile_entry_getfirst);
 EXPORT_SYMBOL(fal_tunnel_udf_profile_entry_getnext);
 EXPORT_SYMBOL(fal_tunnel_udf_profile_cfg_set);
 EXPORT_SYMBOL(fal_tunnel_udf_profile_cfg_get);
-EXPORT_SYMBOL(fal_tunnel_encap_header_ctrl_set);
-EXPORT_SYMBOL(fal_tunnel_encap_header_ctrl_get);
+#ifndef IN_TUNNEL_MINI
 EXPORT_SYMBOL(fal_tunnel_decap_ecn_mode_set);
 EXPORT_SYMBOL(fal_tunnel_decap_ecn_mode_get);
 EXPORT_SYMBOL(fal_tunnel_encap_ecn_mode_set);
 EXPORT_SYMBOL(fal_tunnel_encap_ecn_mode_get);
+#endif
+EXPORT_SYMBOL(fal_tunnel_encap_header_ctrl_set);
+EXPORT_SYMBOL(fal_tunnel_encap_header_ctrl_get);
 EXPORT_SYMBOL(fal_tunnel_exp_decap_set);
 EXPORT_SYMBOL(fal_tunnel_exp_decap_get);
 EXPORT_SYMBOL(fal_tunnel_decap_key_set);

@@ -1,0 +1,188 @@
+From 152499b315f3908ba51cc0dc71352738a648f256 Mon Sep 17 00:00:00 2001
+From: Raj Kumar Bhagat <quic_rajkbhag@quicinc.com>
+Date: Fri, 4 Nov 2022 14:09:13 +0530
+Subject: [PATCH] hostapd: add new nl80211 ops txpower_info for RRM use
+
+RRM link measurement report/request require interface current and max
+transmit power info. To support RRM link measurement report/request
+add new wpa_driver_nl80211_ops - txpower_info.
+
+To get current and max tx power info from driver add new NL extended
+feature NL80211_EXT_FEATURE_TX_POWER_REPORTING. Also add new NL
+attribute NL80211_ATTR_WIPHY_MAX_TX_POWER_LEVEL to use with NL cmd
+NL80211_CMD_GET_INTERFACE.
+
+Signed-off-by: Raj Kumar Bhagat <quic_rajkbhag@quicinc.com>
+---
+ src/drivers/driver.h              | 26 ++++++++++++++++++++
+ src/drivers/driver_nl80211.c      | 40 +++++++++++++++++++++++++++++--
+ src/drivers/driver_nl80211_capa.c |  5 ++++
+ src/drivers/nl80211_copy.h        | 10 ++++++++
+ 4 files changed, 79 insertions(+), 2 deletions(-)
+
+--- a/src/drivers/driver.h
++++ b/src/drivers/driver.h
+@@ -2338,6 +2338,14 @@ struct wpa_driver_capa {
+ #define WPA_DRIVER_FLAGS_SUPPORT_SET_SCAN_DWELL		0x00000020
+ /** Driver supports Beacon Report Measurement */
+ #define WPA_DRIVER_FLAGS_SUPPORT_BEACON_REPORT		0x00000040
++/**
++ * Driver is capable of reporting the current TX power to the userspace.
++ * Background: Some Action frames include a TPC Report IE. This IE contain a tx
++ * power field, userspace can get the tx power from driver to use in this field.
++ * Such action frames are Link Measurement Report (part of RRM), TPC Report
++ * (part of spectrum management).
++ */
++#define WPA_DRIVER_FLAGS_TX_POWER_REPORTING		0x00000080
+ 
+ 	u32 rrm_flags;
+ 
+@@ -2579,6 +2587,16 @@ struct wpa_channel_info {
+ };
+ 
+ /**
++ * struct wpa_txpower_info - Information about the transmit power
++ * @cur_txpower: Current operational transmit power (dbm).
++ * @max_txpower: Max allowed transmit power (dbm).
++ */
++struct wpa_txpower_info {
++        int cur_txpower;
++        int max_txpower;
++};
++
++/**
+  * struct beacon_data - Beacon data
+  * @head: Head portion of Beacon frame (before TIM IE)
+  * @tail: Tail portion of Beacon frame (after TIM IE)
+@@ -4170,6 +4188,14 @@ struct wpa_driver_ops {
+ 	int (*channel_info)(void *priv, struct wpa_channel_info *channel_info);
+ 
+ 	/**
++	 * txpower_info - Get transmit power information
++	 * @priv: Private driver interface data
++	 * @txpower_info: transmit power info structure
++	 * Return: 0 on success, negative (<0) on failure
++	 */
++	int (*txpower_info)(void *priv, struct wpa_txpower_info *txpower_info);
++
++	/**
+ 	 * set_authmode - Set authentication algorithm(s) for static WEP
+ 	 * @priv: Private driver interface data
+ 	 * @authmode: 1=Open System, 2=Shared Key, 3=both
+--- a/src/drivers/driver_nl80211.c
++++ b/src/drivers/driver_nl80211.c
+@@ -1839,6 +1839,40 @@ static int nl80211_channel_info(void *pr
+ }
+ 
+ 
++static int get_txpower_info(struct nl_msg *msg, void *arg)
++{
++	struct nlattr *tb[NL80211_ATTR_MAX + 1] = { 0 };
++        struct genlmsghdr *gnlh = nlmsg_data(nlmsg_hdr(msg));
++        struct wpa_txpower_info *tx_power = arg;
++
++        nla_parse(tb, NL80211_ATTR_MAX, genlmsg_attrdata(gnlh, 0),
++                  genlmsg_attrlen(gnlh, 0), NULL);
++
++	/* assigning tx_power in dbm from mbm*/
++	if (tb[NL80211_ATTR_WIPHY_TX_POWER_LEVEL])
++		tx_power->cur_txpower =
++		(nla_get_u32(tb[NL80211_ATTR_WIPHY_TX_POWER_LEVEL])/100);
++
++	if (tb[NL80211_ATTR_WIPHY_MAX_TX_POWER_LEVEL])
++                tx_power->max_txpower =
++                (nla_get_u32(tb[NL80211_ATTR_WIPHY_MAX_TX_POWER_LEVEL])/100);
++
++	return NL_SKIP;
++}
++
++
++static int nl80211_txpower_info(void *priv, struct wpa_txpower_info *txp_info)
++{
++	struct i802_bss *bss = priv;
++	struct wpa_driver_nl80211_data *drv = bss->drv;
++	struct nl_msg *msg;
++
++	msg = nl80211_drv_msg(drv, 0, NL80211_CMD_GET_INTERFACE);
++	return send_and_recv_msgs(drv, msg, get_txpower_info, txp_info, NULL,
++				  NULL);
++}
++
++
+ static void wpa_driver_nl80211_event_receive(int sock, void *eloop_ctx,
+ 					     void *handle)
+ {
+@@ -2575,8 +2609,9 @@ static int nl80211_mgmt_subscribe_non_ap
+ 		ret = -1;
+ 
+ 	/* Radio Measurement - Link Measurement Request */
+-	if ((drv->capa.rrm_flags & WPA_DRIVER_FLAGS_TX_POWER_INSERTION) &&
+-	    (nl80211_register_action_frame(bss, (u8 *) "\x05\x02", 2) < 0))
++	if (((drv->capa.rrm_flags & WPA_DRIVER_FLAGS_TX_POWER_INSERTION) ||
++	     (drv->capa.rrm_flags & WPA_DRIVER_FLAGS_TX_POWER_REPORTING)) &&
++	     (nl80211_register_action_frame(bss, (u8 *) "\x05\x02", 2) < 0))
+ 		ret = -1;
+ 
+ 	/* Robust AV SCS Response */
+@@ -13095,6 +13130,7 @@ const struct wpa_driver_ops wpa_driver_n
+ 	.signal_poll = nl80211_signal_poll,
+ 	.mlo_signal_poll = nl80211_mlo_signal_poll,
+ 	.channel_info = nl80211_channel_info,
++	.txpower_info = nl80211_txpower_info,
+ 	.set_param = nl80211_set_param,
+ 	.get_radio_name = nl80211_get_radio_name,
+ 	.add_pmkid = nl80211_add_pmkid,
+--- a/src/drivers/driver_nl80211_capa.c
++++ b/src/drivers/driver_nl80211_capa.c
+@@ -584,6 +584,11 @@ static void wiphy_info_ext_feature_flags
+ 	    ext_feature_isset(ext_features, len,
+ 			      NL80211_EXT_FEATURE_SET_SCAN_DWELL))
+ 		capa->rrm_flags |= WPA_DRIVER_FLAGS_SUPPORT_BEACON_REPORT;
++
++	if (ext_feature_isset(ext_features, len,
++                              NL80211_EXT_FEATURE_TX_POWER_REPORTING))
++		capa->rrm_flags |= WPA_DRIVER_FLAGS_TX_POWER_REPORTING;
++
+ 	if (ext_feature_isset(ext_features, len,
+ 			      NL80211_EXT_FEATURE_MGMT_TX_RANDOM_TA))
+ 		capa->flags |= WPA_DRIVER_FLAGS_MGMT_TX_RANDOM_TA;
+--- a/src/drivers/nl80211_copy.h
++++ b/src/drivers/nl80211_copy.h
+@@ -2772,6 +2772,10 @@ enum nl80211_commands {
+  * 0 for disable AP power save mode.
+  * 1 for enable AP power save mode.
+  *
++ * @NL80211_ATTR_WIPHY_MAX_TX_POWER_LEVEL: Max transmit power level allowed in
++ *      the operating channel as per device capability, policy and regulatory
++ *      authority in signed mBm units.
++ *
+  * @NUM_NL80211_ATTR: total number of nl80211_attrs available
+  * @NL80211_ATTR_MAX: highest attribute number currently defined
+  * @__NL80211_ATTR_AFTER_LAST: internal use
+@@ -3313,6 +3317,8 @@ enum nl80211_attrs {
+ 
+ 	NL80211_ATTR_EMA_RNR_ELEMS,
+ 
++	NL80211_ATTR_WIPHY_MAX_TX_POWER_LEVEL,
++
+ 	NL80211_ATTR_RU_PUNCT_SUPP_BW,
+ 	NL80211_ATTR_RU_PUNCT_SUPP_HE,
+ 	NL80211_ATTR_RU_PUNCT_BITMAP,
+@@ -6368,6 +6374,9 @@ enum nl80211_feature_flags {
+  * @NL80211_EXT_FEATURE_BEACON_RATE_EHT: Driver supports beacon rate
+  * 	configuration (AP/mesh) with EHT rates.
+  *
++ * @NL80211_EXT_FEATURE_TX_POWER_REPORTING: Driver supports reporting the
++ * 	transmit power information to the userspace.
++ *
+  * @NUM_NL80211_EXT_FEATURES: number of extended features.
+  * @MAX_NL80211_EXT_FEATURES: highest extended feature index.
+  */
+@@ -6437,6 +6446,7 @@ enum nl80211_ext_feature_index {
+ 	NL80211_EXT_FEATURE_WIDE_BAND_SCAN,
+ 	NL80211_EXT_FEATURE_RADAR_BACKGROUND,
+ 	NL80211_EXT_FEATURE_STA_MGMT_RTS_CTS,
++	NL80211_EXT_FEATURE_TX_POWER_REPORTING,
+ 	NL80211_EXT_FEATURE_BEACON_RATE_EHT,
+ 
+ 	/* add new features before the definition below */

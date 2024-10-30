@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2022-2023 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2024 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for any
  * purpose with or without fee is hereby granted, provided that the above
@@ -29,12 +29,21 @@ struct ppe_vp_rx_info {
 };
 
 /*
+ * ppe_vp_priv
+ *	Virtual port data priv structure for its netdev.
+ */
+struct ppe_vp_priv {
+	struct ppe_vp *vp;			/* Pointer to the PPE VP object */
+};
+
+/*
  * ppe_vp
  *	Virtual port data structure.
  */
 struct ppe_vp {
 	struct ppe_vp_base *pvb;			/* Pointer to the PPE VP base object */
 	struct net_device *netdev;			/* net_device for this VP */
+	struct net_device *vp_dev;			/* net_device for this VP */
 	struct ppe_drv_iface *ppe_iface;		/* Pointer to the PPE interface object */
 
 	struct ppe_vp_stats vp_stats;			/* Stats for this VP */
@@ -48,6 +57,7 @@ struct ppe_vp {
 	spinlock_t lock;				/* Lock for VP instance */
 
 	ppe_vp_callback_t dst_cb;			/* Packet to interface for transmit callback */
+	ppe_vp_list_callback_t dst_list_cb;		/* skb list interface for transmit callback */
 	void *dst_cb_data;				/* Callback data */
 	ppe_vp_callback_t src_cb;			/* Packet to be handed over to stack by VP user callback */
 	void *src_cb_data;				/* Callback data */

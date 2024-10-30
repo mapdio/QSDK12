@@ -36,9 +36,7 @@ EXTRA_CFLAGS+= -I$(STAGING_DIR)/usr/include/qca-nss-ppe
 EXTRA_CFLAGS+= -I$(STAGING_DIR)/usr/include/qca-nss-dp
 
 define Build/Compile
-	$(MAKE) -C "$(LINUX_DIR)" \
-		CROSS_COMPILE="$(TARGET_CROSS)" \
-		ARCH="$(LINUX_KARCH)" \
+	$(KERNEL_MAKE) \
 		M="$(PKG_BUILD_DIR)" \
 		EXTRA_CFLAGS="$(EXTRA_CFLAGS)" \
 		modules

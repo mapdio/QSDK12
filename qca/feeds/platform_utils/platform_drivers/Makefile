@@ -46,6 +46,22 @@ endef
 
 $(eval $(call KernelPackage,qseecom))
 
+define KernelPackage/ks_bridge
+  SUBMENU:=$(OTHER_MENU)
+  TITLE:=USB KS bridge driver for SDX dump collection
+  DEPENDS:=+kmod-usb-core
+  KCONFIG:=CONFIG_USB_QCOM_KS_BRIDGE
+  FILES:=$(LINUX_DIR)/drivers/usb/misc/ks_bridge.ko
+  AUTOLOAD:=$(call AutoLoad,90,ks_bridge)
+endef
+
+define KernelPackage/ks_bridge/description
+ USB KS bridge driver for SDX dump collection
+endef
+
+$(eval $(call KernelPackage,ks_bridge))
+
+
 define KernelPackage/fw-auth-test
   CATEGORY:=Kernel modules
   SUBMENU:=$(OTHER_MENU)
@@ -181,7 +197,7 @@ define KernelPackage/crypto-qce
 	CONFIG_CRYPTO_DEV_QCE_SW_MAX_LEN=0@ge5.4 \
 	CONFIG_CRYPTO_DEV_QCE_ENABLE_AEAD=n \
 	CONFIG_CRYPTO_DEV_QCE_SHA=y
-  DEPENDS:=@TARGET_ipq807x||TARGET_ipq_ipq807x||TARGET_ipq_ipq807x_64||TARGET_ipq60xx||TARGET_ipq_ipq60xx||TARGET_ipq_ipq60xx_64||TARGET_ipq_ipq50xx||TARGET_ipq_ipq50xx_64||TARGET_ipq95xx||TARGET_ipq50xx +kmod-crypto-manager +LINUX_4_4:kmod-crypto-aes-internal +kmod-crypto-hash +LINUX_4_4:kmod-crypto-des +kmod-crypto-authenc
+  DEPENDS:=@TARGET_ipq807x||TARGET_ipq_ipq807x||TARGET_ipq_ipq807x_64||TARGET_ipq60xx||TARGET_ipq_ipq60xx||TARGET_ipq_ipq60xx_64||TARGET_ipq_ipq50xx||TARGET_ipq_ipq50xx_64||TARGET_ipq95xx||TARGET_ipq50xx||TARGET_ipq53xx +kmod-crypto-manager +LINUX_4_4:kmod-crypto-aes-internal +kmod-crypto-hash +LINUX_4_4:kmod-crypto-des +kmod-crypto-authenc
 endef
 
 $(eval $(call KernelPackage,crypto-qce))
@@ -392,7 +408,7 @@ $(eval $(call KernelPackage,usb-phy-ipq807x))
 
 define KernelPackage/usb-dwc3-internal
   TITLE:=DWC3 USB controller driver
-  DEPENDS:=+USB_GADGET_SUPPORT:kmod-usb-gadget
+  DEPENDS:=+USB_GADGET_SUPPORT:kmod-usb-gadget +(LINUX_6_6&&USB_GADGET_SUPPORT):kmod-usb-roles
   KCONFIG:= \
 	CONFIG_USB_DWC3 \
 	CONFIG_USB_DWC3_HOST=n \
@@ -665,12 +681,14 @@ define KernelPackage/usb-phy-ipq5018
   DEPENDS:=@TARGET_ipq50xx||TARGET_ipq53xx
   KCONFIG:= \
 	CONFIG_USB_QCA_M31_PHY \
+	CONFIG_PHY_QCOM_M31_USB \
 	CONFIG_PHY_IPQ_UNIPHY_USB
   FILES:= \
-	$(LINUX_DIR)/drivers/usb/phy/phy-qca-m31.ko \
+	$(LINUX_DIR)/drivers/usb/phy/phy-qca-m31.ko@lt6.1 \
+	$(LINUX_DIR)/drivers/phy/qualcomm/phy-qcom-m31.ko@ge6.1 \
 	$(LINUX_DIR)/drivers/phy/phy-qca-uniphy.ko@le4.4 \
 	$(LINUX_DIR)/drivers/phy/qualcomm/phy-qca-uniphy.ko@ge5.4
-  AUTOLOAD:=$(call AutoLoad,85,phy-qca-m31 phy-qca-uniphy)
+  AUTOLOAD:=$(call AutoLoad,85,phy-qca-m31 phy-qcom-m31 phy-qca-uniphy)
   $(call AddDepends/usb)
 endef
 
@@ -680,3 +698,19 @@ define KernelPackage/usb-phy-ipq5018/description
 endef
 
 $(eval $(call KernelPackage,usb-phy-ipq5018))
+
+define KernelPackage/coresight-stream-sock
+  TITLE:=Add Coresight network stream module
+  KCONFIG:=CONFIG_CORESIGHT_STREAM
+  DEPENDS:=\
+	+kmod-udptunnel4 \
+	+IPV6:kmod-udptunnel6
+  FILES:=$(LINUX_DIR)/drivers/hwtracing/coresight/coresight-stream.ko
+endef
+
+define KernelPackage/coresight-stream-sock/description
+  Add Coresight network stream module
+endef
+
+$(eval $(call KernelPackage,coresight-stream-sock))
+

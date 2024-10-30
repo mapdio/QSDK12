@@ -22,13 +22,21 @@
  */
 #define EIP_TR_INVAL_TIMEOUT msecs_to_jiffies(10)
 #define EIP_TR_SIZE (sizeof(struct eip_tr) + EIP_HW_CTX_SIZE_LARGE_BYTES + L1_CACHE_BYTES)
-#define EIP_TR_CTRL_CONTEXT_WORDS(x) (((x) & 0x3FU) << 8)
-#define EIP_TR_REDIR_EN (0x1U << 11) /* Redirect enable */
-#define EIP_TR_REDIR_IFACE(i) (((i) & 0xFU) << 12) /* Redirect destination interface */
+#define EIP_TR_FILL_TOKEN(tr, ops, tk, req, tk_hdr) ((ops)->tk_fill(tk, tr, req, tk_hdr)) /* Call Token fill function */
+#define EIP_TR_PRE_PROCESS(tr, ops, skb) ((ops)->pre(tr, skb)) /* Call pre processing function */
+#define EIP_TR_POST_PROCESS(tr, ops, skb) ((ops)->post(tr, skb)) /* Call post processing function */
 
 struct eip_svc_entry;
 typedef bool (*eip_tr_init_t) (struct eip_tr *tr, struct eip_tr_info *info, const struct eip_svc_entry *algo);
 typedef void (*eip_tr_proc_t)(struct eip_tr *tr, struct sk_buff *skb);
+
+/*
+ * Context control words fields
+ */
+#define EIP_TR_CTRL_CONTEXT_WORDS(x) (((x) & 0x3F) << 8)
+#define EIP_TR_CTRL_SEQ_NUM_STORE (1U << 22)
+#define EIP_TR_CTRL_SEQ_NUM_OFFSET(x) ((x) << 24)
+#define EIP_TR_CTRL_SEQ_NUM_OFFSET_EN (1U << 30)
 
 /*
  * IPsec specific Transform Record Field
@@ -38,78 +46,25 @@ typedef void (*eip_tr_proc_t)(struct eip_tr *tr, struct sk_buff *skb);
 #define EIP_TR_IPSEC_EXT_SEQ_NUM(x) ((x) << 29)
 #define EIP_TR_IPSEC_CONTROL_IV(x) ((x) << 5)
 #define EIP_TR_IPSEC_IV_FORMAT(x) ((x) << 10)
-#define EIP_TR_IPSEC_SEQ_NUM_STORE (1U << 22)
 #define EIP_TR_IPSEC_PAD_TYPE (0x1U << 16)
 #define EIP_TR_IPSEC_NULL_PAD_TYPE (0x7U << 14)
-#define EIP_TR_IPSEC_IPHDR_PROC (0x1U << 19)
-#define EIP_TR_IPSEC_TTL(x) ((x) << 16)
-#define EIP_TR_IPSEC_ENCAP_TOKEN_VERIFY 0xd0060000U
-#define EIP_TR_IPSEC_ENCAP_TOKEN_INST 0xe12e0800U
-#define EIP_TR_IPSEC_ENCAP_ESN_TOKEN_INST 0xe2560800U
-#define EIP_TR_IPSEC_ENCAP_TOKEN_INST_LEN(x) (((x) + 1) << 24)
-#define EIP_TR_IPSEC_ENCAP_TOKEN_HDR 0x420000U
-#define EIP_TR_IPSEC_ENCAP_TOKEN_HDR_IV 0x4000000U
-#define EIP_TR_IPSEC_IV_SIZE(x) (x)
-#define EIP_TR_IPSEC_ICV_SIZE(x) ((x) << 8)
-#define EIP_TR_IPSEC_OHDR_PROTO(x) ((x) << 16)
-#define EIP_TR_IPSEC_ESP_PROTO(x) ((x) << 24)
-#define EIP_TR_IPSEC_NATT_SPORT IPSEC_EIP197_NATT_SPORT
-#define EIP_TR_IPSEC_NATT_DPORT (IPSEC_EIP197_NATT_SPORT << 16)
-#define EIP_TR_IPSEC_SEQ_NUM_OFFSET(x) ((x) << 24)
-#define EIP_TR_IPSEC_SEQ_NUM_OFFSET_EN (1U << 30)
-#define EIP_TR_IPSEC_DF_COPY	0
-#define EIP_TR_IPSEC_DF_RESET	1U
-#define EIP_TR_IPSEC_DF_SET	2U
-#define EIP_TR_IPSEC_DF(x) ((x & 0x3) << 20)
-#define EIP_TR_IPSEC_DSCP(x) ((x) << 24)
-#define EIP_TR_IPSEC_DSCP_COPY_EN(x) ((x) << 22)
-#define EIP_TR_IPSEC_IPV6_EN (0x1U << 8)
-#define EIP_TR_IPSEC_DECAP_TOKEN_VERIFY 0xd0060000U
-#define EIP_TR_IPSEC_DECAP_TOKEN_VERIFY_SEQ 0x8000000U
-#define EIP_TR_IPSEC_DECAP_TOKEN_VERIFY_PAD 0x5000000U
-#define EIP_TR_IPSEC_DECAP_TOKEN_VERIFY_HMAC 0x1000cU
-#define EIP_TR_IPSEC_REPLAY_WINDOW_SZ_32 (1U << 8);
-#define EIP_TR_IPSEC_REPLAY_WINDOW_SZ_64 (2U << 8);
-#define EIP_TR_IPSEC_REPLAY_WINDOW_SZ_128 (4U << 8);
-#define EIP_TR_IPSEC_REPLAY_WINDOW_SZ_384 (12U << 8);
 #define EIP_TR_IPSEC_SEQ_NUM_MASK_32 (0x2U << 30)
 #define EIP_TR_IPSEC_SEQ_NUM_MASK_64 (0x1U << 30)
 #define EIP_TR_IPSEC_SEQ_NUM_MASK_128 (0x3U << 30)
 #define EIP_TR_IPSEC_SEQ_NUM_MASK_384 ((0x2U << 30) | (0x1U << 15))
-#define EIP_TR_IPSEC_DECAP_TOKEN_INST_SEQ_UPDATE(x) ((x) << 24)
-#define EIP_TR_IPSEC_EXT_SEQ_NUM_PROC(x) ((x) << 29)
-#define EIP_TR_IPSEC_DECAP_TOKEN_INST 0xe02e1800U
-#define EIP_TR_IPSEC_DECAP_ESN_TOKEN_INST 0xe0561800U
-#define EIP_TR_IPSEC_DECAP_TUNNEL_TOKEN_HDR 0x01020000U
-#define EIP_TR_IPSEC_DECAP_TRANSPORT_TOKEN_HDR 0x01820000U
 
-#define EIP_TR_IPSEC_OHDR_PROTO_BYPASS 0
-#define EIP_TR_IPSEC_OHDR_PROTO_V4_TUNNEL_ENC 2U
-#define EIP_TR_IPSEC_OHDR_PROTO_V4_TUNNEL_DEC 4U
-#define EIP_TR_IPSEC_OHDR_PROTO_V4_TRANSPORT_ENC 5U
-#define EIP_TR_IPSEC_OHDR_PROTO_V4_TRANSPORT_DEC 6U
-#define EIP_TR_IPSEC_OHDR_PROTO_V6_TUNNEL_ENC 7U
-#define EIP_TR_IPSEC_OHDR_PROTO_V6_TUNNEL_DEC 8U
-#define EIP_TR_IPSEC_OHDR_PROTO_V6_TRANSPORT_ENC 11U
-#define EIP_TR_IPSEC_OHDR_PROTO_V6_TRANSPORT_DEC 12U
-#define EIP_TR_IPSEC_OHDR_PROTO_V4_TUNNEL_NATT_ENC 22U
-#define EIP_TR_IPSEC_OHDR_PROTO_V4_TUNNEL_NATT_DEC 24U
-#define EIP_TR_IPSEC_OHDR_PROTO_V4_TRANSPORT_NATT_ENC 25U
-#define EIP_TR_IPSEC_OHDR_PROTO_V4_TRANSPORT_NATT_DEC 26U
-
-#define EIP_TR_IPSEC_PROTO_NONE 0
-#define EIP_TR_IPSEC_PROTO_OUT_CBC 1U
-#define EIP_TR_IPSEC_PROTO_OUT_NULL_AUTH 2U
-#define EIP_TR_IPSEC_PROTO_OUT_CTR 3U
-#define EIP_TR_IPSEC_PROTO_OUT_CCM 4U
-#define EIP_TR_IPSEC_PROTO_OUT_GCM 5U
-#define EIP_TR_IPSEC_PROTO_OUT_GMAC 6U
-#define EIP_TR_IPSEC_PROTO_IN_CBC 7U
-#define EIP_TR_IPSEC_PROTO_IN_NULL_AUTH 8U
-#define EIP_TR_IPSEC_PROTO_IN_CTR 9U
-#define EIP_TR_IPSEC_PROTO_IN_CCM 10U
-#define EIP_TR_IPSEC_PROTO_IN_GCM 11U
-#define EIP_TR_IPSEC_PROTO_IN_GMAC 12U
+/*
+ * DTLS specific fields.
+ * TODO: Shall we generalize those macro across IPsec & DTLS?
+ */
+#define EIP_TR_DTLS_CTX0_SEQNO (0x2U << 28) /* dtls 48-bit sequence number */
+#define EIP_TR_DTLS_CTX0_SEQNO_MASK64 (0x1U << 30)	/* 64bit replay mask */
+#define EIP_TR_DTLS_CTX0_SEQNO_MASK128 (0x3U << 30)	/* 128bit replay mask */
+#define EIP_TR_DTLS_CTX1_PAD_TLS (0x5U << 14) /* cipher padding */
+#define EIP_TR_DTLS_CTX1_HASH_STORE (0x1U << 19) /* store hash */
+#define EIP_TR_DTLS_CTX1_PRE_CRYPTO_DECAP (0x1 << 13) /* decap pre-crypto operation */
+#define EIP_TR_DTLS_CONTROL_IV(x) ((x) << 5)	/* Control IV source */
+#define EIP_TR_DTLS_IV_FORMAT(x) ((x) << 10)	/* Full IV mode or Counter mode */
 
 #define EIP_TR_ERR_SHIFT 16U
 
@@ -177,6 +132,28 @@ struct eip_tr_ipsec {
 };
 
 /*
+ * eip_tr_dtls
+ *	DTLS specific information.
+ */
+struct eip_tr_dtls {
+	struct eip_tr_ops ops;			/* Transformation operation callback */
+	__be32 src_ip[4];			/* Source IP address */
+	__be32 dst_ip[4];			/* Destination IP address */
+	__be16 src_port;			/* Source UDP port */
+	__be16 dst_port;			/* Destination UDP port */
+	__be16 version;				/* version */
+	__be16 ip_df;				/* htons(IP_DF) or 0 */
+	uint8_t ip_version;			/* v4 or v6 */
+	uint8_t protocol;			/* UDP or UDPlite */
+	uint8_t tos;				/* DSCP for transform record */
+	uint8_t ttl;				/* Time-to-live */
+	uint8_t seq_offset;			/* Sequence no offset in context record */
+	uint8_t remove_len;			/* Length of headers to be removed */
+	uint8_t bypass_len;			/* Length of headers to be bypassed (IP/IP+UDP) */
+	uint8_t fixed_len;			/* Per packet fixed length */
+};
+
+/*
  * eip_tr_ipsec_skb_cb
  * 	IPsec sepcific information in skb control block
  */
@@ -197,6 +174,7 @@ struct eip_tr {
 	union {
 		struct eip_tr_crypto crypto;	/* Crypto information */
 		struct eip_tr_ipsec ipsec;	/* IPsec information */
+		struct eip_tr_dtls dtls;	/* DTLS information */
 	};
 
 	uint32_t tr_addr_type;			/* TR address with lower 2-bit representing type */
@@ -262,34 +240,6 @@ static inline struct eip_tr *eip_tr_ref_unless_zero(struct eip_tr *tr)
 static inline void eip_tr_deref(struct eip_tr *tr)
 {
 	kref_put(&tr->ref, eip_tr_final);
-}
-
-/*
- * eip_tr_pre_process()
- *	Calls pre-processing function associated with the operation (encap/decap)
- */
-static inline void eip_tr_pre_process(struct eip_tr *tr, struct eip_tr_ops *ops, struct sk_buff *skb)
-{
-	ops->pre(tr, skb);
-}
-
-/*
- * eip_tr_process_post()
- *	Calls post-processing function associated with the operation (encap/decap)
- */
-static inline void eip_tr_process_post(struct eip_tr *tr, struct eip_tr_ops *ops, struct sk_buff *skb)
-{
-	ops->post(tr, skb);
-}
-
-/*
- * eip_tr_fill_token()
- *	Calls token fill function associated with the operation (encap/decap)
- */
-static inline uint16_t eip_tr_fill_token(struct eip_tr *tr, struct eip_tr_ops *ops, struct eip_tk *tk, eip_req_t req,
-					uint32_t *tk_hdr)
-{
-	return ops->tk_fill(tk, tr, req, tk_hdr);
 }
 
 #endif /* __EIP_TR_H */

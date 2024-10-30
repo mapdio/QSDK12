@@ -107,7 +107,7 @@ Signed-off-by: Dinesh Karthikeyan <quic_dinek@quicinc.com>
  static int ath12k_qmi_send_qdss_trace_config_download_req(struct ath12k_base *ab,
  							  const u8 *buffer,
  							  unsigned int buffer_len)
-@@ -3848,6 +3892,52 @@ free_event_data:
+@@ -3806,6 +3850,52 @@ free_event_data:
  	kfree(event_data);
  }
  
@@ -189,7 +189,7 @@ Signed-off-by: Dinesh Karthikeyan <quic_dinek@quicinc.com>
  #endif
 --- a/drivers/net/wireless/ath/ath12k/testmode.c
 +++ b/drivers/net/wireless/ath/ath12k/testmode.c
-@@ -19,8 +19,45 @@ static const struct nla_policy ath12k_tm
+@@ -19,8 +19,42 @@ static const struct nla_policy ath12k_tm
  	[ATH12K_TM_ATTR_WMI_CMDID]	= { .type = NLA_U32 },
  	[ATH12K_TM_ATTR_VERSION_MAJOR]	= { .type = NLA_U32 },
  	[ATH12K_TM_ATTR_VERSION_MINOR]	= { .type = NLA_U32 },
@@ -211,9 +211,6 @@ Signed-off-by: Dinesh Karthikeyan <quic_dinek@quicinc.com>
 +			break;
 +		}
 +	}
-+
-+	if (!ar)
-+		return;
 +
 +	nl_skb = cfg80211_testmode_alloc_event_skb(ar->hw->wiphy, len, GFP_ATOMIC);
 +

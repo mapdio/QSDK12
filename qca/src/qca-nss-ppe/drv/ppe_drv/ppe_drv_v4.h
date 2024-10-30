@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2022-2023 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2024 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for any
  * purpose with or without fee is hereby granted, provided that the above
@@ -39,20 +39,38 @@
 					/* QoS valid */
 #define PPE_DRV_V4_CONN_FLOW_FLAG_INLINE_IPSEC 0x00000080
 					/* Inline IPSec flow */
-#define PPE_DRV_V4_CONN_FLAG_FLOW_PPE_ASSIST 0x00000100
+#define PPE_DRV_V4_CONN_FLAG_FLOW_RFS_PPE_ASSIST 0x00000100
 					/* Flow needs PPE assistance for RFS */
-#define PPE_DRV_V4_CONN_FLOW_METADATA_TYPE_SAWF 0x00000200
+#define PPE_DRV_V4_CONN_FLOW_METADATA_TYPE_WIFI_INFO 0x00000200
 					/* Flow metadata will be used for SAWF */
 #define PPE_DRV_V4_CONN_FLOW_FLAG_FSE 0x00000400
                                         /* Flow is also pushed to FSE HW in Wifi */
 #define PPE_DRV_V4_CONN_FLAG_FLOW_VP_VALID 0x00000800
 					/* Flow is a VP flow */
+#define PPE_DRV_V4_CONN_FLAG_BRIDGE_VLAN_NETDEV 0x00001000
+					/* Flow is via bridge VLAN netdev */
+
 #ifdef NSS_PPE_IPQ53XX
 #define PPE_DRV_V4_CONN_FLOW_FLAG_SRC_INTERFACE_CHECK 0x00001000
 					/* source interface check */
 #endif
 #define PPE_DRV_V4_CONN_FLAG_FLOW_IGMAC_VALID 0x00002000
 					/* Flow has ingress mac configured */
+#define PPE_DRV_V4_CONN_FLAG_FLOW_OFFLOAD_DISABLED 0x00004000
+					/* Flow has PPE offload disabled */
+
+#define PPE_DRV_V4_CONN_FLAG_FLOW_ACL_VALID 0x00004000
+					/* Flow + ACL combination match */
+#define PPE_DRV_V4_CONN_FLAG_FLOW_POLICER_VALID 0x00008000
+					/* Flow + Policer combination match */
+#define PPE_DRV_V4_CONN_FLAG_FLOW_PPE_POLICER_ASSIST 0x0010000
+					/* Flow + Policer Assist */
+#define PPE_DRV_V4_CONN_FLAG_FLOW_PRIORITY_PPE_ASSIST 0x00020000
+					/* Flow needs PPE assistance for Priority setting */
+#define PPE_DRV_V4_CONN_FLAG_FLOW_NO_EDIT_RULE 0x00040000
+					/* Flow is noedit rule */
+#define PPE_DRV_V4_CONN_FLAG_FLOW_WIFI_DS	0x00080000
+					/* Flow + MLO DS node */
 
 /*
  * ppe_drv_v4_addr_equal()
@@ -78,6 +96,14 @@ struct ppe_drv_v4_conn_flow {
 	uint32_t xlate_dest_ip;			/* Address after destination translation */
 	uint32_t xlate_dest_ident;		/* Port/connection ident after destination translation */
 	uint8_t xmit_dest_mac_addr[ETH_ALEN];	/* Destination MAC address after forwarding */
+
+	/*
+	 * PPE netwokr to host order ip
+	 */
+	uint32_t dump_match_src_ip;		/* Source IP address */
+	uint32_t dump_match_dest_ip;		/* Destination IP address */
+	uint32_t dump_xlate_src_ip;		/* Address after source translation */
+	uint32_t dump_xlate_dest_ip;		/* Address after destination translation */
 
 	/*
 	 * PPE to and from port
@@ -124,6 +150,16 @@ struct ppe_drv_v4_conn_flow {
 	 */
 	struct ppe_drv_iface *in_port_if;
 	struct ppe_drv_iface *in_l3_if;
+
+	/*
+	 * Flow + ACL info
+	 */
+	ppe_drv_sc_t acl_sc;
+	uint16_t acl_id;
+	uint16_t policer_hw_id;		/* HW policer index */
+	uint16_t policer_id;		/* User policer index */
+
+	uint8_t wifi_rule_ds_metadata;		/* Wi-Fi rule DS metadata */
 
 	/*
 	 * Statistics for this flow entry
@@ -528,12 +564,30 @@ static inline void ppe_drv_v4_conn_flow_match_src_ip_set(struct ppe_drv_v4_conn_
 }
 
 /*
+ * ppe_drv_v4_conn_flow_dump_match_src_ip_set()
+ *	Sets flow source IP in host order.
+ */
+static inline void ppe_drv_v4_conn_flow_dump_match_src_ip_set(struct ppe_drv_v4_conn_flow *pcf, uint32_t match_src_ip)
+{
+        pcf->dump_match_src_ip = ntohl(match_src_ip);
+}
+
+/*
  * ppe_drv_v4_conn_flow_match_dest_ip_set()
  *	Sets flow destination IP.
  */
 static inline void ppe_drv_v4_conn_flow_match_dest_ip_set(struct ppe_drv_v4_conn_flow *pcf, uint32_t match_dest_ip)
 {
         pcf->match_dest_ip = match_dest_ip;
+}
+
+/*
+ * ppe_drv_v4_conn_flow_dump_match_dest_ip_set()
+ *	Sets flow destination IP in host order.
+ */
+static inline void ppe_drv_v4_conn_flow_dump_match_dest_ip_set(struct ppe_drv_v4_conn_flow *pcf, uint32_t match_dest_ip)
+{
+        pcf->dump_match_dest_ip = htonl(match_dest_ip);
 }
 
 /*
@@ -564,6 +618,15 @@ static inline void ppe_drv_v4_conn_flow_xlate_src_ip_set(struct ppe_drv_v4_conn_
 }
 
 /*
+ * ppe_drv_v4_conn_flow_dump_xlate_src_ip_set()
+ *	Sets flow xlate source IP in host order.
+ */
+static inline void ppe_drv_v4_conn_flow_dump_xlate_src_ip_set(struct ppe_drv_v4_conn_flow *pcf, uint32_t xlate_src_ip)
+{
+        pcf->dump_xlate_src_ip = ntohl(xlate_src_ip);
+}
+
+/*
  * ppe_drv_v4_conn_flow_xlate_src_ident_set()
  *	Sets flow xlate source l4 port.
  */
@@ -579,6 +642,15 @@ static inline void ppe_drv_v4_conn_flow_xlate_src_ident_set(struct ppe_drv_v4_co
 static inline void ppe_drv_v4_conn_flow_xlate_dest_ip_set(struct ppe_drv_v4_conn_flow *pcf, uint32_t xlate_dest_ip)
 {
         pcf->xlate_dest_ip = xlate_dest_ip;
+}
+
+/*
+ * ppe_drv_v4_conn_flow_dump_xlate_dest_ip_set()
+ *	Sets flow xlate destination IP in host order.
+ */
+static inline void ppe_drv_v4_conn_flow_dump_xlate_dest_ip_set(struct ppe_drv_v4_conn_flow *pcf, uint32_t xlate_dest_ip)
+{
+        pcf->dump_xlate_dest_ip = ntohl(xlate_dest_ip);
 }
 
 /*
@@ -700,12 +772,13 @@ static inline void ppe_drv_v4_conn_flow_in_port_if_set(struct ppe_drv_v4_conn_fl
 }
 
 /*
- * ppe_drv_v4_conn_flow_in_l3_if_set()
- *	Sets ingress L3_IF interface.
+ * ppe_drv_v4_conn_flow_in_l3_if_set_and_ref()
+ *	Sets ingress L3_IF interface and take ref on iface.
  */
-static inline void ppe_drv_v4_conn_flow_in_l3_if_set(struct ppe_drv_v4_conn_flow *pcf, struct ppe_drv_iface *in_l3_if)
+static inline void ppe_drv_v4_conn_flow_in_l3_if_set_and_ref(struct ppe_drv_v4_conn_flow *pcf, struct ppe_drv_iface *in_l3_if)
 {
-        pcf->in_l3_if = in_l3_if;
+	kref_get(&in_l3_if->ref);
+	pcf->in_l3_if = in_l3_if;
 }
 
 /*
@@ -714,7 +787,7 @@ static inline void ppe_drv_v4_conn_flow_in_l3_if_set(struct ppe_drv_v4_conn_flow
  */
 static inline bool ppe_drv_v4_conn_flow_flags_check(struct ppe_drv_v4_conn_flow *pcf, uint32_t flags)
 {
-        return (pcf->flags & flags);
+	return (pcf->flags & flags);
 }
 
 /*
@@ -821,3 +894,6 @@ void ppe_drv_v4_flow_vlan_set(struct ppe_drv_v4_conn_flow *pcf,
 		uint32_t secondary_ingress_vlan_tag, uint32_t secondary_egress_vlan_tag);
 void ppe_drv_v4_if_walk_release(struct ppe_drv_v4_conn_flow *pcf);
 bool ppe_drv_v4_if_walk(struct ppe_drv_v4_conn_flow *pcf, struct ppe_drv_top_if_rule *top_if, ppe_drv_iface_t tx_if, ppe_drv_iface_t rx_if);
+bool ppe_drv_v4_fse_flow_configure(struct ppe_drv_v4_rule_create *create, struct ppe_drv_v4_conn_flow *pcf, struct ppe_drv_v4_conn_flow *pcr);
+void ppe_drv_fill_fse_v4_tuple_info(struct ppe_drv_v4_conn_flow *conn, struct ppe_drv_fse_rule_info *fse_info, bool is_ds);
+bool ppe_drv_v4_fse_interface_check(struct ppe_drv_v4_conn_flow *pcf);

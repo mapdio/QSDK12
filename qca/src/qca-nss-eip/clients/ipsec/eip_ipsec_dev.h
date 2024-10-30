@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2022-2023, Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2024, Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for any
  * purpose with or without fee is hereby granted, provided that the above
@@ -18,9 +18,9 @@
 #define __EIP_IPSEC_DEV_H
 
 #define EIP_IPSEC_DEV_MAX_HDR_LEN 96U
-#define EIP_IPSEC_DEV_MAX_HEADROOM 128U           /* Size of the buffer headroom. */
-#define EIP_IPSEC_DEV_MAX_TAILROOM 192U           /* Size of the buffer tailroom. */
-#define EIP_IPSEC_DEV_ARPHRD 31U	/* ARP (iana.org) hardware type for an IPsec tunnel. */
+#define EIP_IPSEC_DEV_MAX_HEADROOM 128U		/* Size of the buffer headroom. */
+#define EIP_IPSEC_DEV_MAX_TAILROOM 192U		/* Size of the buffer tailroom. */
+#define EIP_IPSEC_DEV_ARPHRD 31U		/* ARP (iana.org) hardware type for an IPsec tunnel. */
 
 /*
  * IPsec device statistics.
@@ -36,6 +36,7 @@ struct eip_ipsec_dev_stats {
 	uint64_t tx_bytes;		/* Encap Bytes transmitted */
 	uint64_t tx_vp_exp;		/* Encap Packet transmitted via VP exception */
 	uint64_t tx_host;		/* Encap packet trasmitted via Host */
+	uint64_t tx_vp;			/* Encap packet trasmitted via PPE-VP */
 	uint64_t tx_fail;		/* Encapsulation failure */
 	uint64_t tx_fail_sa;		/* sa not found failure */
 	uint64_t tx_fail_vp_sa;		/* sa not found failure during VP exception */
@@ -45,6 +46,7 @@ struct eip_ipsec_dev_stats {
 	 */
 	uint64_t rx_pkts;		/* Decap Packet received */
 	uint64_t rx_host;		/* Decap Packet received via Host */
+	uint64_t rx_vp;			/* Decap Packet received via PPE-VP */
 	uint64_t rx_bytes;		/* Decap Bytes received */
 	uint64_t rx_fail;		/* Decapsulation failure */
 	uint64_t rx_fail_sa;		/* sa not found failure */
@@ -68,9 +70,21 @@ struct eip_ipsec_dev {
 #endif
 };
 
+/*
+ * eip_ipsec_dev_is_nss()
+ *	Check if its nss ipsec offloaded dev
+ */
+static inline bool eip_ipsec_dev_is_nss(struct net_device *ndev)
+{
+	return (ndev->type == EIP_IPSEC_DEV_ARPHRD);
+}
+
 void eip_ipsec_dev_enc_err(void *app_data, eip_req_t req, int err);
 void eip_ipsec_dev_enc_done_v4(void *app_data, eip_req_t req);
 void eip_ipsec_dev_enc_done_v6(void *app_data, eip_req_t req);
+#if defined(EIP_IPSEC_HYBRID)
+void eip_ipsec_dev_enc_done_hy(void *app_data, eip_req_t req);
+#endif
 
 struct net_device *eip_ipsec_dev_get_by_id(int64_t devid);
 void eip_ipsec_dev_link_id(struct net_device *dev, int64_t devid);

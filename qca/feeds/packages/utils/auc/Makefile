@@ -5,7 +5,7 @@
 include $(TOPDIR)/rules.mk
 
 PKG_NAME:=auc
-PKG_VERSION:=0.1.4
+PKG_VERSION:=0.3.2
 PKG_RELEASE:=1
 PKG_LICENSE:=GPL-3.0
 
@@ -17,18 +17,16 @@ define Package/auc
   CATEGORY:=Base system
   TITLE:=Attended sysUpgrade CLI (EXPERIMENTAL)
   DEPENDS:=+attendedsysupgrade-common +libblobmsg-json +libubox +libubus \
-           +libuci +libuclient +rpcd-mod-rpcsys +ucert
+           +libuci +libuclient +rpcd-mod-rpcsys
 endef
 
 define Package/auc/description
    CLI client for attended-sysupgrade
 endef
 
-# set to 1 to enable debugging
-DEBUG:=1
-
 EXTRA_CFLAGS += \
-	$(if $(DEBUG),-DAUC_DEBUG=ON)
+	-D'AUC_VERSION=\"$(PKG_VERSION)-$(PKG_RELEASE)\"' \
+	$(if $(CONFIG_DEBUG),-DAUC_DEBUG=ON)
 
 define Package/auc/install
 	$(INSTALL_DIR) $(1)/usr/sbin

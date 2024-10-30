@@ -201,12 +201,12 @@ static ssize_t show_aes_derive_key(struct device *dev,
 				struct device_attribute *attr, char *buf)
 {
 	int rc = 0, i = 0;
-	struct qti_storage_service_derive_key_cmd_t *req_ptr;
 	size_t req_size = 0;
 	size_t dma_buf_size = 0;
 	dma_addr_t dma_req_addr = 0;
 	const char *message = NULL;
 	int message_len = 0;
+	struct qti_storage_service_derive_key_cmd_t_v1 *req_ptr;
 
 	if (!source_data || !context_data_len || !bindings_data) {
 		pr_info("Provide the required src data, bindings data and context data before encrypt/decrypt\n");
@@ -215,11 +215,16 @@ static ssize_t show_aes_derive_key(struct device *dev,
 
 	dev = qdev;
 
-	req_size = sizeof(struct qti_storage_service_derive_key_cmd_t);
+	if (context_data_len > MAX_CONTEXT_BUFFER_LEN_V1) {
+		pr_err("Context data length must be less than %d bytes\n",
+				MAX_CONTEXT_BUFFER_LEN_V1);
+		return -EINVAL;
+	}
+	req_size = sizeof(struct qti_storage_service_derive_key_cmd_t_v1 );
 	dma_buf_size = PAGE_SIZE * (1 << get_order(req_size));
-	req_ptr = (struct qti_storage_service_derive_key_cmd_t *)
-					dma_alloc_coherent(dev, dma_buf_size,
-					&dma_req_addr, GFP_KERNEL);
+	req_ptr = (struct qti_storage_service_derive_key_cmd_t_v1 *)
+		dma_alloc_coherent(dev, dma_buf_size,
+				&dma_req_addr, GFP_KERNEL);
 	if (!req_ptr)
 		return -ENOMEM;
 
@@ -230,11 +235,78 @@ static ssize_t show_aes_derive_key(struct device *dev,
 	req_ptr->key = (u64) dma_key_handle;
 	req_ptr->mixing_key = 0;
 
-	for (i = 0; i < MAX_CONTEXT_BUFFER_LEN; i++)
+	for (i = 0; i < MAX_CONTEXT_BUFFER_LEN_V1; i++)
 		req_ptr->hw_key_bindings.context[i] = context_data[i];
 	req_ptr->hw_key_bindings.context_len = context_data_len;
 
 	rc = qti_scm_aes(dma_req_addr, req_size, QTI_CMD_AES_DERIVE_KEY);
+	if (rc == KEY_HANDLE_OUT_OF_SLOT)
+		pr_info("Key handle out of slot. Clear a key and try again!\n");
+	if (!rc) {
+		message = "AES Key derive successful\n\0";
+	} else {
+		pr_err("SCM call failed..return value = %d\n", rc);
+		message = "AES Key derive failed\n\0";
+	}
+
+	pr_info("key_handle is: %lu\n", (unsigned long)*key_handle);
+
+	message_len = strlen(message) + 1;
+	memcpy(buf, message, message_len);
+
+	dma_free_coherent(dev, dma_buf_size, req_ptr, dma_req_addr);
+	return message_len;
+}
+
+/*
+ * show_aes_derive_128_key()
+ * Function to derive aes_max_ctxt_key and get key_handle
+ */
+static ssize_t show_aes_derive_128_byte_key(struct device *dev,
+				struct device_attribute *attr, char *buf)
+{
+	int rc = 0, i = 0;
+	size_t req_size = 0;
+	size_t dma_buf_size = 0;
+	dma_addr_t dma_req_addr = 0;
+	const char *message = NULL;
+	int message_len = 0;
+	struct qti_storage_service_derive_key_cmd_t_v2 *req_ptr;
+
+	if (!source_data || !context_data_len || !bindings_data) {
+		pr_info("Provide the required src data, bindings data and "
+			"context data before encrypt/decrypt\n");
+		return -EINVAL;
+	}
+
+	dev = qdev;
+
+	if (context_data_len > MAX_CONTEXT_BUFFER_LEN_V2) {
+		pr_err("Context data length must be less than %d bytes\n",
+				MAX_CONTEXT_BUFFER_LEN_V2);
+		return -EINVAL;
+	}
+
+	req_size = sizeof(struct qti_storage_service_derive_key_cmd_t_v2 );
+	dma_buf_size = PAGE_SIZE * (1 << get_order(req_size));
+	req_ptr = (struct qti_storage_service_derive_key_cmd_t_v2 *)
+				dma_alloc_coherent(dev, dma_buf_size,
+				&dma_req_addr, GFP_KERNEL);
+	if (!req_ptr)
+		return -ENOMEM;
+
+	req_ptr->policy.key_type = DEFAULT_KEY_TYPE;
+	req_ptr->policy.destination = DEFAULT_POLICY_DESTINATION;
+	req_ptr->hw_key_bindings.bindings = bindings_data;
+	req_ptr->source = source_data;
+	req_ptr->key = (u64) dma_key_handle;
+	req_ptr->mixing_key = 0;
+
+	for (i = 0; i < MAX_CONTEXT_BUFFER_LEN_V2; i++)
+		req_ptr->hw_key_bindings.context[i] = context_data[i];
+	req_ptr->hw_key_bindings.context_len = context_data_len;
+
+	rc = qti_scm_aes(dma_req_addr, req_size, QTI_CMD_AES_DERIVE_128_KEY);
 	if (rc == KEY_HANDLE_OUT_OF_SLOT)
 		pr_info("Key handle out of slot. Clear a key and try again!\n");
 	if (!rc) {
@@ -613,7 +685,8 @@ store_context_data(struct device *dev, struct device_attribute *attr,
 	int i = 0;
 	int num_bytes = count / 2 ;
 
-	for (i = 0; i < MAX_CONTEXT_BUFFER_LEN; i++)
+
+	for (i = 0; i < MAX_CONTEXT_BUFFER_LEN_V2; i++)
 		context_data[i] = 0;
 
 	if(count % 2 != 0) {
@@ -627,11 +700,12 @@ store_context_data(struct device *dev, struct device_attribute *attr,
 
 	context_data_len = num_bytes;
 
-	if (count > (MAX_CONTEXT_BUFFER_LEN * 2)) {
+	if (count > (MAX_CONTEXT_BUFFER_LEN_V2 * 2)) {
 		pr_info("Invalid input\n");
 		pr_info("Context data length is %lu bytes\n",
 		       (unsigned long)count);
-		pr_info("Context data length must be less than 64 bytes\n");
+		pr_info("Context data length must be less than %d bytes\n",
+				MAX_CONTEXT_BUFFER_LEN_V2);
 		context_data_len = 0;
 		return -EINVAL;
 	}
@@ -706,11 +780,11 @@ store_context_data_qtiapp(struct device *dev, struct device_attribute *attr,
 {
 	int i = 0;
 
-	for (i = 0; i < MAX_CONTEXT_BUFFER_LEN; i++)
+	for (i = 0; i < MAX_CONTEXT_BUFFER_LEN_V1; i++)
 		aes_context_data[i] = 0;
-	aes_context_data_len = MAX_CONTEXT_BUFFER_LEN;
+	aes_context_data_len = MAX_CONTEXT_BUFFER_LEN_V1;
 
-	if (count > ((MAX_CONTEXT_BUFFER_LEN * 2) + 1)) {
+	if (count > ((MAX_CONTEXT_BUFFER_LEN_V1 * 2) + 1)) {
 		pr_info("Invalid input\n");
 		pr_info("Context data length is %lu bytes\n",
 		       (unsigned long)count);
@@ -718,13 +792,13 @@ store_context_data_qtiapp(struct device *dev, struct device_attribute *attr,
 		return -EINVAL;
 	}
 
-	for (i = 0; i < MAX_CONTEXT_BUFFER_LEN; i++) {
+	for (i = 0; i < MAX_CONTEXT_BUFFER_LEN_V1; i++) {
 		sscanf(buf, "%2hhx", &aes_context_data[i]);
 		buf += 2;
 	}
 
 	pr_debug("context_data is :\n");
-	for (i = 0; i < MAX_CONTEXT_BUFFER_LEN; i++)
+	for (i = 0; i < MAX_CONTEXT_BUFFER_LEN_V1; i++)
 		pr_debug("0x%02x\n", (unsigned int)aes_context_data[i]);
 
 	return count;
@@ -1405,8 +1479,8 @@ generate_rsa_key_blob(struct device *dev, struct device_attribute *attr,
 	req_ptr->cmd_id = QTI_STOR_SVC_RSA_GENERATE_KEY;
 	req_ptr->rsa_params.modulus_size = RSA_MODULUS_LEN;
 	req_ptr->rsa_params.public_exponent = RSA_PUBLIC_EXPONENT;
-	req_ptr->rsa_params.pad_algo =
-			QTI_STOR_SVC_RSA_DIGEST_PAD_PKCS115_SHA2_256;
+	pr_info("rsa pad scheme used = %u\n",cur_rsa_pad_scheme);
+	req_ptr->rsa_params.pad_algo = cur_rsa_pad_scheme;
 	req_ptr->key_blob.key_material_len = RSA_KEY_BLOB_SIZE;
 
 	rc = qti_scm_tls_hardening(dma_req_addr, req_size,
@@ -1425,6 +1499,7 @@ generate_rsa_key_blob(struct device *dev, struct device_attribute *attr,
 
 	rsa_key_blob_len = resp_ptr->key_blob_size;
 	memcpy(buf, rsa_key_blob, rsa_key_blob_len);
+	rsa_key_blob_buf_valid = 1;
 
 	goto end;
 
@@ -1571,7 +1646,8 @@ import_rsa_key_blob(struct device *dev, struct device_attribute *attr,
 	memcpy(req_ptr->public_exponent, rsa_import_public_exponent,
 	      rsa_import_public_exponent_len);
 	req_ptr->public_exponent_len = rsa_import_public_exponent_len;
-	req_ptr->digest_pad_type = QTI_STOR_SVC_RSA_DIGEST_PAD_PKCS115_SHA2_256;
+	pr_info("rsa pad scheme used = %u\n",cur_rsa_pad_scheme);
+	req_ptr->digest_pad_type = cur_rsa_pad_scheme;
 	memcpy(req_ptr->pvt_exponent, rsa_import_pvt_exponent,
 	      rsa_import_pvt_exponent_len);
 	req_ptr->pvt_exponent_len = rsa_import_pvt_exponent_len;
@@ -1594,6 +1670,7 @@ import_rsa_key_blob(struct device *dev, struct device_attribute *attr,
 
 	rsa_key_blob_len = RSA_KEY_BLOB_SIZE;
 	memcpy(buf, rsa_key_blob, rsa_key_blob_len);
+	rsa_key_blob_buf_valid = 1;
 
 	goto end;
 
@@ -1633,6 +1710,7 @@ store_rsa_key_blob(struct device *dev, struct device_attribute *attr,
 
 	rsa_key_blob_len = count;
 	memcpy(rsa_key_blob, buf, rsa_key_blob_len);
+	rsa_key_blob_buf_valid = 1;
 
 	return count;
 }
@@ -1900,6 +1978,119 @@ end:
 	return message_len;
 }
 
+static ssize_t store_rsa_pad_scheme(struct device *dev, struct device_attribute *attr,
+				const char *buf, size_t count)
+{
+	uint32_t pad_scheme;
+
+	if(kstrtouint(buf, 10, &pad_scheme))
+		return -EINVAL;
+
+	if (pad_scheme == 1)
+		cur_rsa_pad_scheme = QTI_STOR_SVC_RSA_DIGEST_PAD_PKCS115_SHA2_256;
+	else if (pad_scheme == 2)
+		cur_rsa_pad_scheme = QTI_STOR_SVC_RSA_DIGEST_PAD_PSS_SHA2_256;
+	else
+		pr_info("Provide a valid padding scheme\n");
+
+	return count;
+}
+
+static ssize_t show_rsa_pad_scheme(struct device *dev, struct device_attribute *attr,
+				char *buf)
+{
+	char *msg;
+	msg = (cur_rsa_pad_scheme == 2) ? "PSS\n" : "PKCS\n";
+	memcpy(buf, msg, strlen(msg)+1);
+	return strlen(msg)+1;
+}
+
+static ssize_t show_rsa_update_keyblob(struct device *dev, struct device_attribute *attr,
+					char *buf)
+{
+	struct qti_storage_service_rsa_update_keyblob_cmd_t *req_ptr = NULL;
+	struct qti_storage_service_rsa_update_keyblob_data_resp_t *resp_ptr = NULL;
+	size_t req_size = 0;
+	size_t resp_size = 0;
+	size_t dma_buf_size = 0;
+	dma_addr_t dma_req_addr = 0;
+	dma_addr_t dma_resp_addr = 0;
+	struct qti_storage_service_rsa_key_t *temp = NULL;
+	int rc = 0;
+
+	dev = qdev;
+
+	if(!rsa_key_blob_buf_valid || rsa_key_blob_len == 0) {
+		pr_info("RSA Key blob is invalid. Input the key blob and try again.\n");
+		return -EINVAL;
+	}
+
+	temp = (struct qti_storage_service_rsa_key_t *)rsa_key_blob;
+	if (temp->pad_algo == cur_rsa_pad_scheme) {
+		pr_info("Padding type already matches with keyblob\n");
+		memcpy(buf, rsa_key_blob, rsa_key_blob_len);
+		return rsa_key_blob_len;
+	}
+
+	req_size = sizeof(struct qti_storage_service_rsa_update_keyblob_cmd_t);
+	dma_buf_size = PAGE_SIZE * (1 << get_order(req_size));
+	req_ptr = (struct qti_storage_service_rsa_update_keyblob_cmd_t *)
+					dma_alloc_coherent(dev, dma_buf_size,
+					&dma_req_addr, GFP_KERNEL);
+	if (!req_ptr)
+		return -ENOMEM;
+	resp_size = sizeof(struct qti_storage_service_rsa_update_keyblob_data_resp_t);
+	dma_buf_size = PAGE_SIZE * (1 << get_order(resp_size));
+	resp_ptr = (struct qti_storage_service_rsa_update_keyblob_data_resp_t *)
+					dma_alloc_coherent(dev, dma_buf_size,
+					&dma_resp_addr, GFP_KERNEL);
+	if (!resp_ptr)
+		return -ENOMEM;
+
+	req_ptr->cmd_id = CRYPTO_STORAGE_UPDATE_KEYBLOB;
+	req_ptr->key_blob.key_material = (u64)dma_rsa_key_blob;
+	req_ptr->key_blob.key_material_len = RSA_KEY_BLOB_SIZE;
+	req_ptr->pad_algo = cur_rsa_pad_scheme;
+
+	rc = qti_scm_tls_hardening(dma_req_addr, req_size,
+				   dma_resp_addr, resp_size,
+				   CLIENT_CMD_CRYPTO_RSA_64);
+
+	if (rc) {
+		pr_err("SCM call failed..SCM Call return value = %d\n", rc);
+		goto err_end;
+	}
+
+	if (resp_ptr->status) {
+		rc = resp_ptr->status;
+		pr_err("Response status failure..return value = %d\n", rc);
+		goto err_end;
+	}
+
+	rsa_key_blob_len = resp_ptr->key_blob_size;
+	memcpy(buf, rsa_key_blob, rsa_key_blob_len);
+
+	goto end;
+
+err_end:
+	dma_buf_size = PAGE_SIZE * (1 << get_order(req_size));
+	dma_free_coherent(dev, dma_buf_size, req_ptr, dma_req_addr);
+
+	dma_buf_size = PAGE_SIZE * (1 << get_order(resp_size));
+	dma_free_coherent(dev, dma_buf_size, resp_ptr, dma_resp_addr);
+
+	return rc;
+
+end:
+	dma_buf_size = PAGE_SIZE * (1 << get_order(req_size));
+	dma_free_coherent(dev, dma_buf_size, req_ptr, dma_req_addr);
+
+	dma_buf_size = PAGE_SIZE * (1 << get_order(resp_size));
+	dma_free_coherent(dev, dma_buf_size, resp_ptr, dma_resp_addr);
+
+	return rsa_key_blob_len;
+}
+
 static int __init rsa_sec_key_init(struct device *dev)
 {
 	int err = 0;
@@ -2009,6 +2200,7 @@ static int __init rsa_sec_key_init(struct device *dev)
 	rsa_import_pvt_exponent = (uint8_t*) buf_rsa_import_pvt_exponent;
 	rsa_sign_data_buf = (uint8_t*) buf_rsa_sign_data_buf;
 	rsa_plain_data_buf = (uint8_t*) buf_rsa_plain_data_buf;
+	rsa_key_blob_buf_valid = 0;
 
 	return 0;
 }
@@ -2538,7 +2730,7 @@ static ssize_t show_aes_derive_key_qtiapp(struct device *dev,
 				struct device_attribute *attr, char *buf)
 {
 	int rc = 0, i = 0;
-	struct qti_storage_service_derive_key_cmd_t *req_ptr;
+	struct qti_storage_service_derive_key_cmd_t_v1 *req_ptr;
 	size_t req_size = 0;
 	size_t dma_buf_size = 0;
 	dma_addr_t dma_req_addr = 0;
@@ -2552,9 +2744,9 @@ static ssize_t show_aes_derive_key_qtiapp(struct device *dev,
 
 	dev = qdev;
 
-	req_size = sizeof(struct qti_storage_service_derive_key_cmd_t);
+	req_size = sizeof(struct qti_storage_service_derive_key_cmd_t_v1);
 	dma_buf_size = PAGE_SIZE * (1 << get_order(req_size));
-	req_ptr = (struct qti_storage_service_derive_key_cmd_t *)
+	req_ptr = (struct qti_storage_service_derive_key_cmd_t_v1 *)
 					dma_alloc_coherent(dev, dma_buf_size,
 					&dma_req_addr, GFP_KERNEL);
 	if (!req_ptr)
@@ -2567,7 +2759,7 @@ static ssize_t show_aes_derive_key_qtiapp(struct device *dev,
 	req_ptr->key = (u64) dma_aes_key_handle;
 	req_ptr->mixing_key = 0;
 
-	for (i = 0; i < MAX_CONTEXT_BUFFER_LEN; i++)
+	for (i = 0; i < MAX_CONTEXT_BUFFER_LEN_V1; i++)
 		req_ptr->hw_key_bindings.context[i] = aes_context_data[i];
 	req_ptr->hw_key_bindings.context_len = aes_context_data_len;
 

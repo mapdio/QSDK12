@@ -200,7 +200,7 @@
 
 	tcsr_mutex: hwlock {
 		compatible = "qcom,tcsr-mutex";
-		syscon = <&tcsr_mutex_regs 0 0x80>;
+		syscon = <&tcsr_mutex_regs 0 0x1000>;
 		#hwlock-cells = <1>;
 	};
 
@@ -218,7 +218,7 @@
 	smem {
 		compatible = "qcom,smem";
 		memory-region = <&smem_region>;
-		hwlocks = <&tcsr_mutex 0>;
+		hwlocks = <&tcsr_mutex 3>;
 	};
 
 	qseecom: qseecom {
@@ -344,7 +344,7 @@
 
 		tcsr_mutex_regs: syscon@1905000 {
 			compatible = "syscon";
-			reg = <0x01905000 0x8000>;
+			reg = <0x01905000 0x20000>;
 		};
 
 		tcsr_boot_misc: syscon@193d100 {
@@ -412,6 +412,7 @@
 				<&gcc GCC_BLSP1_AHB_CLK>;
 			clock-names = "core", "iface";
 			status = "disabled";
+			tx-watermark = <0>;
 		};
 
 		spi_0: spi@78b5000 {
@@ -848,6 +849,7 @@
 			num-lanes = <1>;
 			#address-cells = <3>;
 			#size-cells = <2>;
+			axi-halt-val = <0x1e>; /* increase halt window size to 1GB */
 
 			phys = <&pcie_phy0>;
 			phy-names = "pciephy";
@@ -1120,12 +1122,13 @@
 					l1edrr = <32 35>;
 				};
 			};
+
 			port_scheduler_config {
 				port@0 {
 					port_id = <0>;
 					l1scheduler {
 						group@0 {
-							sp = <0 1>; /*L0 SPs*/
+							sp = <0 1 35>; /*L0 SPs*/
 							/*cpri cdrr epri edrr*/
 							cfg = <0 0 0 0>;
 						};
@@ -1136,7 +1139,7 @@
 							ucast_queue = <0 4 8>;
 							/*multicast queues*/
 							mcast_queue = <256 260>;
-							/*sp cpricdrrepriedrr*/
+							/*sp cpri cdrr epri edrr*/
 							cfg = <0 0 0 0 0>;
 						};
 						group@1 {
@@ -1154,6 +1157,26 @@
 							mcast_queue = <259 263>;
 							cfg = <0 3 3 3 3>;
 						};
+						group@4 {
+							ucast_queue = <128>;
+							ucast_loop_pri = <4>;
+							cfg = <35 0 32 0 32>;
+						};
+						group@5 {
+							ucast_queue = <132>;
+							ucast_loop_pri = <4>;
+							cfg = <35 0 32 0 32>;
+						};
+						group@6 {
+							ucast_queue = <136>;
+							ucast_loop_pri = <4>;
+							cfg = <35 0 32 0 32>;
+						};
+						group@7 {
+							ucast_queue = <140>;
+							ucast_loop_pri = <4>;
+							cfg = <35 0 32 0 32>;
+						};
 					};
 				};
 				port@1 {
@@ -1161,17 +1184,15 @@
 					l1scheduler {
 						group@0 {
 							sp = <36>;
+							sp_loop_pri = <4>;
 							cfg = <0 8 0 8>;
-						};
-						group@1 {
-							sp = <37>;
-							cfg = <1 9 1 9>;
 						};
 					};
 					l0scheduler {
 						group@0 {
 							ucast_queue = <144>;
 							ucast_loop_pri = <16>;
+							ucast_max_pri = <4>;
 							mcast_queue = <272>;
 							mcast_loop_pri = <4>;
 							cfg = <36 0 48 0 48>;
@@ -1183,17 +1204,15 @@
 					l1scheduler {
 						group@0 {
 							sp = <40>;
+							sp_loop_pri = <4>;
 							cfg = <0 12 0 12>;
-						};
-						group@1 {
-							sp = <41>;
-							cfg = <1 13 1 13>;
 						};
 					};
 					l0scheduler {
 						group@0 {
 							ucast_queue = <160>;
 							ucast_loop_pri = <16>;
+							ucast_max_pri = <4>;
 							mcast_queue = <276>;
 							mcast_loop_pri = <4>;
 							cfg = <40 0 64 0 64>;
@@ -1205,17 +1224,15 @@
 					l1scheduler {
 						group@0 {
 							sp = <44>;
+							sp_loop_pri = <4>;
 							cfg = <0 16 0 16>;
-						};
-						group@1 {
-							sp = <45>;
-							cfg = <1 17 1 17>;
 						};
 					};
 					l0scheduler {
 						group@0 {
 							ucast_queue = <176>;
 							ucast_loop_pri = <16>;
+							ucast_max_pri = <4>;
 							mcast_queue = <280>;
 							mcast_loop_pri = <4>;
 							cfg = <44 0 80 0 80>;
@@ -1227,17 +1244,15 @@
 					l1scheduler {
 						group@0 {
 							sp = <48>;
+							sp_loop_pri = <4>;
 							cfg = <0 20 0 20>;
-						};
-						group@1 {
-							sp = <49>;
-							cfg = <1 21 1 21>;
 						};
 					};
 					l0scheduler {
 						group@0 {
 							ucast_queue = <192>;
 							ucast_loop_pri = <16>;
+							ucast_max_pri = <4>;
 							mcast_queue = <284>;
 							mcast_loop_pri = <4>;
 							cfg = <48 0 96 0 96>;
@@ -1249,17 +1264,15 @@
 					l1scheduler {
 						group@0 {
 							sp = <52>;
+							sp_loop_pri = <4>;
 							cfg = <0 24 0 24>;
-						};
-						group@1 {
-							sp = <53>;
-							cfg = <1 25 1 25>;
 						};
 					};
 					l0scheduler {
 						group@0 {
 							ucast_queue = <208>;
 							ucast_loop_pri = <16>;
+							ucast_max_pri = <4>;
 							mcast_queue = <288>;
 							mcast_loop_pri = <4>;
 							cfg = <52 0 112 0 112>;
@@ -1271,17 +1284,15 @@
 					l1scheduler {
 						group@0 {
 							sp = <56>;
+							sp_loop_pri = <4>;
 							cfg = <0 28 0 28>;
-						};
-						group@1 {
-							sp = <57>;
-							cfg = <1 29 1 29>;
 						};
 					};
 					l0scheduler {
 						group@0 {
 							ucast_queue = <224>;
 							ucast_loop_pri = <16>;
+							ucast_max_pri = <4>;
 							mcast_queue = <292>;
 							mcast_loop_pri = <4>;
 							cfg = <56 0 128 0 128>;
@@ -1293,18 +1304,17 @@
 					l1scheduler {
 						group@0 {
 							sp = <60>;
+							sp_loop_pri = <4>;
 							cfg = <0 32 0 32>;
-						};
-						group@1 {
-							sp = <61>;
-							cfg = <1 33 1 33>;
 						};
 					};
 					l0scheduler {
 						group@0 {
 							ucast_queue = <240>;
 							ucast_loop_pri = <16>;
+							ucast_max_pri = <4>;
 							mcast_queue = <296>;
+							mcast_loop_pri = <4>;
 							cfg = <60 0 144 0 144>;
 						};
 					};
@@ -1886,6 +1896,7 @@
 
 	ctx_save: ctx-save {
 		compatible = "qti,ctxt-save-ipq6018";
+		memory-region = <&minidump_mem>;
 	};
 
 	qti,sps {

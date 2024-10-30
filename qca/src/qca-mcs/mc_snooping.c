@@ -1,6 +1,6 @@
 /*
  * Copyright (c) 2012, 2015-2021 The Linux Foundation. All rights reserved.
- * Copyright (c) 2022-2023 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2024 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for any
  * purpose with or without fee is hereby granted, provided that the above
@@ -575,6 +575,55 @@ static void mc_mdb_rcu_free(struct rcu_head *head)
 	kfree(mdb);
 }
 
+/* mc_mdb_destroy_by_port
+ *	destroy the multicast database entry by the port
+ */
+int mc_mdb_destroy_by_port(struct mc_struct *mc, struct mc_ip *mc_group, __u8 *mac, u_int32_t ifindex)
+{
+	int found = 0;
+	struct mc_mdb_entry *mdb=NULL;
+	struct mc_port_group *pg;
+	struct mc_fdb_group *fg;
+	struct hlist_head *head;
+	struct hlist_node *h;
+
+	if (mc) {
+		head=&mc->hash[mc_group_hash(mc->salt, mc_group->u.ip4)];
+		MC_PRINT("%s(%d):head=%p\n", __func__, __LINE__, head);
+		if(!hlist_empty(head)) {
+			mdb = mc_mdb_find(head, mc_group);
+			MC_PRINT("%s(%d):mdb=%p\n", __func__, __LINE__, mdb);
+			if (mdb) {
+				if (mc_group->pro == htons(ETH_P_IP)) {
+					MC_PRINT("%s(%d):mdb group=%pI4(%d), input group=%pI4(%d)\n", __func__, __LINE__,
+						&mdb->group.u.ip4, mdb->group.pro, &mc_group->u.ip4, mc_group->pro);
+				} else {
+					MC_PRINT("%s(%d):mdb group=%pI6(%d), input group=%pI6(%d)\n", __func__, __LINE__,
+						&mdb->group.u.ip6, mdb->group.pro, &mc_group->u.ip6, mc_group->pro);
+				}
+
+				if(!hlist_empty(&mdb->pslist)) {
+					os_hlist_for_each_entry_rcu(pg, h, &mdb->pslist, pslist) {
+						MC_PRINT("%s(%d):current ifindex=%d\n", __func__, __LINE__, ((struct net_device*) pg->port)->ifindex);
+						if (ifindex == ((struct net_device*) pg->port)->ifindex) {
+							if(!hlist_empty(&pg->fslist)) {
+								fg = mc_fdb_group_find(&pg->fslist, mac);
+								if (fg) {
+									mc_fdb_group_destroy(fg);
+									found = 1;
+									break;
+								}
+							}
+						}
+					}
+				}
+			}
+		}
+		MC_PRINT("%s(%d):found=%d\n", __func__, __LINE__, found);
+	}
+
+	return (found);
+}
 
 /* mc_mdb_destroy
  *	destroy the mdb
@@ -2308,7 +2357,7 @@ static int mc_ipv4_rcv(struct mc_struct *mc, struct sk_buff *skb,
 		 * This will end up verify the checksum again based on the whole packet.
 		 */
 		skb2->ip_summed = CHECKSUM_NONE;
-		/* fall through */
+		fallthrough;
 	case CHECKSUM_NONE:
 		skb2->csum = 0;
 		if (skb_checksum_complete(skb2))
@@ -2466,7 +2515,7 @@ static int mc_ipv6_rcv(struct mc_struct *mc, struct sk_buff *skb,
 		 * This will end up verify the checksum again based on the whole packet.
 		 */
 		skb2->ip_summed = CHECKSUM_NONE;
-		/* fall through */
+		fallthrough;
 	case CHECKSUM_NONE:
 		skb2->csum = ~csum_unfold(csum_ipv6_magic(saddr, daddr, skb2->len, IPPROTO_ICMPV6, 0));
 		if (__skb_checksum_complete(skb2)) {
@@ -2807,7 +2856,7 @@ static int mc_dev_unregister(struct mc_struct *mc)
  */
 static int mc_open(struct mc_struct *mc)
 {
-	struct net_bridge *br;
+	unsigned long expired;
 
 	if (!mc->enable) {
 		MC_PRINT(KERN_DEBUG "%s: mc open failed, feature is disabled\n", __func__);
@@ -2829,15 +2878,25 @@ static int mc_open(struct mc_struct *mc)
 		return -EINVAL;
 	}
 	spin_unlock_bh(&g_mcs_lock);
-	br = netdev_priv(mc->dev);
+
+	/*
+	 * Ovs bridge don't have forward_delay, use forward_delay default
+	 * value 15HZ instead
+	 */
+	if (netif_is_bridge_master(mc->dev)) {
+		struct net_bridge *br = netdev_priv(mc->dev);
+		expired = br->forward_delay;
+	} else {
+		expired = 15 * HZ;
+	}
 	mc->ageing_query = jiffies;
 	mc->startup_queries_sent = 0;
 	mc->started = 1;
 
 	/* Start aging timer and query timer now */
-	mod_timer(&mc->qtimer, jiffies + br->forward_delay);
-	mod_timer(&mc->agingtimer, jiffies + br->forward_delay);
-	mod_timer(&mc->rtimer, jiffies + br->forward_delay);
+	mod_timer(&mc->qtimer, jiffies + expired);
+	mod_timer(&mc->agingtimer, jiffies + expired);
+	mod_timer(&mc->rtimer, jiffies + expired);
 
 	return 0;
 }
@@ -3253,7 +3312,6 @@ int mc_attach(struct net_device *dev)
 	mc->multicast_router = 1;	/* Enable router mode */
 	mc->rp.type = MC_RTPORT_DEFAULT;/* If querier exist, forward IGMP/MLD message to the router port, else flood to all ports. */
 
-
 	mc_acl_table_init(mc);
 #if (LINUX_VERSION_CODE >= KERNEL_VERSION(5, 4, 0))
 	timer_setup(&mc->qtimer, mc_mdb_query, 0);
@@ -3384,6 +3442,7 @@ static int mc_device_event(struct notifier_block *this, unsigned long event, voi
 		rcu_read_unlock();
 		break;
 
+	case NETDEV_DOWN:
 	case NETDEV_BR_LEAVE:
 		if (!netif_is_bridge_port(dev)) {
 			break;
@@ -3453,13 +3512,22 @@ static int mc_proc_snooper_open(struct inode *inode, struct file *file)
         return single_open(file, mc_proc_snooper_show, NULL);
 }
 
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(6, 0, 0))
+static const struct proc_ops mc_proc_snooper_proc_ops = {
+        .proc_open           = mc_proc_snooper_open,
+        .proc_read           = seq_read,
+        .proc_lseek         = seq_lseek,
+        .proc_release        = single_release,
+};
+#else
 static const struct file_operations mc_proc_snooper_fops = {
-        .owner          = THIS_MODULE,
+	.owner		= THIS_MODULE,
         .open           = mc_proc_snooper_open,
         .read           = seq_read,
         .llseek         = seq_lseek,
         .release        = single_release,
 };
+#endif
 
 /* mc_proc_create_snooper_entry
  *	create proc entry for information show
@@ -3468,7 +3536,11 @@ int mc_proc_create_snooper_entry(void) {
 
 	mc_proc_root = proc_mkdir(MCS_PROC_ROOT_NAME, init_net.proc_net);
 	if (mc_proc_root) {
-		mc_proc_inst_entry = proc_create(MCS_PROC_INST_NAME, 0444, mc_proc_root, &mc_proc_snooper_fops );
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(6, 0, 0))
+		mc_proc_inst_entry = proc_create(MCS_PROC_INST_NAME, 0444, mc_proc_root, &mc_proc_snooper_proc_ops);
+#else
+		mc_proc_inst_entry = proc_create(MCS_PROC_INST_NAME, 0444, mc_proc_root, &mc_proc_snooper_fops);
+#endif
 		if(!mc_proc_inst_entry) {
 			printk(KERN_INFO "Error creating stat proc entry");
 			return -ENOMEM;

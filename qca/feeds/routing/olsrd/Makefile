@@ -1,23 +1,20 @@
-# 
-# Copyright (C) 2009-2016 OpenWrt.org
+# SPDX-License-Identifier: GPL-2.0-or-later
 #
-# This is free software, licensed under the GNU General Public License v2.
-# See /LICENSE for more information.
+# Copyright (C) 2009-2016 OpenWrt.org
 #
 
 include $(TOPDIR)/rules.mk
 
 PKG_NAME:=olsrd
-PKG_VERSION:=0.9.7
-PKG_RELEASE=$(PKG_SOURCE_VERSION)
+PKG_SOURCE_DATE:=2023-06-12
+PKG_RELEASE:=1
 
 PKG_SOURCE_PROTO:=git
 PKG_SOURCE_URL:=https://github.com/OLSR/olsrd.git
-PKG_MIRROR_HASH:=77bdfdf2fe8aa0033f99a1b53326caaa73929720633a307a5155a2aee014d938
-PKG_SOURCE_SUBDIR:=$(PKG_NAME)-$(PKG_VERSION)
-PKG_SOURCE_VERSION:=v0.9.7
-PKG_SOURCE:=$(PKG_NAME)-$(PKG_VERSION)-$(PKG_SOURCE_VERSION).tar.gz
+PKG_SOURCE_VERSION:=a9b3f1ac6e73a39b5bd97d1e66b1e039998314f5
+PKG_MIRROR_HASH:=b7e1cd4b43a4d8607d6761267f23d28fb09c577d746c22ca60d2ed2fc19b1ea8
 
+PKG_MAINTAINER:=Nick Hainke <vincent@systemli.org>
 PKG_BUILD_PARALLEL:=0
 PKG_LICENSE:=BSD-3-Clause
 
@@ -37,7 +34,7 @@ endef
 define Package/olsrd
   $(call Package/olsrd/template)
   MENU:=1
-  DEPENDS:=+libpthread
+  DEPENDS:=+libpthread +libubus +iptables +IPV6:ip6tables
 endef
 
 define Package/olsrd/conffiles
@@ -55,6 +52,13 @@ define Package/olsrd-mod-dot-draw
   $(call Package/olsrd/template)
   DEPENDS:=olsrd
   TITLE:=Dot topology information plugin
+endef
+
+
+define Package/olsrd-mod-filtergw
+  $(call Package/olsrd/template)
+  DEPENDS:=olsrd
+  TITLE:=Filter Gateway plugin
 endef
 
 define Package/olsrd-mod-bmf
@@ -96,7 +100,7 @@ endef
 define Package/olsrd-mod-mdns
   $(call Package/olsrd/template)
   DEPENDS:=olsrd
-  TITLE:=MDNS/Zeroconf/Bonjour packet distribution 
+  TITLE:=MDNS/Zeroconf/Bonjour packet distribution
 endef
 
 define Package/olsrd-mod-nameservice
@@ -153,6 +157,12 @@ define Package/olsrd-mod-watchdog
   TITLE:=Watchdog plugin
 endef
 
+define Package/olsrd-utils
+  $(call Package/olsrd/template)
+  DEPENDS:=olsrd
+  TITLE:=Utils for OLSRD
+endef
+
 define Package/olsrd-mod-pud/conffiles
 /etc/olsrd.d/olsrd.pud.position.conf
 endef
@@ -171,7 +181,7 @@ MAKE_FLAGS+= \
 	DESTDIR="$(PKG_INSTALL_DIR)" \
 	STRIP="true" \
 	INSTALL_LIB="true" \
-	SUBDIRS="arprefresh bmf dot_draw dyn_gw dyn_gw_plain httpinfo jsoninfo netjson mdns nameservice p2pd pgraph pud quagga secure sgwdynspeed txtinfo watchdog"
+	SUBDIRS="arprefresh bmf dot_draw dyn_gw dyn_gw_plain httpinfo filtergw jsoninfo netjson mdns nameservice p2pd pgraph pud quagga secure sgwdynspeed txtinfo watchdog"
 
 define Build/Compile
 	$(call Build/Compile/Default,all)
@@ -180,7 +190,7 @@ endef
 
 define Package/olsrd/install
 	$(INSTALL_DIR) $(1)/lib/functions
-	$(INSTALL_DATA) ./files/olsrd.init $(1)/lib/functions/olsrd.sh
+	$(INSTALL_DATA) ./files/olsrd.sh $(1)/lib/functions/olsrd.sh
 	$(INSTALL_DIR) $(1)/etc/config
 	$(INSTALL_DATA) ./files/olsrd.config $(1)/etc/config/olsrd
 	$(INSTALL_DATA) ./files/olsrd6.config $(1)/etc/config/olsrd6
@@ -189,13 +199,16 @@ define Package/olsrd/install
 	$(INSTALL_DIR) $(1)/etc/init.d
 	$(INSTALL_BIN) ./files/olsrd4.init $(1)/etc/init.d/olsrd
 	$(INSTALL_BIN) ./files/olsrd6.init $(1)/etc/init.d/olsrd6
-	$(INSTALL_DIR) $(1)/etc/hotplug.d/iface
-	$(INSTALL_BIN) ./files/olsrd.hotplug.sh $(1)/etc/hotplug.d/iface/50-olsrd
 endef
 
 define Package/olsrd-mod-arprefresh/install
 	$(INSTALL_DIR) $(1)/usr/lib
 	$(INSTALL_BIN) $(PKG_BUILD_DIR)/lib/arprefresh/olsrd_arprefresh.so.* $(1)/usr/lib/
+endef
+
+define Package/olsrd-mod-filtergw/install
+	$(INSTALL_DIR) $(1)/usr/lib
+	$(INSTALL_BIN) $(PKG_BUILD_DIR)/lib/filtergw/olsrd_filtergw.so.* $(1)/usr/lib/
 endef
 
 define Package/olsrd-mod-dot-draw/install
@@ -291,9 +304,15 @@ define Package/olsrd-mod-watchdog/install
 	$(INSTALL_BIN) $(PKG_BUILD_DIR)/lib/watchdog/olsrd_watchdog.so.* $(1)/usr/lib/
 endef
 
+define Package/olsrd-utils/install
+	$(INSTALL_DIR) $(1)/usr/bin
+	$(INSTALL_BIN) ./files/olsrd-neigh.sh $(1)/usr/bin/olsrd-neigh
+endef
+
 $(eval $(call BuildPackage,olsrd))
 $(eval $(call BuildPackage,olsrd-mod-arprefresh))
 $(eval $(call BuildPackage,olsrd-mod-dot-draw))
+$(eval $(call BuildPackage,olsrd-mod-filtergw))
 $(eval $(call BuildPackage,olsrd-mod-bmf))
 $(eval $(call BuildPackage,olsrd-mod-dyn-gw))
 $(eval $(call BuildPackage,olsrd-mod-dyn-gw-plain))
@@ -310,3 +329,4 @@ $(eval $(call BuildPackage,olsrd-mod-secure))
 $(eval $(call BuildPackage,olsrd-mod-sgwdynspeed))
 $(eval $(call BuildPackage,olsrd-mod-txtinfo))
 $(eval $(call BuildPackage,olsrd-mod-watchdog))
+$(eval $(call BuildPackage,olsrd-utils))

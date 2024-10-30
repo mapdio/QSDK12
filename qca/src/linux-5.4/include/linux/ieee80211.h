@@ -20,6 +20,7 @@
 #include <linux/etherdevice.h>
 #include <asm/byteorder.h>
 #include <asm/unaligned.h>
+#define IEEE80211_MLD_MAX_NUM_LINKS     15
 
 /*
  * DS bit usage
@@ -3181,6 +3182,11 @@ struct ieee80211_tspec_ie {
 	__le32 min_phy_rate;
 	__le16 sba;
 	__le16 medium_time;
+} __packed;
+
+struct ieee80211_he_6ghz_capa {
+        /* uses IEEE80211_HE_6GHZ_CAP_* below */
+        __le16 capa;
 } __packed;
 
 /**

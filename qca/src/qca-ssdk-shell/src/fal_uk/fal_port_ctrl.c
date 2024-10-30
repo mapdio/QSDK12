@@ -1,6 +1,6 @@
 /*
  * Copyright (c) 2014,2016-2019, The Linux Foundation. All rights reserved.
- * Copyright (c) 2021-2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2021-2024 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for any
  * purpose with or without fee is hereby granted, provided that the above
@@ -214,7 +214,7 @@ fal_port_hibernate_get(a_uint32_t dev_id, fal_port_t port_id,
 
 sw_error_t
 fal_port_cdt(a_uint32_t dev_id, fal_port_t port_id, a_uint32_t mdi_pair,
-             a_uint32_t *cable_status, a_uint32_t *cable_len)
+             fal_cable_status_t *cable_status, a_uint32_t *cable_len)
 {
     sw_error_t rv;
 
@@ -1141,6 +1141,17 @@ fal_port_combo_link_status_get(a_uint32_t dev_id,
 	sw_error_t rv;
 
 	rv = sw_uk_exec(SW_API_PT_COMBO_LINK_STATUS_GET, dev_id, port_id, status);
+
+	return rv;
+}
+
+sw_error_t
+fal_port_erp_power_mode_set(a_uint32_t dev_id,
+		fal_port_t port_id, fal_port_erp_power_mode_t power_mode)
+{
+	sw_error_t rv;
+
+	rv = sw_uk_exec(SW_API_PT_ERP_POWER_MODE_SET, dev_id, port_id, power_mode);
 
 	return rv;
 }

@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2022, Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2023, Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for any
  * purpose with or without fee is hereby granted, provided that the above
@@ -127,6 +127,7 @@ static void eip_hw_setup_core(void __iomem *base_addr)
 	 * help to recover from hang
 	 */
 	iowrite32(EIP_HW_TOKEN_CFG, base_addr + EIP_HW_PE_EIP96_TOKEN_CTRL);
+	iowrite32(EIP_HW_TOKEN2_CFG, base_addr + EIP_HW_PE_EIP96_TOKEN_CTRL2);
 	iowrite32(0x0, base_addr + EIP_HW_PE_EIP96_OUT_BUF_CTRL);
 
 	/*
@@ -758,6 +759,11 @@ int eip_hw_init(struct platform_device *pdev)
 	iowrite32(EIP_HW_OCE_OPUE_PACKET_ID_START | EIP_HW_OCE_OPUE_PACKET_ID_INC,
 			base_addr + EIP_HW_OCE_OPUE_PACKET_ID_CFG);
 
+	/*
+	 * Check for inline support
+	 */
+	ep->inline_support = of_property_read_bool(np, "qcom,inline-enabled");
+	pr_info("%px: EIP inline_support: %s", pdev, ep->inline_support ? "yes" : "no");
 
 	/*
 	 * Initialize all lookaside DMA.

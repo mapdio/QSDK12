@@ -1,7 +1,7 @@
 /*
  **************************************************************************
  * Copyright (c) 2015-2021 The Linux Foundation. All rights reserved.
- * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2023 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
@@ -220,6 +220,7 @@ static void ecm_sfe_ipv6_process_one_conn_sync_msg(struct sfe_ipv6_conn_sync *sy
 	int aci_index;
 	int assignment_count;
 	ip_addr_t flow_ip;
+	ip_addr_t return_ip_xlate;
 	ip_addr_t return_ip;
 	struct in6_addr group6 __attribute__((unused));
 	struct in6_addr origin6 __attribute__((unused));
@@ -229,6 +230,7 @@ static void ecm_sfe_ipv6_process_one_conn_sync_msg(struct sfe_ipv6_conn_sync *sy
 
 	ECM_SFE_IPV6_ADDR_TO_IP_ADDR(flow_ip, sync->flow_ip);
 	ECM_SFE_IPV6_ADDR_TO_IP_ADDR(return_ip, sync->return_ip);
+	ECM_SFE_IPV6_ADDR_TO_IP_ADDR(return_ip_xlate, sync->return_ip_xlate);
 
 	/*
 	 * Look up ecm connection with a view to synchronising the connection, classifier and data tracker.
@@ -242,12 +244,12 @@ static void ecm_sfe_ipv6_process_one_conn_sync_msg(struct sfe_ipv6_conn_sync *sy
 			sync,
 			(int)sync->protocol,
 			ECM_IP_ADDR_TO_OCTAL(flow_ip), (int)sync->flow_ident,
-			ECM_IP_ADDR_TO_OCTAL(return_ip), (int)sync->return_ident);
+			ECM_IP_ADDR_TO_OCTAL(return_ip_xlate), (int)sync->return_ident_xlate);
 
-	ci = ecm_db_connection_find_and_ref(flow_ip, return_ip, sync->protocol, (int)ntohs(sync->flow_ident), (int)ntohs(sync->return_ident));
+	ci = ecm_db_connection_find_and_ref(flow_ip, return_ip_xlate, sync->protocol, (int)ntohs(sync->flow_ident), (int)ntohs(sync->return_ident_xlate));
 	if (!ci) {
 		DEBUG_TRACE("%px: SFE Sync: no connection\n", sync);
-		goto sync_conntrack;
+		return;
 	}
 	DEBUG_TRACE("%px: Sync conn %px\n", sync, ci);
 
@@ -276,6 +278,17 @@ static void ecm_sfe_ipv6_process_one_conn_sync_msg(struct sfe_ipv6_conn_sync *sy
 		aci->sync_to_v6(aci, &class_sync);
 	}
 	ecm_db_connection_assignments_release(assignment_count, assignments);
+
+	/*
+	 * Get the elapsed time since the last sync. If the return value is
+	 * a negative value which means the timer is not in a valid state, just
+	 * return here and do not update the defunct timer and the conntrack.
+	 */
+	if (ecm_db_connection_elapsed_defunct_timer(ci) < 0) {
+		DEBUG_TRACE("%px: Defunct timer is expired or not in a valid state\n", ci);
+		ecm_db_connection_deref(ci);
+		return;
+	}
 
 	/*
 	 * Keep connection alive and updated
@@ -944,44 +957,44 @@ int ecm_sfe_ipv6_init(struct dentry *dentry)
 	}
 
 #ifdef CONFIG_XFRM
-	if (!debugfs_create_u32("reject_acceleration_for_ipsec", S_IRUGO | S_IWUSR, ecm_sfe_ipv6_dentry,
+	if (!ecm_debugfs_create_u32("reject_acceleration_for_ipsec", S_IRUGO | S_IWUSR, ecm_sfe_ipv6_dentry,
 					(u32 *)&ecm_sfe_ipv6_reject_acceleration_for_ipsec)) {
 		DEBUG_ERROR("Failed to create ecm sfe ipv6 reject_acceleration_for_ipsec file in debugfs\n");
 		goto task_cleanup;
 	}
 #endif
 
-	if (!debugfs_create_u32("no_action_limit_default", S_IRUGO | S_IWUSR, ecm_sfe_ipv6_dentry,
+	if (!ecm_debugfs_create_u32("no_action_limit_default", S_IRUGO | S_IWUSR, ecm_sfe_ipv6_dentry,
 					(u32 *)&ecm_sfe_ipv6_no_action_limit_default)) {
 		DEBUG_ERROR("Failed to create ecm sfe ipv6 no_action_limit_default file in debugfs\n");
 		goto task_cleanup;
 	}
 
-	if (!debugfs_create_u32("driver_fail_limit_default", S_IRUGO | S_IWUSR, ecm_sfe_ipv6_dentry,
+	if (!ecm_debugfs_create_u32("driver_fail_limit_default", S_IRUGO | S_IWUSR, ecm_sfe_ipv6_dentry,
 					(u32 *)&ecm_sfe_ipv6_driver_fail_limit_default)) {
 		DEBUG_ERROR("Failed to create ecm sfe ipv6 driver_fail_limit_default file in debugfs\n");
 		goto task_cleanup;
 	}
 
-	if (!debugfs_create_u32("nack_limit_default", S_IRUGO | S_IWUSR, ecm_sfe_ipv6_dentry,
+	if (!ecm_debugfs_create_u32("nack_limit_default", S_IRUGO | S_IWUSR, ecm_sfe_ipv6_dentry,
 					(u32 *)&ecm_sfe_ipv6_nack_limit_default)) {
 		DEBUG_ERROR("Failed to create ecm sfe ipv6 nack_limit_default file in debugfs\n");
 		goto task_cleanup;
 	}
 
-	if (!debugfs_create_u32("accelerated_count", S_IRUGO, ecm_sfe_ipv6_dentry,
+	if (!ecm_debugfs_create_u32("accelerated_count", S_IRUGO, ecm_sfe_ipv6_dentry,
 					(u32 *)&ecm_sfe_ipv6_accelerated_count)) {
 		DEBUG_ERROR("Failed to create ecm sfe ipv6 accelerated_count file in debugfs\n");
 		goto task_cleanup;
 	}
 
-	if (!debugfs_create_u32("pending_accel_count", S_IRUGO, ecm_sfe_ipv6_dentry,
+	if (!ecm_debugfs_create_u32("pending_accel_count", S_IRUGO, ecm_sfe_ipv6_dentry,
 					(u32 *)&ecm_sfe_ipv6_pending_accel_count)) {
 		DEBUG_ERROR("Failed to create ecm sfe ipv6 pending_accel_count file in debugfs\n");
 		goto task_cleanup;
 	}
 
-	if (!debugfs_create_u32("pending_decel_count", S_IRUGO, ecm_sfe_ipv6_dentry,
+	if (!ecm_debugfs_create_u32("pending_decel_count", S_IRUGO, ecm_sfe_ipv6_dentry,
 					(u32 *)&ecm_sfe_ipv6_pending_decel_count)) {
 		DEBUG_ERROR("Failed to create ecm sfe ipv6 pending_decel_count file in debugfs\n");
 		goto task_cleanup;

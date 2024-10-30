@@ -2,11 +2,10 @@
 [ -e /lib/functions.sh ] && . /lib/functions.sh || . ./functions.sh
 [ -x /sbin/modprobe ] && {
 	insmod="modprobe"
-	rmmod="$insmod -r"
 } || {
 	insmod="insmod"
-	rmmod="rmmod"
 }
+rmmod="rmmod"
 
 add_insmod() {
 	eval "export isset=\${insmod_$1}"
@@ -65,7 +64,7 @@ parse_matching_rule() {
 	append "$var" "${proto:+-p $proto}"
 	for option in $options; do
 		config_get value "$section" "$option"
-		
+
 		case "$pkt:$option" in
 			*:srchost)
 				append "$var" "-s $value"
@@ -283,14 +282,14 @@ start_interface() {
 	config_get device "$iface" device
 	config_get_bool enabled "$iface" enabled 1
 	[ -z "$device" -o 1 -ne "$enabled" ] && {
-		return 1 
+		return 1
 	}
 	config_get upload "$iface" upload
 	config_get_bool halfduplex "$iface" halfduplex
 	config_get download "$iface" download
 	config_get classgroup "$iface" classgroup
 	config_get_bool overhead "$iface" overhead 0
-	
+
 	download="${download:-${halfduplex:+$upload}}"
 	enum_classes "$classgroup"
 	for dir in ${halfduplex:-up} ${download:+down}; do
@@ -326,7 +325,8 @@ start_interface() {
 			append cstr "$classnr:$prio:$avgrate:$pktsize:$pktdelay:$maxrate:$qdisc:$filter" "$N"
 		done
 		append ${prefix}q "$(tcrules)" "$N"
-		export dev_${dir}="ifconfig $dev up >&- 2>&-
+		export dev_${dir}="ip link add ${dev} type ifb >&- 2>&-
+ip link set $dev up >&- 2>&-
 tc qdisc del dev $dev root >&- 2>&-
 tc qdisc add dev $dev root handle 1: hfsc default ${class_default}0
 tc class add dev $dev parent 1: classid 1:1 hfsc sc rate ${rate}kbit ul rate ${rate}kbit"
@@ -373,7 +373,7 @@ add_rules() {
 	local var="$1"
 	local rules="$2"
 	local prefix="$3"
-	
+
 	for rule in $rules; do
 		unset iptrule
 		config_get target "$rule" target
@@ -437,7 +437,7 @@ EOF
 
 for command in $iptables; do
 	cat <<EOF
-	$command -w -t mangle -N qos_${cg} 
+	$command -w -t mangle -N qos_${cg}
 	$command -w -t mangle -N qos_${cg}_ct
 EOF
 done

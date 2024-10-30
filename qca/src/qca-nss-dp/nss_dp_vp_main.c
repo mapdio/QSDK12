@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2022, Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022, 2024 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for any
  * purpose with or without fee is hereby granted, provided that the above
@@ -25,12 +25,16 @@
 #include <linux/of_mdio.h>
 #include <linux/phy.h>
 #include <net/switchdev.h>
+#include <ppe_drv_port.h>
 
 #include "nss_dp_hal.h"
 #include "nss_dp_dev.h"
 
 extern struct net_device_ops nss_dp_netdev_ops;
 nss_dp_vp_rx_cb_t nss_dp_vp_rx_reg_cb = NULL;
+nss_dp_vp_list_rx_cb_t nss_dp_vp_list_rx_reg_cb = NULL;
+
+struct nss_dp_vp_skb_list gvp_skb_list[PPE_DRV_VIRTUAL_MAX];
 
 /*
  * nss_dp_vp_xmit()
@@ -53,9 +57,11 @@ EXPORT_SYMBOL(nss_dp_vp_xmit);
  * nss_dp_vp_rx_register_cb()
  *	Register VP callback
  */
-bool nss_dp_vp_rx_register_cb(nss_dp_vp_rx_cb_t cb)
+bool nss_dp_vp_rx_register_cb(nss_dp_vp_rx_cb_t cb, \
+		nss_dp_vp_list_rx_cb_t list_cb)
 {
 	rcu_assign_pointer(nss_dp_vp_rx_reg_cb, cb);
+	rcu_assign_pointer(nss_dp_vp_list_rx_reg_cb, list_cb);
 	synchronize_rcu();
 	return true;
 }
@@ -68,6 +74,7 @@ EXPORT_SYMBOL(nss_dp_vp_rx_register_cb);
 void nss_dp_vp_rx_unregister_cb(void)
 {
 	rcu_assign_pointer(nss_dp_vp_rx_reg_cb, NULL);
+	rcu_assign_pointer(nss_dp_vp_list_rx_reg_cb, NULL);
 	synchronize_rcu();
 }
 EXPORT_SYMBOL(nss_dp_vp_rx_unregister_cb);

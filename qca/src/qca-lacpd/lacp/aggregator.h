@@ -1,5 +1,6 @@
 /*
  * Copyright (c) 2016, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2023 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for any
  * purpose with or without fee is hereby granted, provided that the above
@@ -21,7 +22,7 @@
 #include "lacp.h"
 #include "port.h"
 
-struct lacpd_aggregator {
+typedef struct lacpd_aggregator {
 	/*Link to lacp->aggregators*/
 	struct list_head node;
 	/*All ports attached to this aggregator*/

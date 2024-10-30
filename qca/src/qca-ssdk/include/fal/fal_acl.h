@@ -1,6 +1,6 @@
 /*
  * Copyright (c) 2014, 2016-2018, 2021, The Linux Foundation. All rights reserved.
- * Copyright (c) 2022-2023, Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2024, Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for any
  * purpose with or without fee is hereby granted, provided that the above
@@ -296,6 +296,13 @@ enum{
 #define FAL_FIELD_FLG_TST(flag, field) \
     (((flag[(field) / 32]) & (0x1UL << ((field) % 32))) ? 1 : 0)
 
+#define FAL_FIELD_FLG_CPY(dst, src) \
+({ \
+ 	int i; \
+	for (i = 0; i <= FAL_ACL_FIELD_NUM/32; i ++) \
+		dst[i] |= src[i]; \
+})
+
 #define FAL_ACL_UDF_MAX_LENGTH 16
 
 
@@ -307,6 +314,7 @@ typedef struct
 {
 	fal_acl_rule_type_t rule_type;/*mac, IP4, IP6 ,UDF*/
 	fal_acl_field_map_t field_flg;/*Indicate which fields are selected*/
+	fal_acl_field_map_t inverse_field_flg;
 
 	/* fields of mac rule */
 	fal_mac_addr_t src_mac_val;/*source mac*/
@@ -443,6 +451,7 @@ typedef a_uint32_t fal_acl_tunnel_field_map_t[1];
 typedef struct
 {
 	fal_acl_tunnel_field_map_t field_flg;/*Indicate which fields are selected*/
+	fal_acl_tunnel_field_map_t inverse_field_flg;
 	fal_tunnel_type_t tunnel_type;
 	a_uint8_t tunnel_type_mask;
 	fal_hdr_type_t inner_type;
@@ -731,11 +740,16 @@ typedef struct
 
 	/*new add acl action for IPQ53xx*/
 	a_uint8_t metadata_pri; /*metadata priority*/
-	a_uint16_t cookie_val; /*cookie vaule*/
+	a_uint64_t cookie_val; /*cookie vaule*/
 	a_uint8_t cookie_pri; /*cookie priority */
+
+	/*new add for IPQ54xx*/
+	a_bool_t wifi_qos_en;
+	a_uint8_t wifi_qos_val;
 
 	/*returned info*/
 	fal_acl_rule_hw_info_t hw_info;
+	fal_acl_field_map_t inverse_field_flg;
 } fal_acl_rule_t;
 
 
@@ -773,31 +787,6 @@ typedef struct
     char ifname[IFNAMSIZ]; /*interface name*/
     a_uint8_t acl_policy; /*0 deny, 1 accept*/
 } fal_acl_mac_entry_t;
-
-enum
-{
-	/*acl*/
-	FUNC_ACL_LIST_CREAT = 0,
-	FUNC_ACL_LIST_DESTROY,
-	FUNC_ACL_RULE_ADD,
-	FUNC_ACL_RULE_DELETE,
-	FUNC_ACL_RULE_QUERY,
-	FUNC_ACL_RULE_DUMP,
-	FUNC_ACL_LIST_BIND,
-	FUNC_ACL_LIST_UNBIND,
-	FUNC_ACL_LIST_DUMP,
-	FUNC_ACL_UDF_PROFILE_SET,
-	FUNC_ACL_UDF_PROFILE_GET,
-	FUNC_ACL_UDF_PROFILE_ENTRY_ADD,
-	FUNC_ACL_UDF_PROFILE_ENTRY_DEL,
-	FUNC_ACL_UDF_PROFILE_ENTRY_GETFIRST,
-	FUNC_ACL_UDF_PROFILE_ENTRY_GETNEXT,
-	FUNC_ACL_UDF_PROFILE_CFG_SET,
-	FUNC_ACL_UDF_PROFILE_CFG_GET,
-	FUNC_ACL_VPGROUP_SET,
-	FUNC_ACL_VPGROUP_GET,
-};
-
 
 sw_error_t
 fal_acl_list_creat(a_uint32_t dev_id, a_uint32_t list_id, a_uint32_t list_pri);
@@ -882,7 +871,11 @@ fal_acl_vpgroup_set(a_uint32_t dev_id, a_uint32_t vport_id,
 
 sw_error_t
 fal_acl_vpgroup_get(a_uint32_t dev_id, a_uint32_t vport_id,
-                fal_vport_type_t vport_type, a_uint32_t * vpgroup_id);
+		fal_vport_type_t vport_type, a_uint32_t * vpgroup_id);
+
+sw_error_t
+fal_acl_counter_get(a_uint32_t dev_id, a_uint32_t entry_index,
+		fal_entry_counter_t *acl_counter);
 
 #ifdef __cplusplus
 }

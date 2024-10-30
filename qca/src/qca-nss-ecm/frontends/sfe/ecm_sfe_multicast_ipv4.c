@@ -1,7 +1,7 @@
 /*
  **************************************************************************
  * Copyright (c) 2014-2021, The Linux Foundation. All rights reserved.
- * Copyright (c) 2022-2023 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2024 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
@@ -58,6 +58,9 @@
 #include <net/netfilter/ipv4/nf_conntrack_ipv4.h>
 #include <net/netfilter/ipv4/nf_defrag_ipv4.h>
 #include <net/vxlan.h>
+#ifdef ECM_INTERFACE_BOND_ENABLE
+#include <net/bonding.h>
+#endif
 #ifdef ECM_INTERFACE_VLAN_ENABLE
 #include <linux/../../net/8021q/vlan.h>
 #include <linux/if_vlan.h>
@@ -312,6 +315,9 @@ static void ecm_sfe_multicast_ipv4_connection_create_callback(void *app_data, st
 	ecm_sfe_ipv4_accelerated_count++;		/* General running counter */
 
 	if (!_ecm_sfe_ipv4_accel_pending_clear(feci, ECM_FRONT_END_ACCELERATION_MODE_ACCEL)) {
+		int assignment_count;
+		int aci_index;
+		struct ecm_classifier_instance *assignments[ECM_CLASSIFIER_TYPES];
 		/*
 		 * Increment the no-action counter, this is reset if offload action is seen
 		 */
@@ -319,6 +325,20 @@ static void ecm_sfe_multicast_ipv4_connection_create_callback(void *app_data, st
 
 		spin_unlock_bh(&ecm_sfe_ipv4_lock);
 		spin_unlock_bh(&feci->lock);
+
+		/*
+		 * Get the assigned classifiers and call their create notify callbacks. If they are interested in this type of
+		 * create, they will handle the event.
+		 */
+		assignment_count = ecm_db_connection_classifier_assignments_get_and_ref(feci->ci, assignments);
+		for (aci_index = 0; aci_index < assignment_count; ++aci_index) {
+			struct ecm_classifier_instance *aci;
+			aci = assignments[aci_index];
+			if (aci->notify_create) {
+				aci->notify_create(aci, NULL);
+			}
+		}
+		ecm_db_connection_assignments_release(assignment_count, assignments);
 
 		/*
 		 * Release the connection.
@@ -1294,7 +1314,6 @@ static void ecm_sfe_multicast_ipv4_connection_accelerate(struct ecm_front_end_co
 			int32_t ii_identifier;
 			ecm_db_iface_type_t ii_type;
 			char *ii_name;
-			struct net_device *dev = NULL;
 
 			ii_single = ecm_db_multicast_if_instance_get_at_index(ii_temp, list_index);
 			ifaces = (struct ecm_db_iface_instance **)ii_single;
@@ -1374,6 +1393,20 @@ static void ecm_sfe_multicast_ipv4_connection_accelerate(struct ecm_front_end_co
 				break;
 
 			case ECM_DB_IFACE_TYPE_LAG:
+			{
+#ifdef ECM_INTERFACE_BOND_ENABLE
+				struct net_device *dev;
+				DEBUG_TRACE("%px: LAG : %s\n", feci, dev->name);
+				if (interface_type_counts[ii_type] != 0) {
+
+					/*
+					 * Ignore additional mac addresses, these are usually as a result of address propagation
+					 * from bridges down to ports etc.
+					 */
+					DEBUG_TRACE("%px: LAG - ignore additional\n", feci);
+					rule_invalid = true;
+					break;
+				}
 				dev = dev_get_by_index(&init_net, ecm_db_iface_interface_identifier_get(ii));
 				if (!dev) {
 					DEBUG_TRACE("%px: LAG device is not present\n", feci);
@@ -1392,19 +1425,6 @@ static void ecm_sfe_multicast_ipv4_connection_accelerate(struct ecm_front_end_co
 					break;
 				}
 
-				DEBUG_TRACE("%px: LAG : %s\n", feci, dev->name);
-				if (interface_type_counts[ii_type] != 0) {
-
-					/*
-					 * Ignore additional mac addresses, these are usually as a result of address propagation
-					 * from bridges down to ports etc.
-					 */
-					DEBUG_TRACE("%px: LAG - ignore additional\n", feci);
-					dev_put(dev);
-					rule_invalid = true;
-					break;
-				}
-
 				/*
 				 * Can only handle one MAC, the first outermost mac.
 				 */
@@ -1413,14 +1433,18 @@ static void ecm_sfe_multicast_ipv4_connection_accelerate(struct ecm_front_end_co
 				to_sfe_iface_id = ecm_db_iface_ae_interface_identifier_get(ii);
 				if (to_sfe_iface_id < 0) {
 					DEBUG_TRACE("%px: to_sfe_iface_id: %d\n", feci, to_sfe_iface_id);
-					ecm_db_multicast_connection_to_interfaces_deref_all(to_ifaces, to_ifaces_first);
-					kfree(nim);
 					dev_put(dev);
-					return;
+					rule_invalid = true;
+					break;
 			        }
 				DEBUG_TRACE("%px: LAG - mac: %pM, mtu %d\n", feci, to_sfe_iface_address, to_mtu);
 				dev_put(dev);
+#else
+				DEBUG_TRACE("%px: LAG not supported\n", feci);
+				rule_invalid = true;
+#endif
 				break;
+			}
 			case ECM_DB_IFACE_TYPE_PPPOE:
 #ifdef ECM_INTERFACE_PPPOE_ENABLE
 				/*
@@ -1533,6 +1557,7 @@ static void ecm_sfe_multicast_ipv4_connection_accelerate(struct ecm_front_end_co
 			DEBUG_WARN("%px: to/dest Rule invalid\n", feci);
 			ecm_db_multicast_connection_to_interfaces_deref_all(to_ifaces, to_ifaces_first);
 			kfree(nim);
+			ecm_sfe_ipv4_accel_pending_clear(feci, ECM_FRONT_END_ACCELERATION_MODE_FAIL_RULE);
 			return;
 		}
 
@@ -1634,6 +1659,33 @@ static void ecm_sfe_multicast_ipv4_connection_accelerate(struct ecm_front_end_co
 	if (pr->process_actions & ECM_CLASSIFIER_PROCESS_ACTION_EMESH_SP_FLOW) {
 		create->rule_flags |= SFE_MC_RULE_CREATE_FLAG_MC_EMESH_SP;
 	}
+
+	/*
+	 * SAWF information
+	 */
+	if (pr->process_actions & ECM_CLASSIFIER_PROCESS_ACTION_EMESH_SAWF_TAG) {
+		create->sawf_rule.flow_mark = pr->flow_sawf_metadata;
+		create->sawf_rule.return_mark = pr->return_sawf_metadata;
+	}
+
+	/*
+         * VLAN pcp remark set in SAWF classifer, we modify the pcp value in VLAN tag
+         * and send the update VLAN tag to SFE.
+         */
+        if (pr->process_actions & ECM_CLASSIFIER_PROCESS_ACTION_EMESH_SAWF_VLAN_PCP_REMARK) {
+                if (pr->flow_vlan_pcp != SFE_INVALID_VLAN_PCP &&
+                                create->vlan_primary_rule.egress_vlan_tag != SFE_VLAN_ID_NOT_CONFIGURED) {
+                        create->vlan_primary_rule.egress_vlan_tag &= ~VLAN_PRIO_MASK;
+                        create->vlan_primary_rule.egress_vlan_tag |= pr->flow_vlan_pcp << VLAN_PRIO_SHIFT;
+                }
+
+                if (pr->return_vlan_pcp != SFE_INVALID_VLAN_PCP &&
+                                create->vlan_primary_rule.ingress_vlan_tag != SFE_VLAN_ID_NOT_CONFIGURED) {
+                        create->vlan_primary_rule.ingress_vlan_tag &= ~VLAN_PRIO_MASK;
+                        create->vlan_primary_rule.ingress_vlan_tag |= pr->return_vlan_pcp << VLAN_PRIO_SHIFT;
+                }
+        }
+
 #endif
 
 #ifdef ECM_CLASSIFIER_OVS_ENABLE
@@ -1651,6 +1703,15 @@ static void ecm_sfe_multicast_ipv4_connection_accelerate(struct ecm_front_end_co
 
 	ecm_db_connection_node_address_get(feci->ci, ECM_DB_OBJ_DIR_TO, dest_mac);
 	memcpy(create->dest_mac, dest_mac, ETH_ALEN);
+
+	/*
+	 * Bridge vlan passthrough
+	 */
+	if ((create->rule_flags & SFE_RULE_CREATE_FLAG_BRIDGE_FLOW) && (!(create->valid_flags & SFE_RULE_CREATE_VLAN_VALID))) {
+		if (skb_vlan_tag_present(skb)) {
+			create->rule_flags |= SFE_RULE_CREATE_FLAG_BRIDGE_VLAN_PASSTHROUGH;
+		}
+	}
 
 	/*
 	 * Set protocol
@@ -1906,6 +1967,7 @@ static void ecm_sfe_multicast_ipv4_connection_destroy_callback(void *app_data, s
 	if (feci->accel_mode != ECM_FRONT_END_ACCELERATION_MODE_DECEL_PENDING) {
 		spin_unlock_bh(&feci->lock);
 
+		ecm_db_multicast_connection_to_interfaces_clear(feci->ci);
 		/*
 		 * Release the connections.
 		 */
@@ -1939,6 +2001,8 @@ static void ecm_sfe_multicast_ipv4_connection_destroy_callback(void *app_data, s
 	ecm_sfe_ipv4_accelerated_count--;		/* General running counter */
 	DEBUG_ASSERT(ecm_sfe_ipv4_accelerated_count >= 0, "Bad accel counter\n");
 	spin_unlock_bh(&ecm_sfe_ipv4_lock);
+
+	ecm_db_multicast_connection_to_interfaces_clear(feci->ci);
 
 	/*
 	 * Release the connections.
@@ -2002,11 +2066,6 @@ static bool ecm_sfe_multicast_ipv4_connection_decelerate_msg_send(struct ecm_fro
 			feci, feci->ci, nirdm->tuple.protocol,
 			&nirdm->tuple.flow_ip, nirdm->tuple.flow_ident,
 			&nirdm->tuple.return_ip, nirdm->tuple.return_ident);
-
-	/*
-	 * Right place to free multicast destination interfaces list.
-	 */
-	ecm_db_multicast_connection_to_interfaces_clear(feci->ci);
 
 	/*
 	 * Take a ref to the feci->ci so that it will persist until we get a response from the SFE.
@@ -2415,12 +2474,11 @@ process_packet:
 			 * No updates to this multicast flow. Move on to the next
 			 * flow for the same group
 			 */
+			ecm_front_end_connection_deref(feci);
 			goto find_next_tuple;
 		}
 
 		DEBUG_TRACE("BRIDGE UPDATE callback ===> leave_cnt %d, join_cnt %d\n", mc_update.if_leave_cnt, mc_update.if_join_cnt);
-
-		feci = ecm_db_connection_front_end_get_and_ref(ci);
 
 		/*
 		 * Do we have any new interfaces that have joined?
@@ -2993,11 +3051,8 @@ find_next_tuple:
  */
 bool ecm_sfe_multicast_ipv4_debugfs_init(struct dentry *dentry)
 {
-	struct dentry *multicast_dentry;
-
-	multicast_dentry = debugfs_create_u32("multicast_accelerated_count", S_IRUGO, dentry,
-						&ecm_sfe_multicast_ipv4_accelerated_count);
-	if (!multicast_dentry) {
+	if (!ecm_debugfs_create_u32("multicast_accelerated_count", S_IRUGO, dentry,
+					&ecm_sfe_multicast_ipv4_accelerated_count)) {
 		DEBUG_ERROR("Failed to create ecm sfe ipv4 multicast_accelerated_count file in debugfs\n");
 		return false;
 	}
@@ -3019,7 +3074,7 @@ void ecm_sfe_multicast_ipv4_stop(int num)
  */
 int ecm_sfe_multicast_ipv4_init(struct dentry *dentry)
 {
-	if (!debugfs_create_u32("ecm_sfe_multicast_ipv4_stop", S_IRUGO | S_IWUSR, dentry,
+	if (!ecm_debugfs_create_u32("ecm_sfe_multicast_ipv4_stop", S_IRUGO | S_IWUSR, dentry,
 					(u32 *)&ecm_front_end_ipv4_mc_stopped)) {
 		DEBUG_ERROR("Failed to create ecm sfe front end ipv4 mc stop file in debugfs\n");
 		return -1;

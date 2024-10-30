@@ -346,6 +346,12 @@ void eip_tr_free(struct eip_tr *tr)
 		xchg(&ops->err_cb, eip_tr_dummy_err);
 		break;
 
+	case EIP_SVC_DTLS:
+		ops = &tr->dtls.ops;
+		xchg(&ops->cb, eip_tr_dummy_cb);
+		xchg(&ops->err_cb, eip_tr_dummy_err);
+		break;
+
 	default:
 		pr_err("%px: Service database not found\n", tr);
 		break;
@@ -499,3 +505,15 @@ fail2:
 	crypto_free_sync_skcipher(sk_tfm);
         return err;
 }
+
+/*
+ * eip_tr_get_algo_info()
+ * 	Get algo info.
+ */
+void eip_tr_get_algo_info(struct eip_tr *tr, struct eip_tr_algo_info *algo)
+{
+	algo->iv_len = tr->iv_len;
+	algo->blk_len = tr->blk_len;
+	algo->hmac_len = tr->digest_len;
+}
+EXPORT_SYMBOL(eip_tr_get_algo_info);

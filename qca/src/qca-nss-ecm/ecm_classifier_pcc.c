@@ -1,7 +1,7 @@
 /*
  **************************************************************************
  * Copyright (c) 2015, 2020-2021, The Linux Foundation. All rights reserved.
- * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2024 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
@@ -80,6 +80,7 @@
 #include "ecm_classifier_pcc.h"
 #include "ecm_classifier_pcc_public.h"
 #include "ecm_front_end_common.h"
+#include "ecm_interface.h"
 
 /*
  * Magic numbers
@@ -200,6 +201,19 @@ void ecm_classifier_pcc_unregister_begin(struct ecm_classifier_pcc_registrant *r
 	ecm_db_connection_defunct_all();
 }
 EXPORT_SYMBOL(ecm_classifier_pcc_unregister_begin);
+
+/*
+ * ecm_classifier_pcc_decel_by_dev()
+ *	Decelerate connection based on a dev.
+ */
+void ecm_classifier_pcc_decel_by_dev(struct net_device *dev)
+{
+	if (!dev)
+		return;
+
+	ecm_interface_dev_defunct_connections(dev);
+}
+EXPORT_SYMBOL(ecm_classifier_pcc_decel_by_dev);
 
 /*
  * ecm_classifier_pcc_decel_v4()
@@ -623,14 +637,25 @@ static int ecm_classifier_pcc_deref(struct ecm_classifier_instance *ci)
 }
 
 /*
+ * ecm_classifier_pcc_get_policing_info()
+ *	Get policing related information.
+ */
+static void ecm_classifier_pcc_get_policing_info(struct ecm_classifier_pcc_info cinfo,
+		 int *flow_index, int *return_index)
+{
+	*flow_index = cinfo.output_params.ap_info.flow_ap_index;
+	*return_index = cinfo.output_params.ap_info.return_ap_index;
+}
+
+/*
  * ecm_classifier_pcc_get_mirror_info()
  *	Get mirroring related information.
  */
 static int ecm_classifier_pcc_get_mirror_info(struct ecm_classifier_pcc_info cinfo,
 		 int *flow_mirror_ifindex_ptr, int *return_mirror_ifindex_ptr)
 {
-	struct net_device *flow_dev = cinfo.mirror.tuple_mirror_dev;
-	struct net_device *return_dev = cinfo.mirror.tuple_ret_mirror_dev;
+	struct net_device *flow_dev = cinfo.output_params.mirror.tuple_mirror_dev;
+	struct net_device *return_dev = cinfo.output_params.mirror.tuple_ret_mirror_dev;
 
 	if (!flow_dev && !return_dev) {
 		DEBUG_ERROR("No mirror net devices are specified\n");
@@ -682,6 +707,12 @@ static void ecm_classifier_pcc_process(struct ecm_classifier_instance *aci, ecm_
 	struct ecm_classifier_pcc_info cinfo = {0};
 	int flow_mirror_ifindex = -1;
 	int return_mirror_ifindex = -1;
+	int flow_acl_index = 0;
+	int flow_policer_index = 0;
+	int return_acl_index = 0;
+	int return_policer_index = 0;
+	struct net_device *in_dev = NULL;
+	struct net_device *out_dev = NULL;
 
 	DEBUG_CHECK_MAGIC(pcci, ECM_CLASSIFIER_PCC_INSTANCE_MAGIC, "%px: invalid state magic\n", pcci);
 
@@ -693,6 +724,7 @@ static void ecm_classifier_pcc_process(struct ecm_classifier_instance *aci, ecm_
 		/*
 		 * Connection has gone from under us
 		 */
+		DEBUG_TRACE("%px: pcc no connection\n", pcci);
 		spin_lock_bh(&ecm_classifier_pcc_lock);
 		goto not_relevant;
 	}
@@ -711,6 +743,7 @@ static void ecm_classifier_pcc_process(struct ecm_classifier_instance *aci, ecm_
 		/*
 		 * Not relevant.
 		 */
+		DEBUG_TRACE("%px: pcc not relevant\n", pcci);
 		goto not_relevant;
 	}
 
@@ -723,6 +756,7 @@ static void ecm_classifier_pcc_process(struct ecm_classifier_instance *aci, ecm_
 		*process_response = pcci->process_response;
 		spin_unlock_bh(&ecm_classifier_pcc_lock);
 		ecm_db_connection_deref(ci);
+		DEBUG_TRACE("%px: process: no_permit_state: %d\n", pcci, accel_permit_state);
 		return;
 	}
 
@@ -823,10 +857,17 @@ static void ecm_classifier_pcc_process(struct ecm_classifier_instance *aci, ecm_
 		 * decisions.
 		 */
 		if (registrant->get_accel_info_v4){
+			ecm_db_netdevs_get_and_hold(ci, sender, &in_dev, &out_dev);
+			cinfo.input_params.dev_info.in_dev = in_dev;
+			cinfo.input_params.dev_info.out_dev = out_dev;
+
 			reg_result = registrant->get_accel_info_v4(registrant,
 					 src_mac, src_ip4, src_port, dest_mac,
 					 dest_ip4, dst_port, protocol, &cinfo);
+
 			pcci->feature_flags = cinfo.feature_flags;
+			dev_put(in_dev);
+			dev_put(out_dev);
 		} else {
 			reg_result = registrant->okay_to_accel_v4(registrant,
 					 src_mac, src_ip4, src_port, dest_mac,
@@ -853,10 +894,16 @@ static void ecm_classifier_pcc_process(struct ecm_classifier_instance *aci, ecm_
 		 * decisions.
 		 */
 		if (registrant->get_accel_info_v6){
+			ecm_db_netdevs_get_and_hold(ci, sender, &in_dev, &out_dev);
+			cinfo.input_params.dev_info.in_dev = in_dev;
+			cinfo.input_params.dev_info.out_dev = out_dev;
 			reg_result = registrant->get_accel_info_v6(registrant,
 					 src_mac, &src_ip6, src_port, dest_mac,
 					 &dest_ip6, dst_port, protocol, &cinfo);
+
 			pcci->feature_flags = cinfo.feature_flags;
+			dev_put(in_dev);
+			dev_put(out_dev);
 		} else {
 			reg_result = registrant->okay_to_accel_v6(registrant,
 					 src_mac, &src_ip6, src_port, dest_mac,
@@ -885,6 +932,12 @@ static void ecm_classifier_pcc_process(struct ecm_classifier_instance *aci, ecm_
 			spin_lock_bh(&ecm_classifier_pcc_lock);
 			goto deny_accel;
 		}
+	}
+
+	if ((cinfo.feature_flags & ECM_CLASSIFIER_PCC_FEATURE_ACL) || (cinfo.feature_flags & ECM_CLASSIFIER_PCC_FEATURE_ACL_EGRESS_DEV)) {
+		ecm_classifier_pcc_get_policing_info(cinfo, &flow_acl_index, &return_acl_index);
+	} else if (cinfo.feature_flags & ECM_CLASSIFIER_PCC_FEATURE_POLICER) {
+		ecm_classifier_pcc_get_policing_info(cinfo, &flow_policer_index, &return_policer_index);
 	}
 
 	/*
@@ -925,11 +978,22 @@ static void ecm_classifier_pcc_process(struct ecm_classifier_instance *aci, ecm_
 			 ECM_CLASSIFIER_PROCESS_ACTION_MIRROR_ENABLED;
 	}
 
+	if ((cinfo.feature_flags & ECM_CLASSIFIER_PCC_FEATURE_ACL) || (cinfo.feature_flags & ECM_CLASSIFIER_PCC_FEATURE_ACL_EGRESS_DEV)) {
+		pcci->process_response.rule_id.acl.flow_acl_id = flow_acl_index;
+		pcci->process_response.rule_id.acl.return_acl_id = return_acl_index;
+		pcci->process_response.process_actions |=  ECM_CLASSIFIER_PROCESS_ACTION_ACL_ENABLED;
+	} else if (cinfo.feature_flags & ECM_CLASSIFIER_PCC_FEATURE_POLICER) {
+		pcci->process_response.rule_id.policer.flow_policer_id = flow_policer_index;
+		pcci->process_response.rule_id.policer.return_policer_id = return_policer_index;
+		pcci->process_response.process_actions |=  ECM_CLASSIFIER_PROCESS_ACTION_POLICER_ENABLED;
+	}
+
 	pcci->accel_permit_state = ECM_CLASSIFIER_PCC_RESULT_PERMITTED;
 	pcci->process_response.relevance = ECM_CLASSIFIER_RELEVANCE_YES;
 	pcci->process_response.process_actions |= ECM_CLASSIFIER_PROCESS_ACTION_ACCEL_MODE;
 	pcci->process_response.accel_mode = ECM_CLASSIFIER_ACCELERATION_MODE_ACCEL;
 	*process_response = pcci->process_response;
+
 	spin_unlock_bh(&ecm_classifier_pcc_lock);
 	ecm_db_connection_deref(ci);
 
@@ -960,8 +1024,6 @@ deny_accel:
 	*process_response = pcci->process_response;
 	spin_unlock_bh(&ecm_classifier_pcc_lock);
 	ecm_db_connection_deref(ci);
-	return;
-
 }
 
 /*
@@ -1153,6 +1215,26 @@ static int ecm_classifier_pcc_state_get(struct ecm_classifier_instance *ci, stru
 		}
 	}
 
+	if (process_response.process_actions & ECM_CLASSIFIER_PROCESS_ACTION_ACL_ENABLED) {
+		if ((result = ecm_state_write(sfi, "flow_acl_index", "%d", process_response.rule_id.acl.flow_acl_id))) {
+			return result;
+		}
+
+		if ((result = ecm_state_write(sfi, "return_acl_index", "%d", process_response.rule_id.acl.return_acl_id))) {
+			return result;
+		}
+	}
+
+	if (process_response.process_actions & ECM_CLASSIFIER_PROCESS_ACTION_POLICER_ENABLED) {
+		if ((result = ecm_state_write(sfi, "flow_policer_index", "%d", process_response.rule_id.policer.flow_policer_id))) {
+			return result;
+		}
+
+		if ((result = ecm_state_write(sfi, "return_policer_index", "%d", process_response.rule_id.policer.return_policer_id))) {
+			return result;
+		}
+	}
+
 	/*
 	 * Output our last process response
 	 */
@@ -1246,7 +1328,7 @@ int ecm_classifier_pcc_init(struct dentry *dentry)
 		return -1;
 	}
 
-	if (!debugfs_create_u32("enabled", S_IRUGO, ecm_classifier_pcc_dentry,
+	if (!ecm_debugfs_create_u32("enabled", S_IRUGO, ecm_classifier_pcc_dentry,
 					(u32 *)&ecm_classifier_pcc_enabled)) {
 		DEBUG_ERROR("Failed to create pcc enabled file in debugfs\n");
 		debugfs_remove_recursive(ecm_classifier_pcc_dentry);

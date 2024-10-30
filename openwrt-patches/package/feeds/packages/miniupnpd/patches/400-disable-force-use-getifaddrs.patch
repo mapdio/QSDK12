@@ -1,0 +1,28 @@
+Author: Ramkishan Gurjar <quic_rgurjar@quicinc.com>
+Date: Fri Jan 12 14:41:34 2024 +0530
+
+    miniupnpd: Disable force use of getifaddrs() to get interface address
+
+    Change-Id: I61d0127fe955656271f8a3f144d4b320a82de07d
+    Signed-off-by: rgurjar <quic_rgurjar@quicinc.com>
+
+--- a/configure	2024-01-12 14:25:16.935899108 +0530
++++ b/configure	2024-01-12 14:25:16.935899108 +0530
+@@ -49,7 +49,7 @@
+ 	    FW=$(echo $argv | cut -d= -f2) ;;
+ 	--iptablespath=*)
+ 		IPTABLESPATH=$(echo $argv | cut -d= -f2) ;;
+-	--getifaddrs) GETIFADDRS=1 ;;
++	--getifaddrs) GETIFADDRS=0 ;;
+ 	--v6sockets-v6only) V6SOCKETS_ARE_V6ONLY=1 ;;
+ 	--host-os=*)
+ 		OS_NAME=$(echo $argv | cut -d= -f2) ;;
+@@ -438,7 +438,7 @@
+ 	OpenWrt)
+ 		OS_URL=http://www.openwrt.org/
+ 		echo "#define USE_IFACEWATCHER 1" >> ${CONFIGFILE}
+-		GETIFADDRS=1
++		GETIFADDRS=0
+ 		;;
+ 	OpenEmbedded)
+ 		OS_URL=http://www.openembedded.org/

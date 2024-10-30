@@ -8,20 +8,20 @@
 include $(TOPDIR)/rules.mk
 
 PKG_NAME:=libnetfilter_conntrack
+PKG_VERSION:=1.0.9
 PKG_RELEASE:=2
 
-PKG_SOURCE_PROTO:=git
-PKG_SOURCE_URL:=https://git.netfilter.org/libnetfilter_conntrack
-PKG_SOURCE_DATE:=2018-05-01
-PKG_SOURCE_VERSION:=3ccae9f5b2a9564cd63699ba60e54a46bc0d73b6
-PKG_MIRROR_HASH:=c978ef0fa5b7379de2909ca5d9c599ac63b4f8166f5971d58f6e074a922d996f
+PKG_SOURCE:=$(PKG_NAME)-$(PKG_VERSION).tar.bz2
+PKG_SOURCE_URL:=https://www.netfilter.org/projects/libnetfilter_conntrack/files
+PKG_HASH:=67bd9df49fe34e8b82144f6dfb93b320f384a8ea59727e92ff8d18b5f4b579a8
 
 PKG_MAINTAINER:=Jo-Philipp Wich <jo@mein.io>
-
-PKG_FIXUP:=autoreconf
-PKG_LICENSE:=GPL-2.0+
+PKG_LICENSE:=GPL-2.0-or-later
+PKG_LICENSE_FILES:=COPYING
+PKG_CPE_ID:=cpe:/a:netfilter:libnetfilter_conntrack
 
 PKG_INSTALL:=1
+PKG_BUILD_PARALLEL:=1
 
 include $(INCLUDE_DIR)/package.mk
 

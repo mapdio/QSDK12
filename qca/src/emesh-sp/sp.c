@@ -1,7 +1,7 @@
 /*
  * Copyright (c) 2020-2021, The Linux Foundation. All rights reserved.
  *
- * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2024 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for any
  * purpose with or without fee is hereby granted, provided that the above
@@ -99,24 +99,6 @@ static struct ctl_table sp_sysctl_emesh_table[] = {
 	{ }
 };
 
-static struct ctl_table sp_sysctl_root_dir[] = {
-	{
-		.procname	= "emesh-sp",
-		.mode		= 0555,
-		.child		= sp_sysctl_emesh_table,
-	},
-	{ }
-};
-
-static struct ctl_table sp_sysctl_root[] = {
-	{
-		.procname	= "net",
-		.mode		= 0555,
-		.child		= sp_sysctl_root_dir,
-	},
-	{ }
-};
-
 static struct ctl_table_header *sp_sysctl_header;
 
 /*
@@ -130,7 +112,7 @@ static struct ctl_table_header *sp_sysctl_header;
 static int __init sp_init(void)
 {
 	sp_mapdb_init();
-	sp_sysctl_header = register_sysctl_table(sp_sysctl_root);
+	sp_sysctl_header = register_sysctl("net/emesh-sp", sp_sysctl_emesh_table);
 
 	if (!sp_netlink_init()) {
 		DEBUG_ERROR("Unable to initialize SPM generic netlink\n");

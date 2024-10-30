@@ -20,7 +20,7 @@
 #define ECM_TYPES_H_
 
 #include <linux/printk.h>
-#include <net/bonding.h>
+#include <linux/debugfs.h>
 
 /*
  * Common ECM macro to handle the kernel macro name change from kernel version 4.9 and above.
@@ -452,6 +452,27 @@ static inline bool ecm_string_to_ip_addr(ip_addr_t addr, char *ip_str)
 	}
 #endif
 	return false;
+}
+
+/*
+ * ecm_debugfs_create_u32()
+ *	Create a debugfs node for unsigned 32-bits config variable.
+ *
+ * debugfs_create_u32 API doesn't have return value in the latest kernel version.
+ * So, a common function is created for all the supported kernel versions.
+ */
+static inline bool ecm_debugfs_create_u32(const char *name, umode_t mode,
+					  struct dentry *parent, u32 *value)
+{
+#if (LINUX_VERSION_CODE < KERNEL_VERSION(6, 1, 0))
+	struct dentry *d = debugfs_create_u32(name, mode, parent, value);
+	if (!d) {
+		return false;
+	}
+#else
+	debugfs_create_u32(name, mode, parent, value);
+#endif
+	return true;
 }
 
 /*

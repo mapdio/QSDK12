@@ -991,6 +991,7 @@ adpt_appe_tunnel_encap_header_ctrl_get(a_uint32_t dev_id,
 	return rv;
 }
 
+#ifndef IN_TUNNEL_MINI
 sw_error_t
 adpt_appe_tunnel_encap_ecn_mode_get(a_uint32_t dev_id, fal_tunnel_encap_ecn_t *ecn_rule,
 		fal_tunnel_ecn_val_t *ecn_value)
@@ -1269,6 +1270,7 @@ adpt_appe_tunnel_decap_ecn_mode_set(a_uint32_t dev_id,
 
 	return rv;
 }
+#endif
 
 sw_error_t
 adpt_appe_tunnel_global_cfg_get(a_uint32_t dev_id,
@@ -1396,6 +1398,7 @@ adpt_appe_tunnel_port_intf_get(a_uint32_t dev_id,
 	return rv;
 }
 
+#ifndef IN_TUNNEL_MINI
 static inline a_bool_t
 adpt_appe_tunnel_vlan_entry_compare(fal_tunnel_vlan_intf_t vlan_cfg,
 		union tl_vlan_tbl_u tl_vlan_tbl)
@@ -1629,6 +1632,7 @@ adpt_appe_tunnel_vlan_intf_del(a_uint32_t dev_id,
 
 	return rv;
 }
+#endif
 
 sw_error_t
 adpt_appe_tunnel_intf_set(a_uint32_t dev_id,
@@ -2151,8 +2155,12 @@ _adpt_appe_get_udf_profile_entry_by_index(a_uint32_t dev_id,
 		a_uint32_t index, fal_tunnel_udf_profile_entry_t * entry, a_uint32_t * profile_id)
 {
 	union tpr_udf_ctrl_0_u udf_ctrl = {0};
+	sw_error_t rv = SW_OK;
 
-	SW_RTN_ON_ERROR(appe_tpr_udf_ctrl_0_get(dev_id, index, &udf_ctrl));
+	rv = appe_tpr_udf_ctrl_0_get(dev_id, index, &udf_ctrl);
+	if (rv != SW_OK)
+		return A_FALSE;
+
 	if (!udf_ctrl.bf.valid)
 	{
 		aos_mem_zero(&udf_ctrl, sizeof (udf_ctrl));
@@ -2809,121 +2817,6 @@ sw_error_t adpt_appe_tunnel_decap_counter_get(a_uint32_t dev_id,
 	return rv;
 }
 
-void adpt_appe_tunnel_func_bitmap_init(a_uint32_t dev_id)
-{
-	adpt_api_t *p_adpt_api = NULL;
-
-	p_adpt_api = adpt_api_ptr_get(dev_id);
-
-	if(p_adpt_api == NULL)
-		return;
-
-	p_adpt_api->adpt_tunnel_func_bitmap[0] = BIT(FUNC_TUNNEL_INTF_SET) |
-		BIT(FUNC_TUNNEL_INTF_GET) |
-		BIT(FUNC_TUNNEL_ENCAP_RULE_ENTRY_SET) |
-		BIT(FUNC_TUNNEL_ENCAP_RULE_ENTRY_GET) |
-		BIT(FUNC_TUNNEL_ENCAP_RULE_ENTRY_DEL) |
-		BIT(FUNC_TUNNEL_ENCAP_INTF_TUNNELID_SET) |
-		BIT(FUNC_TUNNEL_ENCAP_INTF_TUNNELID_GET) |
-		BIT(FUNC_TUNNEL_VLAN_INTF_ADD) |
-		BIT(FUNC_TUNNEL_VLAN_INTF_GETFIRST) |
-		BIT(FUNC_TUNNEL_VLAN_INTF_GETNEXT) |
-		BIT(FUNC_TUNNEL_VLAN_INTF_DEL) |
-		BIT(FUNC_TUNNEL_ENCAP_PORT_TUNNELID_SET) |
-		BIT(FUNC_TUNNEL_ENCAP_PORT_TUNNELID_GET) |
-		BIT(FUNC_TUNNEL_DECAP_ENTRY_ADD) |
-		BIT(FUNC_TUNNEL_DECAP_ENTRY_GET) |
-		BIT(FUNC_TUNNEL_DECAP_ENTRY_GETNEXT) |
-		BIT(FUNC_TUNNEL_DECAP_ENTRY_DEL) |
-		BIT(FUNC_TUNNEL_DECAP_ENTRY_FLUSH) |
-		BIT(FUNC_TUNNEL_ENCAP_ENTRY_ADD) |
-		BIT(FUNC_TUNNEL_ENCAP_ENTRY_GET) |
-		BIT(FUNC_TUNNEL_ENCAP_ENTRY_GETNEXT) |
-		BIT(FUNC_TUNNEL_ENCAP_ENTRY_DEL) |
-		BIT(FUNC_TUNNEL_GLOBAL_CFG_SET) |
-		BIT(FUNC_TUNNEL_GLOBAL_CFG_GET) |
-		BIT(FUNC_TUNNEL_ENCAP_HEADER_CTRL_SET) |
-		BIT(FUNC_TUNNEL_ENCAP_HEADER_CTRL_GET) |
-		BIT(FUNC_TUNNEL_PORT_INTF_SET) |
-		BIT(FUNC_TUNNEL_PORT_INTF_GET) |
-		BIT(FUNC_TUNNEL_DECAP_ECN_SET) |
-		BIT(FUNC_TUNNEL_DECAP_ECN_GET) |
-		BIT(FUNC_TUNNEL_ENCAP_ECN_SET) |
-		BIT(FUNC_TUNNEL_ENCAP_ECN_GET);
-
-	p_adpt_api->adpt_tunnel_func_bitmap[1] = BIT(FUNC_TUNNEL_UDF_PROFILE_ENTRY_ADD % 32) |
-		BIT(FUNC_TUNNEL_UDF_PROFILE_ENTRY_DEL % 32) |
-		BIT(FUNC_TUNNEL_UDF_PROFILE_ENTRY_GETFIRST % 32) |
-		BIT(FUNC_TUNNEL_UDF_PROFILE_ENTRY_GETNEXT % 32) |
-		BIT(FUNC_TUNNEL_UDF_PROFILE_CFG_SET % 32) |
-		BIT(FUNC_TUNNEL_UDF_PROFILE_CFG_GET % 32) |
-		BIT(FUNC_TUNNEL_EXP_DECAP_SET % 32) |
-		BIT(FUNC_TUNNEL_EXP_DECAP_GET % 32) |
-		BIT(FUNC_TUNNEL_DECAP_KEY_SET % 32) |
-		BIT(FUNC_TUNNEL_DECAP_KEY_GET % 32) |
-		BIT(FUNC_TUNNEL_DECAP_EN_SET % 32) |
-		BIT(FUNC_TUNNEL_DECAP_EN_GET % 32) |
-		BIT(FUNC_TUNNEL_DECAP_ACTION_UPDATE % 32) |
-		BIT(FUNC_TUNNEL_DECAP_COUNTER_GET % 32);
-
-	return;
-}
-
-static void adpt_appe_tunnel_func_unregister(a_uint32_t dev_id, adpt_api_t *p_adpt_api)
-{
-	if(p_adpt_api == NULL)
-		return;
-
-	p_adpt_api->adpt_tunnel_decap_entry_add = NULL;
-	p_adpt_api->adpt_tunnel_decap_entry_del = NULL;
-	p_adpt_api->adpt_tunnel_decap_entry_get = NULL;
-	p_adpt_api->adpt_tunnel_decap_entry_getnext = NULL;
-	p_adpt_api->adpt_tunnel_decap_entry_flush = NULL;
-	p_adpt_api->adpt_tunnel_global_cfg_get = NULL;
-	p_adpt_api->adpt_tunnel_global_cfg_set = NULL;
-	p_adpt_api->adpt_tunnel_port_intf_set = NULL;
-	p_adpt_api->adpt_tunnel_port_intf_get = NULL;
-	p_adpt_api->adpt_tunnel_vlan_intf_add = NULL;
-	p_adpt_api->adpt_tunnel_vlan_intf_getfirst = NULL;
-	p_adpt_api->adpt_tunnel_vlan_intf_getnext = NULL;
-	p_adpt_api->adpt_tunnel_vlan_intf_del = NULL;
-	p_adpt_api->adpt_tunnel_intf_set = NULL;
-	p_adpt_api->adpt_tunnel_intf_get = NULL;
-	p_adpt_api->adpt_tunnel_encap_port_tunnelid_set = NULL;
-	p_adpt_api->adpt_tunnel_encap_port_tunnelid_get = NULL;
-	p_adpt_api->adpt_tunnel_encap_intf_tunnelid_set = NULL;
-	p_adpt_api->adpt_tunnel_encap_intf_tunnelid_get = NULL;
-	p_adpt_api->adpt_tunnel_encap_entry_add = NULL;
-	p_adpt_api->adpt_tunnel_encap_entry_del = NULL;
-	p_adpt_api->adpt_tunnel_encap_entry_get = NULL;
-	p_adpt_api->adpt_tunnel_encap_entry_getnext = NULL;
-	p_adpt_api->adpt_tunnel_encap_rule_entry_set = NULL;
-	p_adpt_api->adpt_tunnel_encap_rule_entry_get = NULL;
-	p_adpt_api->adpt_tunnel_encap_rule_entry_del = NULL;
-	p_adpt_api->adpt_tunnel_udf_profile_entry_add = NULL;
-	p_adpt_api->adpt_tunnel_udf_profile_entry_del = NULL;
-	p_adpt_api->adpt_tunnel_udf_profile_entry_getfirst = NULL;
-	p_adpt_api->adpt_tunnel_udf_profile_entry_getnext = NULL;
-	p_adpt_api->adpt_tunnel_udf_profile_cfg_set = NULL;
-	p_adpt_api->adpt_tunnel_udf_profile_cfg_get = NULL;
-	p_adpt_api->adpt_tunnel_encap_header_ctrl_set = NULL;
-	p_adpt_api->adpt_tunnel_encap_header_ctrl_get = NULL;
-	p_adpt_api->adpt_tunnel_decap_ecn_mode_set = NULL;
-	p_adpt_api->adpt_tunnel_decap_ecn_mode_get = NULL;
-	p_adpt_api->adpt_tunnel_encap_ecn_mode_set = NULL;
-	p_adpt_api->adpt_tunnel_encap_ecn_mode_get = NULL;
-	p_adpt_api->adpt_tunnel_exp_decap_set = NULL;
-	p_adpt_api->adpt_tunnel_exp_decap_get = NULL;
-	p_adpt_api->adpt_tunnel_decap_key_set = NULL;
-	p_adpt_api->adpt_tunnel_decap_key_get = NULL;
-	p_adpt_api->adpt_tunnel_decap_en_set = NULL;
-	p_adpt_api->adpt_tunnel_decap_en_get = NULL;
-	p_adpt_api->adpt_tunnel_decap_action_update = NULL;
-	p_adpt_api->adpt_tunnel_decap_counter_get = NULL;
-
-	return;
-}
-
 sw_error_t
 adpt_appe_tunnel_init(a_uint32_t dev_id)
 {
@@ -2934,158 +2827,102 @@ adpt_appe_tunnel_init(a_uint32_t dev_id)
 	if(p_adpt_api == NULL)
 		return SW_FAIL;
 
-	adpt_appe_tunnel_func_unregister(dev_id, p_adpt_api);
-
-	if (p_adpt_api->adpt_tunnel_func_bitmap[0] & BIT(FUNC_TUNNEL_DECAP_ENTRY_ADD))
-		p_adpt_api->adpt_tunnel_decap_entry_add =
-			adpt_appe_tunnel_decap_entry_add;
-	if (p_adpt_api->adpt_tunnel_func_bitmap[0] & BIT(FUNC_TUNNEL_DECAP_ENTRY_DEL))
-		p_adpt_api->adpt_tunnel_decap_entry_del =
-			adpt_appe_tunnel_decap_entry_del;
-	if (p_adpt_api->adpt_tunnel_func_bitmap[0] & BIT(FUNC_TUNNEL_DECAP_ENTRY_GET))
-		p_adpt_api->adpt_tunnel_decap_entry_get =
-			adpt_appe_tunnel_decap_entry_get;
-	if (p_adpt_api->adpt_tunnel_func_bitmap[0] & BIT(FUNC_TUNNEL_DECAP_ENTRY_GETNEXT))
-		p_adpt_api->adpt_tunnel_decap_entry_getnext =
-			adpt_appe_tunnel_decap_entry_getnext;
-	if (p_adpt_api->adpt_tunnel_func_bitmap[0] & BIT(FUNC_TUNNEL_DECAP_ENTRY_FLUSH))
-		p_adpt_api->adpt_tunnel_decap_entry_flush =
-			adpt_appe_tunnel_decap_entry_flush;
-	if (p_adpt_api->adpt_tunnel_func_bitmap[0] & BIT(FUNC_TUNNEL_GLOBAL_CFG_SET))
-		p_adpt_api->adpt_tunnel_global_cfg_set =
-			adpt_appe_tunnel_global_cfg_set;
-	if (p_adpt_api->adpt_tunnel_func_bitmap[0] & BIT(FUNC_TUNNEL_GLOBAL_CFG_GET))
-		p_adpt_api->adpt_tunnel_global_cfg_get =
-			adpt_appe_tunnel_global_cfg_get;
-	if (p_adpt_api->adpt_tunnel_func_bitmap[0] & BIT(FUNC_TUNNEL_PORT_INTF_SET))
-		p_adpt_api->adpt_tunnel_port_intf_set =
-			adpt_appe_tunnel_port_intf_set;
-	if (p_adpt_api->adpt_tunnel_func_bitmap[0] & BIT(FUNC_TUNNEL_PORT_INTF_GET))
-		p_adpt_api->adpt_tunnel_port_intf_get =
-			adpt_appe_tunnel_port_intf_get;
-	if (p_adpt_api->adpt_tunnel_func_bitmap[0] & BIT(FUNC_TUNNEL_VLAN_INTF_ADD))
-		p_adpt_api->adpt_tunnel_vlan_intf_add =
-			adpt_appe_tunnel_vlan_intf_add;
-	if (p_adpt_api->adpt_tunnel_func_bitmap[0] & BIT(FUNC_TUNNEL_VLAN_INTF_GETFIRST))
-		p_adpt_api->adpt_tunnel_vlan_intf_getfirst =
-			adpt_appe_tunnel_vlan_intf_getfirst;
-	if (p_adpt_api->adpt_tunnel_func_bitmap[0] & BIT(FUNC_TUNNEL_VLAN_INTF_GETNEXT))
-		p_adpt_api->adpt_tunnel_vlan_intf_getnext =
-			adpt_appe_tunnel_vlan_intf_getnext;
-	if (p_adpt_api->adpt_tunnel_func_bitmap[0] & BIT(FUNC_TUNNEL_VLAN_INTF_DEL))
-		p_adpt_api->adpt_tunnel_vlan_intf_del =
-			adpt_appe_tunnel_vlan_intf_del;
-	if (p_adpt_api->adpt_tunnel_func_bitmap[0] & BIT(FUNC_TUNNEL_INTF_SET))
-		p_adpt_api->adpt_tunnel_intf_set =
-			adpt_appe_tunnel_intf_set;
-	if (p_adpt_api->adpt_tunnel_func_bitmap[0] & BIT(FUNC_TUNNEL_INTF_GET))
-		p_adpt_api->adpt_tunnel_intf_get =
-			adpt_appe_tunnel_intf_get;
-	if (p_adpt_api->adpt_tunnel_func_bitmap[0] & BIT(FUNC_TUNNEL_ENCAP_PORT_TUNNELID_SET))
-		p_adpt_api->adpt_tunnel_encap_port_tunnelid_set =
-			adpt_appe_tunnel_encap_port_tunnelid_set;
-	if (p_adpt_api->adpt_tunnel_func_bitmap[0] & BIT(FUNC_TUNNEL_ENCAP_PORT_TUNNELID_GET))
-		p_adpt_api->adpt_tunnel_encap_port_tunnelid_get =
-			adpt_appe_tunnel_encap_port_tunnelid_get;
-	if (p_adpt_api->adpt_tunnel_func_bitmap[0] & BIT(FUNC_TUNNEL_ENCAP_INTF_TUNNELID_SET))
-		p_adpt_api->adpt_tunnel_encap_intf_tunnelid_set =
-			adpt_appe_tunnel_encap_intf_tunnelid_set;
-	if (p_adpt_api->adpt_tunnel_func_bitmap[0] & BIT(FUNC_TUNNEL_ENCAP_INTF_TUNNELID_GET))
-		p_adpt_api->adpt_tunnel_encap_intf_tunnelid_get =
-			adpt_appe_tunnel_encap_intf_tunnelid_get;
-	if (p_adpt_api->adpt_tunnel_func_bitmap[0] & BIT(FUNC_TUNNEL_ENCAP_ENTRY_ADD))
-		p_adpt_api->adpt_tunnel_encap_entry_add =
-			adpt_appe_tunnel_encap_entry_add;
-	if (p_adpt_api->adpt_tunnel_func_bitmap[0] & BIT(FUNC_TUNNEL_ENCAP_ENTRY_DEL))
-		p_adpt_api->adpt_tunnel_encap_entry_del =
-			adpt_appe_tunnel_encap_entry_del;
-	if (p_adpt_api->adpt_tunnel_func_bitmap[0] & BIT(FUNC_TUNNEL_ENCAP_ENTRY_GET))
-		p_adpt_api->adpt_tunnel_encap_entry_get =
-			adpt_appe_tunnel_encap_entry_get;
-	if (p_adpt_api->adpt_tunnel_func_bitmap[0] & BIT(FUNC_TUNNEL_ENCAP_ENTRY_GETNEXT))
-		p_adpt_api->adpt_tunnel_encap_entry_getnext =
-			adpt_appe_tunnel_encap_entry_getnext;
-	if (p_adpt_api->adpt_tunnel_func_bitmap[0] & BIT(FUNC_TUNNEL_ENCAP_RULE_ENTRY_SET))
-		p_adpt_api->adpt_tunnel_encap_rule_entry_set =
-			adpt_appe_tunnel_encap_rule_entry_set;
-	if (p_adpt_api->adpt_tunnel_func_bitmap[0] & BIT(FUNC_TUNNEL_ENCAP_RULE_ENTRY_GET))
-		p_adpt_api->adpt_tunnel_encap_rule_entry_get =
-			adpt_appe_tunnel_encap_rule_entry_get;
-	if (p_adpt_api->adpt_tunnel_func_bitmap[0] & BIT(FUNC_TUNNEL_ENCAP_RULE_ENTRY_DEL))
-		p_adpt_api->adpt_tunnel_encap_rule_entry_del =
-			adpt_appe_tunnel_encap_rule_entry_del;
-	if (p_adpt_api->adpt_tunnel_func_bitmap[0] & BIT(FUNC_TUNNEL_ENCAP_HEADER_CTRL_SET))
-		p_adpt_api->adpt_tunnel_encap_header_ctrl_set =
-			adpt_appe_tunnel_encap_header_ctrl_set;
-	if (p_adpt_api->adpt_tunnel_func_bitmap[0] & BIT(FUNC_TUNNEL_ENCAP_HEADER_CTRL_GET))
-		p_adpt_api->adpt_tunnel_encap_header_ctrl_get =
-			adpt_appe_tunnel_encap_header_ctrl_get;
-	if (p_adpt_api->adpt_tunnel_func_bitmap[0] & BIT(FUNC_TUNNEL_DECAP_ECN_SET))
-		p_adpt_api->adpt_tunnel_decap_ecn_mode_set=
-			adpt_appe_tunnel_decap_ecn_mode_set;
-	if (p_adpt_api->adpt_tunnel_func_bitmap[0] & BIT(FUNC_TUNNEL_DECAP_ECN_GET))
-		p_adpt_api->adpt_tunnel_decap_ecn_mode_get=
-			adpt_appe_tunnel_decap_ecn_mode_get;
-	if (p_adpt_api->adpt_tunnel_func_bitmap[0] & BIT(FUNC_TUNNEL_ENCAP_ECN_SET))
-		p_adpt_api->adpt_tunnel_encap_ecn_mode_set=
-			adpt_appe_tunnel_encap_ecn_mode_set;
-	if (p_adpt_api->adpt_tunnel_func_bitmap[0] & BIT(FUNC_TUNNEL_ENCAP_ECN_GET))
-		p_adpt_api->adpt_tunnel_encap_ecn_mode_get=
-			adpt_appe_tunnel_encap_ecn_mode_get;
-	if(p_adpt_api->adpt_tunnel_func_bitmap[1] & BIT(FUNC_TUNNEL_UDF_PROFILE_ENTRY_ADD % 32))
-	{
-		p_adpt_api->adpt_tunnel_udf_profile_entry_add =
-			adpt_appe_tunnel_udf_profile_entry_add;
-	}
-	if(p_adpt_api->adpt_tunnel_func_bitmap[1] & BIT(FUNC_TUNNEL_UDF_PROFILE_ENTRY_DEL % 32))
-	{
-		p_adpt_api->adpt_tunnel_udf_profile_entry_del =
-			adpt_appe_tunnel_udf_profile_entry_del;
-	}
-	if(p_adpt_api->adpt_tunnel_func_bitmap[1] & BIT(FUNC_TUNNEL_UDF_PROFILE_ENTRY_GETFIRST % 32))
-	{
-		p_adpt_api->adpt_tunnel_udf_profile_entry_getfirst =
-			adpt_appe_tunnel_udf_profile_entry_getfirst;
-	}
-	if(p_adpt_api->adpt_tunnel_func_bitmap[1] & BIT(FUNC_TUNNEL_UDF_PROFILE_ENTRY_GETNEXT % 32))
-	{
-		p_adpt_api->adpt_tunnel_udf_profile_entry_getnext =
-			adpt_appe_tunnel_udf_profile_entry_getnext;
-	}
-	if(p_adpt_api->adpt_tunnel_func_bitmap[1] & BIT(FUNC_TUNNEL_UDF_PROFILE_CFG_SET % 32))
-	{
-		p_adpt_api->adpt_tunnel_udf_profile_cfg_set =
-			adpt_appe_tunnel_udf_profile_cfg_set;
-	}
-	if(p_adpt_api->adpt_tunnel_func_bitmap[1] & BIT(FUNC_TUNNEL_UDF_PROFILE_CFG_GET % 32))
-	{
-		p_adpt_api->adpt_tunnel_udf_profile_cfg_get =
-			adpt_appe_tunnel_udf_profile_cfg_get;
-	}
-	if (p_adpt_api->adpt_tunnel_func_bitmap[1] & BIT(FUNC_TUNNEL_EXP_DECAP_SET % 32))
-		p_adpt_api->adpt_tunnel_exp_decap_set=
-			adpt_appe_tunnel_exp_decap_set;
-	if (p_adpt_api->adpt_tunnel_func_bitmap[1] & BIT(FUNC_TUNNEL_EXP_DECAP_GET % 32))
-		p_adpt_api->adpt_tunnel_exp_decap_get=
-			adpt_appe_tunnel_exp_decap_get;
-	if (p_adpt_api->adpt_tunnel_func_bitmap[1] & BIT(FUNC_TUNNEL_DECAP_KEY_SET % 32))
-		p_adpt_api->adpt_tunnel_decap_key_set =
-			adpt_appe_tunnel_decap_key_set;
-	if (p_adpt_api->adpt_tunnel_func_bitmap[1] & BIT(FUNC_TUNNEL_DECAP_KEY_GET % 32))
-		p_adpt_api->adpt_tunnel_decap_key_get =
-			adpt_appe_tunnel_decap_key_get;
-	if (p_adpt_api->adpt_tunnel_func_bitmap[1] & BIT(FUNC_TUNNEL_DECAP_EN_SET % 32))
-		p_adpt_api->adpt_tunnel_decap_en_set =
-			adpt_appe_tunnel_decap_en_set;
-	if (p_adpt_api->adpt_tunnel_func_bitmap[1] & BIT(FUNC_TUNNEL_DECAP_EN_GET % 32))
-		p_adpt_api->adpt_tunnel_decap_en_get =
-			adpt_appe_tunnel_decap_en_get;
-	if (p_adpt_api->adpt_tunnel_func_bitmap[1] & BIT(FUNC_TUNNEL_DECAP_ACTION_UPDATE % 32))
-		p_adpt_api->adpt_tunnel_decap_action_update =
-			adpt_appe_tunnel_decap_action_update;
-	if (p_adpt_api->adpt_tunnel_func_bitmap[1] & BIT(FUNC_TUNNEL_DECAP_COUNTER_GET % 32))
-		p_adpt_api->adpt_tunnel_decap_counter_get =
-			adpt_appe_tunnel_decap_counter_get;
+	p_adpt_api->adpt_tunnel_decap_entry_add =
+		adpt_appe_tunnel_decap_entry_add;
+	p_adpt_api->adpt_tunnel_decap_entry_del =
+		adpt_appe_tunnel_decap_entry_del;
+	p_adpt_api->adpt_tunnel_decap_entry_get =
+		adpt_appe_tunnel_decap_entry_get;
+	p_adpt_api->adpt_tunnel_decap_entry_getnext =
+		adpt_appe_tunnel_decap_entry_getnext;
+	p_adpt_api->adpt_tunnel_decap_entry_flush =
+		adpt_appe_tunnel_decap_entry_flush;
+	p_adpt_api->adpt_tunnel_global_cfg_set =
+		adpt_appe_tunnel_global_cfg_set;
+	p_adpt_api->adpt_tunnel_global_cfg_get =
+		adpt_appe_tunnel_global_cfg_get;
+	p_adpt_api->adpt_tunnel_port_intf_set =
+		adpt_appe_tunnel_port_intf_set;
+	p_adpt_api->adpt_tunnel_port_intf_get =
+		adpt_appe_tunnel_port_intf_get;
+#ifndef IN_TUNNEL_MINI
+	p_adpt_api->adpt_tunnel_vlan_intf_add =
+		adpt_appe_tunnel_vlan_intf_add;
+	p_adpt_api->adpt_tunnel_vlan_intf_getfirst =
+		adpt_appe_tunnel_vlan_intf_getfirst;
+	p_adpt_api->adpt_tunnel_vlan_intf_getnext =
+		adpt_appe_tunnel_vlan_intf_getnext;
+	p_adpt_api->adpt_tunnel_vlan_intf_del =
+		adpt_appe_tunnel_vlan_intf_del;
+#endif
+	p_adpt_api->adpt_tunnel_intf_set =
+		adpt_appe_tunnel_intf_set;
+	p_adpt_api->adpt_tunnel_intf_get =
+		adpt_appe_tunnel_intf_get;
+	p_adpt_api->adpt_tunnel_encap_port_tunnelid_set =
+		adpt_appe_tunnel_encap_port_tunnelid_set;
+	p_adpt_api->adpt_tunnel_encap_port_tunnelid_get =
+		adpt_appe_tunnel_encap_port_tunnelid_get;
+	p_adpt_api->adpt_tunnel_encap_intf_tunnelid_set =
+		adpt_appe_tunnel_encap_intf_tunnelid_set;
+	p_adpt_api->adpt_tunnel_encap_intf_tunnelid_get =
+		adpt_appe_tunnel_encap_intf_tunnelid_get;
+	p_adpt_api->adpt_tunnel_encap_entry_add =
+		adpt_appe_tunnel_encap_entry_add;
+	p_adpt_api->adpt_tunnel_encap_entry_del =
+		adpt_appe_tunnel_encap_entry_del;
+	p_adpt_api->adpt_tunnel_encap_entry_get =
+		adpt_appe_tunnel_encap_entry_get;
+	p_adpt_api->adpt_tunnel_encap_entry_getnext =
+		adpt_appe_tunnel_encap_entry_getnext;
+	p_adpt_api->adpt_tunnel_encap_rule_entry_set =
+		adpt_appe_tunnel_encap_rule_entry_set;
+	p_adpt_api->adpt_tunnel_encap_rule_entry_get =
+		adpt_appe_tunnel_encap_rule_entry_get;
+	p_adpt_api->adpt_tunnel_encap_rule_entry_del =
+		adpt_appe_tunnel_encap_rule_entry_del;
+	p_adpt_api->adpt_tunnel_encap_header_ctrl_set =
+		adpt_appe_tunnel_encap_header_ctrl_set;
+	p_adpt_api->adpt_tunnel_encap_header_ctrl_get =
+		adpt_appe_tunnel_encap_header_ctrl_get;
+#ifndef IN_TUNNEL_MINI
+	p_adpt_api->adpt_tunnel_decap_ecn_mode_set=
+		adpt_appe_tunnel_decap_ecn_mode_set;
+	p_adpt_api->adpt_tunnel_decap_ecn_mode_get=
+		adpt_appe_tunnel_decap_ecn_mode_get;
+	p_adpt_api->adpt_tunnel_encap_ecn_mode_set=
+		adpt_appe_tunnel_encap_ecn_mode_set;
+	p_adpt_api->adpt_tunnel_encap_ecn_mode_get=
+		adpt_appe_tunnel_encap_ecn_mode_get;
+#endif
+	p_adpt_api->adpt_tunnel_udf_profile_entry_add =
+		adpt_appe_tunnel_udf_profile_entry_add;
+	p_adpt_api->adpt_tunnel_udf_profile_entry_del =
+		adpt_appe_tunnel_udf_profile_entry_del;
+	p_adpt_api->adpt_tunnel_udf_profile_entry_getfirst =
+		adpt_appe_tunnel_udf_profile_entry_getfirst;
+	p_adpt_api->adpt_tunnel_udf_profile_entry_getnext =
+		adpt_appe_tunnel_udf_profile_entry_getnext;
+	p_adpt_api->adpt_tunnel_udf_profile_cfg_set =
+		adpt_appe_tunnel_udf_profile_cfg_set;
+	p_adpt_api->adpt_tunnel_udf_profile_cfg_get =
+		adpt_appe_tunnel_udf_profile_cfg_get;
+	p_adpt_api->adpt_tunnel_exp_decap_set=
+		adpt_appe_tunnel_exp_decap_set;
+	p_adpt_api->adpt_tunnel_exp_decap_get=
+		adpt_appe_tunnel_exp_decap_get;
+	p_adpt_api->adpt_tunnel_decap_key_set =
+		adpt_appe_tunnel_decap_key_set;
+	p_adpt_api->adpt_tunnel_decap_key_get =
+		adpt_appe_tunnel_decap_key_get;
+	p_adpt_api->adpt_tunnel_decap_en_set =
+		adpt_appe_tunnel_decap_en_set;
+	p_adpt_api->adpt_tunnel_decap_en_get =
+		adpt_appe_tunnel_decap_en_get;
+	p_adpt_api->adpt_tunnel_decap_action_update =
+		adpt_appe_tunnel_decap_action_update;
+	p_adpt_api->adpt_tunnel_decap_counter_get =
+		adpt_appe_tunnel_decap_counter_get;
 
 	return SW_OK;
 }

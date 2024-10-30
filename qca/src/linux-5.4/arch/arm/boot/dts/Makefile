@@ -830,8 +830,7 @@ dtb-$(CONFIG_ARCH_OXNAS) += \
 	ox820-cloudengines-pogoplug-series-3.dtb
 ifeq ($(CONFIG_IPQ_FLASH_16M_PROFILE),y)
 dtb-$(CONFIG_ARCH_QCOM) += \
-	ipq5018-mp02.1.dtb \
-	ipq5018-mp03.1.dtb
+	ipq5332-mi04.1-c2.dtb
 else
 dtb-$(CONFIG_ARCH_QCOM) += \
 	qcom-apq8060-dragonboard.dtb \
@@ -870,13 +869,22 @@ dtb-$(CONFIG_ARCH_QCOM) += \
 	ipq5332-emulation-fbc.dtb \
 	ipq5332-emulation-ssoc.dtb \
 	ipq5332-mi01.2.dtb \
+	ipq5332-mi01.2-c2.dtb \
 	ipq5332-mi01.2-qcn9160-c1.dtb \
 	ipq5332-mi01.3.dtb \
+	ipq5332-mi01.3-c2.dtb \
+	ipq5332-mi01.3-c3.dtb \
 	ipq5332-mi01.4.dtb \
 	ipq5332-mi01.6.dtb \
+	ipq5332-mi01.7.dtb \
 	ipq5332-mi01.9.dtb \
+	ipq5332-mi01.12.dtb \
+	ipq5332-mi01.13.dtb \
+	ipq5332-mi01.14.dtb \
 	ipq5332-mi03.1.dtb \
 	ipq5332-mi04.1.dtb \
+	ipq5332-mi04.1-c2.dtb \
+	ipq5332-mi04.3.dtb \
 	ipq5332-db-mi01.1.dtb \
 	ipq5332-db-mi02.1.dtb \
 	ipq5332-db-mi03.1.dtb \
@@ -937,6 +945,9 @@ dtb-$(CONFIG_ARCH_QCOM) += \
 	ipq9574-al02-c17.dtb \
 	ipq9574-al02-c18.dtb \
 	ipq9574-al02-c19.dtb \
+	ipq9574-al02-c20.dtb \
+	ipq9574-al05.dtb \
+	ipq9574-al06.dtb \
 	ipq9574-db-al01-c1.dtb \
 	ipq9574-db-al01-c2.dtb \
 	ipq9574-db-al01-c3.dtb \

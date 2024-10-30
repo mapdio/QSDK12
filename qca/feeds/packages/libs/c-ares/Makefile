@@ -9,28 +9,27 @@
 include $(TOPDIR)/rules.mk
 
 PKG_NAME:=c-ares
-PKG_VERSION:=1.15.0
-PKG_RELEASE:=5
-PKG_LICENSE:=MIT
-PKG_CPE_ID:=cpe:/a:c-ares_project:c-ares
+PKG_VERSION:=1.27.0
+PKG_RELEASE:=1
 
 PKG_SOURCE:=$(PKG_NAME)-$(PKG_VERSION).tar.gz
-PKG_SOURCE_URL:=https://c-ares.haxx.se/download
-PKG_HASH:=6cdb97871f2930530c97deb7cf5c8fa4be5a0b02c7cea6e7c7667672a39d6852
+PKG_SOURCE_URL:=https://c-ares.org/download
+PKG_HASH:=0a72be66959955c43e2af2fbd03418e82a2bd5464604ec9a62147e37aceb420b
 
-PKG_FIXUP:=autoreconf
-PKG_INSTALL:=1
+PKG_LICENSE:=MIT
+PKG_LICENSE_FILES:=LICENSE.md
+PKG_CPE_ID:=cpe:/a:c-ares_project:c-ares
+
+CMAKE_INSTALL:=1
 
 include $(INCLUDE_DIR)/package.mk
-
-TARGET_CPPFLAGS += $(filter -D%,$(TARGET_CFLAGS))
-TARGET_CFLAGS := $(filter-out -D%,$(TARGET_CFLAGS))
+include $(INCLUDE_DIR)/cmake.mk
 
 define Package/libcares
   SECTION:=libs
   CATEGORY:=Libraries
   TITLE:=Library for asyncronous DNS Requests (including name resolves)
-  URL:=http://c-ares.haxx.se/
+  URL:=https://c-ares.org/
   MAINTAINER:=Karl Palsson <karlp@etactica.com>
 endef
 
@@ -42,14 +41,20 @@ Netware, Android and many more operating systems.
 
 endef
 
-define Package/libcares/install
-	$(INSTALL_DIR) $(1)/usr/lib
-	$(CP) $(PKG_INSTALL_DIR)/usr/lib/*.so.* $(1)/usr/lib/
-endef
+CMAKE_OPTIONS += \
+	-DCARES_STATIC_PIC=ON \
+	-DCARES_BUILD_TOOLS=OFF
 
 define Build/InstallDev
-	$(INSTALL_DIR) $(1)
-	$(CP) $(PKG_INSTALL_DIR)/* $(1)/
+	$(call Build/InstallDev/cmake,$(1))
+	$(SED) 's,/usr/bin,$$$${prefix}/lib,g' $(1)/usr/lib/pkgconfig/libcares.pc
+	$(SED) 's,/usr/include,$$$${prefix}/include,g' $(1)/usr/lib/pkgconfig/libcares.pc
+	$(SED) 's,/usr/lib,$$$${prefix}/lib,g' $(1)/usr/lib/pkgconfig/libcares.pc
+endef
+
+define Package/libcares/install
+	$(INSTALL_DIR) $(1)/usr/lib
+	$(CP) $(PKG_INSTALL_DIR)/usr/lib/libcares.so.* $(1)/usr/lib/
 endef
 
 $(eval $(call BuildPackage,libcares))

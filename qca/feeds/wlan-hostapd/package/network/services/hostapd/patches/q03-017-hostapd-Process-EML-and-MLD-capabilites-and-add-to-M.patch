@@ -18,7 +18,7 @@ Signed-off-by: Muna Sinada <quic_msinada@quicinc.com>
 
 --- a/hostapd/main.c
 +++ b/hostapd/main.c
-@@ -267,6 +267,16 @@ static int hostapd_driver_init(struct ho
+@@ -266,6 +266,16 @@ static int hostapd_driver_init(struct ho
  		iface->drv_max_acl_mac_addrs = capa.max_acl_mac_addrs;
  		iface->ru_punct_supp_bw = capa.ru_punct_supp_bw;
  
@@ -37,7 +37,7 @@ Signed-off-by: Muna Sinada <quic_msinada@quicinc.com>
  		 * available from the driver.
 --- a/src/ap/hostapd.h
 +++ b/src/ap/hostapd.h
-@@ -701,6 +701,8 @@ struct hostapd_iface {
+@@ -698,6 +698,8 @@ struct hostapd_iface {
  
  #ifdef CONFIG_IEEE80211BE
  	u8 mlo_link_id;
@@ -48,7 +48,7 @@ Signed-off-by: Muna Sinada <quic_msinada@quicinc.com>
  
 --- a/src/ap/ieee802_11.c
 +++ b/src/ap/ieee802_11.c
-@@ -8842,7 +8842,7 @@ size_t hostapd_eid_basic_mle_len(struct
+@@ -8815,7 +8815,7 @@ size_t hostapd_eid_basic_mle_len(struct
  	else
  		total_len += MLE_COMMON_INFO_AUTH;
  
@@ -57,7 +57,7 @@ Signed-off-by: Muna Sinada <quic_msinada@quicinc.com>
  
  	if (ml_data == NULL || !ml_data->present)
  		return total_len;
-@@ -8882,7 +8882,7 @@ u8 * hostapd_eid_basic_mle(struct hostap
+@@ -8855,7 +8855,7 @@ u8 * hostapd_eid_basic_mle(struct hostap
  	if (type != WLAN_FC_STYPE_AUTH) {
  		/* Fill these info by default currently */
  		presence_bmap = MLE_LINK_ID_PRESENT | MLE_BSS_PARAM_CHANGE_PRESENT |
@@ -66,7 +66,7 @@ Signed-off-by: Muna Sinada <quic_msinada@quicinc.com>
  	}
  
  	*eid++ = MLE_TYPE_BASIC | ((presence_bmap & 0x0f) << MLE_PRESENCE_BMAP_SHIFT);
-@@ -8901,11 +8901,37 @@ u8 * hostapd_eid_basic_mle(struct hostap
+@@ -8874,11 +8874,16 @@ u8 * hostapd_eid_basic_mle(struct hostap
  	if (presence_bmap & MLE_BSS_PARAM_CHANGE_PRESENT)
  		*eid++ = 0; /* TODO */
  
@@ -81,28 +81,7 @@ Signed-off-by: Muna Sinada <quic_msinada@quicinc.com>
  	if (presence_bmap & MLE_MLD_CAP_PRESENT) {
 -		*eid++ = hapd->mld->num_links - 1; /* TODO Other caps info not present */
 -		*eid++ = 0; /* TODO Other caps info not present */
-+		u16 mld_cap = host_to_le16(hapd->iface->mld_cap);
-+		u8 max_simul_links = mld_cap & MLE_MLD_CAP_MAX_SIMULTANEOUS_LINK_MASK;
-+		u8 tid_to_link_map = (mld_cap & MLE_MLD_CAP_TID_TO_LINK_MAP_MASK) >>
-+				     MLE_MLD_CAP_TID_TO_LINK_MAP_SHIFT;
-+		u8 active_links = hapd->mld->num_links - 1;
-+
-+		if (active_links > max_simul_links) {
-+			wpa_printf(MSG_ERROR, "Error in max simultaneous links, advertised=%x current=%x",
-+				   max_simul_links, active_links);
-+			active_links = max_simul_links;
-+		}
-+
-+		mld_cap &= ~MLE_MLD_CAP_MAX_SIMULTANEOUS_LINK_MASK;
-+		mld_cap |= (active_links & MLE_MLD_CAP_MAX_SIMULTANEOUS_LINK_MASK);
-+
-+		/* TODO: advertise T2LM based on driver support as well */
-+		tid_to_link_map = MLE_MLD_CAP_TID_TO_LINK_MAP_DISABLED;
-+
-+		mld_cap &= ~MLE_MLD_CAP_TID_TO_LINK_MAP_MASK;
-+		mld_cap |= (tid_to_link_map << MLE_MLD_CAP_TID_TO_LINK_MAP_SHIFT);
-+
-+		os_memcpy(eid, &mld_cap, 2);
++		*eid = host_to_le16(hapd->iface->mld_cap);
 +		eid += 2;
  	}
  
@@ -121,21 +100,9 @@ Signed-off-by: Muna Sinada <quic_msinada@quicinc.com>
  #define MLE_COMMON_INFO_AUTH			7
  
  #define MLE_TYPE_BASIC				0
-@@ -2471,6 +2471,11 @@ struct ieee80211_he_mu_edca_parameter_se
- 
- #define MLE_PRESENCE_BMAP_SHIFT			4
- 
-+#define MLE_MLD_CAP_MAX_SIMULTANEOUS_LINK_MASK	((u8) (BIT(0) | BIT(1) | BIT(2) | BIT(3)))
-+#define MLE_MLD_CAP_TID_TO_LINK_MAP_SHIFT	5
-+#define MLE_MLD_CAP_TID_TO_LINK_MAP_MASK	((u8) (BIT(5) | BIT(6)))
-+#define MLE_MLD_CAP_TID_TO_LINK_MAP_DISABLED	0
-+
- #define MLE_PER_STA_PROFILE_SUBELEM_ID		0
- #define MLE_PER_STA_PROFILE_MIN_LENGTH		4
- 
 --- a/src/drivers/driver.h
 +++ b/src/drivers/driver.h
-@@ -2260,6 +2260,8 @@ struct wpa_driver_capa {
+@@ -2253,6 +2253,8 @@ struct wpa_driver_capa {
  #define WPA_DRIVER_FLAGS2_PROT_RANGE_NEG_STA	0x0000000000002000ULL
  /** Driver supports Beacon frame TX rate configuration (EHT rates) */
  #define WPA_DRIVER_FLAGS2_BEACON_RATE_EHT       0x0000000000004000ULL
@@ -144,7 +111,7 @@ Signed-off-by: Muna Sinada <quic_msinada@quicinc.com>
  	u64 flags2;
  
  #define FULL_AP_CLIENT_STATE_SUPP(drv_flags) \
-@@ -2391,6 +2393,11 @@ struct wpa_driver_capa {
+@@ -2376,6 +2378,11 @@ struct wpa_driver_capa {
  
  	/* Minimum bandwidth the driver supports RU Puncturing */
  	u8 ru_punct_supp_bw;
@@ -158,7 +125,7 @@ Signed-off-by: Muna Sinada <quic_msinada@quicinc.com>
  
 --- a/src/drivers/driver_nl80211_capa.c
 +++ b/src/drivers/driver_nl80211_capa.c
-@@ -818,6 +818,7 @@ static void wiphy_info_wowlan_triggers(s
+@@ -813,6 +813,7 @@ static void wiphy_info_wowlan_triggers(s
  
  
  static void wiphy_info_extended_capab(struct wpa_driver_nl80211_data *drv,
@@ -166,7 +133,7 @@ Signed-off-by: Muna Sinada <quic_msinada@quicinc.com>
  				      struct nlattr *tb)
  {
  	int rem = 0, i;
-@@ -867,6 +868,16 @@ static void wiphy_info_extended_capab(st
+@@ -862,6 +863,16 @@ static void wiphy_info_extended_capab(st
  		drv->num_iface_ext_capa++;
  		if (drv->num_iface_ext_capa == NL80211_IFTYPE_MAX)
  			break;
@@ -183,7 +150,7 @@ Signed-off-by: Muna Sinada <quic_msinada@quicinc.com>
  	}
  
  	return;
-@@ -1027,7 +1038,7 @@ static int wiphy_info_handler(struct nl_
+@@ -1022,7 +1033,7 @@ static int wiphy_info_handler(struct nl_
  		}
  	}
  
@@ -192,7 +159,7 @@ Signed-off-by: Muna Sinada <quic_msinada@quicinc.com>
  
  	if (tb[NL80211_ATTR_VENDOR_DATA]) {
  		struct nlattr *nl;
-@@ -1166,6 +1177,9 @@ static int wiphy_info_handler(struct nl_
+@@ -1161,6 +1172,9 @@ static int wiphy_info_handler(struct nl_
  		}
  	}
  

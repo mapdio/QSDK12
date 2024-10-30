@@ -20,13 +20,17 @@
 	reserved-memory {
 		mlo_global_mem1: mlo_global_mem_1@1 {
 			no-map;
-			size = <0x0 0xD00000>;
+			size = <0x0 0xE00000>;
 			status = "ok";
 		};
 	};
 
 	soc {
 		pcie0_x1: pci@28000000 {
+			pinctrl-0 = <&pcie0_wake_pins &pci0_pin>;
+			interrupts-extended = <&tlmm 24 IRQ_TYPE_LEVEL_HIGH>,
+					      <&intc GIC_SPI 51 IRQ_TYPE_LEVEL_HIGH>;
+			interrupt-names = "wake_gpio", "global_irq";
                         status = "ok";
                         pcie0_rp {
                                 reg = <0 0 0 0 0>;
@@ -120,7 +124,7 @@
 				   <0 352 4>,			/* Rx desc ring id #21 IRQ info */
 				   <0 353 4>,			/* Rx desc ring id #22 IRQ info */
 				   <0 354 4>,			/* Rx desc ring id #23 IRQ info */
-				   <0 261 4>,			/* Misc error IRQ info */
+				   <0 499 4>,			/* Misc error IRQ info */
 				   <0 364 4>,			/* PPEDS Node #0(TxComp ring id #1) TxComplete IRQ info */
 				   <0 332 4>,			/* PPEDS Node #0(Rx Desc ring id #1) Rx Desc IRQ info */
 				   <0 356 4>,			/* PPEDS Node #0(RxFill Desc ring id #1) Rx Fill IRQ info */
@@ -137,6 +141,12 @@
 		};
 
 	};
+};
+
+/* MLO GLOBAL MEM REGION size is 22MB for RDP with 4 QCN9224 radios */
+&mlo_global_mem0 {
+	size = <0x0 0x1800000>;
+	status = "ok";
 };
 
 &mhi_region0 {
@@ -164,6 +174,7 @@
         board_id = <0x11>;
         group_id = <0x0>;
 	/delete-property/ interrupt-bmap;
+	hw_link_id = <1 0>;
         status = "ok";
 };
 
@@ -172,6 +183,7 @@
         board_id = <0x12>;
         group_id = <0x1>;
 	/delete-property/ interrupt-bmap;
+	hw_link_id = <3 0>;
         status = "ok";
 };
 
@@ -179,6 +191,7 @@
 	hremote_node = <&qcn9224_pcie2>;
         board_id = <0x14>;
         group_id = <0x0>;
+	hw_link_id = <0 0>;
         status = "ok";
 };
 
@@ -186,6 +199,7 @@
 	hremote_node = <&qcn9224_pcie3>;
         board_id = <0x13>;
         group_id = <0x1>;
+	hw_link_id = <2 0>;
         status = "ok";
 };
 

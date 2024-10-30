@@ -8,22 +8,21 @@
 include $(TOPDIR)/rules.mk
 
 PKG_NAME:=squid
-PKG_VERSION:=4.12
+PKG_VERSION:=6.7
 PKG_RELEASE:=2
 
 PKG_SOURCE:=$(PKG_NAME)-$(PKG_VERSION).tar.xz
-PKG_SOURCE_URL:=http://www3.us.squid-cache.org/Versions/v4/ \
-	http://www2.pl.squid-cache.org/Versions/v4/ \
-	http://www.squid-cache.org/Versions/v4/
-PKG_HASH:=f42a03c8b3dc020722c88bf1a87da8cb0c087b2f66b41d8256c77ee1b527e317
+PKG_SOURCE_URL:=http://www2.pl.squid-cache.org/Versions/v6/ \
+	http://www.squid-cache.org/Versions/v6/
+PKG_HASH:=e14daa4eae41925d1ae3f08e64439a6aaa3011bdced686628b8de697d5ab8428
 
-PKG_MAINTAINER:=Marko Ratkaj <marko.ratkaj@sartura.hr>
+PKG_MAINTAINER:=Marko Ratkaj <markoratkaj@gmail.com>
 PKG_LICENSE:=GPL-2.0-or-later
 PKG_CPE_ID:=cpe:/a:squid-cache:squid
 
-PKG_BUILD_PARALLEL:=1
-PKG_INSTALL:=1
 PKG_FIXUP:=autoreconf
+PKG_INSTALL:=1
+PKG_BUILD_PARALLEL:=1
 
 include $(INCLUDE_DIR)/package.mk
 
@@ -31,7 +30,7 @@ define Package/squid/Default
   SECTION:=net
   CATEGORY:=Network
   SUBMENU:=Web Servers/Proxies
-  URL:=http://www.squid-cache.org/
+  URL:=https://www.squid-cache.org/
 endef
 
 define Package/squid
@@ -58,7 +57,8 @@ define Package/squid/config
 endef
 
 define Package/squid/conffiles
-  /etc/squid/squid.conf
+/etc/config/squid
+/etc/squid/squid.conf
 endef
 
 define Package/squid-mod-cachemgr
@@ -68,39 +68,29 @@ define Package/squid-mod-cachemgr
 endef
 
 CONFIGURE_ARGS += \
-	BUILDCXX=$(HOSTCXX) \
-	BUILDCXXFLAGS=$(if $(HOST_CXXFLAGS),$(HOST_CXXFLAGS),-O2) \
-	--config-cache \
+	BUILDCXX=$(HOSTCXX_NOCACHE) \
 	--datadir=/usr/share/squid \
 	--libexecdir=/usr/lib/squid \
 	--sysconfdir=/etc/squid \
-	--enable-shared \
 	--disable-static \
 	--enable-delay-pools \
-	--enable-kill-parent-hack \
-	--enable-ssl \
 	--enable-cache-digests \
 	--enable-linux-netfilter \
 	--disable-unlinkd \
 	--enable-x-accelerator-vary \
-	--disable-translation \
 	--disable-auto-locale \
-	--with-dl \
-	--with-pthreads \
 	--enable-epoll \
-	--with-maxfd=2048 \
-	--disable-ecap \
+	--with-filedescriptors=2048 \
 	--disable-external-acl-helpers \
 	--disable-arch-native \
-	--with-krb5-config=no \
 	--without-mit-krb5 \
+	--without-heimdal-krb5 \
 	--without-netfilter-conntrack \
 	--disable-ident-lookups \
 	$(if $(CONFIG_SQUID_auth-basic),--enable,--disable)-auth-basic \
 	$(if $(CONFIG_SQUID_auth-digest),--enable,--disable)-auth-digest \
 	$(if $(CONFIG_SQUID_auth-ntlm),--enable,--disable)-auth-ntlm \
 	$(if $(CONFIG_SQUID_auth-negotiate),--enable,--disable)-auth-negotiate \
-	$(if $(CONFIG_SQUID_enable-ipv6),--enable,--disable)-dlmalloc \
 	$(if $(CONFIG_SQUID_enable-ipv6),--enable,--disable)-ipv6 \
 	$(if $(CONFIG_SQUID_enable-ssl-crtd),--enable-ssl-crtd) \
 	$(if $(CONFIG_SQUID_use-gnutls),--with,--without)-gnutls \
@@ -109,10 +99,10 @@ CONFIGURE_ARGS += \
 	$(if $(CONFIG_SQUID_enable-icmp),--enable,--disable)-icmp \
 	$(if $(CONFIG_SQUID_enable-icap-client),--enable,--disable)-icap-client \
 	$(if $(CONFIG_SQUID_enable-snmp),--enable,--disable)-snmp \
-	$(if $(CONFIG_SQUID_with-libcap),--with,--without)-libcap \
+	$(if $(CONFIG_SQUID_with-libcap),--with,--without)-cap \
 	$(if $(CONFIG_SQUID_with-nettle),--with,--without)-nettle \
 	$(if $(CONFIG_SQUID_with-expat),--with,--without)-expat \
-	$(if $(CONFIG_SQUID_with-libxml2),--with,--without)-libxml2
+	$(if $(CONFIG_SQUID_with-libxml2),--with,--without)-xml2
 
 CONFIGURE_VARS += \
 	ac_cv_header_linux_netfilter_ipv4_h=yes \
@@ -120,13 +110,6 @@ CONFIGURE_VARS += \
 
 TARGET_CFLAGS += -Wno-error
 TARGET_LDFLAGS += -latomic
-
-define Build/Compile
-	+$(MAKE) $(PKG_JOBS) -C $(PKG_BUILD_DIR)/lib all
-	+$(MAKE) $(PKG_JOBS) -C $(PKG_BUILD_DIR) \
-		DESTDIR="$(PKG_INSTALL_DIR)" \
-		install
-endef
 
 define Package/squid/install
 	$(INSTALL_DIR) $(1)/usr/sbin

@@ -28,6 +28,10 @@
 		};
 
 		pcie0_x1: pci@28000000 {
+			pinctrl-0 = <&pcie0_wake_pins &pci0_pin>;
+			interrupts-extended = <&tlmm 24 IRQ_TYPE_LEVEL_HIGH>,
+					      <&intc GIC_SPI 51 IRQ_TYPE_LEVEL_HIGH>;
+			interrupt-names = "wake_gpio", "global_irq";
 			status = "ok";
 			pcie0_rp {
 				reg = <0 0 0 0 0>;
@@ -173,9 +177,9 @@
 	status = "disabled";
 };
 
-/* MLO GLOBAL MEM REGION size is 13MB for RDP with 2 QCN224 radios */
+/* MLO GLOBAL MEM REGION size is 14MB for RDP with 2 QCN224 radios */
 &mlo_global_mem0 {
-	size = <0x0 0xD00000>;
+	size = <0x0 0xE00000>;
 	status = "ok";
 };
 
@@ -188,6 +192,7 @@
 	/* QCN9224 split-radio 2.4G + 5G *(Low) */
 	hremote_node = <&qcn9224_pcie0>;
 	board_id = <0x1010>;
+	hw_link_id = <0 1>;
 	status = "ok";
 };
 
@@ -199,6 +204,7 @@
 	/* QCN9224 split-radio 5G (High) + 6G */
 	hremote_node = <&qcn9224_pcie2>;
 	board_id = <0x100e>;
+	hw_link_id = <2 3>;
 	status = "ok";
 };
 

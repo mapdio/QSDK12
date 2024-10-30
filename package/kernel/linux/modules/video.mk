@@ -187,7 +187,7 @@ define KernelPackage/fb-tft
   SUBMENU:=$(VIDEO_MENU)
   TITLE:=Support for small TFT LCD display modules
   DEPENDS:= \
-	  @GPIO_SUPPORT @!LINUX_4_9 +kmod-backlight \
+	  @GPIO_SUPPORT +kmod-backlight \
 	  +kmod-fb +kmod-fb-sys-fops +kmod-fb-sys-ram +kmod-spi-bitbang
   KCONFIG:= \
        CONFIG_FB_BACKLIGHT=y \
@@ -225,11 +225,12 @@ define KernelPackage/drm
   SUBMENU:=$(VIDEO_MENU)
   TITLE:=Direct Rendering Manager (DRM) support
   HIDDEN:=1
-  DEPENDS:=+kmod-dma-buf +kmod-i2c-core
+  DEPENDS:=+kmod-dma-buf +kmod-i2c-core +PACKAGE_kmod-backlight:kmod-backlight \
+	+kmod-fb
   KCONFIG:=CONFIG_DRM
   FILES:= \
 	$(LINUX_DIR)/drivers/gpu/drm/drm.ko \
-	$(LINUX_DIR)/drivers/gpu/drm/drm_panel_orientation_quirks.ko@ge4.15
+	$(LINUX_DIR)/drivers/gpu/drm/drm_panel_orientation_quirks.ko
   AUTOLOAD:=$(call AutoLoad,05,drm)
 endef
 
@@ -255,6 +256,20 @@ endef
 
 $(eval $(call KernelPackage,drm-ttm))
 
+
+define KernelPackage/drm-ttm-helper
+  SUBMENU:=$(VIDEO_MENU)
+  TITLE:=Helpers for ttm-based gem objects
+  HIDDEN:=1
+  DEPENDS:=@DISPLAY_SUPPORT +kmod-drm-ttm
+  KCONFIG:=CONFIG_DRM_TTM_HELPER
+  FILES:=$(LINUX_DIR)/drivers/gpu/drm/drm_ttm_helper.ko
+  AUTOLOAD:=$(call AutoProbe,drm_ttm_helper)
+endef
+
+$(eval $(call KernelPackage,drm-ttm-helper))
+
+
 define KernelPackage/drm-kms-helper
   SUBMENU:=$(VIDEO_MENU)
   TITLE:=CRTC helpers for KMS drivers
@@ -277,15 +292,14 @@ define KernelPackage/drm-amdgpu
   SUBMENU:=$(VIDEO_MENU)
   TITLE:=AMDGPU DRM support
   DEPENDS:=@TARGET_x86 @DISPLAY_SUPPORT +kmod-backlight +kmod-drm-ttm \
-	+kmod-drm-kms-helper +kmod-i2c-algo-bit +amdgpu-firmware
+	+kmod-drm-ttm-helper +kmod-drm-kms-helper +kmod-i2c-algo-bit +amdgpu-firmware
   KCONFIG:=CONFIG_DRM_AMDGPU \
 	CONFIG_DRM_AMDGPU_SI=y \
 	CONFIG_DRM_AMDGPU_CIK=y \
 	CONFIG_DRM_AMD_DC=y \
 	CONFIG_DEBUG_KERNEL_DC=n
   FILES:=$(LINUX_DIR)/drivers/gpu/drm/amd/amdgpu/amdgpu.ko \
-	$(LINUX_DIR)/drivers/gpu/drm/scheduler/gpu-sched.ko@ge4.15 \
-	$(LINUX_DIR)/drivers/gpu/drm/amd/lib/chash.ko@ge4.15
+	$(LINUX_DIR)/drivers/gpu/drm/scheduler/gpu-sched.ko
   AUTOLOAD:=$(call AutoProbe,amdgpu)
 endef
 
@@ -299,7 +313,7 @@ $(eval $(call KernelPackage,drm-amdgpu))
 define KernelPackage/drm-imx
   SUBMENU:=$(VIDEO_MENU)
   TITLE:=Freescale i.MX DRM support
-  DEPENDS:=@TARGET_imx6 +kmod-drm-kms-helper
+  DEPENDS:=@TARGET_imx +kmod-drm-kms-helper
   KCONFIG:=CONFIG_DRM_IMX \
 	CONFIG_DRM_FBDEV_EMULATION=y \
 	CONFIG_DRM_FBDEV_OVERALLOC=100 \
@@ -361,7 +375,8 @@ define KernelPackage/drm-imx-ldb
 	CONFIG_DRM_PANEL_S6E8AA0=n \
 	CONFIG_DRM_PANEL_SITRONIX_ST7789V=n
   FILES:=$(LINUX_DIR)/drivers/gpu/drm/imx/imx-ldb.ko \
-	$(LINUX_DIR)/drivers/gpu/drm/panel/panel-simple.ko
+	$(LINUX_DIR)/drivers/gpu/drm/panel/panel-simple.ko \
+	$(LINUX_DIR)/drivers/gpu/drm/drm_dp_aux_bus.ko
   AUTOLOAD:=$(call AutoLoad,08,imx-ldb)
 endef
 
@@ -375,7 +390,7 @@ define KernelPackage/drm-radeon
   SUBMENU:=$(VIDEO_MENU)
   TITLE:=Radeon DRM support
   DEPENDS:=@TARGET_x86 @DISPLAY_SUPPORT +kmod-backlight +kmod-drm-kms-helper \
-	+kmod-drm-ttm +kmod-i2c-algo-bit +radeon-firmware
+	+kmod-drm-ttm +kmod-drm-ttm-helper +kmod-i2c-algo-bit +radeon-firmware
   KCONFIG:=CONFIG_DRM_RADEON
   FILES:=$(LINUX_DIR)/drivers/gpu/drm/radeon/radeon.ko
   AUTOLOAD:=$(call AutoProbe,radeon)
@@ -394,20 +409,13 @@ $(eval $(call KernelPackage,drm-radeon))
 define KernelPackage/video-core
   SUBMENU:=$(VIDEO_MENU)
   TITLE=Video4Linux support
-  DEPENDS:=@PCI_SUPPORT||USB_SUPPORT +PACKAGE_kmod-i2c-core:kmod-i2c-core
+  DEPENDS:=+PACKAGE_kmod-i2c-core:kmod-i2c-core
   KCONFIG:= \
 	CONFIG_MEDIA_SUPPORT \
 	CONFIG_MEDIA_CAMERA_SUPPORT=y \
 	CONFIG_VIDEO_DEV \
-	CONFIG_VIDEO_V4L1=y \
-	CONFIG_VIDEO_ALLOW_V4L1=y \
-	CONFIG_VIDEO_CAPTURE_DRIVERS=y \
-	CONFIG_V4L_USB_DRIVERS=y \
-	CONFIG_V4L_PCI_DRIVERS=y \
-	CONFIG_V4L_PLATFORM_DRIVERS=y \
-	CONFIG_V4L_ISA_PARPORT_DRIVERS=y
+	CONFIG_V4L_PLATFORM_DRIVERS=y
   FILES:= \
-	$(LINUX_DIR)/drivers/media/$(V4L2_DIR)/v4l2-common.ko \
 	$(LINUX_DIR)/drivers/media/$(V4L2_DIR)/videodev.ko
   AUTOLOAD:=$(call AutoLoad,60, videodev v4l2-common)
 endef
@@ -439,15 +447,11 @@ define KernelPackage/video-videobuf2
 	CONFIG_VIDEOBUF2_MEMOPS \
 	CONFIG_VIDEOBUF2_VMALLOC
   FILES:= \
-	$(LINUX_DIR)/drivers/media/$(V4L2_DIR)/videobuf2-core.ko@lt4.16 \
-	$(LINUX_DIR)/drivers/media/$(V4L2_DIR)/videobuf2-v4l2.ko@lt4.16 \
-	$(LINUX_DIR)/drivers/media/$(V4L2_DIR)/videobuf2-memops.ko@lt4.16 \
-	$(LINUX_DIR)/drivers/media/$(V4L2_DIR)/videobuf2-vmalloc.ko@lt4.16 \
-	$(LINUX_DIR)/drivers/media/common/videobuf2/videobuf2-common.ko@ge4.16 \
-	$(LINUX_DIR)/drivers/media/common/videobuf2/videobuf2-v4l2.ko@ge4.16 \
-	$(LINUX_DIR)/drivers/media/common/videobuf2/videobuf2-memops.ko@ge4.16 \
-	$(LINUX_DIR)/drivers/media/common/videobuf2/videobuf2-vmalloc.ko@ge4.16
-  AUTOLOAD:=$(call AutoLoad,65,videobuf2-core videobuf-v4l2@ge4.4 videobuf2-memops videobuf2-vmalloc)
+	$(LINUX_DIR)/drivers/media/common/videobuf2/videobuf2-common.ko \
+	$(LINUX_DIR)/drivers/media/common/videobuf2/videobuf2-v4l2.ko \
+	$(LINUX_DIR)/drivers/media/common/videobuf2/videobuf2-memops.ko \
+	$(LINUX_DIR)/drivers/media/common/videobuf2/videobuf2-vmalloc.ko
+  AUTOLOAD:=$(call AutoLoad,65,videobuf2-core videobuf-v4l2 videobuf2-memops videobuf2-vmalloc)
   $(call AddDepends/video)
 endef
 
@@ -511,7 +515,7 @@ $(eval $(call KernelPackage,video-uvc))
 define KernelPackage/video-gspca-core
   MENU:=1
   TITLE:=GSPCA webcam core support framework
-  DEPENDS:=@USB_SUPPORT +kmod-usb-core +kmod-input-core +LINUX_4_19:kmod-video-videobuf2
+  DEPENDS:=@USB_SUPPORT +kmod-usb-core +kmod-input-core +kmod-video-videobuf2
   KCONFIG:=CONFIG_USB_GSPCA
   FILES:=$(LINUX_DIR)/drivers/media/$(V4L2_USB_DIR)/gspca/gspca_main.ko
   AUTOLOAD:=$(call AutoProbe,gspca_main)
@@ -860,6 +864,21 @@ define KernelPackage/video-gspca-sq905c/description
 endef
 
 $(eval $(call KernelPackage,video-gspca-sq905c))
+
+
+define KernelPackage/video-gspca-sq930x
+  TITLE:=sq930x webcam support
+  KCONFIG:=CONFIG_USB_GSPCA_SQ930X
+  FILES:=$(LINUX_DIR)/drivers/media/$(V4L2_USB_DIR)/gspca/gspca_sq930x.ko
+  AUTOLOAD:=$(call AutoProbe,gspca_sq930x)
+  $(call AddDepends/camera-gspca)
+endef
+
+define KernelPackage/video-gspca-sq930x/description
+ The SQ Technologies SQ930X based USB Camera Driver (sq930x) kernel module
+endef
+
+$(eval $(call KernelPackage,video-gspca-sq930x))
 
 
 define KernelPackage/video-gspca-stk014

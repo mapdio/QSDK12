@@ -1,16 +1,17 @@
 include $(TOPDIR)/rules.mk
 
 PKG_NAME:=uledd
-PKG_RELEASE:=1
+PKG_RELEASE:=2
 
-PKG_SOURCE_URL:=https://github.com/blogic/uledd.git
 PKG_SOURCE_PROTO:=git
-PKG_SOURCE_VERSION:=bc94c7e52009f7ec33b23652502b4754351d8040
-PKG_MIRROR_HASH:=23a407197d6a423bb0b32f381e93ad3676e15f07465d7b53c843a2b510c7c284
-PKG_MAINTAINER:=John Crispin <john@phrozen.org>
-PKG_LICENSE:=GPL-2.0
+PKG_SOURCE_URL:=https://github.com/blogic/uledd.git
+PKG_SOURCE_DATE:=2020-09-15
+PKG_SOURCE_VERSION:=21d14d950bfe702b8c1f77de20f7529266dbd0f7
+PKG_MIRROR_HASH:=9ccb019123d1287b7f8750d1733e6ab47d2abfc3f37ce113a5f682ed51eee309
 
-CMAKE_INSTALL:=1
+PKG_MAINTAINER:=John Crispin <john@phrozen.org>
+PKG_LICENSE:=LGPL-2.1-only
+PKG_LICENSE_FILES:=LICENSE
 
 include $(INCLUDE_DIR)/package.mk
 include $(INCLUDE_DIR)/cmake.mk
@@ -18,7 +19,7 @@ include $(INCLUDE_DIR)/cmake.mk
 define Package/uledd
   SECTION:=utils
   CATEGORY:=Utilities
-  DEPENDS:=+libubox +libubus
+  DEPENDS:=+libubox +libubus +libblobmsg-json +libjson-c
   TITLE:=PWM/RGB LED ubus frontend
 endef
 

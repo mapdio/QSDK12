@@ -8,36 +8,36 @@
 include $(TOPDIR)/rules.mk
 
 PKG_NAME:=glib2
-PKG_VERSION:=2.58.3
+PKG_VERSION:=2.74.0
 PKG_RELEASE:=5
 
 PKG_SOURCE:=glib-$(PKG_VERSION).tar.xz
-PKG_BUILD_DIR:=$(BUILD_DIR)/glib-$(PKG_VERSION)
-PKG_SOURCE_URL:=@GNOME/glib/2.58
-PKG_HASH:=8f43c31767e88a25da72b52a40f3301fefc49a665b56dc10ee7cc9565cbe7481
+PKG_SOURCE_URL:=@GNOME/glib/$(basename $(PKG_VERSION))
+PKG_HASH:=3652c7f072d7b031a6b5edd623f77ebc5dcd2ae698598abcc89ff39ca75add30
 
-PKG_BUILD_PARALLEL:=1
-HOST_BUILD_PARALLEL:=1
-PKG_BUILD_DEPENDS:=glib2/host gettext
-HOST_BUILD_DEPENDS:=gettext-full/host libiconv/host libffi/host
-PKG_INSTALL:=1
-
+PKG_MAINTAINER:=Peter Wagner <tripolar@gmx.at>
+PKG_LICENSE:=LGPL-2.1-or-later
+PKG_LICENSE_FILES:=COPYING
 PKG_CPE_ID:=cpe:/a:gnome:glib
 
-PKG_FIXUP:=autoreconf
+PKG_BUILD_DIR:=$(BUILD_DIR)/glib-$(PKG_VERSION)
+PKG_CONFIG_DEPENDS:=CONFIG_BUILD_NLS
+PKG_FORTIFY_SOURCE:=0
+PKG_BUILD_FLAGS:=gc-sections
 
 HOST_BUILD_DIR:=$(BUILD_DIR_HOST)/glib-$(PKG_VERSION)
+HOST_BUILD_DEPENDS:=pcre2/host libffi/host
 
 include $(INCLUDE_DIR)/host-build.mk
 include $(INCLUDE_DIR)/package.mk
 include $(INCLUDE_DIR)/nls.mk
+include $(INCLUDE_DIR)/meson.mk
 
 define Package/glib2
   SECTION:=libs
   CATEGORY:=Libraries
-  DEPENDS:=$(ICONV_DEPENDS) $(INTL_DEPENDS) +zlib +libpthread +libffi +libattr
+  DEPENDS:=$(ICONV_DEPENDS) $(INTL_DEPENDS) +zlib +libpthread +libffi +libattr +libpcre2
   TITLE:=glib 2.0
-  MAINTAINER:=Peter Wagner <tripolar@gmx.at>
   URL:=http://www.gtk.org/
 endef
 
@@ -45,35 +45,26 @@ define Package/glib2/description
   The GLib library of C routines
 endef
 
-TARGET_CFLAGS += $(FPIC) -ffunction-sections -fdata-sections -flto
+COMP_ARGS= \
+	-Dselinux=disabled \
+	-Dlibmount=disabled \
+	-Dman=false \
+	-Ddtrace=false \
+	-Dsystemtap=false \
+	-Dsysprof=disabled \
+	-Dgtk_doc=false \
+	-Dbsymbolic_functions=true \
+	-Dforce_posix_threads=true \
+	-Dtests=false \
+	-Dinstalled_tests=false \
+	-Doss_fuzz=disabled \
+	-Dglib_debug=disabled \
+	-Dglib_assert=false \
+	-Dglib_checks=true \
+	-Dlibelf=disabled
 
-HOST_CONFIGURE_ARGS += \
-	--disable-libelf \
-	--disable-selinux \
-	--with-libiconv=gnu \
-	--with-pcre=internal \
-	--disable-libmount
-
-CONFIGURE_ARGS += \
-	--enable-shared \
-	--enable-static \
-	--disable-debug \
-	--disable-selinux \
-	--disable-libmount \
-	--disable-fam \
-	--disable-gtk-doc-html \
-	--disable-man \
-	--disable-compile-warnings \
-	--with-libiconv=gnu \
-	--with-pcre=internal
-
-CONFIGURE_VARS += \
-	glib_cv_stack_grows=no \
-	glib_cv_uscore=no \
-	ac_cv_path_GLIB_GENMARSHAL=$(STAGING_DIR_HOSTPKG)/bin/glib-genmarshal \
-	ac_cv_func_mmap_fixed_mapped=yes \
-	ac_cv_func_posix_getpwuid_r=yes \
-	ac_cv_func_posix_getgrgid_r=yes
+MESON_HOST_ARGS += $(COMP_ARGS) -Dxattr=false -Ddefault_library=static -Dnls=disabled
+MESON_ARGS += $(COMP_ARGS) -Dxattr=true -Db_lto=true -Ddefault_library=both -Dnls=$(if $(CONFIG_BUILD_NLS),en,dis)abled
 
 define Build/InstallDev
 	$(INSTALL_DIR) $(1)/usr/bin
@@ -98,7 +89,7 @@ define Build/InstallDev
 		$(1)/usr/lib/
 
 	$(CP) \
-		$(PKG_INSTALL_DIR)/usr/lib/*.{so*,a,la} \
+		$(PKG_INSTALL_DIR)/usr/lib/*.{so*,a} \
 		$(1)/usr/lib/
 
 	$(INSTALL_DIR) $(1)/usr/lib/pkgconfig
@@ -110,6 +101,11 @@ define Build/InstallDev
 	$(INSTALL_DATA) \
 		$(PKG_INSTALL_DIR)/usr/share/aclocal/*.m4  \
 		$(2)/share/aclocal/
+
+	$(INSTALL_DIR) $(1)/usr/share/glib-2.0
+	$(CP) \
+		$(PKG_INSTALL_DIR)/usr/share/glib-2.0/codegen \
+		$(1)/usr/share/glib-2.0/
 endef
 
 define Package/glib2/install

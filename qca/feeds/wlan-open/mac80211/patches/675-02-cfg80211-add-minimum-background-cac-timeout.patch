@@ -24,11 +24,9 @@ Signed-off-by: Harshitha Prem <quic_hprem@quicinc.com>
  net/wireless/core.h |  2 +-
  2 files changed, 12 insertions(+), 3 deletions(-)
 
-Index: backports-20220822-5.4.213-ef7197996efe/net/wireless/chan.c
-===================================================================
---- backports-20220822-5.4.213-ef7197996efe.orig/net/wireless/chan.c	2023-05-30 15:25:55.521564440 +0530
-+++ backports-20220822-5.4.213-ef7197996efe/net/wireless/chan.c	2023-05-30 15:25:55.517564430 +0530
-@@ -1079,10 +1079,10 @@ static unsigned int cfg80211_get_chans_d
+--- a/net/wireless/chan.c
++++ b/net/wireless/chan.c
+@@ -1074,10 +1074,10 @@ static unsigned int cfg80211_get_chans_d
  
  unsigned int
  cfg80211_chandef_dfs_cac_time(struct wiphy *wiphy,
@@ -41,7 +39,7 @@ Index: backports-20220822-5.4.213-ef7197996efe/net/wireless/chan.c
  
  	if (WARN_ON(!cfg80211_chandef_valid(chandef)))
  		return 0;
-@@ -1096,13 +1096,33 @@ cfg80211_chandef_dfs_cac_time(struct wip
+@@ -1091,13 +1091,33 @@ cfg80211_chandef_dfs_cac_time(struct wip
  					     width, chandef->ru_punct_bitmap);
  
  	if (!chandef->center_freq2)
@@ -69,7 +67,7 @@ Index: backports-20220822-5.4.213-ef7197996efe/net/wireless/chan.c
 +			   off-channel CAC time = CAC time + 2
 +			   e.g., off-channel CAC time = (60 + 2) seconds
 +			*/
-+			dfs_cac_time = dfs_cac_time + REG_BG_PRE_CAC_EXPIRY_GRACE_MS;
++			dfs_cac_time = dfs_cac_time + REG_PRE_CAC_EXPIRY_GRACE_MS;
 +		}
 +	}
 +
@@ -77,10 +75,8 @@ Index: backports-20220822-5.4.213-ef7197996efe/net/wireless/chan.c
  }
  
  static bool cfg80211_secondary_chans_ok(struct wiphy *wiphy,
-Index: backports-20220822-5.4.213-ef7197996efe/net/wireless/core.h
-===================================================================
---- backports-20220822-5.4.213-ef7197996efe.orig/net/wireless/core.h	2023-05-30 15:25:55.521564440 +0530
-+++ backports-20220822-5.4.213-ef7197996efe/net/wireless/core.h	2023-05-30 15:25:55.517564430 +0530
+--- a/net/wireless/core.h
++++ b/net/wireless/core.h
 @@ -480,7 +480,7 @@ void cfg80211_dfs_channels_update_work(s
  
  unsigned int
@@ -90,10 +86,8 @@ Index: backports-20220822-5.4.213-ef7197996efe/net/wireless/core.h
  
  void cfg80211_sched_dfs_chan_update(struct cfg80211_registered_device *rdev);
  
-Index: backports-20220822-5.4.213-ef7197996efe/net/wireless/mlme.c
-===================================================================
---- backports-20220822-5.4.213-ef7197996efe.orig/net/wireless/mlme.c	2023-05-30 15:25:55.521564440 +0530
-+++ backports-20220822-5.4.213-ef7197996efe/net/wireless/mlme.c	2023-05-30 15:25:55.517564430 +0530
+--- a/net/wireless/mlme.c
++++ b/net/wireless/mlme.c
 @@ -1122,7 +1122,8 @@ cfg80211_start_background_radar_detectio
  	if (err)
  		return err;
@@ -104,10 +98,8 @@ Index: backports-20220822-5.4.213-ef7197996efe/net/wireless/mlme.c
  	if (!cac_time_ms)
  		cac_time_ms = IEEE80211_DFS_MIN_CAC_TIME_MS;
  
-Index: backports-20220822-5.4.213-ef7197996efe/net/wireless/nl80211.c
-===================================================================
---- backports-20220822-5.4.213-ef7197996efe.orig/net/wireless/nl80211.c	2023-05-30 15:25:55.521564440 +0530
-+++ backports-20220822-5.4.213-ef7197996efe/net/wireless/nl80211.c	2023-05-30 15:25:55.521564440 +0530
+--- a/net/wireless/nl80211.c
++++ b/net/wireless/nl80211.c
 @@ -10183,7 +10183,8 @@ static int nl80211_start_radar_detection
  		goto unlock;
  	}
@@ -118,16 +110,3 @@ Index: backports-20220822-5.4.213-ef7197996efe/net/wireless/nl80211.c
  	if (WARN_ON(!cac_time_ms))
  		cac_time_ms = IEEE80211_DFS_MIN_CAC_TIME_MS;
  
-Index: backports-20220822-5.4.213-ef7197996efe/net/wireless/reg.h
-===================================================================
---- backports-20220822-5.4.213-ef7197996efe.orig/net/wireless/reg.h	2023-05-12 14:29:40.000000000 +0530
-+++ backports-20220822-5.4.213-ef7197996efe/net/wireless/reg.h	2023-05-30 15:26:33.597655373 +0530
-@@ -154,6 +154,8 @@ bool regulatory_indoor_allowed(void);
-  */
- #define REG_PRE_CAC_EXPIRY_GRACE_MS 2000
- 
-+#define REG_BG_PRE_CAC_EXPIRY_GRACE_MS 2000
-+
- /**
-  * regulatory_propagate_dfs_state - Propagate DFS channel state to other wiphys
-  * @wiphy - wiphy on which radar is detected and the event will be propagated

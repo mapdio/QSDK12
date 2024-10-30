@@ -1,7 +1,7 @@
 /*
  * Copyright (c) 2014, 2017-2019, 2021, The Linux Foundation. All rights reserved.
  *
- * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2023 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
@@ -33,6 +33,7 @@ extern "C" {
 
 #define SSDK_MAX_VIRTUAL_PORT_NUM   \
 	(SSDK_MAX_VIRTUAL_PORT_ID-SSDK_MIN_VIRTUAL_PORT_ID+1)
+#define IOCTL_COMPAT
 
 /*qca808x_start*/
     typedef enum {
@@ -132,8 +133,11 @@ extern "C" {
 	    CHIP_SCOMPHY,
 	    CHIP_APPE,
 	    CHIP_MHT,
+	    CHIP_MRPPE,
     } ssdk_chip_type;
 /*qca808x_end*/
+
+#define APPE_REVISION       0x0
 #define MPPE_REVISION		0x1
 
     typedef struct
@@ -263,6 +267,17 @@ typedef struct
         a_bool_t in_interfacectrl;
     } ssdk_features;
 /*qca808x_start*/
+#ifdef IOCTL_COMPAT
+	typedef struct
+	{		
+		hsl_init_mode	cpu_mode;
+		hsl_access_mode reg_mode;
+		ssdk_chip_type	chip_type;
+		a_uint32_t		chip_revision;
+		a_uint32_t		nl_prot;
+	} ssdk_init_cfg_us;
+#endif
+
 #define CFG_STR_SIZE	20
     typedef struct
     {
@@ -279,7 +294,11 @@ typedef struct
 /*qca808x_end*/
         ssdk_features features;
 /*qca808x_start*/
+#ifdef IOCTL_COMPAT
+        ssdk_init_cfg_us init_cfg;
+#else
         ssdk_init_cfg init_cfg;
+#endif
     } ssdk_cfg_t;
     sw_error_t
     ssdk_init(a_uint32_t dev_id, ssdk_init_cfg *cfg);

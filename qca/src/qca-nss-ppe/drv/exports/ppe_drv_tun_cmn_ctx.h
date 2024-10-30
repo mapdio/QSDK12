@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2024 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for any
  * purpose with or without fee is hereby granted, provided that the above
@@ -49,6 +49,28 @@
 #define PPE_DRV_TUN_CMN_CTX_GRE_R_CSUM		0x08	/**< Remote checksum is enabled >*/
 
 /*
+ * ppe_drv_tun_cmn_ctx_encap_ecn
+ *	PPE tunnel encap ecn mode
+ */
+enum ppe_drv_tun_cmn_ctx_encap_ecn {
+	PPE_DRV_TUN_CMN_CTX_ENCAP_ECN_NO_UPDATE,			 /**< no update ecn >*/
+	PPE_DRV_TUN_CMN_CTX_ENCAP_ECN_RFC3168_LIMIT_RFC6040_CMPAT_MODE,	 /**< RFC3168 limitation mode
+									      RFC6040 compatibility mode for encapsulation >*/
+	PPE_DRV_TUN_CMN_CTX_ENCAP_ECN_RFC3168_FULL_MODE,		 /**< RFC3168 full mode for encapsulation >*/
+	PPE_DRV_TUN_CMN_CTX_ENCAP_ECN_RFC4301_RFC6040_NORMAL_MODE,	 /**< RFC4301 mode and RFC6040 normal mode for encapsulation >*/
+};
+
+/*
+ * ppe_drv_tun_cmn_ctx_decap_ecn
+ *	PPE tunnel decap ecn mode
+ */
+enum ppe_drv_tun_cmn_ctx_decap_ecn {
+	PPE_DRV_TUN_CMN_CTX_DECAP_ECN_RFC3168_MODE = 0,	/* RFC3168 mode for decapsulation */
+	PPE_DRV_TUN_CMN_CTX_DECAP_ECN_RFC4301_MODE = 1,	/* RFC4301 mode for decapsulation */
+	PPE_DRV_TUN_CMN_CTX_DECAP_ECN_RFC6040_MODE = 2,	/* RFC6040 mode for decapsulation */
+};
+
+/*
  * ppe_drv_tun_cmn_ctx_type
  *	PPE Tunnel types
  */
@@ -57,20 +79,8 @@ enum ppe_drv_tun_cmn_ctx_type {
 	PPE_DRV_TUN_CMN_CTX_TYPE_VXLAN,		/**< PPE Tunnel header type VxLAN >*/
 	PPE_DRV_TUN_CMN_CTX_TYPE_IPIP6,		/**< PPE Tunnel header type DSLite/MAP-E >*/
 	PPE_DRV_TUN_CMN_CTX_TYPE_MAPT,		/**< PPE Tunnel header type MAP-T >*/
+	PPE_DRV_TUN_CMN_CTX_TYPE_L2TP_V2,	/**< PPE Tunnel header type L2TP-V2 >*/
 	PPE_DRV_TUN_CMN_CTX_TYPE_MAX
-};
-
-/*
- * ppe_drv_tun_cmn_ctx_stats
- *	Tunnel statistics
- */
-struct ppe_drv_tun_cmn_ctx_stats {
-	uint64_t tx_bytes;		/**< Packet transmit counter in bytes >*/
-	uint64_t rx_bytes;		/**< Packet receive counter in bytes >*/
-	uint64_t rx_drop_bytes;		/**< Packet drop counter in bytes >*/
-	uint32_t rx_drop_pkts;		/**< Packet drop counter >*/
-	uint32_t tx_pkts;		/**< Packet transmit counter >*/
-	uint32_t rx_pkts;		/**< Packet receive counter >*/
 };
 
 /*
@@ -84,6 +94,8 @@ struct ppe_drv_tun_cmn_ctx_l3 {
 	uint16_t proto;		/**< IP protocol >*/
 	uint8_t dscp;		/**< Static DSCP value for outer header >*/
 	uint8_t ttl;		/**< Static TTL value for outer header >*/
+	enum ppe_drv_tun_cmn_ctx_encap_ecn encap_ecn_mode;	/**< RFC for ECN in encap direction >*/
+	enum ppe_drv_tun_cmn_ctx_decap_ecn decap_ecn_mode;	/**< RFC for ECN in decap direction >*/
 };
 
 /*
@@ -167,6 +179,19 @@ struct ppe_drv_tun_cmn_ctx_mapt {
 };
 
 /*
+ * ppe_drv_tun_cmn_ctx_l2tp
+ * 	L2TP header parameters
+ */
+struct ppe_drv_tun_cmn_ctx_l2tp {
+	uint16_t sport;			/**< Source Port >*/
+	uint16_t dport;			/**< Destination Port >*/
+	uint32_t tunnel_id;		/**< Tunnel ID >*/
+	uint32_t peer_tunnel_id;	/**< Peer Tunnel ID >*/
+	uint32_t session_id;		/**< Session ID >*/
+	uint32_t peer_session_id;	/**< Peer Session ID >*/
+};
+
+/*
  * ppe_drv_tun_cmn_ctx
  *	PPE tunnel header parameters
  */
@@ -177,6 +202,7 @@ struct ppe_drv_tun_cmn_ctx {
 		struct ppe_drv_tun_cmn_ctx_gretap gre;	/**< GRE tunnel configuration >*/
 		struct ppe_drv_tun_cmn_ctx_vxlan vxlan;	/**< VxLAN tunnel configuration >*/
 		struct ppe_drv_tun_cmn_ctx_mapt mapt;	/**< Map-T tunnel configuration >*/
+		struct ppe_drv_tun_cmn_ctx_l2tp l2tp;	/**< L2TP tunnel configuration >*/
 	} tun;
 	enum ppe_drv_tun_cmn_ctx_type type;
 };

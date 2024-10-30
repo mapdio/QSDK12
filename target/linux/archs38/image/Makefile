@@ -1,9 +1,7 @@
+# SPDX-License-Identifier: GPL-2.0-only
 #
 # Copyright (C) 2016 OpenWrt.org
-#
-# This is free software, licensed under the GNU General Public License v2.
-# See /LICENSE for more information.
-#
+
 include $(TOPDIR)/rules.mk
 include $(INCLUDE_DIR)/image.mk
 
@@ -26,15 +24,17 @@ endef
 
 define Device/nsim_hs
 	$(call Device/vmlinux)
+	DEVICE_VENDOR := Synopsys
+	DEVICE_MODEL := nSIM HS
 	DEVICE_PROFILE := nsim_hs
-	DEVICE_DTS := nsim_hs_idu
+	DEVICE_DTS := haps_hs
 endef
 TARGET_DEVICES += nsim_hs
 endif
 
 # Root FS on SD-card
 KERNEL_LOADADDR := 0x90000000
-DEVICE_DTS_LIST:= axs103_idu nsim_hs_idu hsdk
+DEVICE_DTS_LIST:= axs103_idu haps_hs hsdk
 FAT32_BLOCK_SIZE=1024
 FAT32_BLOCKS=$(shell echo $$(($(CONFIG_AXS10X_SD_BOOT_PARTSIZE)*1024*1024/$(FAT32_BLOCK_SIZE))))
 

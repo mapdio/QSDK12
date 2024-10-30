@@ -1,6 +1,6 @@
 /*
  * Copyright (c) 2018-2019, 2021, The Linux Foundation. All rights reserved.
- * Copyright (c) 2022-2023 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2024 Qualcomm Innovation Center, Inc. All rights reserved.
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
  * above copyright notice and this permission notice appear in all copies.
@@ -31,7 +31,7 @@ struct qca808x_phy_info* qca808x_phy_info_get(a_uint32_t phy_addr)
 {
 	struct qca808x_phy_info *pdata = NULL;
 	list_for_each_entry(pdata, &g_qca808x_phy_list, list) {
-		if (pdata->phydev_addr == phy_addr) {
+		if (pdata->phy_addr == phy_addr) {
 			return pdata;
 		}
 	}
@@ -50,7 +50,7 @@ static a_bool_t qca808x_sfp_present(struct phy_device *phydev)
 		SSDK_ERROR("pdata is null\n");
 		return A_FALSE;
 	}
-	rv = qca808x_phy_get_phy_id(pdata->dev_id, pdata->phy_addr, &phy_id);
+	rv = qcaphy_get_phy_id(pdata->dev_id, pdata->phy_addr, &phy_id);
 	if(rv == SW_READ_ERROR) {
 		return A_FALSE;
 	}
@@ -66,7 +66,7 @@ static sw_error_t qca808x_phy_config_init(struct phy_device *phydev)
 #else
 	__ETHTOOL_DECLARE_LINK_MODE_MASK(mask) = { 0, };
 #endif
-	a_uint32_t dev_id = 0, phy_id = 0, ability = 0;
+	a_uint32_t dev_id = 0, phy_addr = 0, ability = 0, autoneg = 0;
 	qca808x_priv *priv = phydev->priv;
 	struct qca808x_phy_info *pdata = priv->phy_info;
 
@@ -75,7 +75,7 @@ static sw_error_t qca808x_phy_config_init(struct phy_device *phydev)
 	}
 
 	dev_id = pdata->dev_id;
-	phy_id = pdata->phy_addr;
+	phy_addr = pdata->phy_addr;
 
 #if (LINUX_VERSION_CODE < KERNEL_VERSION(5, 0, 0))
 	features = SUPPORTED_TP | SUPPORTED_MII |
@@ -86,8 +86,11 @@ static sw_error_t qca808x_phy_config_init(struct phy_device *phydev)
 	linkmode_set_bit(ETHTOOL_LINK_MODE_AUI_BIT, mask);
 	linkmode_set_bit(ETHTOOL_LINK_MODE_BNC_BIT, mask);
 #endif
-	rv = qca808x_phy_get_ability(dev_id, phy_id, &ability);
+	rv = qca808x_phy_get_ability(dev_id, phy_addr, &ability);
 	SW_RTN_ON_ERROR(rv);
+	rv = qca808x_phy_get_autoneg_adv(dev_id, phy_addr, &autoneg);
+	SW_RTN_ON_ERROR(rv);
+	ability &= autoneg;
 	if (ability & FAL_PHY_ADV_AUTONEG) {
 #if (LINUX_VERSION_CODE < KERNEL_VERSION(5, 0, 0))
 		features |= SUPPORTED_Autoneg;
@@ -201,7 +204,7 @@ static int qca808x_ack_interrupt(struct phy_device *phydev)
 	dev_id = pdata->dev_id;
 	phy_id = pdata->phy_addr;
 
-	err = qca808x_phy_reg_read(dev_id, phy_id,
+	err = hsl_phy_mii_reg_read(dev_id, phy_id,
 			QCA808X_PHY_INTR_STATUS);
 
 	return (err < 0) ? err : 0;
@@ -213,8 +216,12 @@ static int qca808x_config_intr(struct phy_device *phydev)
 	a_uint16_t phy_data;
 	a_uint32_t dev_id = 0, phy_id = 0;
 	qca808x_priv *priv = phydev->priv;
-	const struct qca808x_phy_info *pdata = priv->phy_info;
+	struct qca808x_phy_info *pdata = NULL;
+	/*if priv is null, no need to configure the phy device*/
+	if(!priv)
+		return 0;
 
+	pdata = priv->phy_info;
 	if (!pdata) {
 		return SW_FAIL;
 	}
@@ -222,7 +229,7 @@ static int qca808x_config_intr(struct phy_device *phydev)
 	dev_id = pdata->dev_id;
 	phy_id = pdata->phy_addr;
 
-	phy_data = qca808x_phy_reg_read(dev_id, phy_id,
+	phy_data = hsl_phy_mii_reg_read(dev_id, phy_id,
 			QCA808X_PHY_INTR_MASK);
 
 	if (phydev->interrupts == PHY_INTERRUPT_ENABLED) {
@@ -231,11 +238,11 @@ static int qca808x_config_intr(struct phy_device *phydev)
 		if (err < 0)
 			return err;
 #endif
-		err = qca808x_phy_reg_write(dev_id, phy_id,
+		err = hsl_phy_mii_reg_write(dev_id, phy_id,
 				QCA808X_PHY_INTR_MASK,
 				phy_data | QCA808X_INTR_INIT);
 	} else {
-		err = qca808x_phy_reg_write(dev_id, phy_id,
+		err = hsl_phy_mii_reg_write(dev_id, phy_id,
 				QCA808X_PHY_INTR_MASK, 0);
 #if (LINUX_VERSION_CODE >= KERNEL_VERSION(5, 11, 0))
 		if (err)
@@ -321,8 +328,8 @@ static a_uint32_t qca808x_negtiation_cap_get(struct phy_device *phydev)
 static int qca808x_config_aneg(struct phy_device *phydev)
 {
 	a_uint32_t advertise = 0, advertise_old = 0;
-	a_uint16_t phy_data = 0;
-	int err = 0;
+	a_uint16_t phy_data = 0, mask = 0;
+	sw_error_t err = 0;
 	a_uint32_t dev_id = 0, phy_id = 0;
 	qca808x_priv *priv = phydev->priv;
 	const struct qca808x_phy_info *pdata = priv->phy_info;
@@ -333,7 +340,7 @@ static int qca808x_config_aneg(struct phy_device *phydev)
 	}
 
 	if (!pdata) {
-		return SW_FAIL;
+		return -EINVAL;
 	}
 
 	dev_id = pdata->dev_id;
@@ -344,21 +351,20 @@ static int qca808x_config_aneg(struct phy_device *phydev)
 		phydev->pause = 0;
 		phydev->asym_pause = 0;
 
-		phy_data = qca808x_phy_reg_read(dev_id, phy_id, QCA808X_PHY_CONTROL);
-		phy_data &= ~QCA808X_CTRL_AUTONEGOTIATION_ENABLE;
+		mask = QCA808X_CTRL_AUTONEGOTIATION_ENABLE | QCA808X_CTRL_FULL_DUPLEX;
 		if (phydev->duplex == FAL_FULL_DUPLEX) {
 			phy_data |= QCA808X_CTRL_FULL_DUPLEX;
-		} else {
-			phy_data &= ~QCA808X_CTRL_FULL_DUPLEX;
 		}
-		qca808x_phy_reg_write(dev_id, phy_id, QCA808X_PHY_CONTROL, phy_data);
+		hsl_phy_modify_mii(dev_id, phy_id, QCA808X_PHY_CONTROL, mask,
+			phy_data);
 		err = qca808x_phy_set_force_speed(dev_id, phy_id, phydev->speed);
 	} else {
 		/* autoneg enabled */
 		advertise = qca808x_negtiation_cap_get(phydev);
-		/*link would be down if there is no speed adv except for pause*/
+		/*link would be down if there is no speed adv except for pause,
+		 so needn't to configure adv*/
 		if(!(advertise & ~(FAL_PHY_ADV_PAUSE | FAL_PHY_ADV_ASY_PAUSE))) {
-			return SW_BAD_VALUE;
+			return 0;
 		}
 		err |= qca808x_phy_get_autoneg_adv(dev_id, phy_id, &advertise_old);
 		SSDK_DEBUG("advertise:0x%x, advertise_old:0x%x\n", advertise, advertise_old);
@@ -368,8 +374,12 @@ static int qca808x_config_aneg(struct phy_device *phydev)
 			err |= qca808x_phy_restart_autoneg(dev_id, phy_id);
 		}
 	}
+	if(err != SW_OK) {
+		SSDK_ERROR("qca808x phy configure failed\n");
+		return -EPERM;
+	}
 
-	return err;
+	return 0;
 }
 
 static int qca808x_aneg_done(struct phy_device *phydev)
@@ -387,7 +397,7 @@ static int qca808x_aneg_done(struct phy_device *phydev)
 	dev_id = pdata->dev_id;
 	phy_id = pdata->phy_addr;
 
-	phy_data = qca808x_phy_reg_read(dev_id, phy_id,
+	phy_data = hsl_phy_mii_reg_read(dev_id, phy_id,
 			QCA808X_PHY_STATUS);
 
 	return (phy_data < 0) ? phy_data : (phy_data & QCA808X_STATUS_AUTO_NEG_DONE);
@@ -483,29 +493,33 @@ static int qca808x_read_status(struct phy_device *phydev)
 	} else {
 		phydev->link = QCA808X_PHY_LINK_DOWN;
 	}
-
-	switch (phy_status.speed) {
-		case FAL_SPEED_2500:
-			phydev->speed = SPEED_2500;
-			break;
-		case FAL_SPEED_1000:
-			phydev->speed = SPEED_1000;
-			break;
-		case FAL_SPEED_100:
-			phydev->speed = SPEED_100;
-			break;
-		default:
-			phydev->speed = SPEED_10;
-			break;
-	}
-
-	if (phy_status.duplex == FAL_FULL_DUPLEX) {
-		phydev->duplex = DUPLEX_FULL;
+	if(!phydev->link) {
+		phydev->speed = SPEED_UNKNOWN;
+		phydev->duplex = DUPLEX_UNKNOWN;
 	} else {
-		phydev->duplex = DUPLEX_HALF;
+		switch (phy_status.speed) {
+			case FAL_SPEED_2500:
+				phydev->speed = SPEED_2500;
+				break;
+			case FAL_SPEED_1000:
+				phydev->speed = SPEED_1000;
+				break;
+			case FAL_SPEED_100:
+				phydev->speed = SPEED_100;
+				break;
+			default:
+				phydev->speed = SPEED_10;
+				break;
+		}
+
+		if (phy_status.duplex == FAL_FULL_DUPLEX) {
+			phydev->duplex = DUPLEX_FULL;
+		} else {
+			phydev->duplex = DUPLEX_HALF;
+		}
 	}
 	/*get the link partner ability*/
-	SW_RTN_ON_ERROR(qca808x_phy_get_partner_ability(dev_id, phy_id, &lp_adv));
+	qca808x_phy_get_partner_ability(dev_id, phy_id, &lp_adv);
 	qca808x_lp_adv_to_ethtool_adv(phydev, lp_adv);
 	/*get the link partner pause*/
 	phy_resolve_aneg_pause(phydev);
@@ -542,7 +556,7 @@ static int qca808x_resume(struct phy_device *phydev)
 	dev_id = pdata->dev_id;
 	phy_id = pdata->phy_addr;
 
-	return qca808x_phy_poweron(dev_id, phy_id);
+	return qcaphy_poweron(dev_id, phy_id);
 }
 
 #if (LINUX_VERSION_CODE >= KERNEL_VERSION(4,4,0))
@@ -576,32 +590,11 @@ static void qca808x_link_change_notify(struct phy_device *phydev)
 
 int qca808x_phy_probe(struct phy_device *phydev)
 {
-	qca808x_priv *priv;
 	int err = 0;
 
-	priv = kzalloc(sizeof(qca808x_priv), GFP_KERNEL);
-	if (!priv) {
-		return -ENOMEM;
-	}
-
-	priv->phydev = phydev;
-#if (LINUX_VERSION_CODE < KERNEL_VERSION(4, 9, 0))
-	priv->phy_info = qca808x_phy_info_get(phydev->addr);
-#else
-	priv->phy_info = qca808x_phy_info_get(phydev->mdio.addr);
-#endif
-	/*for switch ports, the phys may also be probed here, but
-	* failed because switch phys are init on another device, so
-	* return ok for the case.
-	*/
-	if(!priv->phy_info) {
-		kfree(priv);
-		return 0;
-	}
-	phydev->priv = priv;
-
 #if defined(IN_LINUX_STD_PTP)
-	err = qca808x_ptp_init(priv);
+	if(phydev->priv != NULL)
+		err = qca808x_ptp_init((qca808x_priv*)(phydev->priv));
 #endif
 
 	return err;
@@ -623,6 +616,26 @@ int qca808x_match_phy_device(struct phy_device *phydev)
 	return false;
 }
 
+static int qca808x_phy_read_abilities(struct phy_device *pdev)
+{
+	int features[] = {
+		ETHTOOL_LINK_MODE_10baseT_Half_BIT,
+		ETHTOOL_LINK_MODE_10baseT_Full_BIT,
+		ETHTOOL_LINK_MODE_100baseT_Half_BIT,
+		ETHTOOL_LINK_MODE_100baseT_Full_BIT,
+		ETHTOOL_LINK_MODE_1000baseT_Full_BIT,
+		ETHTOOL_LINK_MODE_2500baseT_Full_BIT,
+		ETHTOOL_LINK_MODE_Pause_BIT,
+		ETHTOOL_LINK_MODE_Asym_Pause_BIT,
+		ETHTOOL_LINK_MODE_Autoneg_BIT,
+	};
+
+	linkmode_set_bit_array(features, ARRAY_SIZE(features),
+		pdev->supported);
+
+	return 0;
+}
+
 void qca808x_phy_remove(struct phy_device *phydev)
 {
 	qca808x_priv *priv = phydev->priv;
@@ -638,7 +651,7 @@ struct phy_driver qca808x_phy_driver = {
 	.phy_id		= QCA8081_PHY_V1_1,
 	.phy_id_mask    = 0xffffff00,
 	.name		= QCA808X_SSDK_PHY_DRIVER_NAME,
-	.features	= PHY_GBIT_FEATURES,
+	.get_features	= qca808x_phy_read_abilities,
 #if (LINUX_VERSION_CODE < KERNEL_VERSION(5, 0, 0))
 	.flags		= PHY_HAS_INTERRUPT,
 #endif
@@ -694,7 +707,10 @@ void qca808x_phy_driver_unregister(void)
 
 void qca808x_phydev_init(a_uint32_t dev_id, a_uint32_t port_id)
 {
-	struct qca808x_phy_info *pdata;
+	struct phy_device *phydev = NULL;
+	qca808x_priv *priv = NULL;
+
+	struct qca808x_phy_info *pdata = NULL;
 	pdata = kzalloc(sizeof(struct qca808x_phy_info), GFP_KERNEL);
 
 	if (!pdata) {
@@ -706,19 +722,30 @@ void qca808x_phydev_init(a_uint32_t dev_id, a_uint32_t port_id)
 	pdata->dev_id = dev_id;
 	/* the phy address may be the i2c slave addr or mdio addr */
 	pdata->phy_addr = qca_ssdk_port_to_phy_addr(dev_id, port_id);
-	pdata->phydev_addr = pdata->phy_addr;
+	pdata->phydev_addr = TO_PHY_ADDR(pdata->phy_addr);
+
+	hsl_port_phydev_get(dev_id, port_id, &phydev);
+	if(phydev) {
+		priv = kzalloc(sizeof(qca808x_priv), GFP_KERNEL);
+		if (!priv) {
+			return;
+		}
+		priv->phydev = phydev;
+		priv->phy_info = pdata;
+		phydev->priv = priv;
+	}
 #if defined(IN_PHY_I2C_MODE)
 	/* in i2c mode, need to register a fake phy device
 	 * before the phy driver register */
 	if (hsl_port_phy_access_type_get(dev_id, port_id) == PHY_I2C_ACCESS) {
 		a_uint32_t phy_id = QCA8081_PHY_V1_1;
-		qca808x_phy_get_phy_id(dev_id, pdata->phy_addr, &phy_id);
+		qcaphy_get_phy_id(dev_id, pdata->phy_addr, &phy_id);
 		if(phy_id != QCA8081_PHY_V1_1 && phy_id != INVALID_PHY_ID) {
 			SSDK_ERROR("phy id 0x%x is not supported\n", phy_id);
 			return;
 		}
 		pdata->phydev_addr = qca_ssdk_port_to_phy_mdio_fake_addr(dev_id, port_id);
-		sfp_phy_device_setup(dev_id, port_id, phy_id);
+		sfp_phy_device_setup(dev_id, port_id, phy_id, pdata);
 	}
 #endif
 }

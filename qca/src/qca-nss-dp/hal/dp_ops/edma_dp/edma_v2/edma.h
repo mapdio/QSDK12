@@ -1,7 +1,7 @@
 /*
  * Copyright (c) 2021, The Linux Foundation. All rights reserved.
  *
- * Copyright (c) 2022-2023 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2024 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for any
  * purpose with or without fee is hereby granted, provided that the above
@@ -22,6 +22,12 @@
 #include <fal/fal_qm.h>
 #include <fal/fal_qos.h>
 #include <linux/netdevice.h>
+#include <linux/reset.h>
+#include <linux/of_platform.h>
+#include <linux/version.h>
+#if (LINUX_VERSION_CODE > KERNEL_VERSION(6, 6, 0))
+#include <net/gso.h>
+#endif
 #include <nss_dp_arch.h>
 #include <nss_dp_api_if.h>
 #include <nss_dp_hal_if.h>
@@ -45,12 +51,44 @@
 #endif
 
 #define EDMA_HW_RESET_ID		"edma_rst"
+#define EDMA_CFG_RESET_ID		"edma_cfg_rst"
 #define EDMA_DEVICE_NODE_NAME		"edma"
 #define EDMA_START_GMACS		NSS_DP_HAL_START_IFNUM
 #define EDMA_MAX_GMACS			NSS_DP_HAL_MAX_PORTS
 #define EDMA_MAX_PORTS			NSS_DP_MAX_PORTS
+
+#ifdef NSS_DP_MHT_SW_PORT_MAP
+#define EDMA_MAX_TX_PORTS		NSS_DP_HAL_MAX_TX_PORTS
+#define EDMA_MAC_TX_MAP			EDMA_MAX_TX_PORTS
+
+/*
+ * If enabled, separate rings is allocated for VP port.
+ * Else, VP port shares it's rings with MHT.
+ */
+#ifdef NSS_DP_EDMA_MHT_SW_WITH_VP_RING
+#define EDMA_MAX_FC_GRP			EDMA_MAX_TX_PORTS - 1
+#else
+#define EDMA_MAX_FC_GRP			EDMA_MAX_TX_PORTS
+#endif
+
+/*
+ * If enabled, We need to skip the 12 interrupts
+ * that belongs to 4 PPEDS nodes. Else, skip 6
+ * interrupts that belong to 2 PPEDS nodes.
+ */
+#ifdef NSS_DP_EDMA_SKIP_FOUR_PPEDS_NODES
+#define EDMA_PPEDS_IRQS			12
+#else
+#define EDMA_PPEDS_IRQS			6
+#endif
+
+#else
+#define EDMA_MAX_TX_PORTS		EDMA_TX_RING_PER_CORE_MAX
+#define EDMA_MAX_FC_GRP			EDMA_MAX_GMACS
+#define EDMA_MAC_TX_MAP			EDMA_MAX_PORTS
+#endif
+
 #define EDMA_IRQ_NAME_SIZE		32
-#define EDMA_SC_BYPASS			1
 #define EDMA_NETDEV_FEATURES		NETIF_F_FRAGLIST \
 					| NETIF_F_SG \
 					| NETIF_F_RXCSUM \
@@ -61,6 +99,7 @@
 #define EDMA_SWITCH_DEV_ID	0
 #define EDMA_PPE_QUEUE_LEVEL	0
 #define EDMA_BITS_IN_WORD	32
+#define EDMA_MHT_SWITCH_PORT_ID	1
 
 /*
  * Maximum queue priority
@@ -83,6 +122,16 @@
  * QID to RID Table
  */
 #define EDMA_QID2RID_TABLE_MEM(q)	(0xb9000 + (0x4 * (q)))
+
+#define EDMA_TIMESTAMP_SEC_MASK		EDMA_RX_SDESC_TSTAMP_HI_MASK
+#define EDMA_TIMESTAMP_NSEC_TO_USEC(x)	((x) / 1000)
+#define EDMA_TIMESTAMP_TO_USEC(x, y)	(((uint64_t)(x) * 1000000) + (EDMA_TIMESTAMP_NSEC_TO_USEC(y)))
+
+/*
+ * Indicate the maximum 4MB byte of data which is expected to be used
+ * So array of EDMA_MAX_LOOPBACK_BUF will have pointer to memory of max 4MB
+ */
+#define EDMA_MAX_LOOPBACK_BUF 8
 
 /*
  * edma_port_ucast_queues
@@ -121,18 +170,17 @@ enum edma_cpu_port_mcast_queues {
 #define EDMA_QID2RID_NUM_PER_REG	4
 
 /*
- * EDMA clock frequency: 352 MHZ
- * So, one clock cycle = (1/352) micro seconds
+ * One clock cycle = 1/(EDMA clock frequency in Mhz) micro seconds
  *
  * One timer unit is 128 clock cycles.
  *
  * So, therefore the microsecond to timer unit calculation is:
  * Timer unit	= time in microseconds / (one clock cycle in microsecond * cycles in 1 timer unit)
- * 		= ('x' microsecond * 352 / 128)
+ * 		= ('x' microsecond * EDMA clock frequency in MHz ('y') / 128)
  */
-#define EDMA_CLK_FREQ		352
 #define CYCLE_PER_TIMER_UNIT	128
-#define MICROSEC_TO_TIMER_UNIT(x)	(((x) * EDMA_CLK_FREQ) / CYCLE_PER_TIMER_UNIT)
+#define MICROSEC_TO_TIMER_UNIT(x, y)	((x) * (y) / CYCLE_PER_TIMER_UNIT)
+#define MHZ			1000000UL
 
 #define EDMA_DESC_AVAIL_COUNT(head, tail, max) (((head) - (tail)) + (max)) & ((max) - 1)
 
@@ -147,6 +195,16 @@ enum edma_cpu_port_mcast_queues {
 #define EDMA_MISC_TX_CMPL_BUF_FULL_STATUS_GET(x)		(((x) & EDMA_MISC_TX_CMPL_BUF_FULL_MASK) >> 5)
 #define EDMA_MISC_DATA_LEN_ERR_STATUS_GET(x)		(((x) & EDMA_MISC_DATA_LEN_ERR_MASK) >> 6)
 #define EDMA_MISC_TX_TIMEOUT_STATUS_GET(x)		(((x) & EDMA_MISC_TX_TIMEOUT_MASK) >> 7)
+
+/*
+ * EDMA Ring usage stats macro
+ */
+enum edma_ring_usage_percentage {
+	EDMA_RING_USAGE_50_PERCENTAGE = 50,
+	EDMA_RING_USAGE_70_PERCENTAGE = 70,
+	EDMA_RING_USAGE_90_PERCENTAGE = 90,
+	EDMA_RING_USAGE_100_PERCENTAGE = 100,
+};
 
 /*
  * edma_misc_stats
@@ -185,6 +243,19 @@ struct edma_pcpu_stats {
 			/* Per CPU Tx statistics */
 };
 
+#if defined(NSS_DP_EDMA_LOOPBACK_SUPPORT)
+/*
+ * edma_dp_loopback_buf_info
+ *	Loopback buffer info
+ */
+struct edma_dp_loopback_buf_info {
+	unsigned long loopback_buf;
+			/* Array to hold loopback rxfill ring buffer address */
+	int loopback_order;
+			/* Order for loopback rxfill page allocation */
+};
+#endif
+
 /*
  * EDMA private data structure
  */
@@ -193,6 +264,12 @@ struct edma_gbl_ctx {
 			/* Net device for each GMAC port */
 	struct device_node *device_node;
 			/* Device tree node */
+	struct reset_control *hw_rst;
+			/* Hardware reset
+ 			 * TODO - Revisit if this hardware reset is actually required.
+			 */
+	struct reset_control *cfg_rst;
+			/* EDMA configuration reset */
 	struct platform_device *pdev;
 			/* Platform device */
 	void __iomem *reg_base;
@@ -216,6 +293,16 @@ struct edma_gbl_ctx {
 	struct edma_txcmpl_ring *txcmpl_rings;
 			/* Tx complete Ring, SW is consumer */
 
+#if defined(NSS_DP_EDMA_LOOPBACK_SUPPORT)
+	struct edma_rxdesc_ring *rxdesc_loopback_rings;
+			/* Rx Descriptor loopback ring */
+	struct edma_rxfill_ring *rxfill_loopback_rings;
+			/* Rx Fill loopback ring */
+	struct edma_txdesc_ring *txdesc_loopback_rings;
+			/* TX descriptor loopback ring */
+	struct edma_txcmpl_ring *txcmpl_loopback_rings;
+			/* TX completion loopback ring */
+#endif
 	uint32_t rxfill_ring_map[EDMA_RXFILL_RING_PER_CORE_MAX][NR_CPUS];
 			/* Rx Fill ring per-core mapping from device tree */
 	uint32_t rxdesc_ring_map[EDMA_RXDESC_RING_PER_CORE_MAX][NR_CPUS];
@@ -224,9 +311,9 @@ struct edma_gbl_ctx {
 			/* Bitmap of mapped PPE queue ids of the Rx descriptor rings */
 	int32_t tx_to_txcmpl_map[EDMA_MAX_TXDESC_RINGS];
 			/* Tx ring to Tx complete ring mapping */
-	int32_t tx_map[EDMA_TX_RING_PER_CORE_MAX][NR_CPUS];
+	int32_t tx_map[EDMA_MAX_TX_PORTS][NR_CPUS];
 			/* Per core Tx ring to core mapping */
-	int32_t tx_fc_grp_map[EDMA_MAX_GMACS];
+	int32_t tx_fc_grp_map[EDMA_MAX_FC_GRP];
 			/* Per GMAC TxDesc ring to flow control group mapping */
 	int32_t txcmpl_map[EDMA_TXCMPL_RING_PER_CORE_MAX][NR_CPUS];
 			/* Tx complete ring to core mapping */
@@ -304,6 +391,31 @@ struct edma_gbl_ctx {
 	uint16_t point_offload_queue;
 			/* Point offload base queue id */
 #endif
+#if defined(NSS_DP_EDMA_LOOPBACK_SUPPORT)
+	uint32_t loopback_ring_size;
+			/* Loopback ring size */
+	uint32_t loopback_buf_size;
+			/* Loopback buffer size */
+	uint32_t num_loopback_rings;
+			/* Number of loopback rings */
+	uint32_t rxdesc_loopback_ring_to_queue_bm[EDMA_RING_MAPPED_QUEUE_BM_WORD_COUNT];
+			/* PPE queue ids of the Rx descriptor loopback rings */
+	uint8_t *txdesc_loopback_ring_id_arr;
+			/* Array of TX desc Ring IDs */
+	uint8_t *txcmpl_loopback_ring_id_arr;
+			/* Array of TX completion Ring IDs */
+	uint8_t *rxdesc_loopback_ring_id_arr;
+			/* Array of RX desc Ring IDs */
+	uint8_t *rxfill_loopback_ring_id_arr;
+			/* Array of RX fill Ring IDs */
+	uint32_t loopback_queue_base;
+			/* Loopback Base Queue ID */
+	uint32_t loopback_num_queues;
+			/* Number of loopback queues */
+	bool loopback_en;
+			/* Loopback enabled */
+	struct edma_dp_loopback_buf_info buf_info[EDMA_MAX_LOOPBACK_BUF];
+#endif
 	bool edma_initialized;
 			/* Flag to check initialization status */
 	uint32_t rx_ring_queue_map[EDMA_MAX_PRI_PER_CORE][NR_CPUS];
@@ -315,9 +427,31 @@ struct edma_gbl_ctx {
 #endif
 	uint8_t rx_queue_start;
 			/* Rx queue start */
+	bool enable_ring_util_stats;
+			/* Flag for tracking ring utilization */
+#ifdef NSS_DP_MHT_SW_PORT_MAP
+	uint8_t max_tx_ports;
+			/* Max Tx ports */
+	uint32_t mht_tx_ports;
+			/* Max MHT Tx ports */
+	uint32_t mht_txcmpl_ports;
+			/* Max MHT Txcmpl ports */
+#endif
+	struct work_struct work;
+                        /* Creating work struct */
+	uint32_t edma_timer_rate;
+			/* EDMA clock's timer rate in Mhz */
+
+#ifdef CONFIG_SKB_TIMESTAMP
+	void __iomem *tstamp_sec;
+			/* EDMA timestamp value in second */
+	void __iomem *tstamp_nsec;
+			/* EDMA timestamp value in nano-second */
+#endif
 };
 
 extern struct edma_gbl_ctx edma_gbl_ctx;
+extern uint32_t edma_hang_recover;
 
 int edma_irq_init(void);
 irqreturn_t edma_misc_handle_irq(int irq, void *ctx);
@@ -326,6 +460,7 @@ void edma_misc_stats_free(void);
 void edma_enable_interrupts(struct edma_gbl_ctx *egc);
 void edma_disable_interrupts(struct edma_gbl_ctx *egc);
 void edma_configure_rps_hash_map(struct edma_gbl_ctx *egc);
+int edma_hang_recovery_handler(struct ctl_table *table, int write, void __user *buffer, size_t *lenp, loff_t *ppos);
 
 /*
  * edma_reg_read()
@@ -343,6 +478,71 @@ static inline uint32_t edma_reg_read(uint32_t reg_off)
 static inline void edma_reg_write(uint32_t reg_off, uint32_t val)
 {
 	hal_write_reg(edma_gbl_ctx.reg_base, reg_off, val);
+}
+
+/*
+ * edma_update_ring_stats
+ *	Update the ring util stats
+ */
+static inline int edma_update_ring_stats(uint32_t work_to_do, uint32_t max_desc,
+					 struct edma_ring_util_stats *ring_util)
+{
+	int ring_usage;
+
+	ring_usage = (100 * work_to_do)/max_desc;
+
+	if (ring_usage == EDMA_RING_USAGE_100_PERCENTAGE) {
+		ring_util->util[EDMA_RING_USAGE_100_FULL]++;
+	} else if (ring_usage > EDMA_RING_USAGE_90_PERCENTAGE) {
+		ring_util->util[EDMA_RING_USAGE_90_TO_100_FULL]++;
+	} else if ((ring_usage > EDMA_RING_USAGE_70_PERCENTAGE) &&
+		  (ring_usage <= EDMA_RING_USAGE_90_PERCENTAGE)) {
+		ring_util->util[EDMA_RING_USAGE_70_TO_90_FULL]++;
+	} else if ((ring_usage > EDMA_RING_USAGE_50_PERCENTAGE) &&
+		  (ring_usage <= EDMA_RING_USAGE_70_PERCENTAGE)) {
+		ring_util->util[EDMA_RING_USAGE_50_TO_70_FULL]++;
+	} else {
+		ring_util->util[EDMA_RING_USAGE_LESS_50_FULL]++;
+	}
+
+	return 0;
+}
+
+/*
+ * edma_dp_stats_fetch_begin
+ *	fetch dp 64-bit statistics begin
+ */
+static inline unsigned int edma_dp_stats_fetch_begin(const struct u64_stats_sync *syncp)
+{
+#if (LINUX_VERSION_CODE < KERNEL_VERSION(6, 1, 0))
+	return u64_stats_fetch_begin_irq(syncp);
+#else
+	return u64_stats_fetch_begin(syncp);
+#endif
+}
+
+/*
+ * edma_dp_stats_fetch_retry
+ *	retry dp 64-bit statistics fetch
+ */
+static inline bool edma_dp_stats_fetch_retry(const struct u64_stats_sync *syncp,
+					     unsigned int start)
+{
+#if (LINUX_VERSION_CODE < KERNEL_VERSION(6, 1, 0))
+	return u64_stats_fetch_retry_irq(syncp, start);
+#else
+	return u64_stats_fetch_retry(syncp, start);
+#endif
+}
+
+/*
+ * edma_dp_per_ring_reset_support
+ *	Check if EDMA ring reset is supported or not.
+ */
+static inline bool edma_dp_per_ring_reset_support(void)
+{
+	bool ring_reset_en = false;
+	return ring_reset_en;
 }
 
 #endif	/* __EDMA_H__ */

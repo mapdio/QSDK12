@@ -5,22 +5,21 @@
 include $(TOPDIR)/rules.mk
 
 PKG_NAME:=bigclown-firmware-tool
-PKG_VERSION:=1.4.1
+PKG_VERSION:=1.5.2
 PKG_RELEASE:=1
 
-PKG_SOURCE:=$(PKG_NAME)-$(PKG_VERSION).tar.gz
-PKG_SOURCE_URL:=https://codeload.github.com/bigclownlabs/bch-firmware-tool/tar.gz/v$(PKG_VERSION)?
-PKG_HASH:=076acd25af717fa9cc0ce180e2e863cfce8957d00cc24e982f44c91bae10f956
-PKG_BUILD_DIR:=$(BUILD_DIR)/bch-firmware-tool-$(PKG_VERSION)
+PYPI_NAME:=bcf
+PKG_HASH:=8ad897586d02433d01a58b4978516621bea388cd230640eb0b8f8f9e40f10e6c
 
 PKG_MAINTAINER:=Karel Kočí <cynerd@email.cz>
 PKG_LICENSE:=MIT
 PKG_LICENSE_FILES:=LICENSE
 
+include ../../../lang/python/pypi.mk
 include $(INCLUDE_DIR)/package.mk
 include ../../../lang/python/python3-package.mk
 
-define Package/$(PKG_NAME)
+define Package/bigclown-firmware-tool
   SECTION:=utils
   CATEGORY:=Utilities
   SUBMENU:=BigClown
@@ -37,10 +36,5 @@ define Package/$(PKG_NAME)
     +python3-intelhex
 endef
 
-define Build/Compile
-	sed -i 's/@@VERSION@@/$(PKG_VERSION)/' "$(PKG_BUILD_DIR)/setup.py"
-	$(call Py3Build/Compile/Default)
-endef
-
-$(eval $(call Py3Package,$(PKG_NAME)))
-$(eval $(call BuildPackage,$(PKG_NAME)))
+$(eval $(call Py3Package,bigclown-firmware-tool))
+$(eval $(call BuildPackage,bigclown-firmware-tool))

@@ -2932,6 +2932,7 @@ static inline int pages_identical(struct page *page1, struct page *page2)
 
 #ifdef CONFIG_DEBUG_MEM_USAGE
 extern int debug_mem_usage_enabled;
+void __wrap_update_call_stack(void *addr);
 #endif
 
 /**

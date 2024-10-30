@@ -51,7 +51,7 @@ Signed-off-by: Ramasamy Kaliappan <quic_rkaliapp@quicinc.com>
  int hostapd_set_privacy(struct hostapd_data *hapd, int enabled);
 --- a/src/ap/ieee802_11.c
 +++ b/src/ap/ieee802_11.c
-@@ -5378,6 +5378,8 @@ static int add_associated_sta(struct hos
+@@ -5370,6 +5370,8 @@ static int add_associated_sta(struct hos
  	int link_id = -1;
  	bool ml_sta = false;
  	u8 *link_addr = sta->addr;
@@ -60,7 +60,7 @@ Signed-off-by: Ramasamy Kaliappan <quic_rkaliapp@quicinc.com>
   
  	if (sta->ml_sta) {
  		mld_addr = sta->addr;
-@@ -5386,6 +5388,8 @@ static int add_associated_sta(struct hos
+@@ -5378,6 +5380,8 @@ static int add_associated_sta(struct hos
  			ml_sta = true;
  			set = 0;
  		}
@@ -69,7 +69,7 @@ Signed-off-by: Ramasamy Kaliappan <quic_rkaliapp@quicinc.com>
  	}
  
  	if (hapd->mld)
-@@ -5473,6 +5477,7 @@ static int add_associated_sta(struct hos
+@@ -5465,6 +5469,7 @@ static int add_associated_sta(struct hos
  			    sta->flags | WLAN_STA_ASSOC, sta->qosinfo,
  			    sta->vht_opmode, sta->p2p_ie ? 1 : 0,
  			    set, ml_sta, link_id, mld_addr,
@@ -77,7 +77,7 @@ Signed-off-by: Ramasamy Kaliappan <quic_rkaliapp@quicinc.com>
  			    sta->flags & WLAN_STA_EHT? sta->eht_240mhz_capab : NULL,
  			    sta->flags & WLAN_STA_EHT? sta->eht_240mhz_len : 0)) {
  		hostapd_logger(hapd, link_addr,
-@@ -6002,6 +6007,8 @@ static u16 prepare_link_sta_assoc_resp(s
+@@ -5993,6 +5998,8 @@ static u16 prepare_link_sta_assoc_resp(s
  		return res;
  
  	ml_sta = sta->ml_sta;
@@ -86,7 +86,7 @@ Signed-off-by: Ramasamy Kaliappan <quic_rkaliapp@quicinc.com>
  
  	/* should have added the first sta during ml sta creation */
  	if (ml_sta->linksta == NULL)
-@@ -6035,7 +6042,8 @@ static u16 prepare_link_sta_assoc_resp(s
+@@ -6026,7 +6033,8 @@ static u16 prepare_link_sta_assoc_resp(s
  				    0, NULL, NULL, NULL, 0, NULL, 0, NULL,
  				    sta->flags, 0, 0, 0, 0, false,
  				    hapd->iface->mlo_link_id,
@@ -96,7 +96,7 @@ Signed-off-by: Ramasamy Kaliappan <quic_rkaliapp@quicinc.com>
  				return WLAN_STATUS_AP_UNABLE_TO_HANDLE_NEW_STA;
  		}
  
-@@ -9026,7 +9034,9 @@ u8 * hostapd_eid_basic_mle(struct hostap
+@@ -9030,7 +9038,9 @@ u8 * hostapd_eid_basic_mle(struct hostap
  	if (type != WLAN_FC_STYPE_AUTH) {
  		/* Fill these info by default currently */
  		presence_bmap = MLE_LINK_ID_PRESENT | MLE_BSS_PARAM_CHANGE_PRESENT |
@@ -107,7 +107,7 @@ Signed-off-by: Ramasamy Kaliappan <quic_rkaliapp@quicinc.com>
  	}
  
  	*eid++ = MLE_TYPE_BASIC | ((presence_bmap & 0x0f) << MLE_PRESENCE_BMAP_SHIFT);
-@@ -9051,8 +9061,8 @@ u8 * hostapd_eid_basic_mle(struct hostap
+@@ -9052,8 +9062,8 @@ u8 * hostapd_eid_basic_mle(struct hostap
  	/* TODO Medium Synchronization Delay Info fields */
  
  	if (presence_bmap & MLE_EML_CAP_PRESENT) {
@@ -118,7 +118,7 @@ Signed-off-by: Ramasamy Kaliappan <quic_rkaliapp@quicinc.com>
  	}
  
  	if (presence_bmap & MLE_MLD_CAP_PRESENT) {
-@@ -9201,13 +9211,14 @@ static void hostapd_parse_basic_mle(stru
+@@ -9177,13 +9187,14 @@ static void hostapd_parse_basic_mle(stru
  	len -= ETH_ALEN;
  
  	if (ml_data->control.presence & MLE_EML_CAP_PRESENT) {
@@ -148,7 +148,7 @@ Signed-off-by: Ramasamy Kaliappan <quic_rkaliapp@quicinc.com>
  struct sta_info {
 --- a/src/drivers/driver.h
 +++ b/src/drivers/driver.h
-@@ -2470,6 +2470,8 @@ struct hostapd_sta_add_params {
+@@ -2473,6 +2473,8 @@ struct hostapd_sta_add_params {
  	u16 ru_punct_bitmap;
  	int link_id; /* Link id of the ML STA */
  	const u8 *mld_addr; /* MLD MAC address */
@@ -159,7 +159,7 @@ Signed-off-by: Ramasamy Kaliappan <quic_rkaliapp@quicinc.com>
  };
 --- a/src/drivers/driver_nl80211.c
 +++ b/src/drivers/driver_nl80211.c
-@@ -5908,6 +5908,20 @@ static int wpa_driver_nl80211_sta_add(vo
+@@ -5924,6 +5924,20 @@ static int wpa_driver_nl80211_sta_add(vo
  			goto fail;
  	}
  
@@ -182,9 +182,9 @@ Signed-off-by: Ramasamy Kaliappan <quic_rkaliapp@quicinc.com>
  	if (ret)
 --- a/src/ap/sta_info.c
 +++ b/src/ap/sta_info.c
-@@ -1793,10 +1793,14 @@ int ap_sta_re_add(struct hostapd_data *h
- 	u8 *mld_addr = NULL;
+@@ -1794,12 +1794,17 @@ int ap_sta_re_add(struct hostapd_data *h
  	int link_id = -1;
+ 	bool ml_sta = false;
  	u8 *link_addr = sta->addr;
 +	u16 eml_cap = 0;
 +	u16 mld_cap = 0;
@@ -192,17 +192,20 @@ Signed-off-by: Ramasamy Kaliappan <quic_rkaliapp@quicinc.com>
  	if (sta->ml_sta) {
  		mld_addr = sta->addr;
  		link_addr = sta->link_addr;
+ 		if (sta->ml_sta->linksta != sta)
+ 			ml_sta = true;
++
 +		eml_cap = sta->ml_sta->eml_cap;
 +		mld_cap = sta->ml_sta->mld_cap;
  	}
  
  	if (hapd->mld)
-@@ -1817,7 +1821,8 @@ int ap_sta_re_add(struct hostapd_data *h
+@@ -1820,7 +1825,8 @@ int ap_sta_re_add(struct hostapd_data *h
  			    sta->supported_rates,
  			    sta->supported_rates_len,
  			    0, NULL, NULL, NULL, 0, NULL, 0, NULL,
--			    sta->flags, 0, 0, 0, 0, false, link_id, mld_addr, NULL, 0)) {
-+			    sta->flags, 0, 0, 0, 0, false, link_id, mld_addr,
+-			    sta->flags, 0, 0, 0, 0, ml_sta, link_id, mld_addr, NULL, 0)) {
++			    sta->flags, 0, 0, 0, 0, ml_sta, link_id, mld_addr,
 +			    eml_cap, mld_cap, NULL, 0)) {
  		hostapd_logger(hapd, sta->addr,
  			       HOSTAPD_MODULE_IEEE80211,
@@ -220,7 +223,7 @@ Signed-off-by: Ramasamy Kaliappan <quic_rkaliapp@quicinc.com>
  		wpa_printf(MSG_ERROR,
 --- a/src/ap/ap_config.h
 +++ b/src/ap/ap_config.h
-@@ -1181,6 +1181,7 @@ struct hostapd_config {
+@@ -1183,6 +1183,7 @@ struct hostapd_config {
  	int use_ru_puncture_dfs;
  #ifdef CONFIG_IEEE80211BE
  	u8 mlo;

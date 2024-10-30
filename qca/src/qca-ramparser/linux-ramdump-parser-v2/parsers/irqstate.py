@@ -12,7 +12,7 @@
 import re
 from print_out import print_out_str
 from parser_util import register_parser, RamParser
-
+import maple_tree
 
 @register_parser('--print-irqs', 'Print all the irq information', shortopt='-i')
 class IrqParse(RamParser):
@@ -124,6 +124,10 @@ class IrqParse(RamParser):
     def entry_to_node(self, addr):
         return addr & 0xfffffffffffffffd
 
+    def save_irq_desc(self, node, irq_desc):
+        if node:
+            irq_desc.append(node)
+
     def xarray_lookup_element(self, ram_dump, root_addr, index):
         rnode_offset = ram_dump.field_offset('struct xarray', 'xa_head')
         rnode_shift_offset = ram_dump.field_offset('struct xa_node', 'shift')
@@ -156,8 +160,9 @@ class IrqParse(RamParser):
 
         return rnode_addr
 
-    def print_irq_state_sparse_irq(self, ram_dump):
-        h_irq_offset = ram_dump.field_offset('struct irq_desc', 'handle_irq')
+    def dump_sparse_irq_state(self, ram_dump, irq_desc_addr):
+        if irq_desc_addr is None:
+            return
         irq_num_offset = ram_dump.field_offset('struct irq_data', 'irq')
         irq_data_offset = ram_dump.field_offset('struct irq_desc', 'irq_data')
         irq_count_offset = ram_dump.field_offset(
@@ -168,10 +173,68 @@ class IrqParse(RamParser):
         kstat_irqs_offset = ram_dump.field_offset(
             'struct irq_desc', 'kstat_irqs')
         chip_name_offset = ram_dump.field_offset('struct irq_chip', 'name')
+        irq_chip_data_offset = ram_dump.field_offset('struct irq_data',
+                                                     'chip_data')
+        gic_domain_offset = ram_dump.field_offset('struct gic_chip_data',
+                                                     'domain')
+        irq_domain_pmdev_offset = ram_dump.field_offset('struct irq_domain',
+                                                      'pm_dev')
+        node_offset = ram_dump.field_offset('struct device', 'of_node')
+
+        chip_data =  ram_dump.read_word(irq_desc_addr +
+		                      irq_data_offset + irq_chip_data_offset)
+        domain = chip_data + gic_domain_offset
+
+        irqnum = ram_dump.read_u32(irq_desc_addr +
+		              irq_data_offset + irq_num_offset)
+        irqcount = ram_dump.read_u32(irq_desc_addr + irq_count_offset)
+        action = ram_dump.read_word(irq_desc_addr + irq_action_offset)
+        kstat_irqs_addr = ram_dump.read_word(irq_desc_addr + kstat_irqs_offset)
+        irq_stats_str = ''
+
+        if kstat_irqs_addr is None:
+            return
+
+        for j in ram_dump.iter_cpus():
+            irq_statsn = ram_dump.read_u32(kstat_irqs_addr, cpu=j)
+            irq_stats_str = irq_stats_str + \
+                '{0:10} '.format('{0}'.format(irq_statsn))
+
+        if (ram_dump.kernel_version[0], ram_dump.kernel_version[1]) >= (6, 4):
+            pm_dev =  ram_dump.read_structure_field(domain,
+                                          'struct domain', 'pm_dev')
+            if pm_dev is None:
+                chip_name = "GIC-0"
+            else:
+                chip_name = ram_dump.read_structure_field(pm_dev + node_offset,
+                                              'struct device_node', 'name')
+        else:
+            chip = ram_dump.read_word(
+                    irq_desc_addr + irq_data_offset + irq_chip_offset)
+            chip_name_addr = ram_dump.read_word(chip + chip_name_offset)
+            chip_name = ram_dump.read_cstring(chip_name_addr, 48)
+
+        if chip_name is None:
+            chip_name = ""
+
+        if action != 0:
+            name_addr = ram_dump.read_word(action + action_name_offset)
+            if not name_addr:
+               return
+            else:
+               name = ram_dump.read_cstring(name_addr, 48)
+               if name is None:
+                   return
+            print_out_str(
+                '{0:4} {1} {2:30} {3:10}'.format(irqnum,
+				                     irq_stats_str, name, chip_name))
+
+    def print_irq_state_sparse_irq(self, ram_dump):
+        h_irq_offset = ram_dump.field_offset('struct irq_desc', 'handle_irq')
         cpu_str = ''
 
-        irq_desc_tree = ram_dump.addr_lookup('irq_desc_tree')
         nr_irqs = ram_dump.read_int(ram_dump.addr_lookup('nr_irqs'))
+        irq_descs = []
 
         for i in ram_dump.iter_cpus():
             cpu_str = cpu_str + '{0:10} '.format('CPU{0}'.format(i))
@@ -182,39 +245,23 @@ class IrqParse(RamParser):
         if nr_irqs > 50000:
             return
 
-        for i in range(0, nr_irqs):
-            if (ram_dump.kernel_version[0], ram_dump.kernel_version[1]) >= (5, 4):
-                irq_desc = self.xarray_lookup_element(ram_dump, irq_desc_tree, i)
-            else:
-                irq_desc = self.radix_tree_lookup_element(ram_dump, irq_desc_tree, i)
-            if irq_desc is None:
-                continue
-            irqnum = ram_dump.read_u32(irq_desc + irq_data_offset + irq_num_offset)
-            irqcount = ram_dump.read_u32(irq_desc + irq_count_offset)
-            action = ram_dump.read_word(irq_desc + irq_action_offset)
-            kstat_irqs_addr = ram_dump.read_word(irq_desc + kstat_irqs_offset)
-            irq_stats_str = ''
-
-            if kstat_irqs_addr is None:
-                break
-
-            for j in ram_dump.iter_cpus():
-                irq_statsn = ram_dump.read_u32(kstat_irqs_addr, cpu=j)
-                irq_stats_str = irq_stats_str + \
-                    '{0:10} '.format('{0}'.format(irq_statsn))
-
-            chip = ram_dump.read_word(
-                irq_desc + irq_data_offset + irq_chip_offset)
-            chip_name_addr = ram_dump.read_word(chip + chip_name_offset)
-            chip_name = ram_dump.read_cstring(chip_name_addr, 48)
-
-            if action != 0:
-                name_addr = ram_dump.read_word(action + action_name_offset)
-                name = ram_dump.read_cstring(name_addr, 48)
-                if name is None:
-                    continue
-                print_out_str(
-                    '{0:4} {1} {2:30} {3:10}'.format(irqnum, irq_stats_str, name, chip_name))
+        if (ram_dump.kernel_version[0], ram_dump.kernel_version[1]) >= (6, 4):
+            mt_walk = maple_tree.MapleTreeWalker(ram_dump)
+            irq_desc_tree = ram_dump.addr_lookup('sparse_irqs')
+            mt_walk.walk(irq_desc_tree, self.save_irq_desc, irq_descs)
+            for i in range(len(irq_descs)):
+                self.dump_sparse_irq_state(ram_dump, irq_descs[i])
+        else:
+            irq_desc_tree = ram_dump.addr_lookup('irq_desc_tree')
+            for i in range(0, nr_irqs):
+                if (ram_dump.kernel_version[0],
+                                     ram_dump.kernel_version[1]) >= (5, 4):
+                    irq_desc = self.xarray_lookup_element(ram_dump,
+                                           irq_desc_tree, i)
+                else:
+                    irq_desc = self.radix_tree_lookup_element(ram_dump,
+                                           irq_desc_tree, i)
+                self.dump_sparse_irq_state(ram_dump, irq_desc)
 
     def parse(self):
         irq_desc = self.ramdump.addr_lookup('irq_desc')

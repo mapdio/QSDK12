@@ -1,0 +1,46 @@
+Author: Ken Zhu <quic_guigenz@quicinc.com>
+Date:   Thu Oct 12 14:30:14 2023 -0700
+
+    netifd: Fix wds device identified as vlan device
+
+    the name of vlan device must have digit character
+    after dot.
+
+    Change-Id: I2b83725a02c7219c7ce344fc7fda343649fc9ef8
+    Signed-off-by: Ken Zhu <quic_guigenz@quicinc.com>
+
+diff -Nur a/device.c b/device.c
+--- a/device.c	2023-12-07 17:15:25.671210740 -0800
++++ b/device.c	2023-12-07 17:21:21.992339542 -0800
+@@ -15,6 +15,7 @@
+ #include <stdlib.h>
+ #include <stdio.h>
+ #include <assert.h>
++#include <ctype.h>
+ 
+ #include <sys/types.h>
+ #include <sys/socket.h>
+@@ -748,6 +749,13 @@
+ 	return avl_find_element(&devices, name, dev, avl);
+ }
+ 
++static bool device_is_vlan(const char *name)
++{
++	char *dot;
++	dot = strchr(name, '.');
++	return dot && isdigit(*(dot + 1));
++}
++
+ struct device *
+ __device_get(const char *name, int create, bool check_vlan)
+ {
+@@ -755,7 +763,7 @@
+ 
+ 	dev = avl_find_element(&devices, name, dev, avl);
+ 
+-	if (!dev && check_vlan && strchr(name, '.'))
++	if (!dev && check_vlan && device_is_vlan(name))
+ 		return get_vlan_device_chain(name, create);
+ 
+ 	if (name[0] == '@')
+

@@ -80,8 +80,12 @@ class Slabinfo_summary(RamParser):
             'struct kmem_cache', 'name')
         slab_node_offset = self.ramdump.field_offset(
             'struct kmem_cache', 'node')
-        cpu_cache_page_offset = self.ramdump.field_offset(
-            'struct kmem_cache_cpu', 'page')
+        if (self.ramdump.kernel_version >= (6, 1, 0)):
+            cpu_cache_page_offset = self.ramdump.field_offset(
+                'struct kmem_cache_cpu', 'slab')
+        else:
+            cpu_cache_page_offset = self.ramdump.field_offset(
+                'struct kmem_cache_cpu', 'page')
         cpu_slab_offset = self.ramdump.field_offset(
             'struct kmem_cache', 'cpu_slab')
         slab_partial_offset = self.ramdump.field_offset(

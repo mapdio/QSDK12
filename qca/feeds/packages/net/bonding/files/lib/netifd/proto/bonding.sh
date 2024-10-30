@@ -37,7 +37,7 @@ proto_bonding_init_config() {
 
 	proto_config_add_string "bonding_policy"
 	proto_config_add_string "link_monitoring"
-	proto_config_add_string "slaves"
+	proto_config_add_array "slaves"
 	proto_config_add_string "all_slaves_active"
 
 	proto_config_add_string "min_links"
@@ -66,14 +66,36 @@ proto_bonding_init_config() {
 	proto_config_add_string "use_carrier"
 }
 
+proto_bonding_add_slave() {
+	local slave=$1
+	local idx=$2
+	local cfg=$3
+	local link=$4
+
+	if [ ! -e "/sys/class/net/$slave" ]; then
+		echo "$cfg" "No slave device $slave found"
+		proto_notify_error "$cfg" NO_DEVICE
+		proto_block_restart "$cfg"
+		return
+	fi
+
+	ip link set dev "$slave" down
+
+	sleep 1
+
+	echo "+$slave" > /sys/class/net/"$link"/bonding/slaves
+
+	ip link set dev "$slave" up
+}
+
 proto_bonding_setup() {
 	local cfg="$1"
-	local link="bonding-$cfg"
+	local link="bond-$cfg"
 
 	# Check for loaded kernel bonding driver (/sys/class/net/bonding_masters exists)
 	[ -f "$BONDING_MASTERS" ] || {
 		echo "$cfg" "setup: bonding_masters does not exist in sysfs (kernel module not loaded?)"
-		proto_notify_error "$cfg" "setup: bonding_masters does not exist in sysfs (kernel module not loaded?)"
+		proto_notify_error "$cfg" BONDING_MASTER_DOES_NOT_EXIST
 		proto_block_restart "$cfg"
 		return
 	}
@@ -89,7 +111,7 @@ proto_bonding_setup() {
 
 		802.3ad)
 			echo "$bonding_policy" > /sys/class/net/"$link"/bonding/mode
-			set_driver_values min_links ad_actor_sys_prio ad_actor_system ad_select lacp_rate
+			set_driver_values min_links ad_actor_sys_prio ad_actor_system ad_select lacp_rate xmit_hash_policy
 		;;
 
 		balance-rr)
@@ -105,6 +127,15 @@ proto_bonding_setup() {
 		balance-alb)
 			echo "$bonding_policy" > /sys/class/net/"$link"/bonding/mode
 			set_driver_values primary primary_reselect lp_interval tlb_dynamic_lb resend_igmp xmit_hash_policy
+		;;
+
+		balance-xor)
+			echo "$bonding_policy" > /sys/class/net/"$link"/bonding/mode
+			set_driver_values xmit_hash_policy
+		;;
+
+		broadcast)
+			echo "$bonding_policy" > /sys/class/net/"$link"/bonding/mode
 		;;
 
 		active-backup)
@@ -148,24 +179,7 @@ proto_bonding_setup() {
 	# Add slaves to bonding interface
 	local slaves
 	json_get_vars slaves
-
-	for slave in $slaves; do
-
-		if [ "$(cat /proc/net/dev |grep "$slave")" == "" ]; then
-			echo "$cfg" "ERROR IN CONFIGURATION - $slave: No such device"
-			proto_notify_error "$cfg" "ERROR IN CONFIGURATION - $slave: No such device"
-			proto_block_restart "$cfg"
-			return
-		fi
-
-		ifconfig "$slave" down
-
-		sleep 1
-
-		echo "+$slave" > /sys/class/net/"$link"/bonding/slaves
-
-		ifconfig "$slave" up
-	done
+	json_for_each_item proto_bonding_add_slave slaves "$cfg" "$link"
 
 	[ -n "$all_slaves_active" ] && echo "$all_slaves_active" > /sys/class/net/"$link"/bonding/all_slaves_active
 
@@ -181,8 +195,8 @@ proto_bonding_setup() {
 
 	# For static configuration we _MUST_ have an IP address
 	[ -z "$ipaddr" ] && {
-		echo "$cfg" "INVALID LOCAL ADDRESS"
-		proto_notify_error "$cfg" "INVALID_LOCAL_ADDRESS"
+		echo "$cfg" "No local IP address defined"
+		proto_notify_error "$cfg" INVALID_LOCAL_ADDRESS
 		proto_block_restart "$cfg"
 		return
 	}
@@ -194,12 +208,12 @@ proto_bonding_setup() {
 
 proto_bonding_teardown() {
 	local cfg="$1"
-	local link="bonding-$cfg"
+	local link="bond-$cfg"
 
 	# Check for loaded kernel bonding driver (/sys/class/net/bonding_masters exists)
 	[ -f "$BONDING_MASTERS" ] || {
 		echo "$cfg" "teardown: bonding_masters does not exist in sysfs (kernel module not loaded?)"
-		proto_notify_error "$cfg" "teardown: bonding_masters does not exist in sysfs (kernel module not loaded?)"
+		proto_notify_error "$cfg" BONDING_MASTER_DOES_NOT_EXIST
 		proto_block_restart "$cfg"
 		return
 	}

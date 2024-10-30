@@ -86,7 +86,7 @@ ifdef CONFIG_TARGET_NAME
 			      TARGET_NAME=$(CONFIG_TARGET_NAME)
 else ifneq ($(CONFIG_ARCH),)
 	QCASSDK_CONFIG_OPTS+= \
-			      TARGET_NAME=$(CONFIG_ARCH)-openwrt-linux$(if $(CONFIG_TARGET_SUFFIX),-$(CONFIG_TARGET_SUFFIX))
+			      TARGET_NAME=$(subst ",,$(CONFIG_ARCH))-openwrt-linux$(if $(CONFIG_TARGET_SUFFIX),-$(subst ",,$(CONFIG_TARGET_SUFFIX)))
 endif
 
 QCASSDK_CONFIG_OPTS+= TOOL_PATH=$(TOOLCHAIN_BIN_PATH) \
@@ -116,6 +116,8 @@ else ifneq (, $(findstring $(hal_arch), "ipq50xx"))
 	QCASSDK_CONFIG_OPTS+= CHIP_TYPE=MP
 else ifneq (, $(findstring $(hal_arch), "ipq53xx"))
 	QCASSDK_CONFIG_OPTS+= CHIP_TYPE=MPPE
+else ifneq (, $(findstring $(hal_arch), "ipq54xx"))
+	QCASSDK_CONFIG_OPTS+= CHIP_TYPE=MRPPE
 endif
 
 ifneq (, $(findstring $(CONFIG_KERNEL_IPQ_MEM_PROFILE), 256 512)$(CONFIG_LOWMEM_FLASH))
@@ -128,6 +130,11 @@ ifneq (, $(findstring $(CONFIG_KERNEL_IPQ_MEM_PROFILE), 256 512)$(CONFIG_LOWMEM_
 	endif
 	ifeq ($(CONFIG_LOWMEM_FLASH),y)
 		QCASSDK_CONFIG_OPTS+= LOWMEM_FLASH=enable
+	endif
+	ifneq (, $(findstring $(hal_arch), "ipq53xx"))
+		ifneq (, $(findstring $(CONFIG_KERNEL_IPQ_MEM_PROFILE), 256))
+			QCASSDK_CONFIG_OPTS += LOWMEM_256=enable
+		endif
 	endif
 endif
 
@@ -148,12 +155,7 @@ define Build/InstallDev
 	if [ -f $(PKG_BUILD_DIR)/include/ref/ref_port_ctrl.h ]; then \
 	$(CP) -rf $(PKG_BUILD_DIR)/include/ref/ref_port_ctrl.h $(1)/usr/include/qca-ssdk/ref/; \
 	fi
-	if [ -f $(PKG_BUILD_DIR)/include/init/ssdk_init.h ]; then \
-	$(CP) -rf $(PKG_BUILD_DIR)/include/init/ssdk_init.h $(1)/usr/include/qca-ssdk/init/; \
-	fi
-	if [ -f $(PKG_BUILD_DIR)/include/init/ssdk_netlink.h ]; then \
-	$(CP) -rf $(PKG_BUILD_DIR)/include/init/ssdk_netlink.h $(1)/usr/include/qca-ssdk/init/; \
-	fi
+	$(CP) -rf $(PKG_BUILD_DIR)/include/init $(1)/usr/include/qca-ssdk
 	$(CP) -rf $(PKG_BUILD_DIR)/include/fal $(1)/usr/include/qca-ssdk
 	$(CP) -rf $(PKG_BUILD_DIR)/include/common/*.h $(1)/usr/include/qca-ssdk
 	$(CP) -rf $(PKG_BUILD_DIR)/include/sal/os/linux/*.h $(1)/usr/include/qca-ssdk
@@ -163,9 +165,11 @@ endef
 
 LNX_CONFIG_OPTS :=
 
-ifneq (, $(findstring $(hal_arch), "ipq53xx"))
+ifneq (, $(findstring $(hal_arch), "ipq807x" "ipq60xx" "ipq95xx" "ipq53xx"))
 LNX_CONFIG_OPTS += LNX_MAKEOPTS='$(KERNEL_MAKEOPTS)' MODULE_TYPE=KSLIB modules
 else ifeq ($(LINUX_VERSION), $(filter 6.1%, $(LINUX_VERSION)))
+LNX_CONFIG_OPTS += LNX_MAKEOPTS='$(KERNEL_MAKEOPTS)' MODULE_TYPE=KSLIB modules
+else ifeq ($(LINUX_VERSION), $(filter 6.6%, $(LINUX_VERSION)))
 LNX_CONFIG_OPTS += LNX_MAKEOPTS='$(KERNEL_MAKEOPTS)' MODULE_TYPE=KSLIB modules
 endif
 

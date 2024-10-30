@@ -37,9 +37,7 @@ endef
 EXTRA_CFLAGS+= -I$(STAGING_DIR)/usr/include/nss-udp-st-drv/
 
 define Build/Compile
-	$(MAKE) $(EXTRA_CFLAGS) -C "$(LINUX_DIR)" \
-		CROSS_COMPILE="$(TARGET_CROSS)" \
-		ARCH="$(LINUX_KARCH)" \
+	$(KERNEL_MAKE) $(EXTRA_CFLAGS) \
 		M="$(PKG_BUILD_DIR)" \
 		modules
 endef

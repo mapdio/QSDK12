@@ -1,15 +1,16 @@
-*.o
-conf*
-!conf*.c
-!conf*.h
-mconf*
-!mconf*.c
-!mconf*.h
+# SPDX-License-Identifier: GPL-2.0-only
+/conf
+/[gmnq]conf
+/[gmnq]conf-cfg
+/qconf-moc.cc
+
+# From linux kconfig parent directories
+.*
+
+# OpenWrt-generated files
 mconf_check
-*.*.c
-qconf*
-qconf*.moc
-!qconf*.cc
-!qconf*.h
-!images*.c
-.tmp_qtcheck
+
+# Temporary files from older versions.  They should be removed after the
+# end of support for OpenWrt 19.07.
+zconf.???.c
+zconf.hash.c

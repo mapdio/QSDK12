@@ -89,15 +89,15 @@ Signed-off-by: Sivashankari Madhavan <quic_sivamadh@quicinc.com>
   * @BSS_CHANGED_TXPOWER: TX power setting changed for this interface
   * @BSS_CHANGED_P2P_PS: P2P powersave settings (CTWindow, opportunistic PS)
   *	changed
-@@ -767,6 +767,7 @@ struct ieee80211_bss_conf {
- 		u8 ccfs1;
+@@ -766,6 +766,7 @@ struct ieee80211_bss_conf {
+ 		u8 ccfs;
  		u8 present_bm;
  	} eht_oper;
 +	bool ap_ps_enable;
  	bool eht_su_beamformer;
  	bool eht_su_beamformee;
  	bool eht_mu_beamformer;
-@@ -2647,6 +2648,8 @@ struct ieee80211_txq {
+@@ -2645,6 +2646,8 @@ struct ieee80211_txq {
   * @IEEE80211_HW_SUPPORTS_RX_DECAP_OFFLOAD: Hardware supports rx decapsulation
   *	offload
   *
@@ -106,7 +106,7 @@ Signed-off-by: Sivashankari Madhavan <quic_sivamadh@quicinc.com>
   * @IEEE80211_HW_SUPPORTS_CONC_MON_RX_DECAP: Hardware supports concurrent rx
   *	decapsulation offload and passing raw 802.11 frames for monitor iface.
   *	If this is supported, the driver must pass both 802.3 frames for real
-@@ -2723,6 +2726,7 @@ enum ieee80211_hw_flags {
+@@ -2721,6 +2724,7 @@ enum ieee80211_hw_flags {
  	IEEE80211_HW_SUPPORTS_NSS_OFFLOAD,
  	IEEE80211_HW_SUPPORTS_MESH_NSS_OFFLOAD,
  	IEEE80211_HW_SUPPORTS_TID_CLASS_OFFLOAD,
@@ -116,7 +116,7 @@ Signed-off-by: Sivashankari Madhavan <quic_sivamadh@quicinc.com>
  	NUM_IEEE80211_HW_FLAGS
 --- a/net/mac80211/cfg.c
 +++ b/net/mac80211/cfg.c
-@@ -1432,13 +1432,13 @@ error:
+@@ -1387,13 +1387,13 @@ error:
  	return err;
  }
  
@@ -133,7 +133,7 @@ Signed-off-by: Sivashankari Madhavan <quic_sivamadh@quicinc.com>
  	struct ieee80211_bss_conf *link_conf;
  	u32 changed;
  
-@@ -1460,9 +1460,20 @@ static int ieee80211_change_beacon(struc
+@@ -1415,9 +1415,20 @@ static int ieee80211_change_beacon(struc
  	if (!old)
  		return -ENOENT;
  
@@ -148,7 +148,7 @@ Signed-off-by: Sivashankari Madhavan <quic_sivamadh@quicinc.com>
 +
 +	if (ieee80211_hw_check(&sdata->local->hw, SUPPORTS_AP_PS) &&
 +	    params->ap_ps_valid) {
-+		link_conf->ap_ps_enable = params->ap_ps_enable;
++		sdata->vif.bss_conf.ap_ps_enable = params->ap_ps_enable;
 +		if (err < 0)
 +			err = BSS_CHANGED_PS;
 +		else
@@ -157,7 +157,7 @@ Signed-off-by: Sivashankari Madhavan <quic_sivamadh@quicinc.com>
  
  	if (params->beacon.he_bss_color_valid &&
  	    params->beacon.he_bss_color.enabled != link_conf->he_bss_color.enabled) {
-@@ -4945,7 +4956,7 @@ const struct cfg80211_ops mac80211_confi
+@@ -4880,7 +4891,7 @@ const struct cfg80211_ops mac80211_confi
  	.set_default_mgmt_key = ieee80211_config_default_mgmt_key,
  	.set_default_beacon_key = ieee80211_config_default_beacon_key,
  	.start_ap = ieee80211_start_ap,
@@ -175,43 +175,4 @@ Signed-off-by: Sivashankari Madhavan <quic_sivamadh@quicinc.com>
 +	FLAG(SUPPORTS_AP_PS),
  #undef FLAG
  };
- 
---- a/net/mac80211/main.c
-+++ b/net/mac80211/main.c
-@@ -202,7 +202,6 @@ int ieee80211_hw_config(struct ieee80211
- 
- #define BSS_CHANGED_VIF_CFG_FLAGS (BSS_CHANGED_ASSOC |\
- 				   BSS_CHANGED_IDLE |\
--				   BSS_CHANGED_PS |\
- 				   BSS_CHANGED_IBSS |\
- 				   BSS_CHANGED_ARP_FILTER |\
- 				   BSS_CHANGED_SSID)
---- a/net/mac80211/mlme.c
-+++ b/net/mac80211/mlme.c
-@@ -2222,11 +2222,25 @@ void ieee80211_recalc_ps(struct ieee8021
- 
- void ieee80211_recalc_ps_vif(struct ieee80211_sub_if_data *sdata)
- {
-+	struct ieee80211_link_data *link;
-+	u16 link_id;
- 	bool ps_allowed = ieee80211_powersave_allowed(sdata);
- 
- 	if (sdata->vif.cfg.ps != ps_allowed) {
- 		sdata->vif.cfg.ps = ps_allowed;
--		ieee80211_vif_cfg_change_notify(sdata, BSS_CHANGED_PS);
-+		if (!sdata->vif.valid_links) {
-+			ieee80211_link_info_change_notify(sdata, &sdata->deflink,
-+							  BSS_CHANGED_PS);
-+		} else {
-+			for_each_set_bit(link_id, &sdata->vif.valid_links,
-+					 IEEE80211_MLD_MAX_NUM_LINKS) {
-+				link = sdata_dereference(sdata->link[link_id], sdata);
-+				if (!link)
-+					continue;
-+
-+				ieee80211_link_info_change_notify(sdata, link, BSS_CHANGED_PS);
-+			}
-+		}
- 	}
- }
  

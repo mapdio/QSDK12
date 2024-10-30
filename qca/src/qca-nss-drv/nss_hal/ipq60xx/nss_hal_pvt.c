@@ -1,5 +1,6 @@
 /*
  * Copyright (c) 2018-2020, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2023 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for any
  * purpose with or without fee is hereby granted, provided that the above
@@ -491,7 +492,7 @@ static int __nss_hal_clock_configure(struct nss_ctx_instance *nss_ctx, struct pl
 		nss_runtime_samples.freq_scale[NSS_FREQ_LOW_SCALE].frequency = NSS_FREQ_187;
 		nss_runtime_samples.freq_scale[NSS_FREQ_MID_SCALE].frequency = NSS_FREQ_748;
 		nss_runtime_samples.freq_scale[NSS_FREQ_HIGH_SCALE].frequency = NSS_FREQ_1497;
-		nss_info_always("Running default frequencies\n");
+		nss_info("Running default frequencies\n");
 	}
 
 	/*
@@ -532,22 +533,22 @@ static int __nss_hal_clock_configure(struct nss_ctx_instance *nss_ctx, struct pl
 		}
 	}
 
-	nss_info_always("Supported Frequencies - ");
+	nss_info("Supported Frequencies - ");
 	for (i = 0; i < NSS_FREQ_MAX_SCALE; i++) {
 		if (nss_runtime_samples.freq_scale[i].frequency == NSS_FREQ_187) {
-			nss_info_always("187.2 MHz ");
+			nss_info("187.2 MHz ");
 		} else if (nss_runtime_samples.freq_scale[i].frequency == NSS_FREQ_748) {
-			nss_info_always("748.8 MHz ");
+			nss_info("748.8 MHz ");
 		} else if (nss_runtime_samples.freq_scale[i].frequency == NSS_FREQ_1497) {
-			nss_info_always("1.4976 GHz ");
+			nss_info("1.4976 GHz ");
 		} else if (nss_runtime_samples.freq_scale[i].frequency == NSS_FREQ_1689) {
-			nss_info_always("1.6896 GHz ");
+			nss_info("1.6896 GHz ");
 		} else {
 			nss_info_always("Error\nNo Table/Invalid Frequency Found\n");
 			return -EFAULT;
 		}
 	}
-	nss_info_always("\n");
+	nss_info("\n");
 
 	/*
 	 * Set values only once for core0. Grab the proper clock.

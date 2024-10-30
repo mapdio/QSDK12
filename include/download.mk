@@ -1,10 +1,7 @@
+# SPDX-License-Identifier: GPL-2.0-only
 #
 # Copyright (C) 2006-2012 OpenWrt.org
 # Copyright (C) 2016 LEDE project
-#
-# This is free software, licensed under the GNU General Public License v2.
-# See /LICENSE for more information.
-#
 
 PROJECT_GIT = https://git.openwrt.org
 
@@ -12,9 +9,11 @@ OPENWRT_GIT = $(PROJECT_GIT)
 LEDE_GIT = $(PROJECT_GIT)
 
 ifdef PKG_SOURCE_VERSION
-PKG_VERSION ?= $(if $(PKG_SOURCE_DATE),$(PKG_SOURCE_DATE)-)$(call version_abbrev,$(PKG_SOURCE_VERSION))
-PKG_SOURCE_SUBDIR ?= $(PKG_NAME)-$(PKG_VERSION)
-PKG_SOURCE ?= $(PKG_SOURCE_SUBDIR).tar.xz
+  ifndef PKG_VERSION
+    PKG_VERSION := $(if $(PKG_SOURCE_DATE),$(PKG_SOURCE_DATE)-)$(call version_abbrev,$(PKG_SOURCE_VERSION))
+  endif
+  PKG_SOURCE_SUBDIR ?= $(PKG_NAME)-$(PKG_VERSION)
+  PKG_SOURCE ?= $(PKG_SOURCE_SUBDIR).tar.xz
 endif
 
 ifndef SKIP_MIRROR_DOWNLOAD
@@ -22,6 +21,10 @@ SKIP_MIRROR_DOWNLOAD = false
 endif
 
 DOWNLOAD_RDEP=$(STAMP_PREPARED) $(HOST_STAMP_PREPARED)
+
+# Export options for download.pl
+export DOWNLOAD_CHECK_CERTIFICATE:=$(CONFIG_DOWNLOAD_CHECK_CERTIFICATE)
+export DOWNLOAD_TOOL_CUSTOM:=$(CONFIG_DOWNLOAD_TOOL_CUSTOM)
 
 define dl_method_git
 $(if $(filter https://github.com/% git://github.com/%,$(1)),github_archive,git)
@@ -32,7 +35,7 @@ define dl_method
 $(strip \
   $(if $(filter git,$(2)),$(call dl_method_git,$(1),$(2)),
     $(if $(2),$(2), \
-      $(if $(filter @APACHE/% @GITHUB/% @GNOME/% @GNU/% @KERNEL/% @SF/% @SAVANNAH/% ftp://% http://% https://% file://%,$(1)),default, \
+      $(if $(filter @OPENWRT @APACHE/% @DEBIAN/% @GITHUB/% @GNOME/% @GNU/% @KERNEL/% @SF/% @SAVANNAH/% ftp://% http://% https://% file://%,$(1)),default, \
         $(if $(filter git://%,$(1)),$(call dl_method_git,$(1),$(2)), \
           $(if $(filter svn://%,$(1)),svn, \
             $(if $(filter cvs://%,$(1)),cvs, \
@@ -54,6 +57,7 @@ endef
 dl_pack/bz2=bzip2 -c > $(1)
 dl_pack/gz=gzip -nc > $(1)
 dl_pack/xz=xz -zc -7e > $(1)
+dl_pack/zst=zstd -T0 --ultra -20 -c > $(1)
 dl_pack/unknown=$(error ERROR: Unknown pack format for file $(1))
 define dl_pack
 	$(if $(dl_pack/$(call ext,$(1))),$(dl_pack/$(call ext,$(1))),$(dl_pack/unknown))
@@ -61,6 +65,21 @@ endef
 define dl_tar_pack
 	$(TAR) --numeric-owner --owner=0 --group=0 --mode=a-s --sort=name \
 		$$$${TAR_TIMESTAMP:+--mtime="$$$$TAR_TIMESTAMP"} -c $(2) | $(call dl_pack,$(1))
+endef
+
+gen_sha256sum = $(shell $(MKHASH) sha256 $(DL_DIR)/$(1))
+
+# Used in Build/CoreTargets and HostBuild/Core as an integrity check for
+# downloaded files.  It will add a FORCE rule if the sha256 hash does not
+# match, so that the download can be more thoroughly handled by download.pl.
+define check_download_integrity
+  expected_hash:=$(strip $(if $(filter-out x,$(HASH)),$(HASH),$(MIRROR_HASH)))
+  $$(if $$(and $(FILE),$$(wildcard $(DL_DIR)/$(FILE)), \
+	       $$(filter undefined,$$(flavor DownloadChecked/$(FILE)))), \
+    $$(eval DownloadChecked/$(FILE):=1) \
+    $$(if $$(filter-out $$(call gen_sha256sum,$(FILE)),$$(expected_hash)), \
+      $(DL_DIR)/$(FILE): FORCE) \
+  )
 endef
 
 ifdef CHECK
@@ -77,8 +96,6 @@ ifndef FIXUP
 else
   check_warn = $(if $(filter-out undefined,$(origin F_$(1))),$(filter ,$(shell $(call F_$(1),$(2),$(3),$(4)) >&2)),$(check_warn_nofix))
 endif
-
-gen_sha256sum = $(shell mkhash sha256 $(DL_DIR)/$(1))
 
 ifdef FIXUP
 F_hash_deprecated = $(SCRIPT_DIR)/fixup-makefile.pl $(CURDIR)/Makefile fix-hash $(3) $(call gen_sha256sum,$(1)) $(2)
@@ -181,7 +198,7 @@ define DownloadMethod/svn
 		svn export --non-interactive --trust-server-cert -r$(VERSION) $(URL) $(SUBDIR) || \
 		svn export --non-interactive -r$(VERSION) $(URL) $(SUBDIR) ) && \
 		echo "Packing checkout..." && \
-		export TAR_TIMESTAMP="" && \
+		export TAR_TIMESTAMP="`svn info -r$(VERSION) --show-item last-changed-date $(URL)`" && \
 		$(call dl_tar_pack,$(TMP_DIR)/dl/$(FILE),$(SUBDIR)) && \
 		mv $(TMP_DIR)/dl/$(FILE) $(DL_DIR)/ && \
 		rm -rf $(SUBDIR); \
@@ -314,14 +331,14 @@ define Download/default
   $(if $(PKG_HASH),HASH:=$(PKG_HASH))
 endef
 
-FindPackage?=$(strip $(shell find $(TOPDIR)/qsdk-package -name $(1) 2>/dev/null))
+FindPackage?=$(strip $(shell find $(TOPDIR)/openwrt-patches -name $(1) 2>/dev/null))
 
-define Download/qsdk-package
+define Download/openwrt-patches
   $(eval -include $(wildcard $(call FindPackage,$(basename $(notdir $(CURDIR))))/$(PKG_NAME).mk))
 endef
 
 define Download
-  $(Download/qsdk-package)
+  $(Download/openwrt-patches)
   $(eval $(Download/Defaults))
   $(eval $(Download/$(1)))
   $(foreach FIELD,URL FILE $(Validate/$(call dl_method,$(URL),$(PROTO))),

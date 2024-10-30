@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2022-2023 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2024 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for any
  * purpose with or without fee is hereby granted, provided that the above
@@ -22,6 +22,25 @@
 #define NSS_DP_MAX_PORTS		(NSS_DP_HAL_MAX_PORTS + NSS_DP_VP_HAL_MAX_PORTS)
 #define NSS_DP_HAL_CPU_NUM		4
 #define NSS_DP_HAL_START_IFNUM		1
+
+/*
+ * TX maximum supported ports
+ */
+#ifdef NSS_DP_MHT_SW_PORT_MAP
+#define NSS_DP_HAL_MHT_SWT_MAX_PORTS	4
+#define NSS_DP_HAL_MAX_TX_PORTS		(NSS_DP_HAL_MAX_PORTS + NSS_DP_HAL_MHT_SWT_MAX_PORTS - 1)
+#define NSS_DP_MHT_MAP_IDX		2
+
+/*
+ * Switch ID for IPQ53xx
+ */
+#define NSS_DP_MHT_SW_ID	1
+#endif
+
+/*
+ * Default device ID for IPQ53xx
+ */
+#define NSS_DP_DEV_ID	0
 
 /*
  * Maximum supported GSO segments
@@ -48,6 +67,13 @@
 #define NSS_DP_HAL_TX_NAPI_BUDGET	256
 
 /*
+ * Timestamp information for the latency measurement
+ */
+#define NSS_DP_GMAC_TS_ADDR_SEC(x)	((x) + 0xD08)
+#define NSS_DP_GMAC_TS_ADDR_NSEC(x)	((x) + 0xD0C)
+#define NSS_DP_EDMA_DEF_TSTAMP_PORT	2
+
+/*
  * EDMA clock's
  */
 #define NSS_DP_EDMA_CSR_CLK			"nss-csr-clk"
@@ -69,11 +95,7 @@
 #define NSS_DP_EDMA_CC_NSSNOC_CE_AXI_CLK	"nss-nssnoc-ce-axi-clk"
 #define NSS_DP_EDMA_SNOC_NSSNOC_CLK		"nss-snoc-nssnoc-clk"
 #define NSS_DP_EDMA_SNOC_NSSNOC_1_CLK		"nss-snoc-nssnoc-1-clk"
-#define NSS_DP_EDMA_MEM_NOC_AHB_CLK		"nss-mem-noc-ahb-clk"
-#define NSS_DP_EDMA_MEM_NOC_SNOC_AXI_CLK	"nss-mem-noc-snoc-axi-clk"
-#define NSS_DP_EDMA_MEM_NOC_APSS_AXI_CLK	"nss-mem-noc-apss-axi-clk"
-#define NSS_DP_EDMA_MEM_NOC_QOSGEN_EXTREF_CLK	"nss-mem-noc-qosgen-extref-clk"
-#define NSS_DP_EDMA_MEM_NOC_TS_CLK		"nss-mem-noc-ts-clk"
+#define NSS_DP_EDMA_CLK				"nss-edma-clk"
 
 /*
  * EDMA clock's frequencies
@@ -97,11 +119,6 @@
 #define NSS_DP_EDMA_CC_NSSNOC_CE_AXI_CLK_FREQ		200000000
 #define NSS_DP_EDMA_SNOC_NSSNOC_CLK_FREQ		266666666
 #define NSS_DP_EDMA_SNOC_NSSNOC_1_CLK_FREQ		266666666
-#define NSS_DP_EDMA_MEM_NOC_AHB_CLK_FREQ		100000000
-#define NSS_DP_EDMA_MEM_NOC_SNOC_AXI_CLK_FREQ		266666666
-#define NSS_DP_EDMA_MEM_NOC_APSS_AXI_CLK_FREQ		533333333
-#define NSS_DP_EDMA_MEM_NOC_QOSGEN_EXTREF_CLK_FREQ	6000000
-#define NSS_DP_EDMA_MEM_NOC_TS_CLK_FREQ			75000000
 
 /**
  * nss_dp_hal_gmac_stats
@@ -125,6 +142,8 @@ struct nss_dp_hal_gmac_stats {
 	uint64_t tx_tso_drop_packets;	/**< Number of TX TCP segmentation dropped packets */
 	uint64_t tx_gso_packets;	/**< Number of TX SW GSO packets */
 	uint64_t tx_gso_drop_packets;	/**< Number of TX SW GSO dropped packets */
+	uint64_t tx_queue_stopped[NR_CPUS];
+			/**< Number of times Queue got stopped */
 };
 
 /**

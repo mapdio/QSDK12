@@ -8,12 +8,12 @@
 include $(TOPDIR)/rules.mk
 
 PKG_NAME:=valgrind
-PKG_VERSION:=3.18.1
+PKG_VERSION:=3.21.0
 PKG_RELEASE:=1
 
 PKG_SOURCE:=$(PKG_NAME)-$(PKG_VERSION).tar.bz2
-PKG_SOURCE_URL:=http://sourceware.org/pub/valgrind/
-PKG_HASH:=00859aa13a772eddf7822225f4b46ee0d39afbe071d32778da4d99984081f7f5
+PKG_SOURCE_URL:=https://sourceware.org/pub/valgrind/
+PKG_HASH:=10ce1618bb3e33fad16eb79552b0a3e1211762448a0d7fce11c8a6243b9ac971
 
 PKG_MAINTAINER:=Felix Fietkau <nbd@nbd.name>
 PKG_LICENSE:=GPL-2.0+
@@ -22,7 +22,7 @@ PKG_CPE_ID:=cpe:/a:valgrind:valgrind
 PKG_FIXUP = autoreconf
 PKG_INSTALL := 1
 PKG_BUILD_PARALLEL := 1
-PKG_USE_MIPS16:=0
+PKG_BUILD_FLAGS:=no-mips16
 PKG_SSP:=0
 
 STRIP:=:
@@ -33,7 +33,7 @@ include $(INCLUDE_DIR)/kernel.mk
 define Package/valgrind
   SECTION:=devel
   CATEGORY:=Development
-  DEPENDS:=@mips||mipsel||i386||x86_64||powerpc||arm_v7||aarch64 +libpthread +librt
+  DEPENDS:=@mips||mipsel||mips64||mips64el||i386||x86_64||powerpc||arm_v7||aarch64 +libpthread +librt
   TITLE:=debugging and profiling tools for Linux
   URL:=http://www.valgrind.org
 endef
@@ -123,7 +123,7 @@ define Package/valgrind/install
 		$(PKG_INSTALL_DIR)/usr/lib/valgrind/vgpreload_memcheck*.so \
 		$(1)/usr/lib/valgrind/
 
-ifeq (, $(findstring $(ARCH), aarch64 aarch64_be))
+ifneq ($(ARCH),aarch64)
 	$(CP) \
 		$(PKG_INSTALL_DIR)/usr/lib/valgrind/$(CPU)-*.xml \
 		$(1)/usr/lib/valgrind/

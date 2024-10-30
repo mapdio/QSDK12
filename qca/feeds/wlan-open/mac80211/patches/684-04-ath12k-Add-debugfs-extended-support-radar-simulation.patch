@@ -19,7 +19,7 @@ Signed-off-by: Harshitha Prem <quic_hprem@quicinc.com>
 
 --- a/drivers/net/wireless/ath/ath12k/debugfs.c
 +++ b/drivers/net/wireless/ath/ath12k/debugfs.c
-@@ -1487,14 +1487,74 @@ static const struct file_operations fops
+@@ -1477,14 +1477,72 @@ static const struct file_operations fops
  	.open = simple_open
  };
  
@@ -82,8 +82,6 @@ Signed-off-by: Harshitha Prem <quic_hprem@quicinc.com>
 +	if ((segment > 1) || (chirp > 1) || (agile > 2))
 +		return -EINVAL;
 +
-+	if (agile && ar->agile_chandef.chan == NULL)
-+		return -EINVAL;
 +send_cmd:
 +	radar_params = u32_encode_bits(segment, SEGMENT_ID) |
 +		       u32_encode_bits(chirp, CHRIP_ID) |
@@ -97,7 +95,7 @@ Signed-off-by: Harshitha Prem <quic_hprem@quicinc.com>
  
 --- a/drivers/net/wireless/ath/ath12k/wmi.c
 +++ b/drivers/net/wireless/ath/ath12k/wmi.c
-@@ -9709,7 +9709,7 @@ ath12k_wmi_send_unit_test_cmd(struct ath
+@@ -9712,7 +9712,7 @@ ath12k_wmi_send_unit_test_cmd(struct ath
  	return ret;
  }
  
@@ -106,7 +104,7 @@ Signed-off-by: Harshitha Prem <quic_hprem@quicinc.com>
  {
  	struct ath12k_link_vif *arvif;
  	struct ath12k_vif *ahvif;
-@@ -9730,11 +9730,10 @@ int ath12k_wmi_simulate_radar(struct ath
+@@ -9733,11 +9733,10 @@ int ath12k_wmi_simulate_radar(struct ath
  
  	dfs_args[DFS_TEST_CMDID] = 0;
  	dfs_args[DFS_TEST_PDEV_ID] = ar->pdev->pdev_id;

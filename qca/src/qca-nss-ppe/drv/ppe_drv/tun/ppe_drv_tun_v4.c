@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2022-2023 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2024 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for any
  * purpose with or without fee is hereby granted, provided that the above
@@ -20,6 +20,7 @@
 #include <fal/fal_tunnel.h>
 #include <fal/fal_port_ctrl.h>
 #include "ppe_drv_tun.h"
+#include <net/vxlan.h>
 
 /*
  * ppe_drv_tun_v4_port_stats_update()
@@ -127,6 +128,142 @@ static ppe_drv_ret_t ppe_drv_v4_tun_conn_fill(struct ppe_drv_v4_rule_create *cre
 }
 
 /*
+ * ppe_drv_v4_tun_get_tun_from_create_rule
+ *	Get tunnel drv for tunnel device
+ *
+ * Requires caller to hold lock on ppe_drv_gbl.
+ */
+static struct ppe_drv_tun *ppe_drv_v4_tun_get_tun_from_create_rule(struct ppe_drv_v4_connection_rule *conn)
+{
+	struct ppe_drv_port *pp_port;
+	struct ppe_drv_iface *iface;
+	struct ppe_drv_tun *port_tun;
+
+	iface = ppe_drv_iface_get_by_idx(conn->rx_if);
+	pp_port = iface ? ppe_drv_iface_port_get(iface) : NULL;
+
+	port_tun = (pp_port) ? (ppe_drv_port_tun_get(pp_port)) : (NULL);
+	if (!port_tun) {
+		iface = ppe_drv_iface_get_by_idx(conn->tx_if);
+		pp_port = (iface) ? (ppe_drv_iface_port_get(iface)) : (NULL);
+		port_tun = (pp_port) ? (ppe_drv_port_tun_get(pp_port)) : (NULL);
+	}
+
+	return port_tun;
+}
+
+/*
+ * ppe_drv_v4_vxlan_tunnel()
+ *	Check if create request for Vxlan tunnel.
+ */
+static bool ppe_drv_v4_vxlan_tunnel(struct ppe_drv_v4_rule_create *create, struct net_device *dev)
+{
+	int vxlan_dport = ppe_drv_get_vxlan_dport();
+
+	if (netif_is_vxlan(dev) || (!strncmp(dev->name, "ppe_vxlan_tun", 13))) {
+		/*
+		 * Check if it is an outer rule.
+		 */
+		if (((create->tuple.flow_ident == vxlan_dport) && (create->tuple.return_ident == vxlan_dport))) {
+			ppe_drv_info("%p: Creating VXLAN tunnel dev: %s", dev, dev->name);
+			return true;
+		}
+	}
+
+	return false;
+}
+
+/*
+ * ppe_drv_v4_l2tp_tunnel()
+ *	Check if create request for l2tp tunnel.
+ */
+bool ppe_drv_v4_l2tp_tunnel(uint8_t protocol, uint32_t flow_ident, uint32_t return_ident)
+{
+	struct ppe_drv *p = &ppe_drv_gbl;
+
+	if ((protocol == IPPROTO_UDP) &&
+		(((flow_ident == p->tun_gbl.tun_l2tp.l2tp_sport) && (return_ident == p->tun_gbl.tun_l2tp.l2tp_dport)) ||
+		 ((flow_ident == p->tun_gbl.tun_l2tp.l2tp_dport) && (return_ident == p->tun_gbl.tun_l2tp.l2tp_sport)))) {
+		return true;
+	}
+
+	return false;
+}
+
+/*
+ * ppe_drv_v4_tun_allow_tunnel_destroy()
+ *	Check if the destroy rule is received for tunnel
+ *
+ * Requires caller to hold lock on ppe_drv_gbl.
+ */
+bool ppe_drv_v4_tun_allow_tunnel_destroy(struct ppe_drv_v4_rule_destroy *destroy)
+{
+	int vxlan_dport = ppe_drv_get_vxlan_dport();
+
+	/*
+	 * PPE accelearation is only supported for default port currently.
+	 */
+	if (ppe_drv_tun_check_support(destroy->tuple.protocol)) {
+		return true;
+	}
+
+       if ((destroy->tuple.flow_ident == vxlan_dport && destroy->tuple.return_ident == vxlan_dport)) {
+		return true;
+       }
+
+       if (ppe_drv_v4_l2tp_tunnel(destroy->tuple.protocol,
+			       destroy->tuple.flow_ident, destroy->tuple.return_ident)) {
+		return true;
+       }
+
+	return false;
+}
+
+/*
+ * ppe_drv_v4_tun_allow_tunnel_create()
+ *	Check if the create rule is received for tunnel activation
+ *
+ * Requires caller to hold lock on ppe_drv_gbl.
+ */
+bool ppe_drv_v4_tun_allow_tunnel_create(struct ppe_drv_v4_rule_create *create)
+{
+	struct ppe_drv *p = &ppe_drv_gbl;
+	struct ppe_drv_tun *port_tun;
+	struct net_device *dev;
+
+	/*
+	 * Check if the rule is for GRE or IPIP6
+	 */
+	if (ppe_drv_tun_check_support(create->tuple.protocol)) {
+		return true;
+	}
+
+	/*
+	 * Check if rule is for a L2TP tunnel.
+	 */
+	if (ppe_drv_v4_l2tp_tunnel(create->tuple.protocol, create->tuple.flow_ident,
+					create->tuple.return_ident)) {
+		return true;
+	}
+
+	spin_lock_bh(&p->lock);
+	port_tun = ppe_drv_v4_tun_get_tun_from_create_rule(&create->conn_rule);
+	if (!port_tun) {
+		spin_unlock_bh(&p->lock);
+		return false;
+	}
+
+	dev = ppe_drv_port_to_dev(port_tun->pp);
+	if (ppe_drv_v4_vxlan_tunnel(create, dev)) {
+		spin_unlock_bh(&p->lock);
+		return true;
+	}
+
+	spin_unlock_bh(&p->lock);
+	return false;
+}
+
+/*
  * ppe_drv_tun_v4_parse_l2_hdr()
  *	Collect the layer 2 parameters from rule create
  *
@@ -153,7 +290,6 @@ void ppe_drv_tun_v4_parse_l2_hdr(struct ppe_drv_v4_rule_create *create, struct p
 	ppe_drv_assert(pp, "%p: physical xmit port not found", create);
 
 	xmit_port = pp->port;
-	ppe_drv_assert((xmit_port < PPE_DRV_PHYSICAL_MAX), "%p: Invalid physical xmit interface", create);
 
 	ppe_drv_assert(pp->mac_valid, "%p: MAC address is not set", pp);
 
@@ -293,8 +429,10 @@ ppe_drv_ret_t ppe_drv_v4_tun_del_ce_notify(struct ppe_drv_v4_rule_destroy *destr
 
 	spin_unlock_bh(&p->lock);
 
+	ppe_drv_stats_inc(&comm_stats->v4_destroy_req);
 	status = del_cb(vp_num, destroy);
 	if (status != true) {
+		ppe_drv_stats_inc(&comm_stats->v4_destroy_fail);
 		return PPE_DRV_RET_FAILURE_TUN_CE_DEL_FAILURE;
 	}
 
@@ -320,7 +458,6 @@ ppe_drv_ret_t ppe_drv_v4_tun_add_ce_notify(struct ppe_drv_v4_rule_create *create
 	iface = ppe_drv_iface_get_by_idx(conn->rx_if);
 	pp_port = (iface) ? (ppe_drv_iface_port_get(iface)) : (NULL);
 	port_tun = (pp_port) ? (ppe_drv_port_tun_get(pp_port)) : (NULL);
-
 
 	if (!port_tun) {
 		iface = ppe_drv_iface_get_by_idx(conn->tx_if);
@@ -445,4 +582,73 @@ fail:
 	}
 
 	return ret;
+}
+
+/*
+ * ppe_drv_tun_v4_fse_entry_del
+ *	Delete tunnel FSE rule entry
+ */
+bool ppe_drv_tun_v4_fse_entry_del(struct ppe_drv_v4_conn_flow *pcf,  struct ppe_drv_v4_conn_flow *pcr)
+{
+	struct ppe_drv *p = &ppe_drv_gbl;
+	struct ppe_drv_comm_stats *comm_stats;
+        struct ppe_drv_fse_rule_info fse_info = {0};
+        struct ppe_drv_v4_conn_flow *fse_cn = NULL;
+	struct ppe_drv_port *rx_port = ppe_drv_v4_conn_flow_rx_port_get(pcf);
+	struct ppe_drv_port *tx_port = ppe_drv_v4_conn_flow_tx_port_get(pcf);
+	bool is_tx_ds = (tx_port->user_type == PPE_DRV_PORT_USER_TYPE_DS);
+	bool is_rx_ds = (rx_port->user_type == PPE_DRV_PORT_USER_TYPE_DS);
+	bool is_tx_active_vp = (tx_port->user_type == PPE_DRV_PORT_USER_TYPE_ACTIVE_VP);
+	bool is_rx_active_vp = (rx_port->user_type == PPE_DRV_PORT_USER_TYPE_ACTIVE_VP);
+
+	comm_stats = &p->stats.comm_stats[PPE_DRV_CONN_TYPE_TUNNEL];
+	if ((is_rx_ds && !is_tx_ds) || (is_rx_active_vp && !is_tx_active_vp)) {
+		ppe_drv_fill_fse_v4_tuple_info(pcf, &fse_info, true);
+		fse_cn = pcf;
+	} else if ((is_tx_ds && !is_rx_ds) || (is_tx_active_vp && !is_rx_active_vp)) {
+		ppe_drv_fill_fse_v4_tuple_info(pcr, &fse_info, true);
+		fse_cn = pcr;
+	} else {
+		ppe_drv_warn("Tx/Rx either port must be active/DS VP\n");
+		return false;
+	}
+
+	if (p->fse_ops->destroy_fse_rule(&fse_info)) {
+		ppe_drv_stats_inc(&p->stats.comm_stats->v4_destroy_fse_fail);
+		ppe_drv_warn("%p: FSE v4 rule deletion failed\n", pcf);
+		return false;
+	}
+
+	ppe_drv_stats_inc(&p->stats.comm_stats->v4_destroy_fse_success);
+	ppe_drv_v4_conn_flow_flags_clear(pcf, PPE_DRV_V4_CONN_FLOW_FLAG_FSE);
+	ppe_drv_v4_conn_flow_flags_clear(pcr, PPE_DRV_V4_CONN_FLOW_FLAG_FSE);
+	kref_put(&p->fse_ops_ref, ppe_drv_fse_ops_free);
+	ppe_drv_trace("%p: FSE v4 rule deletion successfull\n", pcf);
+
+	return true;
+}
+
+/*
+ * ppe_drv_tun_v6_fse_entry_add
+ *	Add tunnel FSE rule entry
+ */
+bool ppe_drv_tun_v4_fse_entry_add(void *vcreate_rule, struct ppe_drv_v4_conn_flow *pcf, struct ppe_drv_v4_conn_flow *pcr)
+{
+	struct ppe_drv *p = &ppe_drv_gbl;
+	struct ppe_drv_comm_stats *comm_stats;
+	struct ppe_drv_v4_rule_create *create = (struct ppe_drv_v4_rule_create *)vcreate_rule;
+
+	comm_stats = &p->stats.comm_stats[PPE_DRV_CONN_TYPE_TUNNEL];
+
+	if (ppe_drv_v4_fse_interface_check(pcf)) {
+		if (!ppe_drv_v4_fse_flow_configure(create, pcf, pcr)) {
+			ppe_drv_stats_inc(&comm_stats->v4_create_fse_fail);
+			ppe_drv_warn("%p: FSE flow table programming failed\n", p);
+			return false;
+		}
+
+		ppe_drv_stats_inc(&comm_stats->v4_create_fse_success);
+	}
+
+	return true;
 }

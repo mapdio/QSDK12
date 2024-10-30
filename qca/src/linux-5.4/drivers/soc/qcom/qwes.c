@@ -125,18 +125,11 @@ static long qwes_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 				return -ENOMEM;
 			}
 
-			claim_buf = kzalloc(ar.claim_buf_len, GFP_KERNEL);
-			if (!claim_buf) {
-				pr_err("Memory allocation failed for claim buffer\n");
-				ret = -ENOMEM;
-				goto req_buf_alloc_err;
-			}
-
 			resp_size = kzalloc(sizeof(u32), GFP_KERNEL);
 			if (!resp_size) {
 				pr_err("Memory allocation failed for attest resp length\n");
 				ret = -ENOMEM;
-				goto claim_buf_alloc_err;
+				goto req_buf_alloc_err;
 			}
 
 			resp_buf = kzalloc(QWES_RESP_BUFF_MAX_SIZE, GFP_KERNEL);
@@ -146,40 +139,54 @@ static long qwes_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 				goto resp_size_alloc_err;
 			}
 
+			if (ar.req_buf == NULL || ar.req_buf_len <= 0) {
+				pr_err("Error : attest req buf data is Null!\n");
+				ret = -EINVAL;
+				goto resp_buf_alloc_err;
+			}
 			ret = copy_from_user(req_buf, ar.req_buf, ar.req_buf_len);
 			if (ret) {
 				pr_err("Error : attest req buf data write failed !\n");
 				goto resp_buf_alloc_err;
 			}
-			ret = copy_from_user(claim_buf, ar.claim_buf, ar.claim_buf_len);
-			if (ret) {
-				pr_err("Error : External Claim buf Data Write Failed !\n");
-				goto resp_buf_alloc_err;
+			if(ar.claim_buf != NULL && ar.claim_buf_len > 0) {
+				claim_buf = kzalloc(ar.claim_buf_len, GFP_KERNEL);
+				if (!claim_buf) {
+					pr_err("Memory allocation failed for claim buffer\n");
+					ret = -ENOMEM;
+					goto resp_buf_alloc_err;
+				}
+				ret = copy_from_user(claim_buf, ar.claim_buf, ar.claim_buf_len);
+				if (ret) {
+					pr_err("Error : External Claim buf Data Write Failed !\n");
+					goto claim_buf_alloc_err;
+				}
 			}
 			ret = qti_scm_get_device_attestation_response(QWES_SVC_ID, QWES_ATTEST_REPORT,
 					req_buf, ar.req_buf_len, claim_buf, ar.claim_buf_len, resp_buf,
 					QWES_RESP_BUFF_MAX_SIZE, resp_size);
 			if (ret) {
 				pr_err("qwes attestation response scm failed\n");
-				goto resp_buf_alloc_err;
+				goto claim_buf_alloc_err;
 			}
 			ar.resp_buf_len = *resp_size;
 			ret = copy_to_user(ar.resp_buf, resp_buf, ar.resp_buf_len);
 			if (ret) {
 				pr_err("Error : resp buf data read failed\n");
-				goto resp_buf_alloc_err;
+				goto claim_buf_alloc_err;
 			}
 			ret = copy_to_user(argp, &ar, sizeof(ar));
 			if (ret) {
 				pr_err("Error : Structure attest_resp data read failed\n");
 			}
 
+		claim_buf_alloc_err:
+			if (claim_buf != NULL)
+				kfree(claim_buf);
 		resp_buf_alloc_err:
 			kfree(resp_buf);
 		resp_size_alloc_err:
 			kfree(resp_size);
-		claim_buf_alloc_err:
-			kfree(claim_buf);
 		req_buf_alloc_err:
 			kfree(req_buf);
 			break;
@@ -208,6 +215,11 @@ static long qwes_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 				pr_err("Memory allocation failed for prov resp buffer\n");
 				ret = -ENOMEM;
 				goto prov_resp_size_alloc_err;
+			}
+			if (pr.provreq_buf == NULL || pr.req_buf_len <= 0) {
+				pr_err("Error : prov req buf is Null !\n");
+				ret = -EINVAL;
+				goto prov_resp_buf_alloc_err;
 			}
 			ret = copy_from_user(req_buf, pr.provreq_buf, pr.req_buf_len);
 			if (ret) {

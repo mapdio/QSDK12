@@ -34,14 +34,11 @@ static void qce_ahash_done(void *data)
 	struct qce_sha_reqctx *rctx = ahash_request_ctx(req);
 	struct qce_alg_template *tmpl = to_ahash_tmpl(async_req->tfm);
 	struct qce_device *qce = tmpl->qce;
+	struct qce_bam_transaction *qce_bam_txn = qce->dma.qce_bam_txn;
 	struct qce_result_dump *result = qce->dma.result_buf;
 	unsigned int digestsize = crypto_ahash_digestsize(ahash);
 	int error;
 	u32 status;
-
-	error = qce_dma_terminate_all(&qce->dma);
-	if (error)
-		dev_dbg(qce->dev, "ahash dma termination error (%d)\n", error);
 
 	dma_unmap_sg(qce->dev, req->src, rctx->src_nents, DMA_TO_DEVICE);
 	dma_unmap_sg(qce->dev, &rctx->result_sg, 1, DMA_FROM_DEVICE);
@@ -53,9 +50,19 @@ static void qce_ahash_done(void *data)
 	rctx->byte_count[0] = cpu_to_be32(result->auth_byte_count[0]);
 	rctx->byte_count[1] = cpu_to_be32(result->auth_byte_count[1]);
 
-	error = qce_check_status(qce, &status);
-	if (error < 0)
-		dev_dbg(qce->dev, "ahash operation error (%x)\n", status);
+	if (qce->qce_cmd_desc_enable) {
+		if (qce_bam_txn->qce_read_sgl_cnt)
+			dma_unmap_sg(qce->dev,
+				qce_bam_txn->qce_reg_read_sgl,
+				qce_bam_txn->qce_read_sgl_cnt,
+				DMA_DEV_TO_MEM);
+
+		if (qce_bam_txn->qce_write_sgl_cnt)
+			dma_unmap_sg(qce->dev,
+				qce_bam_txn->qce_reg_write_sgl,
+				qce_bam_txn->qce_write_sgl_cnt,
+				DMA_MEM_TO_DEV);
+	}
 
 	req->src = rctx->src_orig;
 	req->nbytes = rctx->nbytes_orig;
@@ -64,6 +71,14 @@ static void qce_ahash_done(void *data)
 	rctx->last_blk = false;
 	rctx->first_blk = false;
 	rctx->result_orig = NULL;
+
+	error = qce_dma_terminate_all(&qce->dma);
+	if (error)
+		dev_dbg(qce->dev, "ahash dma termination error (%d)\n", error);
+
+	error = qce_check_status(qce, &status);
+	if (error < 0)
+		dev_dbg(qce->dev, "ahash operation error (%x)\n", status);
 
 	qce->async_req_done(tmpl->qce, error);
 }
@@ -85,6 +100,10 @@ static int qce_ahash_async_req_handle(struct crypto_async_request *async_req)
 		rctx->authkey = ctx->authkey;
 		rctx->authklen = AES_KEYSIZE_128;
 	}
+
+	/* Get the LOCK for this request */
+	if (qce->qce_cmd_desc_enable)
+		qce_read_dma_get_lock(qce);
 
 	rctx->src_nents = sg_nents_for_len(req->src, req->nbytes);
 	if (rctx->src_nents < 0) {
@@ -109,9 +128,15 @@ static int qce_ahash_async_req_handle(struct crypto_async_request *async_req)
 
 	qce_dma_issue_pending(&qce->dma);
 
-	ret = qce_start(async_req, tmpl->crypto_alg_type, 0, 0);
-	if (ret)
-		goto error_terminate;
+	if (qce->qce_cmd_desc_enable) {
+		ret = qce_start_dma(async_req, tmpl->crypto_alg_type);
+		if (ret)
+			goto error_terminate;
+	} else {
+		ret = qce_start(async_req, tmpl->crypto_alg_type);
+		if (ret)
+			goto error_terminate;
+	}
 
 	return 0;
 
@@ -525,7 +550,7 @@ static int qce_ahash_register_one(const struct qce_ahash_def *def,
 
 	base = &alg->halg.base;
 	base->cra_blocksize = def->blocksize;
-	base->cra_priority = 300;
+	base->cra_priority = 10;
 	base->cra_flags = CRYPTO_ALG_ASYNC | CRYPTO_ALG_KERN_DRIVER_ONLY;
 	base->cra_ctxsize = sizeof(struct qce_sha_ctx);
 	base->cra_alignmask = 0;

@@ -3238,6 +3238,8 @@ static int qspi_get_appropriate_phase(struct qcom_nand_controller *nandc, u8 *ph
 	}
 
 	/* Filter out middle phase */
+	if (cnt == 1)
+		phase = phase_table[1];
 	if (cnt > 1 && cnt <= TOTAL_NUM_PHASE) {
 		if (!(cnt & 1))
 			phase = phase_ranges[cnt/2 - 1];

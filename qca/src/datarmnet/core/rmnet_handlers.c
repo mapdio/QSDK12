@@ -20,6 +20,7 @@
 #include <linux/ipv6.h>
 #include <net/sock.h>
 #include <linux/tracepoint.h>
+#include <linux/skbuff.h>
 #include "rmnet_private.h"
 #include "rmnet_config.h"
 #include "rmnet_vnd.h"
@@ -52,6 +53,10 @@ EXPORT_TRACEPOINT_SYMBOL(rmnet_err);
 EXPORT_TRACEPOINT_SYMBOL(rmnet_freq_update);
 EXPORT_TRACEPOINT_SYMBOL(rmnet_freq_reset);
 EXPORT_TRACEPOINT_SYMBOL(rmnet_freq_boost);
+
+extern unsigned long long nr_rmnet_pkts;
+extern unsigned long long rmnet_rx_bytes;
+extern u32 drop_at_rmnet;
 
 /* Helper Functions */
 
@@ -109,6 +114,9 @@ rmnet_deliver_skb(struct sk_buff *skb, struct rmnet_port *port)
 			0xDEF, 0xDEF, (void *)skb, NULL);
 	rmnet_vnd_rx_fixup(skb->dev, skb->len);
 
+	nr_rmnet_pkts++;
+	rmnet_rx_bytes += skb->len;
+
 	/* Pass off the packet to NSS driver if we can */
 	if (priv->offload) {
 		nss_cb = rcu_dereference(rmnet_nss_callbacks);
@@ -130,7 +138,6 @@ rmnet_deliver_skb(struct sk_buff *skb, struct rmnet_port *port)
 
 	skb_reset_transport_header(skb);
 	skb_reset_network_header(skb);
-	rmnet_vnd_rx_fixup(skb->dev, skb->len);
 
 	skb->pkt_type = PACKET_HOST;
 	skb_set_mac_header(skb, 0);
@@ -144,7 +151,12 @@ rmnet_deliver_skb(struct sk_buff *skb, struct rmnet_port *port)
 	}
 	rcu_read_unlock();
 
-	netif_receive_skb(skb);
+	if (likely(drop_at_rmnet == 0)) {
+		netif_receive_skb(skb);
+	} else {
+		consume_skb(skb);
+	}
+
 }
 EXPORT_SYMBOL(rmnet_deliver_skb);
 

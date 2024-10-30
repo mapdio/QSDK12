@@ -1,6 +1,6 @@
 /*
  * Copyright (c) 2016-2018, 2021, The Linux Foundation. All rights reserved.
- * Copyright (c) 2022-2023 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2024 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
@@ -134,44 +134,6 @@ typedef struct {
 	a_uint32_t drop_packets[FAL_QM_DROP_ITEMS];
 	a_uint64_t drop_bytes[FAL_QM_DROP_ITEMS];
 } fal_queue_stats_t;
-
-enum {
-	FUNC_UCAST_HASH_MAP_SET = 0,
-	FUNC_AC_DYNAMIC_THRESHOLD_GET,
-	FUNC_UCAST_QUEUE_BASE_PROFILE_GET,
-	FUNC_PORT_MCAST_PRIORITY_CLASS_GET,
-	FUNC_AC_DYNAMIC_THRESHOLD_SET,
-	FUNC_AC_PREALLOC_BUFFER_SET,
-	FUNC_UCAST_DEFAULT_HASH_GET,
-	FUNC_UCAST_DEFAULT_HASH_SET,
-	FUNC_AC_QUEUE_GROUP_GET,
-	FUNC_AC_CTRL_GET,
-	FUNC_AC_PREALLOC_BUFFER_GET,
-	FUNC_PORT_MCAST_PRIORITY_CLASS_SET,
-	FUNC_UCAST_HASH_MAP_GET,
-	FUNC_AC_STATIC_THRESHOLD_SET,
-	FUNC_AC_QUEUE_GROUP_SET,
-	FUNC_AC_GROUP_BUFFER_GET,
-	FUNC_MCAST_CPU_CODE_CLASS_GET,
-	FUNC_AC_CTRL_SET,
-	FUNC_UCAST_PRIORITY_CLASS_GET,
-	FUNC_QUEUE_FLUSH,
-	FUNC_MCAST_CPU_CODE_CLASS_SET,
-	FUNC_UCAST_PRIORITY_CLASS_SET,
-	FUNC_AC_STATIC_THRESHOLD_GET,
-	FUNC_UCAST_QUEUE_BASE_PROFILE_SET,
-	FUNC_AC_GROUP_BUFFER_SET,
-	FUNC_QUEUE_COUNTER_CLEANUP,
-	FUNC_QUEUE_COUNTER_GET,
-	FUNC_QUEUE_COUNTER_CTRL_GET,
-	FUNC_QUEUE_COUNTER_CTRL_SET,
-	FUNC_QM_ENQUEUE_CTRL_GET,
-	FUNC_QM_ENQUEUE_CTRL_SET,
-	FUNC_QM_PORT_SRCPROFILE_GET,
-	FUNC_QM_PORT_SRCPROFILE_SET,
-	FUNC_QM_ENQUEUE_CFG_GET,
-	FUNC_QM_ENQUEUE_CFG_SET,
-};
 
 sw_error_t
 fal_ac_ctrl_set(
@@ -361,7 +323,6 @@ fal_qm_port_source_profile_get(
 		fal_port_t port,
 		a_uint32_t *src_profile);
 
-#if !defined(IN_QM_MINI)
 sw_error_t
 fal_qm_enqueue_config_set(a_uint32_t dev_id,
 		fal_enqueue_cfg_t *enqueue_cfg);
@@ -369,8 +330,6 @@ fal_qm_enqueue_config_set(a_uint32_t dev_id,
 sw_error_t
 fal_qm_enqueue_config_get(a_uint32_t dev_id,
 		fal_enqueue_cfg_t *enqueue_cfg);
-#endif
-
 #ifdef __cplusplus
 }
 #endif                          /* __cplusplus */

@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2024 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for any
  * purpose with or without fee is hereby granted, provided that the above
@@ -16,6 +16,7 @@
 
 #include <linux/netdevice.h>
 #include <linux/if_ether.h>
+#include <linux/if_vlan.h>
 #include <fal/fal_fdb.h>
 #include <fal/fal_ip.h>
 #include <fal/fal_misc.h>
@@ -262,7 +263,7 @@ static void ppe_drv_port_destroy(struct kref *kref)
 		return;
 	}
 
-	mtu_cfg.mtu_enable = true;
+	mtu_cfg.mtu_enable = A_TRUE;
 	mtu_cfg.mtu_type = FAL_MTU_ETHERNET;
 	err = fal_port_mtu_cfg_set(PPE_DRV_SWITCH_ID, pp->port, &mtu_cfg);
 	if (err != SW_OK) {
@@ -283,7 +284,7 @@ static void ppe_drv_port_destroy(struct kref *kref)
 	/*
 	 * Clear MAC address
 	 */
-	macaddr.valid = false;
+	macaddr.valid = A_FALSE;
 	err = fal_ip_port_macaddr_set(PPE_DRV_SWITCH_ID, pp->port, &macaddr);
 	if (err != SW_OK) {
 		ppe_drv_warn("%p: unable to clear port mac address", pp);
@@ -296,7 +297,7 @@ static void ppe_drv_port_destroy(struct kref *kref)
 	/*
 	 * Enable invalid VSI forwarding so that we don't need to use a default VSI for standalone ports.
 	 */
-	vsi_ctrl.dest_en = true;
+	vsi_ctrl.dest_en = A_TRUE;
 	vsi_ctrl.dest_info.dest_info_type = FAL_DEST_INFO_PORT_ID;
 	vsi_ctrl.dest_info.dest_info_value = PPE_DRV_PORT_CPU;
 	err = fal_vsi_invalidvsi_ctrl_set(PPE_DRV_SWITCH_ID, pp->port, &vsi_ctrl);
@@ -311,7 +312,7 @@ static void ppe_drv_port_destroy(struct kref *kref)
 	/*
 	 * Enable promiscous mode
 	 */
-	err = fal_port_promisc_mode_set(PPE_DRV_SWITCH_ID, fal_port, true);
+	err = fal_port_promisc_mode_set(PPE_DRV_SWITCH_ID, fal_port, A_TRUE);
 	if (err != SW_OK) {
 		ppe_drv_warn("%p: failed to configure promiscous mode for port: %u", pp, pp->port);
 		return;
@@ -320,7 +321,7 @@ static void ppe_drv_port_destroy(struct kref *kref)
 	/*
 	 * Disable station move learning
 	 */
-	err = fal_fdb_port_stamove_ctrl_set(PPE_DRV_SWITCH_ID, fal_port, false, FAL_MAC_RDT_TO_CPU);
+	err = fal_fdb_port_stamove_ctrl_set(PPE_DRV_SWITCH_ID, fal_port, A_FALSE, FAL_MAC_RDT_TO_CPU);
 	if (err != SW_OK) {
 		ppe_drv_warn("%p: failed to clear station move control config for port: %u", pp, pp->port);
 		return;
@@ -362,6 +363,7 @@ static void ppe_drv_port_destroy(struct kref *kref)
 	ppe_drv_trace("%p: ppe port %u destroyed", pp, pp->port);
 }
 
+#ifdef PPE_TUNNEL_ENABLE
 /*
  * ppe_drv_port_get_n_ref_tl_l3_if
  *	Get reference on tl_l3_if
@@ -412,6 +414,7 @@ void ppe_drv_port_tl_l3_if_detach(struct ppe_drv_port *pp)
 	pp->tl_l3_if = NULL;
 	ppe_drv_port_deref(pp);
 }
+#endif
 
 /*
  * ppe_drv_port_l3_if_attach()
@@ -441,7 +444,7 @@ bool ppe_drv_port_l3_if_attach(struct ppe_drv_port *pp, struct ppe_drv_l3_if *pl
 	 */
 	if (pl3->type == PPE_DRV_L3_IF_TYPE_PORT) {
 		if (!pp->br_vsi) {
-			intf_ctrl.l3_if_valid = true;
+			intf_ctrl.l3_if_valid = A_TRUE;
 			intf_ctrl.l3_if_index = pl3->l3_if_index;
 			err = fal_ip_port_intf_set(PPE_DRV_SWITCH_ID, pp->port, &intf_ctrl);
 			if (err != SW_OK) {
@@ -450,7 +453,7 @@ bool ppe_drv_port_l3_if_attach(struct ppe_drv_port *pp, struct ppe_drv_l3_if *pl
 				return false;
 			}
 
-			pp->active_l3_if_attached = true;
+			pp->active_l3_if_attached = A_TRUE;
 			pp->active_l3_if = pl3;
 		}
 	}
@@ -511,7 +514,7 @@ void ppe_drv_port_l3_if_detach(struct ppe_drv_port *pp, struct ppe_drv_l3_if *pl
 	 * Update L3_VP_PORT_TBL.
 	 */
 	if (pl3->type == PPE_DRV_L3_IF_TYPE_PORT) {
-		intf_ctrl.l3_if_valid = false;
+		intf_ctrl.l3_if_valid = A_FALSE;
 		intf_ctrl.l3_if_index = pl3->l3_if_index;
 		err = fal_ip_port_intf_set(PPE_DRV_SWITCH_ID, pp->port, &intf_ctrl);
 		if (err != SW_OK) {
@@ -725,6 +728,15 @@ void ppe_drv_port_vsi_detach(struct ppe_drv_port *pp, struct ppe_drv_vsi *vsi)
 			if (ppe_drv_vlan_add_untag_ingress_rule(pp, pp->active_l3_if)) {
 				pp->ingress_untag_vlan = true;
 			}
+
+			/*
+			 * Detach l3_if for ports with active vlan if it was attached earlier.
+			 * This is added to handle a case where l3_if is set if parent ethX interface
+			 * was deleted from bridge.
+			 */
+			if (pp->active_l3_if_attached) {
+				ppe_drv_port_l3_if_detach(pp, pp->active_l3_if);
+			}
 		}
 
 		break;
@@ -821,53 +833,89 @@ struct ppe_drv_l3_if *ppe_drv_port_find_pppoe_l3_if(struct ppe_drv_port *pp, uin
 }
 
 /*
- * ppe_drv_port_is_flow_offload_enabled()
- *	API to check whether given netdevice is enabled for offload or not
+ * ppe_drv_port_check_flow_offload_enabled()
+ *	API to check whether given PPE port is enabled for offload or not
  */
-bool ppe_drv_port_is_flow_offload_enabled(struct net_device *dev)
+bool ppe_drv_port_check_flow_offload_enabled(struct ppe_drv_port *drv_port)
 {
-	struct ppe_drv_iface *iface;
-	struct ppe_drv_port *drv_port = NULL;
+	/*
+	 * If the PPE port's device is the VLAN device, then get the VLAN's base
+	 * device and check the PPE offload enablement on it
+	 */
+	if (drv_port->dev && is_vlan_dev(drv_port->dev)) {
+		struct ppe_drv_iface *base_if;
+		struct net_device *base_dev;
 
-	if (!dev) {
-		ppe_drv_warn("Net device is NULL\n");
-		return false;
+		base_dev = vlan_dev_real_dev(drv_port->dev);
+		if (!base_dev) {
+			ppe_drv_warn("Failed to obtain base device for %d port\n", drv_port->port);
+			return true;
+		}
+
+		base_if = ppe_drv_iface_get_by_dev_internal(base_dev);
+		if (!base_if) {
+			ppe_drv_warn("Failed to get the iface of %s base device\n", base_dev->name);
+			return true;
+		}
+
+		drv_port = ppe_drv_iface_port_get(base_if);
+		if (!drv_port) {
+			ppe_drv_warn("Invalid port for %s base device\n", base_dev->name);
+			return true;
+		}
 	}
-
-	iface = ppe_drv_iface_get_by_dev_internal(dev);
-	if (!iface) {
-		ppe_drv_warn("failed in getting iface from netdev (%s)\n",
-					dev->name);
-		return false;
-	}
-
-	drv_port = ppe_drv_iface_port_get(iface);
-	if (!drv_port) {
-		ppe_drv_warn("failed in getting drv port from iface\n");
-		return false;
-	}
-
-	ppe_drv_warn("dev: %s, port: %x, if_bm_to_offload: %x\n",
-				dev->name, drv_port->port, if_bm_to_offload);
 
 	/*
 	 * PPE offload disable feature is supported only on physical ports
 	 */
 	if (!PPE_DRV_PHY_PORT_CHK(drv_port->port)) {
-		ppe_drv_warn("port:%d is not physical\n", drv_port->port);
+		ppe_drv_trace("port:%d is not physical\n", drv_port->port);
 		return true;
 	}
 
-	if (if_bm_to_offload & (1 << (drv_port->port - 1))) {
-		ppe_drv_warn("port offload enabled flag is set for %d port\n",
+	if (drv_port->flags & PPE_DRV_PORT_FLAG_OFFLOAD_ENABLED) {
+		ppe_drv_trace("port offload enabled flag is set for %d port\n",
 					drv_port->port);
 		return true;
 	}
 
-	ppe_drv_warn("port offload is disabled for %d port\n", drv_port->port);
+	ppe_drv_trace("port offload is disabled for %d port\n", drv_port->port);
 	return false;
 }
-EXPORT_SYMBOL(ppe_drv_port_is_flow_offload_enabled);
+
+/*
+ * ppe_drv_is_wlan_vp_port_type()
+ *	API to return true if the PPE port is of WLAN port type
+ */
+bool ppe_drv_is_wlan_vp_port_type(uint8_t user_type)
+{
+	return ((user_type == PPE_DRV_PORT_USER_TYPE_PASSIVE_VP) ||
+			(user_type == PPE_DRV_PORT_USER_TYPE_ACTIVE_VP) ||
+			(user_type == PPE_DRV_PORT_USER_TYPE_DS));
+}
+
+/*
+ * ppe_drv_port_ucast_queue_get_by_port()
+ *	Return queue id of port number.
+ */
+int32_t ppe_drv_port_ucast_queue_get_by_port(int port)
+{
+	fal_ucast_queue_dest_t q_dst = {0};
+	uint32_t queue_id = 0;
+	uint8_t profile = 0;
+	sw_error_t err;
+
+	q_dst.dst_port = port;
+
+	err = fal_ucast_queue_base_profile_get(PPE_DRV_SWITCH_ID, &q_dst, &queue_id, &profile);
+	if (err != SW_OK) {
+		ppe_drv_warn("error %d getting queue base for port %d\n", err, port);
+		return -1;
+	}
+
+	return queue_id;
+}
+EXPORT_SYMBOL(ppe_drv_port_ucast_queue_get_by_port);
 
 /*
  * ppe_drv_port_get_vp_phys_dev()
@@ -1081,7 +1129,7 @@ int32_t ppe_drv_port_num_from_dev(struct net_device *dev)
 	}
 
 	spin_unlock_bh(&p->lock);
-	return -1;
+	return PPE_DRV_PORT_ID_INVALID;
 }
 EXPORT_SYMBOL(ppe_drv_port_num_from_dev);
 
@@ -1110,8 +1158,15 @@ bool ppe_drv_port_check_rfs_support(struct net_device *dev)
 		return false;
 	}
 
-	if (pp->user_type != PPE_DRV_PORT_USER_TYPE_PASSIVE_VP) {
+	if (!ppe_drv_is_wlan_vp_port_type(pp->user_type)) {
 		spin_unlock_bh(&p->lock);
+		ppe_drv_trace("ppe port is of invalid type: %d\n", pp->user_type);
+		return false;
+	}
+
+	if (ppe_drv_port_is_tunnel_vp(pp)) {
+		spin_unlock_bh(&p->lock);
+		ppe_drv_warn("%p: VP is tunnel VP", pp);
 		return false;
 	}
 
@@ -1125,6 +1180,80 @@ bool ppe_drv_port_check_rfs_support(struct net_device *dev)
 }
 EXPORT_SYMBOL(ppe_drv_port_check_rfs_support);
 
+/*
+ * ppe_drv_port_clear_policer_support()
+ *	Clear policer support
+ */
+void ppe_drv_port_clear_policer_support(struct net_device *dev)
+{
+	struct ppe_drv_port *pp = NULL;
+	struct ppe_drv *p = &ppe_drv_gbl;
+
+	spin_lock_bh(&p->lock);
+	pp = ppe_drv_port_from_dev(dev);
+	if (!pp) {
+		spin_unlock_bh(&p->lock);
+		ppe_drv_warn("%p unable to find valid ppe port for given dev: %s\n", dev, dev->name);
+		return;
+	}
+
+	pp->flags &= ~PPE_DRV_PORT_POLICER_ENABLED;
+	spin_unlock_bh(&p->lock);
+	ppe_drv_trace("%p Clear policer flag for given dev: %s\n", p, dev->name);
+	return;
+}
+EXPORT_SYMBOL(ppe_drv_port_clear_policer_support);
+
+/*
+ * ppe_drv_port_set_policer_support()
+ *	set policer support
+ */
+void ppe_drv_port_set_policer_support(struct net_device *dev)
+{
+	struct ppe_drv_port *pp = NULL;
+	struct ppe_drv *p = &ppe_drv_gbl;
+
+	spin_lock_bh(&p->lock);
+	pp = ppe_drv_port_from_dev(dev);
+	if (!pp) {
+		spin_unlock_bh(&p->lock);
+		ppe_drv_warn("%p unable to find valid ppe port for given dev: %s\n", dev, dev->name);
+		return;
+	}
+
+	pp->flags |= PPE_DRV_PORT_POLICER_ENABLED;
+	spin_unlock_bh(&p->lock);
+	ppe_drv_trace("%p Set policer flag for given dev: %s\n", p, dev->name);
+	return;
+}
+EXPORT_SYMBOL(ppe_drv_port_set_policer_support);
+
+/*
+ * ppe_drv_port_check_policer_support()
+ *	check policer support
+ *
+ * TODO: Enhance framework to do Virtual port based policing using L2_VP_TBL
+ */
+bool ppe_drv_port_check_policer_support(struct net_device *dev)
+{
+	struct ppe_drv_port *pp = NULL;
+	struct ppe_drv *p = &ppe_drv_gbl;
+	bool policer_en = false;
+
+	spin_lock_bh(&p->lock);
+	pp = ppe_drv_port_from_dev(dev);
+	if (!pp) {
+		spin_unlock_bh(&p->lock);
+		ppe_drv_warn("%p unable to find valid ppe port for given dev: %s\n", dev, dev->name);
+		return false;
+	}
+
+	policer_en = !!(pp->flags & PPE_DRV_PORT_POLICER_ENABLED);
+	spin_unlock_bh(&p->lock);
+	ppe_drv_trace("%p policer status for given dev: %s is %d\n", p, dev->name, policer_en);
+	return policer_en;
+}
+EXPORT_SYMBOL(ppe_drv_port_check_policer_support);
 
 /*
  * ppe_drv_port_is_physical()
@@ -1228,8 +1357,6 @@ bool ppe_drv_port_deref(struct ppe_drv_port *pp)
  */
 void ppe_drv_port_ucast_queue_update(struct ppe_drv_port *pp, uint8_t queue_id)
 {
-	ppe_drv_assert(kref_read(&pp->ref_cnt), "%p: setting queue ID for an unused port:%u", pp, pp->port);
-
 	/*
 	 * Update shadow copy.
 	 */
@@ -1259,10 +1386,26 @@ bool ppe_drv_port_ucast_queue_set(struct ppe_drv_port *pp, uint8_t queue_id)
 		profile = FAL_QM_PROFILE_PO_ID;
 	}
 
+	if ((pp->type == PPE_DRV_PORT_VIRTUAL) && is_vlan_dev(pp->dev)) {
+		profile = PPE_DRV_REDIR_PROFILE_ID;
+	}
+
 	/*
 	 * Select PPE-DS profile ID for PPE-DS user ports.
 	 */
 	if (pp->user_type == PPE_DRV_PORT_USER_TYPE_DS) {
+		profile = PPE_DRV_REDIR_PROFILE_ID;
+	}
+
+	/*
+	 * If port based redirection is enabled, disable RPS for the port
+	 */
+	if (ppe_drv_port_flags_check(pp, PPE_DRV_PORT_FLAG_REDIR_ENABLED)) {
+		profile = PPE_DRV_REDIR_PROFILE_ID;
+	}
+
+	if (ppe_drv_port_is_tunnel_vp(pp) &&
+			ppe_drv_port_flags_check(pp, PPE_DRV_PORT_FLAG_TUN_ENDPOINT_DS)) {
 		profile = PPE_DRV_REDIR_PROFILE_ID;
 	}
 
@@ -1301,14 +1444,14 @@ uint8_t ppe_drv_port_ucast_queue_get(struct ppe_drv_port *pp)
  * ppe_drv_port_mac_addr_set()
  *	Set MAC addr of a given port in PPE.
  */
-void ppe_drv_port_mac_addr_set(struct ppe_drv_port *pp, uint8_t *mac_addr)
+void ppe_drv_port_mac_addr_set(struct ppe_drv_port *pp, const uint8_t *mac_addr)
 {
 	sw_error_t err;
 	fal_macaddr_entry_t macaddr = {0};
 
 	ppe_drv_assert(kref_read(&pp->ref_cnt), "%p: setting mac addr on an unused port:%u", pp, pp->port);
 
-	macaddr.valid = true;
+	macaddr.valid = A_TRUE;
 	memcpy(macaddr.mac_addr.uc, mac_addr, ETH_ALEN);
 	err = fal_ip_port_macaddr_set(PPE_DRV_SWITCH_ID, pp->port, &macaddr);
 	if (err != SW_OK) {
@@ -1336,7 +1479,7 @@ void ppe_drv_port_mac_addr_clear(struct ppe_drv_port *pp)
 
 	ppe_drv_assert(kref_read(&pp->ref_cnt), "%p: operating on an unused port:%u", pp, pp->port);
 
-	macaddr.valid = false;
+	macaddr.valid = A_FALSE;
 	err = fal_ip_port_macaddr_set(PPE_DRV_SWITCH_ID, pp->port, &macaddr);
 	if (err != SW_OK) {
 		ppe_drv_warn("%p: unable to clear port mac address", pp);
@@ -1404,6 +1547,27 @@ bool ppe_drv_port_pp_mtu_cfg(struct ppe_drv_port *pp, bool enable)
 	err = fal_port_mtu_cfg_set(PPE_DRV_SWITCH_ID, fal_port, &mtu_cfg);
 	if (err != SW_OK) {
 		ppe_drv_warn("%p: failed to set MTU config for port%d", pp, pp->port);
+		return false;
+	}
+
+	return true;
+}
+
+/*
+ * ppe_drv_port_mtu_disable()
+ *	Disable port MTU check in PPE
+ */
+bool ppe_drv_port_mtu_disable(struct ppe_drv_port *pp)
+{
+	sw_error_t err;
+	fal_mtu_ctrl_t mtu_ctrl = {0};
+
+	mtu_ctrl.mtu_size = PPE_DRV_PORT_JUMBO_MAX;
+	mtu_ctrl.action = FAL_MAC_FRWRD;
+	err = fal_port_mtu_set(PPE_DRV_SWITCH_ID, pp->port, &mtu_ctrl);
+
+	if (err != SW_OK) {
+		ppe_drv_warn("%p: unable to configure port mtu: %u", pp, PPE_DRV_PORT_JUMBO_MAX);
 		return false;
 	}
 
@@ -1494,7 +1658,7 @@ bool ppe_drv_port_mtu_mru_set(struct ppe_drv_port *pp, uint16_t mtu, uint16_t mr
 		return false;
 	}
 
-	mtu_cfg.mtu_enable = true;
+	mtu_cfg.mtu_enable = A_TRUE;
 	mtu_cfg.mtu_type = FAL_MTU_ETHERNET;
 
 	/*
@@ -1568,7 +1732,7 @@ void ppe_drv_port_mtu_mru_clear(struct ppe_drv_port *pp)
 		return;
 	}
 
-	mtu_cfg.mtu_enable = true;
+	mtu_cfg.mtu_enable = A_TRUE;
 	mtu_cfg.mtu_type = FAL_MTU_ETHERNET;
 	mtu_cfg.extra_header_len = 0;
 	err = fal_port_mtu_cfg_set(PPE_DRV_SWITCH_ID, pp->port, &mtu_cfg);
@@ -1659,6 +1823,45 @@ bool ppe_drv_port_xcpn_mode_set(uint16_t vp_num, uint8_t action)
 }
 EXPORT_SYMBOL(ppe_drv_port_xcpn_mode_set);
 
+
+/*
+ * ppe_drv_port_src_profile_get_byidx()
+ *	Get source profile for a port
+ */
+int ppe_drv_port_src_profile_get_byidx(uint8_t port_idx)
+{
+	struct ppe_drv_port *pp = ppe_drv_port_from_port_num(port_idx);
+	if (!pp) {
+		ppe_drv_warn("No valid PPE port for this port number: %d\n", port_idx);
+		return 0;
+	}
+
+	return pp->src_profile;
+}
+
+/*
+ * ppe_drv_port_l2_vp_sc_config()
+ *	l2_vp service code config
+ */
+bool ppe_drv_port_l2_vp_sc_config(struct ppe_drv_port *pp, ppe_drv_sc_t sc)
+{
+	fal_enqueue_cfg_t enq_cfg = {0};
+	sw_error_t err;
+
+	enq_cfg.index_entry.enqueue_servcode.service_code = sc;
+	enq_cfg.index_entry.enqueue_en = A_TRUE;
+	enq_cfg.rule_entry.enqueue_type = FAL_ENQUEUE_SERVCODE;
+	enq_cfg.rule_entry.dst_port = pp->port;
+
+	err = fal_qm_enqueue_config_set(PPE_DRV_SWITCH_ID, &enq_cfg);
+	if (err != SW_OK) {
+		printk("Failed to set service code config for port: %d", pp->port);
+		return false;
+	}
+
+	return true;
+}
+
 /*
  * ppe_drv_port_alloc()
  *	Create a new virtual port in PPE.
@@ -1723,7 +1926,7 @@ struct ppe_drv_port *ppe_drv_port_alloc(enum ppe_drv_port_type type, struct net_
 	/*
 	 * Enable invalid VSI forwarding so that we don't need to use a default VSI for standalone ports.
 	 */
-	vsi_ctrl.dest_en = true;
+	vsi_ctrl.dest_en = A_TRUE;
 	vsi_ctrl.dest_info.dest_info_type = FAL_DEST_INFO_PORT_ID;
 	vsi_ctrl.dest_info.dest_info_value = PPE_DRV_PORT_CPU;
 	err = fal_vsi_invalidvsi_ctrl_set(PPE_DRV_SWITCH_ID, port, &vsi_ctrl);
@@ -1736,7 +1939,7 @@ struct ppe_drv_port *ppe_drv_port_alloc(enum ppe_drv_port_type type, struct net_
 	/*
 	 * Enable promiscous mode
 	 */
-	err = fal_port_promisc_mode_set(PPE_DRV_SWITCH_ID, port, true);
+	err = fal_port_promisc_mode_set(PPE_DRV_SWITCH_ID, port, A_TRUE);
 	if (err != SW_OK) {
 		ppe_drv_warn("%p: failed to configure promiscous mode for port: %u", p, pp->port);
 		ppe_drv_port_deref(pp);
@@ -1749,14 +1952,14 @@ struct ppe_drv_port *ppe_drv_port_alloc(enum ppe_drv_port_type type, struct net_
 	 *
 	 * TODO: make this configurable through ppe-vp driver.
 	 */
-	err = fal_fdb_port_learning_ctrl_set(PPE_DRV_SWITCH_ID, port, false, FAL_MAC_FRWRD);
+	err = fal_fdb_port_learning_ctrl_set(PPE_DRV_SWITCH_ID, port, A_FALSE, FAL_MAC_FRWRD);
 	if (err != SW_OK) {
 		ppe_drv_warn("%p: failed to configure FDB learning for port: %u", p, pp->port);
 		ppe_drv_port_deref(pp);
 		return NULL;
 	}
 
-	err = fal_fdb_port_stamove_ctrl_set(PPE_DRV_SWITCH_ID, port, false, FAL_MAC_FRWRD);
+	err = fal_fdb_port_stamove_ctrl_set(PPE_DRV_SWITCH_ID, port, A_FALSE, FAL_MAC_FRWRD);
 	if (err != SW_OK) {
 		ppe_drv_warn("%p: failed to configure station move control for port: %u", p, pp->port);
 		ppe_drv_port_deref(pp);
@@ -1765,20 +1968,19 @@ struct ppe_drv_port *ppe_drv_port_alloc(enum ppe_drv_port_type type, struct net_
 
 	pp->is_fdb_learn_enabled = false;
 
-
 	/*
 	 * Set VP type as normal VP.
 	 */
 	if (tunnel_vp_cfg) {
 		vp_state.vp_type = FAL_VPORT_TYPE_TUNNEL;
-		vp_state.check_en = true;
-		vp_state.vp_active = false;
-		vp_state.eg_data_valid = false;
+		vp_state.check_en = A_TRUE;
+		vp_state.vp_active = A_FALSE;
+		vp_state.eg_data_valid = A_FALSE;
 	} else {
 		vp_state.vp_type = FAL_VPORT_TYPE_NORMAL;
-		vp_state.check_en = false;
-		vp_state.vp_active = true;
-		vp_state.eg_data_valid = false;
+		vp_state.check_en = A_FALSE;
+		vp_state.vp_active = A_TRUE;
+		vp_state.eg_data_valid = A_FALSE;
 	}
 
 	err = fal_vport_state_check_set(PPE_DRV_SWITCH_ID, port, &vp_state);
@@ -1792,10 +1994,10 @@ struct ppe_drv_port *ppe_drv_port_alloc(enum ppe_drv_port_type type, struct net_
 	 * Enable port counters
 	 * TODO: change this to formal API instead of debug API.
 	 */
-	cntr.rx_cnt_en = true;
-	cntr.tl_rx_cnt_en = true;
-	cntr.uc_tx_cnt_en = true;
-	cntr.mc_tx_cnt_en = true;
+	cntr.rx_cnt_en = A_TRUE;
+	cntr.tl_rx_cnt_en = A_TRUE;
+	cntr.uc_tx_cnt_en = A_TRUE;
+	cntr.mc_tx_cnt_en = A_TRUE;
 	cntr.rx_cnt_mode = FAL_PORT_CNT_MODE_FULL_PKT;
 	cntr.tx_cnt_mode = FAL_PORT_CNT_MODE_FULL_PKT;
 	err = fal_port_cnt_cfg_set(PPE_DRV_SWITCH_ID, port, &cntr);
@@ -1856,6 +2058,8 @@ struct ppe_drv_port *ppe_drv_port_phy_alloc(uint8_t port_num, struct net_device 
 	fal_vport_state_t vp_state = {0};
 	fal_qos_pri_precedence_t pre = {0};
 	fal_vsi_invalidvsi_ctrl_t vsi_ctrl = {0};
+	fal_ucast_queue_dest_t q_dst = {0};
+	uint32_t queue_id;
 
 	if (port_num >= PPE_DRV_PHYSICAL_MAX) {
 		ppe_drv_assert(false, "%p: physical port number out of range: %u dev: %p",
@@ -1877,7 +2081,7 @@ struct ppe_drv_port *ppe_drv_port_phy_alloc(uint8_t port_num, struct net_device 
 	/*
 	 * Enable invalid VSI forwarding so that we don't need to use a default VSI for standalone ports.
 	 */
-	vsi_ctrl.dest_en = true;
+	vsi_ctrl.dest_en = A_TRUE;
 	vsi_ctrl.dest_info.dest_info_type = FAL_DEST_INFO_PORT_ID;
 	vsi_ctrl.dest_info.dest_info_value = PPE_DRV_PORT_CPU;
 	err = fal_vsi_invalidvsi_ctrl_set(PPE_DRV_SWITCH_ID, pp->port, &vsi_ctrl);
@@ -1890,7 +2094,7 @@ struct ppe_drv_port *ppe_drv_port_phy_alloc(uint8_t port_num, struct net_device 
 	/*
 	 * Enable promiscous mode
 	 */
-	err = fal_port_promisc_mode_set(PPE_DRV_SWITCH_ID, pp->port, true);
+	err = fal_port_promisc_mode_set(PPE_DRV_SWITCH_ID, pp->port, A_TRUE);
 	if (err != SW_OK) {
 		ppe_drv_warn("%p: failed to configure promiscous mode for port: %u", p, pp->port);
 		ppe_drv_port_deref(pp);
@@ -1900,7 +2104,7 @@ struct ppe_drv_port *ppe_drv_port_phy_alloc(uint8_t port_num, struct net_device 
 	/*
 	 * Enable station move learning
 	 */
-	err = fal_fdb_port_stamove_ctrl_set(PPE_DRV_SWITCH_ID, pp->port, true, FAL_MAC_RDT_TO_CPU);
+	err = fal_fdb_port_stamove_ctrl_set(PPE_DRV_SWITCH_ID, pp->port, A_TRUE, FAL_MAC_RDT_TO_CPU);
 	if (err != SW_OK) {
 		ppe_drv_warn("%p: failed to configure station move control for port: %u", p, pp->port);
 		ppe_drv_port_deref(pp);
@@ -1911,7 +2115,7 @@ struct ppe_drv_port *ppe_drv_port_phy_alloc(uint8_t port_num, struct net_device 
 	 * Set VP type as normal VP.
 	 */
 	vp_state.vp_type = FAL_VPORT_TYPE_NORMAL;
-	vp_state.vp_active = true;
+	vp_state.vp_active = A_TRUE;
 	err = fal_vport_state_check_set(PPE_DRV_SWITCH_ID, pp->port, &vp_state);
 	if (err != SW_OK) {
 		ppe_drv_warn("%p: failed to configure state check for port: %u", p, pp->port);
@@ -1922,10 +2126,10 @@ struct ppe_drv_port *ppe_drv_port_phy_alloc(uint8_t port_num, struct net_device 
 	/*
 	 * Enable port counters
 	 */
-	cntr.rx_cnt_en = true;
-	cntr.tl_rx_cnt_en = true;
-	cntr.uc_tx_cnt_en = true;
-	cntr.mc_tx_cnt_en = true;
+	cntr.rx_cnt_en = A_TRUE;
+	cntr.tl_rx_cnt_en = A_TRUE;
+	cntr.uc_tx_cnt_en = A_TRUE;
+	cntr.mc_tx_cnt_en = A_TRUE;
 	cntr.rx_cnt_mode = FAL_PORT_CNT_MODE_FULL_PKT;
 	cntr.tx_cnt_mode = FAL_PORT_CNT_MODE_FULL_PKT;
 	err = fal_port_cnt_cfg_set(PPE_DRV_SWITCH_ID, pp->port, &cntr);
@@ -1953,6 +2157,14 @@ struct ppe_drv_port *ppe_drv_port_phy_alloc(uint8_t port_num, struct net_device 
 		ppe_drv_port_deref(pp);
 		return NULL;
 	}
+
+	q_dst.src_profile = 0;
+	q_dst.dst_port = pp->port;
+	err = fal_ucast_queue_base_profile_get(PPE_DRV_SWITCH_ID, &q_dst, &queue_id, &pp->profile_id);
+        if (err != SW_OK) {
+                ppe_drv_warn("error %d getting profile\n", err);
+                return NULL;
+        }
 
 	/*
 	 * Fill shadow copy of port entry

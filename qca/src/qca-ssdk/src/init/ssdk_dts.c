@@ -1,7 +1,7 @@
 /*
  * Copyright (c) 2018-2020, The Linux Foundation. All rights reserved.
  *
- * Copyright (c) 2021-2023 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2021-2024 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for any
  * purpose with or without fee is hereby granted, provided that the above
@@ -35,6 +35,9 @@
 #if defined(MHT)
 #include "mht_sec_ctrl.h"
 #endif
+#include <linux/of.h>
+#include <linux/of_mdio.h>
+#include <linux/of_platform.h>
 
 static ssdk_dt_global_t ssdk_dt_global = {0};
 #ifdef HPPE
@@ -109,6 +112,16 @@ a_uint32_t ssdk_dt_global_get_mac_mode(a_uint32_t dev_id, a_uint32_t index)
 	}
 
 	return 0;
+}
+
+a_uint32_t ssdk_dt_get_port_mode(a_uint32_t dev_id, a_uint32_t port_id)
+{
+	a_uint32_t uniphy_index = 0, mac_mode = 0;
+
+	uniphy_index = hsl_port_to_uniphy(dev_id, port_id);
+
+	mac_mode = ssdk_dt_global_get_mac_mode(dev_id, uniphy_index);
+	return hsl_uniphy_mode_to_port_mode(dev_id, port_id, mac_mode);
 }
 
 a_uint32_t ssdk_dt_global_set_mac_mode(a_uint32_t dev_id, a_uint32_t index, a_uint32_t mode)
@@ -259,7 +272,6 @@ struct clk *ssdk_dts_cmnclk_get(a_uint32_t dev_id)
 	return cfg->cmnblk_clk;
 }
 
-#ifndef BOARD_AR71XX
 #if defined(CONFIG_OF) && (LINUX_VERSION_CODE >= KERNEL_VERSION(3,14,0))
 static void ssdk_dt_parse_mac_mode(a_uint32_t dev_id,
 		struct device_node *switch_node, ssdk_init_cfg *cfg)
@@ -337,13 +349,14 @@ static void ssdk_dt_parse_l1_scheduler_cfg(
 	ssdk_dt_scheduler_cfg *cfg = &(ssdk_dt_global.ssdk_dt_switch_nodes[dev_id]->scheduler_cfg);
 	a_uint32_t tmp_cfg[4];
 	const __be32 *paddr;
-	a_uint32_t len, i, sp_id;
+	a_uint32_t len, i, sp_id, pri_loop = 0;
 
 	scheduler_node = of_find_node_by_name(port_node, "l1scheduler");
 	if (!scheduler_node) {
 		SSDK_ERROR("cannot find l1scheduler node for port\n");
 		return;
 	}
+
 	for_each_available_child_of_node(scheduler_node, child) {
 		paddr = of_get_property(child, "sp", &len);
 		len /= sizeof(a_uint32_t);
@@ -356,19 +369,41 @@ static void ssdk_dt_parse_l1_scheduler_cfg(
 			SSDK_ERROR("error reading cfg property!\n");
 			return;
 		}
-		for (i = 0; i < len; i++) {
-			sp_id = be32_to_cpup(paddr+i);
-			if (sp_id >= SSDK_L1SCHEDULER_CFG_MAX) {
-				SSDK_ERROR("Invalid parameter for sp(%d)\n",
-					sp_id);
+
+		if (of_property_read_u32(child, "sp_loop_pri", &pri_loop)) {
+			for (i = 0; i < len; i++) {
+				sp_id = be32_to_cpup(paddr+i);
+				if (sp_id >= SSDK_L1SCHEDULER_CFG_MAX) {
+					SSDK_ERROR("Invalid parameter for sp(%d)\n", sp_id);
+					return;
+				}
+				cfg->l1cfg[sp_id].valid = 1;
+				cfg->l1cfg[sp_id].port_id = port_id;
+				cfg->l1cfg[sp_id].cpri = tmp_cfg[0];
+				cfg->l1cfg[sp_id].cdrr_id = tmp_cfg[1];
+				cfg->l1cfg[sp_id].epri = tmp_cfg[2];
+				cfg->l1cfg[sp_id].edrr_id = tmp_cfg[3];
+			}
+		} else {
+			/* should one SP for priority loop */
+			if (len != 1) {
+				SSDK_ERROR("should one SP for loop!\n");
 				return;
 			}
-			cfg->l1cfg[sp_id].valid = 1;
-			cfg->l1cfg[sp_id].port_id = port_id;
-			cfg->l1cfg[sp_id].cpri = tmp_cfg[0];
-			cfg->l1cfg[sp_id].cdrr_id = tmp_cfg[1];
-			cfg->l1cfg[sp_id].epri = tmp_cfg[2];
-			cfg->l1cfg[sp_id].edrr_id = tmp_cfg[3];
+
+			sp_id = be32_to_cpup(paddr);
+			if (sp_id >= SSDK_L1SCHEDULER_CFG_MAX) {
+				SSDK_ERROR("Invalid parameter for sp(%d)\n", sp_id);
+				return;
+			}
+			for (i = 0; i < pri_loop; i++) {
+				cfg->l1cfg[sp_id + i].valid = 1;
+				cfg->l1cfg[sp_id + i].port_id = port_id;
+				cfg->l1cfg[sp_id + i].cpri = tmp_cfg[0] + i%SSDK_SP_MAX_PRIORITY;
+				cfg->l1cfg[sp_id + i].cdrr_id = tmp_cfg[1] + i;
+				cfg->l1cfg[sp_id + i].epri = tmp_cfg[2] + i%SSDK_SP_MAX_PRIORITY;
+				cfg->l1cfg[sp_id + i].edrr_id = tmp_cfg[3] + i;
+			}
 		}
 	}
 }
@@ -557,12 +592,28 @@ static void ssdk_dt_parse_scheduler_cfg(a_uint32_t dev_id, struct device_node *s
 }
 #endif
 #endif
+
+static struct device_node *ssdk_dt_get_mdio_node(a_uint32_t dev_id)
+{
+	struct device_node *mdio_node = NULL;
+	hsl_reg_mode reg_mode = ssdk_switch_reg_access_mode_get(dev_id);
+
+	if (reg_mode == HSL_REG_LOCAL_BUS) {
+		mdio_node = of_find_compatible_node(NULL, NULL, "qcom,ipq40xx-mdio");
+		if (!mdio_node)
+			mdio_node = of_find_compatible_node(NULL, NULL, "qcom,qca-mdio");
+	} else
+		mdio_node = of_find_compatible_node(NULL, NULL, "virtual,mdio-gpio");
+
+	return mdio_node;
+}
+
 static sw_error_t ssdk_dt_parse_phy_info(struct device_node *switch_node, a_uint32_t dev_id,
 		ssdk_init_cfg *cfg)
 {
 	struct device_node *phy_info_node = NULL, *port_node = NULL;
 	a_uint32_t port_id = 0, phy_addr = 0, forced_speed = 0,
-		forced_duplex = 0, len = 0;
+		forced_duplex = 0, len = 0, miibus_index = 0;
 	const __be32 *paddr = NULL;
 	a_bool_t phy_c45 = A_FALSE, phy_combo = A_FALSE;
 #if defined(IN_PHY_I2C_MODE)
@@ -593,6 +644,25 @@ static sw_error_t ssdk_dt_parse_phy_info(struct device_node *switch_node, a_uint
 		}
 
 		/* initialize phy_addr in case of undefined dts field */
+		mdio_node = of_parse_phandle(port_node, "mdiobus", 0);
+		if (!mdio_node)
+			mdio_node = ssdk_dt_get_mdio_node(dev_id);
+
+		if (mdio_node)
+		{
+			ssdk_miibus_add(dev_id, of_mdio_find_bus(mdio_node), &miibus_index);
+			phy_reset_gpio = of_get_named_gpio(mdio_node, "phy-reset-gpio",
+				SSDK_PHY_RESET_GPIO_INDEX);
+			if(phy_reset_gpio > 0)
+			{
+				hsl_port_phy_reset_gpio_set(dev_id, port_id,
+					(a_uint32_t)phy_reset_gpio);
+			}
+			else
+			{
+				hsl_port_phy_reset_gpio_set(dev_id, port_id, SSDK_INVALID_GPIO);
+			}
+		}
 		phy_addr = 0xff;
 		phy_features = 0;
 		of_property_read_u32(port_node, "phy_address", &phy_addr);
@@ -605,20 +675,28 @@ static sw_error_t ssdk_dt_parse_phy_info(struct device_node *switch_node, a_uint
 				return SW_BAD_VALUE;
 			}
 			/* phy_i2c_address is the i2c slave addr */
-			hsl_phy_address_init(dev_id, port_id, phy_i2c_addr);
+			hsl_phy_address_init(dev_id, port_id,
+				TO_PHY_I2C_ADDR(phy_i2c_addr));
 			/* phy_address is the mdio addr,
 			 * which is a fake mdio addr in i2c mode */
 			qca_ssdk_phy_mdio_fake_address_set(dev_id, port_id, phy_addr);
 		} else
 #endif
 		{
-			hsl_phy_address_init(dev_id, port_id, phy_addr);
+			hsl_phy_address_init(dev_id, port_id,
+				TO_PHY_ADDR_E(phy_addr, miibus_index));
 		}
 
 		if (!of_property_read_u32(port_node, "forced-speed", &forced_speed) &&
 			!of_property_read_u32(port_node, "forced-duplex", &forced_duplex)) {
 			hsl_port_force_speed_set(dev_id, port_id, forced_speed);
 			hsl_port_force_duplex_set(dev_id, port_id, (a_uint8_t)forced_duplex);
+
+			/* save the force port address for getting mii bus on force port, this
+			 * mii bus can be used to initialize the manhattan after GPIO reset.
+			 */
+			hsl_phy_address_init(dev_id, port_id,
+				TO_PHY_ADDR_E(phy_addr, miibus_index));
 		}
 
 		paddr = of_get_property(port_node, "phy_dac", &len);
@@ -650,55 +728,112 @@ static sw_error_t ssdk_dt_parse_phy_info(struct device_node *switch_node, a_uint
 			} else if (!strncmp("sfp_sgmii", media_type, strlen(media_type))) {
 				phy_features |= (PHY_F_SFP | PHY_F_SFP_SGMII);
 			}
-			if(phy_features & PHY_F_SFP) {
-				/*get related PINs for SFP port*/
-				if(priv) {
-					sfp_rx_los_pin = of_get_named_gpio(port_node,
-						"sfp_rx_los_pin", 0);
-					if(sfp_rx_los_pin > 0)
-					{
-						priv->sfp_rx_los_pin[port_id] = sfp_rx_los_pin;
-					}
-					sfp_tx_dis_pin = of_get_named_gpio(port_node,
-						"sfp_tx_dis_pin", 0);
-					if(sfp_tx_dis_pin > 0)
-					{
-						priv->sfp_tx_dis_pin[port_id] = sfp_tx_dis_pin;
-					}
-					sfp_mod_present_pin = of_get_named_gpio(port_node,
-						"sfp_mod_present_pin", 0);
-					if(sfp_mod_present_pin > 0)
-					{
-						priv->sfp_mod_present_pin[port_id] =
-							sfp_mod_present_pin;
-					}
-					sfp_medium_pin = of_get_named_gpio(port_node,
-						"sfp_medium_pin", 0);
-					if(sfp_medium_pin > 0)
-					{
-						priv->sfp_medium_pin[port_id] = sfp_medium_pin;
-					}
+		}
+		if((phy_features & PHY_F_SFP) || phy_combo) {
+			/*get related PINs for SFP port*/
+			if(priv) {
+				sfp_rx_los_pin = of_get_named_gpio(port_node,
+					"sfp_rx_los_pin", 0);
+				if(sfp_rx_los_pin > 0)
+				{
+					priv->sfp_rx_los_pin[port_id] = sfp_rx_los_pin;
+				}
+				else if(sfp_rx_los_pin == -EPROBE_DEFER)
+				{
+					priv->sfp_rx_los_pin[port_id] = SSDK_MAX_GPIO;
+				}
+				else
+				{
+					priv->sfp_rx_los_pin[port_id] = SSDK_INVALID_GPIO;
+				}
+
+				sfp_tx_dis_pin = of_get_named_gpio(port_node,
+					"sfp_tx_dis_pin", 0);
+				if(sfp_tx_dis_pin > 0)
+				{
+					priv->sfp_tx_dis_pin[port_id] = sfp_tx_dis_pin;
+				}
+				else
+				{
+					priv->sfp_tx_dis_pin[port_id] = SSDK_INVALID_GPIO;
+				}
+
+				sfp_mod_present_pin = of_get_named_gpio(port_node,
+					"sfp_mod_present_pin", 0);
+				if(sfp_mod_present_pin > 0)
+				{
+					priv->sfp_mod_present_pin[port_id] =
+						sfp_mod_present_pin;
+				}
+				else
+				{
+					priv->sfp_mod_present_pin[port_id] =
+						SSDK_INVALID_GPIO;
+				}
+
+				sfp_medium_pin = of_get_named_gpio(port_node,
+					"sfp_medium_pin", 0);
+				if(sfp_medium_pin > 0)
+				{
+					priv->sfp_medium_pin[port_id] = sfp_medium_pin;
+				}
+				else
+				{
+					priv->sfp_medium_pin[port_id] = SSDK_INVALID_GPIO;
 				}
 			}
 		}
 		hsl_port_feature_set(dev_id, port_id, phy_features | PHY_F_INIT);
-
-		mdio_node = of_parse_phandle(port_node, "mdiobus", 0);
-		if (mdio_node)
-		{
-			hsl_port_miibus_set(dev_id, port_id, of_mdio_find_bus(mdio_node));
-			phy_reset_gpio = of_get_named_gpio(mdio_node, "phy-reset-gpio",
-				SSDK_PHY_RESET_GPIO_INDEX);
-			if(phy_reset_gpio > 0)
-			{
-				SSDK_INFO("port%d's phy-reset-gpio is GPIO%d\n", port_id,
-					phy_reset_gpio);
-				hsl_port_phy_reset_gpio_set(dev_id, port_id,
-					(a_uint32_t)phy_reset_gpio);
-			}
-		}
-
 	}
+
+	return rv;
+}
+
+static sw_error_t
+ssdk_dt_parse_default_mdio_bus(struct device_node *switch_node, a_uint32_t dev_id)
+{
+	struct device_node *mdio_node = NULL;
+	struct platform_device *mdio_plat = NULL;
+	hsl_reg_mode reg_mode = HSL_REG_LOCAL_BUS;
+	a_uint32_t miibus_index = 0;
+	sw_error_t rv = SW_OK;
+
+	if (switch_node) {
+		mdio_node = of_parse_phandle(switch_node, "mdio-bus", 0);
+		if (mdio_node) {
+			return ssdk_miibus_add(dev_id, of_mdio_find_bus(mdio_node),
+				&miibus_index);
+		}
+	}
+
+	mdio_node = ssdk_dt_get_mdio_node(dev_id);
+	if (!mdio_node) {
+		SSDK_ERROR("can't find mdio node\n");
+		return SW_NOT_FOUND;
+	}
+
+	mdio_plat = of_find_device_by_node(mdio_node);
+	if (!mdio_plat) {
+		SSDK_ERROR("cannot find platform device from mdio node\n");
+		return SW_NOT_FOUND;
+	}
+
+	if(reg_mode == HSL_REG_LOCAL_BUS) {
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(6,1,0))
+		rv = ssdk_miibus_add(dev_id, dev_get_drvdata(&mdio_plat->dev), &miibus_index);
+#else
+		struct qca_mdio_data *mdio_data = NULL;
+		mdio_data = dev_get_drvdata(&mdio_plat->dev);
+		if (!mdio_data) {
+			SSDK_ERROR("cannot get mdio_data reference from device data\n");
+			return SW_NOT_FOUND;
+		}
+		rv = ssdk_miibus_add(dev_id, mdio_data->mii_bus, &miibus_index);
+#endif
+	}
+	else
+		rv = ssdk_miibus_add(dev_id, dev_get_drvdata(&mdio_plat->dev),
+			&miibus_index);
 
 	return rv;
 }
@@ -713,6 +848,13 @@ static void ssdk_dt_parse_mdio(a_uint32_t dev_id, struct device_node *switch_nod
 	const __be32 *c45_phy;
 	phy_features_t phy_features = 0;
 
+	/*parse the mdio bus*/
+	if(!ssdk_is_emulation(dev_id)) {
+		if (SW_OK != ssdk_dt_parse_default_mdio_bus(switch_node, dev_id)) {
+			SSDK_ERROR("mdio bus parse failed!\n");
+			return;
+		}
+	}
 	/* prefer to get phy info from ess-switch node */
 	if (SW_OK == ssdk_dt_parse_phy_info(switch_node, dev_id, cfg))
 		return;
@@ -750,6 +892,59 @@ static void ssdk_dt_parse_mdio(a_uint32_t dev_id, struct device_node *switch_nod
 	return;
 }
 
+static sw_error_t
+ssdk_dt_parse_interrupt(a_uint32_t dev_id, struct device_node *switch_node)
+{
+	const __be32 *link_polling_required = NULL;
+	a_int32_t len = 0, intr_gpio_num = 0;
+	struct qca_phy_priv *priv = ssdk_phy_priv_data_get(dev_id);
+	const char *fdb_sync = NULL;
+
+	SW_RTN_ON_NULL(priv);
+	intr_gpio_num = of_get_named_gpio(switch_node, "intr-gpio", 0);
+	if(intr_gpio_num < 0) {
+		intr_gpio_num = of_get_named_gpio(switch_node, "link-intr-gpio", 0);
+		if(intr_gpio_num < 0) {
+			SSDK_INFO("intr-gpio does not exist\n");
+		}
+	}
+	if(intr_gpio_num > 0) {
+		if(gpio_is_valid(intr_gpio_num))
+		{
+			if(gpio_request_one(intr_gpio_num, GPIOF_IN, "ssdk interrupt") < 0) {
+				SSDK_ERROR("gpio request faild \n");
+				return SW_FAIL;
+			}
+			priv->interrupt_no = gpio_to_irq (intr_gpio_num);
+			SSDK_INFO("interrupt gpio:0x%x, interrupt number: 0x%x\n",
+				intr_gpio_num, priv->interrupt_no);
+		}
+	}
+
+	link_polling_required = of_get_property(switch_node, "link-polling-required", &len);
+	if (!link_polling_required)
+		priv->link_polling_required = A_TRUE;
+	else
+		priv->link_polling_required  = be32_to_cpup(link_polling_required);
+
+
+	if(of_property_read_string(switch_node, "fdb_sync", &fdb_sync))
+		priv->fdb_sync = FDB_SYNC_DIS;
+	else {
+		if(!strcmp(fdb_sync, "disable"))
+			priv->fdb_sync = FDB_SYNC_DIS;
+		else if(!strcmp(fdb_sync, "interrupt"))
+			priv->fdb_sync = FDB_SYNC_INTR;
+		else if(!strcmp(fdb_sync, "polling"))
+			priv->fdb_sync = FDB_SYNC_POLLING;
+		else
+			return SW_NOT_SUPPORTED;
+	}
+
+	return SW_OK;
+}
+
+#if 0
 #if defined(MHT)
 void ssdk_clk_mode_set(a_uint32_t dev_id, mht_work_mode_t clk_mode)
 {
@@ -823,7 +1018,7 @@ static void ssdk_dt_parse_clk(a_uint32_t dev_id, struct device_node *switch_node
 	return;
 }
 #endif
-
+#endif
 static void ssdk_dt_parse_port_bmp(a_uint32_t dev_id,
 		struct device_node *switch_node, ssdk_init_cfg *cfg)
 {
@@ -965,73 +1160,129 @@ static sw_error_t ssdk_dt_parse_access_mode(struct device_node *switch_node,
 	return SW_OK;
 
 }
-#if (defined(DESS) || defined(MP) || defined(APPE) || defined(MHT))
+#if (defined(HPPE) || defined(MP) || defined(MHT))
 #ifdef IN_LED
-static void ssdk_dt_parse_led(struct device_node *switch_node,
-		ssdk_init_cfg *cfg)
+sw_error_t ssdk_dt_port_source_pattern_get(a_uint32_t dev_id, a_uint32_t port_id,
+	a_uint32_t source_id, led_ctrl_pattern_t *pattern)
+{
+	led_ctrl_pattern_t source_pattern = {0};
+
+	*pattern =
+		ssdk_dt_global.ssdk_dt_switch_nodes[dev_id]->source_pattern[port_id][source_id];
+	if(!memcmp(pattern, &source_pattern, sizeof(led_ctrl_pattern_t)))
+		return SW_NOT_INITIALIZED;
+
+	return SW_OK;
+}
+
+static void ssdk_dt_parse_led_source(a_uint32_t dev_id,
+	struct device_node *led_device_node)
 {
 	struct device_node *child = NULL;
-	const __be32 *led_source, *led_number;
-	a_uint8_t *led_str;
-	a_uint32_t len = 0, i = 0;
+	a_uint8_t *led_str = NULL;
+	a_uint32_t led_speed_index = 0, source_id = 0, port_id = 0;
+	led_ctrl_pattern_t source_pattern = {0};
+	a_bool_t port_exist = A_FALSE;
 
-	for_each_available_child_of_node(switch_node, child) {
-
-		led_source = of_get_property(child, "source", &len);
-		if (!led_source) {
+	if(!of_property_read_u32(led_device_node, "port", &port_id)) {
+		if(port_id == SSDK_PHYSICAL_PORT0)
+			return;
+		port_exist = A_TRUE;
+	}
+	for_each_available_child_of_node(led_device_node, child) {
+		memset(&source_pattern, 0, sizeof(source_pattern));
+		if(of_property_read_u32(child, "source", &source_id))
 			continue;
-		}
-		cfg->led_source_cfg[i].led_source_id = be32_to_cpup(led_source);
-		led_number = of_get_property(child, "led", &len);
-		if (led_number)
-			cfg->led_source_cfg[i].led_num = be32_to_cpup(led_number);
 		if (!of_property_read_string(child, "mode", (const char **)&led_str)) {
 			if (!strcmp(led_str, "normal"))
-			cfg->led_source_cfg[i].led_pattern.mode = LED_PATTERN_MAP_EN;
+				source_pattern.mode = LED_PATTERN_MAP_EN;
 			if (!strcmp(led_str, "on"))
-			cfg->led_source_cfg[i].led_pattern.mode = LED_ALWAYS_ON;
+				source_pattern.mode = LED_ALWAYS_ON;
 			if (!strcmp(led_str, "blink"))
-			cfg->led_source_cfg[i].led_pattern.mode = LED_ALWAYS_BLINK;
+				source_pattern.mode = LED_ALWAYS_BLINK;
 			if (!strcmp(led_str, "off"))
-			cfg->led_source_cfg[i].led_pattern.mode = LED_ALWAYS_OFF;
+				source_pattern.mode = LED_ALWAYS_OFF;
 		}
-		if (!of_property_read_string(child, "speed", (const char **)&led_str)) {
+		led_speed_index = 0;
+		while(!of_property_read_string_index(child, "speed", led_speed_index,
+			(const char **)&led_str)) {
 			if (!strcmp(led_str, "10M"))
-			cfg->led_source_cfg[i].led_pattern.map = LED_MAP_10M_SPEED;
+				source_pattern.map |= LED_MAP_10M_SPEED;
 			if (!strcmp(led_str, "100M"))
-			cfg->led_source_cfg[i].led_pattern.map = LED_MAP_100M_SPEED;
+				source_pattern.map |= LED_MAP_100M_SPEED;
 			if (!strcmp(led_str, "1000M"))
-			cfg->led_source_cfg[i].led_pattern.map = LED_MAP_1000M_SPEED;
+				source_pattern.map |= LED_MAP_1000M_SPEED;
 			if (!strcmp(led_str, "2500M"))
-			cfg->led_source_cfg[i].led_pattern.map = LED_MAP_2500M_SPEED;
+				source_pattern.map |= LED_MAP_2500M_SPEED;
 			if (!strcmp(led_str, "all"))
-			cfg->led_source_cfg[i].led_pattern.map = LED_MAP_ALL_SPEED;
-		}
-		if (!of_property_read_string(child, "freq", (const char **)&led_str)) {
-			if (!strcmp(led_str, "2Hz"))
-			cfg->led_source_cfg[i].led_pattern.freq = LED_BLINK_2HZ;
-			if (!strcmp(led_str, "4Hz"))
-			cfg->led_source_cfg[i].led_pattern.freq = LED_BLINK_4HZ;
-			if (!strcmp(led_str, "8Hz"))
-			cfg->led_source_cfg[i].led_pattern.freq = LED_BLINK_8HZ;
-			if (!strcmp(led_str, "auto"))
-			cfg->led_source_cfg[i].led_pattern.freq = LED_BLINK_TXRX;
+				source_pattern.map |= LED_MAP_ALL_SPEED;
+
+			led_speed_index++;
 		}
 		if (!of_property_read_string(child, "active", (const char **)&led_str)) {
 			if (!strcmp(led_str, "high"))
-			cfg->led_source_cfg[i].led_pattern.map |= BIT(LED_ACTIVE_HIGH);
+				source_pattern.active_level = LED_ACTIVE_HIGH;
 		}
 		if (!of_property_read_string(child, "blink_en", (const char **)&led_str)) {
 			if (!strcmp(led_str, "disable"))
-			cfg->led_source_cfg[i].led_pattern.map &= ~(BIT(RX_TRAFFIC_BLINK_EN)|
-				BIT(TX_TRAFFIC_BLINK_EN));
+				source_pattern.map &= ~(BIT(RX_TRAFFIC_BLINK_EN)|
+					BIT(TX_TRAFFIC_BLINK_EN));
 		}
-		i++;
+		if (!of_property_read_string(child, "freq", (const char **)&led_str)) {
+			if (!strcmp(led_str, "2Hz"))
+				source_pattern.freq = LED_BLINK_2HZ;
+			if (!strcmp(led_str, "4Hz"))
+				source_pattern.freq = LED_BLINK_4HZ;
+			if (!strcmp(led_str, "8Hz"))
+				source_pattern.freq = LED_BLINK_8HZ;
+			if (!strcmp(led_str, "16Hz"))
+				source_pattern.freq = LED_BLINK_16HZ;
+			if (!strcmp(led_str, "32Hz"))
+				source_pattern.freq = LED_BLINK_32HZ;
+			if (!strcmp(led_str, "64Hz"))
+				source_pattern.freq = LED_BLINK_64HZ;
+			if (!strcmp(led_str, "128Hz"))
+				source_pattern.freq = LED_BLINK_128HZ;
+			if (!strcmp(led_str, "256Hz"))
+				source_pattern.freq = LED_BLINK_256HZ;
+			if (!strcmp(led_str, "auto"))
+				source_pattern.freq = LED_BLINK_TXRX;
+		} else {
+			source_pattern.freq = LED_BLINK_4HZ;
+		}
+		if(!port_exist) {
+			port_id = source_id/PORT_LED_SOURCE_MAX+1;
+			source_id = source_id%PORT_LED_SOURCE_MAX;
+		}
+		ssdk_dt_global.ssdk_dt_switch_nodes[dev_id]->source_pattern[port_id][source_id]
+			= source_pattern;
 	}
-	cfg->led_source_num = i;
-	SSDK_INFO("current dts led_source_num is %d\n",cfg->led_source_num);
 
 	return;
+}
+
+static sw_error_t ssdk_dt_parse_port_ledinfo(a_uint32_t dev_id,
+	struct device_node *switch_node)
+{
+	struct device_node *port_ledinfo_node = NULL, *port_node = NULL;
+
+	port_ledinfo_node = of_get_child_by_name(switch_node, "qcom,port_ledinfo");
+	if (!port_ledinfo_node) {
+		return SW_NOT_FOUND;
+	}
+	for_each_available_child_of_node(port_ledinfo_node, port_node) {
+		ssdk_dt_parse_led_source(dev_id, port_node);
+	}
+
+	return SW_OK;
+}
+
+static void ssdk_dt_parse_led(a_uint32_t dev_id, struct device_node *switch_node)
+{
+	if(!ssdk_dt_parse_port_ledinfo(dev_id, switch_node))
+		return;
+
+	return ssdk_dt_parse_led_source(dev_id, switch_node);
 }
 #endif
 #endif
@@ -1098,16 +1349,18 @@ sw_error_t ssdk_dt_parse(ssdk_init_cfg *cfg, a_uint32_t num, a_uint32_t *dev_id)
 	ssdk_dt_parse_mac_mode(*dev_id, switch_node, cfg);
 	ssdk_dt_parse_mdio(*dev_id, switch_node, cfg);
 	ssdk_dt_parse_port_bmp(*dev_id, switch_node, cfg);
+	ssdk_dt_parse_interrupt(*dev_id, switch_node);
+#if 0
 #if defined(MHT)
 	ssdk_dt_parse_clk(*dev_id, switch_node);
 #endif
-
+#endif
+#ifdef IN_LED
+	ssdk_dt_parse_led(*dev_id, switch_node);
+#endif
 	if (of_device_is_compatible(switch_node, "qcom,ess-switch")) {
 		/* DESS chip */
 #ifdef DESS
-#ifdef IN_LED
-		ssdk_dt_parse_led(switch_node, cfg);
-#endif
 		ssdk_dt_parse_psgmii(ssdk_dt_priv);
 
 		ssdk_dt_priv->ess_clk = of_clk_get_by_name(switch_node, "ess_clk");
@@ -1118,7 +1371,8 @@ sw_error_t ssdk_dt_parse(ssdk_init_cfg *cfg, a_uint32_t num, a_uint32_t *dev_id)
 	else if (of_device_is_compatible(switch_node, "qcom,ess-switch-ipq807x") ||
 			of_device_is_compatible(switch_node, "qcom,ess-switch-ipq95xx") ||
 			of_device_is_compatible(switch_node, "qcom,ess-switch-ipq60xx") ||
-			of_device_is_compatible(switch_node, "qcom,ess-switch-ipq53xx")) {
+			of_device_is_compatible(switch_node, "qcom,ess-switch-ipq53xx") ||
+			of_device_is_compatible(switch_node, "qcom,ess-switch-ipq54xx")) {
 		/* HPPE chip */
 #ifdef HPPE
 		a_uint32_t mode = 0;
@@ -1136,11 +1390,6 @@ sw_error_t ssdk_dt_parse(ssdk_init_cfg *cfg, a_uint32_t num, a_uint32_t *dev_id)
 
 		if (!of_property_read_u32(switch_node, "bm_tick_mode", &mode))
 			ssdk_dt_priv->bm_tick_mode = mode;
-#ifdef APPE
-#ifdef IN_LED
-		ssdk_dt_parse_led(switch_node, cfg);
-#endif
-#endif
 #endif
 	}
 	else if (of_device_is_compatible(switch_node, "qcom,ess-switch-ipq50xx")) {
@@ -1148,9 +1397,6 @@ sw_error_t ssdk_dt_parse(ssdk_init_cfg *cfg, a_uint32_t num, a_uint32_t *dev_id)
 		ssdk_dt_priv->emu_chip_ver = MP_GEPHY;
 #ifdef IN_UNIPHY
 		ssdk_dt_parse_uniphy(*dev_id);
-#endif
-#ifdef IN_LED
-		ssdk_dt_parse_led(switch_node, cfg);
 #endif
 		ssdk_dt_priv->cmnblk_clk = of_clk_get_by_name(switch_node, "cmn_ahb_clk");
 #endif
@@ -1163,9 +1409,6 @@ sw_error_t ssdk_dt_parse(ssdk_init_cfg *cfg, a_uint32_t num, a_uint32_t *dev_id)
 #ifdef MHT
 		/* manhattan chip */
 		SSDK_INFO("switch node is qca8386!\n");
-#ifdef IN_LED
-		ssdk_dt_parse_led(switch_node, cfg);
-#endif
 #endif
 	}
 	else {
@@ -1174,7 +1417,6 @@ sw_error_t ssdk_dt_parse(ssdk_init_cfg *cfg, a_uint32_t num, a_uint32_t *dev_id)
 
 	return SW_OK;
 }
-#endif
 #endif
 
 int ssdk_switch_device_num_init(void)

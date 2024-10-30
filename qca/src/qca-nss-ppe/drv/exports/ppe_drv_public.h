@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2023 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for any
  * purpose with or without fee is hereby granted, provided that the above
@@ -23,13 +23,16 @@
  */
 
 #include "ppe_drv.h"
+#include "ppe_drv_acl.h"
 #include "ppe_drv_br.h"
 #include "ppe_drv_cc.h"
 #include "ppe_drv_dp.h"
 #include "ppe_drv_eip.h"
 #include "ppe_drv_iface.h"
 #include "ppe_drv_lag.h"
+#include "ppe_drv_policer.h"
 #include "ppe_drv_port.h"
+#include "ppe_drv_qos.h"
 #include "ppe_drv_sc.h"
 #include "ppe_drv_v4.h"
 #include "ppe_drv_v6.h"

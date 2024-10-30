@@ -8,12 +8,12 @@
 include $(TOPDIR)/rules.mk
 
 PKG_NAME:=net-snmp
-PKG_VERSION:=5.8
-PKG_RELEASE:=1
+PKG_VERSION:=5.9.1
+PKG_RELEASE:=7
 
 PKG_SOURCE:=$(PKG_NAME)-$(PKG_VERSION).tar.gz
 PKG_SOURCE_URL:=@SF/net-snmp
-PKG_HASH:=b2fc3500840ebe532734c4786b0da4ef0a5f67e51ef4c86b3345d697e4976adf
+PKG_HASH:=eb7fd4a44de6cddbffd9a92a85ad1309e5c1054fb9d5a7dd93079c8953f48c3f
 PKG_MAINTAINER:=Stijn Tintel <stijn@linux-ipv6.be>
 PKG_LICENSE:=MIT BSD-3-Clause-Clear
 PKG_CPE_ID:=cpe:/a:net-snmp:net-snmp
@@ -41,7 +41,7 @@ define Package/libnetsnmp
 $(call Package/net-snmp/Default)
   SECTION:=libs
   CATEGORY:=Libraries
-  DEPENDS:=+libnl-tiny +libpci
+  DEPENDS:=+libnl-tiny +libpci +libpcre2
   TITLE:=Open source SNMP implementation (libraries)
 endef
 
@@ -208,6 +208,7 @@ CONFIGURE_ARGS += \
 	--without-mysql \
 	--without-rpm \
 	--without-zlib \
+	--with-pcre2-8 \
 	--with-nl \
 	 $(call autoconf_bool,CONFIG_IPV6,ipv6) \
 	--disable-perl-cc-checks \
@@ -216,7 +217,6 @@ CONFIGURE_ARGS += \
 
 CONFIGURE_VARS += \
 	ac_cv_header_netlink_netlink_h=yes \
-	ac_cv_header_pcre_h=no \
 	netsnmp_cv_func_nl_connect_LIBS=-lnl-tiny \
 
 ifeq ($(CONFIG_IPV6),y)

@@ -128,7 +128,7 @@ void eip_tr_ipsec_dec_done(struct eip_tr *tr, struct eip_hw_desc *hw, struct eip
 	 */
 	if(unlikely(!tun)) {
 		EIP_TR_IPSEC_SKB_CB(skb)->ip_proto = EIP_HW_RES_NEXT_HDR(hw->token[3]);
-		ipsec->ops.post(tr, skb);
+		EIP_TR_POST_PROCESS(tr, &ipsec->ops, skb);
 	}
 
 	/*
@@ -180,7 +180,7 @@ int eip_tr_ipsec_dec(struct eip_tr *tr, struct sk_buff *skb)
 	/*
 	 * Fill token for decryption and hash for ipsec
 	 */
-	tk_words = eip_tr_fill_token(tr, &tr->ipsec.ops, tk, skb, &tk_hdr);
+	tk_words = EIP_TR_FILL_TOKEN(tr, &tr->ipsec.ops, tk, skb, &tk_hdr);
 	dmac_clean_range(tk, tk + 1);
 
 	dma_tx = skb_is_nonlinear(skb) ? eip_dma_tx_nonlinear_skb : eip_dma_tx_linear_skb;

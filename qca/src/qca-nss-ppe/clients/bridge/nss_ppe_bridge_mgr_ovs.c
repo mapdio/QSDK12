@@ -1,7 +1,7 @@
 /*
  **************************************************************************
  * Copyright (c) 2020-2021, The Linux Foundation. All rights reserved.
- * Copyright (c) 2022, Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2023, Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
@@ -38,7 +38,6 @@
 static int nss_ppe_bridge_mgr_ovs_handle_port_event(struct ovsmgr_notifiers_info *ovs_info, unsigned long event)
 {
 	struct ovsmgr_dp_port_info *port;
-	struct nss_ppe_bridge_mgr_pvt *b_pvt;
 	struct net_device *master_dev, *dev;
 	int err;
 
@@ -52,23 +51,14 @@ static int nss_ppe_bridge_mgr_ovs_handle_port_event(struct ovsmgr_notifiers_info
 	dev = port->dev;
 
 	/*
-	 * Check if upper_dev is a known bridge.
-	 */
-	b_pvt = nss_ppe_bridge_mgr_find_instance(master_dev);
-	if (!b_pvt) {
-		nss_ppe_bridge_mgr_warn("%px: Couldn't find bridge instance for master: %s\n", port, master_dev->name);
-		return -ENOENT;
-	}
-
-	/*
 	 * add port to the bridge.
 	 */
 	if (event == OVSMGR_DP_PORT_ADD) {
-		nss_ppe_bridge_mgr_trace("%px: Interface %s joining bridge %s\n", b_pvt, dev->name, master_dev->name);
+		nss_ppe_bridge_mgr_trace("%px: Interface %s joining bridge %s\n", ovs_info, dev->name, master_dev->name);
 
-		err = nss_ppe_bridge_mgr_join_bridge(dev, b_pvt);
+		err = nss_ppe_bridge_mgr_join_bridge(dev, master_dev);
 		if (err) {
-			nss_ppe_bridge_mgr_warn("%px: Interface %s failed to join bridge %s\n", b_pvt, dev->name, master_dev->name);
+			nss_ppe_bridge_mgr_warn("%px: Interface %s failed to join bridge %s\n", ovs_info, dev->name, master_dev->name);
 			return err;
 		}
 
@@ -78,11 +68,11 @@ static int nss_ppe_bridge_mgr_ovs_handle_port_event(struct ovsmgr_notifiers_info
 	/*
 	 * delete port from bridge.
 	 */
-	nss_ppe_bridge_mgr_trace("%px: Interface %s leaving bridge %s\n", b_pvt, dev->name, master_dev->name);
+	nss_ppe_bridge_mgr_trace("%px: Interface %s leaving bridge %s\n", ovs_info, dev->name, master_dev->name);
 
-	err = nss_ppe_bridge_mgr_leave_bridge(dev, b_pvt);
+	err = nss_ppe_bridge_mgr_leave_bridge(dev, master_dev);
 	if (err) {
-		nss_ppe_bridge_mgr_warn("%px: Interface %s failed to leave bridge %s\n", b_pvt, dev->name, master_dev->name);
+		nss_ppe_bridge_mgr_warn("%px: Interface %s failed to leave bridge %s\n", ovs_info, dev->name, master_dev->name);
 		return err;
 	}
 

@@ -18,6 +18,7 @@
 #include <linux/of_platform.h>
 #include <linux/clk.h>
 #include <linux/reset-controller.h>
+#include <linux/qcom_scm.h>
 
 #include "qcom_scm.h"
 
@@ -174,7 +175,14 @@ int qti_scm_aes(uint32_t req_addr, uint32_t req_size, u32 cmd_id)
 {
 	int ret = 0;
 
-	ret = __qti_scm_aes(__scm->dev, req_addr, req_size, cmd_id);
+	ret = __qcom_scm_is_call_available(__scm->dev, QTI_SVC_CRYPTO,
+					   cmd_id);
+	if (ret == 1) {
+		ret = __qti_scm_aes(__scm->dev, req_addr, req_size, cmd_id);
+	} else {
+		pr_err("%s : Feature not supported by TZ..!\n", __func__);
+		return -EINVAL;
+	}
 
 	return ret;
 }
@@ -507,6 +515,7 @@ static int qcom_scm_find_dload_address(struct device *dev, struct qcom_scm *scm)
 	struct device_node *np = dev->of_node;
 	struct resource res;
 	u32 offset;
+	long feat_avail;
 	int ret;
 
 	tcsr = of_parse_phandle(np, "qcom,dload-mode", 0);
@@ -523,10 +532,14 @@ static int qcom_scm_find_dload_address(struct device *dev, struct qcom_scm *scm)
 		return ret;
 
 	scm->dload_mode_addr = res.start + offset;
-	scm->dload_reg = devm_ioremap(dev, res.start, resource_size(&res));
-	if (!scm->dload_reg) {
-		pr_err("%s: Error mapping memory region!\n", __func__);
-		return -ENOMEM;
+
+	feat_avail = qti_scm_is_feature_available(QCOM_SCM_SVC_INFO, SCM_SVC_UTIL, QCOM_DLOAD_READ_MODE);
+        if (feat_avail != QCOM_DLOAD_SEC_READ) {
+		scm->dload_reg = devm_ioremap(dev, res.start, resource_size(&res));
+		if (!scm->dload_reg) {
+			pr_err("%s: Error mapping memory region!\n", __func__);
+			return -ENOMEM;
+		}
 	}
 
 	return 0;
@@ -729,10 +742,14 @@ int qti_scm_set_trybit(u32 svc_id)
 	if (ret)
 		return ret;
 
-	val = readl(__scm->dload_reg);
+	ret = qti_read_dload_reg(&val);
+	if (ret)
+		goto exit;
+
 	val |= QTI_TRYBIT;
 	ret = __qti_scm_set_trybit(__scm->dev, svc_id, val, __scm->dload_mode_addr);
 
+exit:
 	qcom_scm_clk_disable();
 
 	return ret;
@@ -740,9 +757,33 @@ int qti_scm_set_trybit(u32 svc_id)
 }
 EXPORT_SYMBOL(qti_scm_set_trybit);
 
-int qti_read_dload_reg()
+int qti_read_dload_reg(uint32_t *val)
 {
-	return readl(__scm->dload_reg);
+	int ret = 0;
+	long feat_avail;
+
+	/* The TCSR dload register is protected for IPQ5332 target in latest TZ
+	 * Old TZ will allow direct read
+	 * Use the qca_scm_is_feature_available() call to know if TZ supports direct or scm read
+	 * Based on the return value read the TCSR dload register appropriately
+	 */
+	feat_avail = qti_scm_is_feature_available(QCOM_SCM_SVC_INFO, SCM_SVC_UTIL, QCOM_DLOAD_READ_MODE);
+	if (feat_avail == QCOM_DLOAD_SEC_READ) {
+		ret = qcom_scm_io_readl(__scm->dload_mode_addr, val);
+		if (ret)
+			return ret;
+	}
+	else {
+		if (!__scm->dload_reg)
+                {
+			pr_info("Invalid dload reg virtual address\n");
+			return -EINVAL;
+                }
+		*val = readl(__scm->dload_reg);
+		ret = 0;
+	}
+
+	return ret;
 }
 EXPORT_SYMBOL(qti_read_dload_reg);
 
@@ -758,6 +799,15 @@ int qti_scm_get_ecdsa_blob(u32 svc_id, u32 cmd_id, dma_addr_t nonce_buf,
 }
 EXPORT_SYMBOL(qti_scm_get_ecdsa_blob);
 
+long qti_scm_is_feature_available(u32 svc_id, u32 cmd_id, u32 feature_id)
+{
+	int ret;
+	ret = __qti_scm_is_feature_available(__scm->dev, svc_id, cmd_id,
+							feature_id);
+	return ret;
+}
+EXPORT_SYMBOL(qti_scm_is_feature_available);
+
 int qti_scm_get_device_attestation_ephimeral_key(u32 svc_id, u32 cmd_id,
 			void *key_buf, u32 key_buf_len, u32 *key_len)
 {
@@ -769,16 +819,15 @@ int qti_scm_get_device_attestation_ephimeral_key(u32 svc_id, u32 cmd_id,
 }
 EXPORT_SYMBOL(qti_scm_get_device_attestation_ephimeral_key);
 
-int qti_scm_get_ipq5332_fuse_list(u32 svc_id, u32 cmd_id,
-		struct fuse_payload *fuse, size_t size)
+int qti_scm_get_ipq_fuse_list(u32 svc_id, u32 cmd_id, void *fuse, size_t size)
 {
 	int ret;
-	ret = __qti_scm_get_ipq5332_fuse_list(__scm->dev,
+	ret = __qti_scm_get_ipq_fuse_list(__scm->dev,
 			svc_id, cmd_id, fuse, size);
 	return ret;
 
 }
-EXPORT_SYMBOL(qti_scm_get_ipq5332_fuse_list);
+EXPORT_SYMBOL(qti_scm_get_ipq_fuse_list);
 
 int qti_scm_get_device_attestation_response(u32 svc_id, u32 cmd_id, void *req_buf,
 			u32 req_buf_len, void *extclaim_buf, u32 extclaim_buf_len,
@@ -1199,10 +1248,6 @@ static int qcom_scm_probe(struct platform_device *pdev)
 	if (!scm)
 		return -ENOMEM;
 
-	ret = qcom_scm_find_dload_address(&pdev->dev, scm);
-	if (ret < 0)
-		return ret;
-
 	ret = of_property_read_u32(np, "hvc-log-cmd-id", &scm->hvc_log_cmd_id);
 	if (ret)
 		scm->hvc_log_cmd_id = QTI_SCM_HVC_DIAG_CMD;
@@ -1267,6 +1312,10 @@ static int qcom_scm_probe(struct platform_device *pdev)
 
 	__scm = scm;
 	__scm->dev = &pdev->dev;
+
+	ret = qcom_scm_find_dload_address(&pdev->dev, scm);
+	if (ret < 0)
+		return ret;
 
 	__qcom_scm_init();
 

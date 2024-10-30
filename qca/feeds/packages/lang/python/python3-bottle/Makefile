@@ -8,19 +8,18 @@
 include $(TOPDIR)/rules.mk
 
 PKG_NAME:=python3-bottle
-PKG_VERSION:=0.12.17
+PKG_VERSION:=0.12.25
 PKG_RELEASE:=1
 
-PKG_SOURCE:=bottle-$(PKG_VERSION).tar.gz
-PKG_SOURCE_URL:=https://files.pythonhosted.org/packages/source/b/bottle
-PKG_HASH:=e9eaa412a60cc3d42ceb42f58d15864d9ed1b92e9d630b8130c871c5bb16107c
-PKG_BUILD_DIR:=$(BUILD_DIR)/bottle-$(PKG_VERSION)
+PYPI_NAME:=bottle
+PKG_HASH:=e1a9c94970ae6d710b3fb4526294dfeb86f2cb4a81eff3a4b98dc40fb0e5e021
 
-PKG_MAINTAINER:=Josef Schlehofer <josef.schlehofer@nic.cz>
+PKG_MAINTAINER:=Josef Schlehofer <pepe.schlehofer@gmail.com>
 PKG_LICENSE:=MIT
 PKG_LICENSE_FILES:=LICENSE
 PKG_CPE_ID:=cpe:/a:bottlepy:bottle
 
+include ../pypi.mk
 include $(INCLUDE_DIR)/package.mk
 include ../python3-package.mk
 
@@ -31,7 +30,6 @@ define Package/python3-bottle
 	TITLE:=Fast and simple WSGI-framework for small web-applications
 	URL:=https://bottlepy.org
 	DEPENDS:=+python3
-	VARIANT:=python3
 endef
 
 define Package/python3-bottle/description

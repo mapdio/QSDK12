@@ -18,7 +18,7 @@ define KernelPackage/qca-nss-dp
   SECTION:=kernel
   CATEGORY:=Kernel modules
   SUBMENU:=Network Devices
-  DEPENDS:=@TARGET_ipq_ipq807x||TARGET_ipq_ipq807x_64||TARGET_ipq807x||TARGET_ipq_ipq60xx||TARGET_ipq_ipq60xx_64||TARGET_ipq60xx||TARGET_ipq_ipq50xx||TARGET_ipq_ipq50xx_64||TARGET_ipq50xx||TARGET_ipq95xx||TARGET_ipq53xx\
+  DEPENDS:=@TARGET_ipq_ipq807x||TARGET_ipq_ipq807x_64||TARGET_ipq807x||TARGET_ipq_ipq60xx||TARGET_ipq_ipq60xx_64||TARGET_ipq60xx||TARGET_ipq_ipq50xx||TARGET_ipq_ipq50xx_64||TARGET_ipq50xx||TARGET_ipq95xx||TARGET_ipq53xx \
 		+kmod-qca-ssdk-nohnat \
 		+TARGET_ipq95xx:kmod-qca-nss-ppe \
 		+TARGET_ipq53xx:kmod-qca-nss-ppe
@@ -57,8 +57,12 @@ endif
 ifeq ($(CONFIG_TARGET_ipq95xx_generic_QSDK_MinEnt), y)
 EXTRA_CFLAGS+= -DNSS_DP_POINT_OFFLOAD
 endif
+
 ifneq ($(CONFIG_TARGET_ipq95xx)$(CONFIG_TARGET_ipq53xx),)
+EXTRA_CFLAGS+= -DNSS_DP_NETSTANDBY
+MAKE_OPTS+=dp-net-standby=y
 MAKE_OPTS+=dp-ppe-ds=y
+MAKE_OPTS+=dp-loopback=y
 endif
 
 NSS_DP_HAL_DIR:=$(PKG_BUILD_DIR)/hal
@@ -73,13 +77,13 @@ endif
 ifneq (, $(findstring $(hal_arch),"ipq95xx" "ipq53xx"))
 define KernelPackage/qca-nss-dp/install
 	$(INSTALL_DIR) $(1)/etc/init.d
-	$(INSTALL_DIR) $(1)/etc/hotplug.d/iface
 	$(INSTALL_DIR) $(1)/etc/config
 	$(INSTALL_DIR) $(1)/usr/bin
 	$(INSTALL_BIN) ./files/qca-nss-dp.init $(1)/etc/init.d/qca-nss-dp
 	$(INSTALL_BIN) ./files/qca-nss-dp.conf $(1)/etc/config/qca_nss_dp
-	$(INSTALL_BIN) ./files/qca-nss-dp.hotplug $(1)/etc/hotplug.d/iface/17-bridge
 	$(INSTALL_BIN) ./files/edma_dump $(1)/usr/bin/edma_dump
+	$(INSTALL_BIN) ./files/edma_recover.sh $(1)/usr/bin/
+	$(INSTALL_BIN) ./files/edma_hang_inj.sh $(1)/usr/bin/
 endef
 endif
 
@@ -89,9 +93,7 @@ define Build/Configure
 endef
 
 define Build/Compile
-	$(MAKE) -C "$(LINUX_DIR)" $(strip $(MAKE_OPTS)) \
-		CROSS_COMPILE="$(TARGET_CROSS)" \
-		ARCH="$(LINUX_KARCH)" \
+	$(KERNEL_MAKE) $(strip $(MAKE_OPTS)) \
 		M="$(PKG_BUILD_DIR)" \
 		EXTRA_CFLAGS="$(EXTRA_CFLAGS)" SoC="$(hal_arch)" \
 		modules

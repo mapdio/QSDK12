@@ -1,0 +1,19 @@
+Author: Ramkishan Gurjar <quic_rgurjar@quicinc.com>
+Date:   Thu Feb 8 16:40:05 2024 +0530
+
+    netifd: get ifindex directly from device to avoid race condition
+
+    Change-Id: I8b806e302ef3750997e6a17dad06f80fcafb6a34
+    Signed-off-by: rgurjar <quic_rgurjar@quicinc.com>
+
+--- a/system-linux.c	2024-02-08 16:31:39.199528883 +0530
++++ b/system-linux.c	2024-02-08 16:32:47.646538190 +0530
+@@ -727,7 +727,7 @@
+ 	if (!dev)
+ 		return 0;
+
+-	system_device_update_state(dev, ifi->ifi_flags, ifi->ifi_index);
++	system_device_update_state(dev, ifi->ifi_flags, system_if_resolve(dev));
+ 	return 0;
+ }
+

@@ -118,7 +118,7 @@ static inline void eip_dma_tx_cmd(struct eip_dma *dma, struct eip_sw_desc *sw, s
 
 		cmd->token[0] = sw->tk_addr;
 		cmd->token[1] = 0;
-		cmd->token[2] = sw->cmd_token_hdr;
+		cmd->token[2] = sw->tk_hdr;
 		cmd->token[3] = 0;
 		cmd->token[4] = sw->tr_addr_type;
 		cmd->token[5] = 0;
@@ -476,7 +476,7 @@ int eip_dma_tx_sg(struct eip_dma *dma, struct eip_sw_desc *sw, struct scatterlis
 	 * Map only required data to descriptor.
 	 * Application may send larger buffer then actual data length. (To accomodate hash output).
 	 */
-	src_len = EIP_HW_CMD_DATA_LEN(sw->cmd_token_hdr);
+	src_len = EIP_HW_CMD_DATA_LEN(sw->tk_hdr);
 
 	/*
 	 * Walk through all source scatterlist.
@@ -801,7 +801,12 @@ int eip_dma_la_init(struct eip_dma *dma, struct platform_device *pdev, uint8_t t
 	}
 
 	init_dummy_netdev(&dma->out.ndev);
+#if (LINUX_VERSION_CODE < KERNEL_VERSION(6, 1, 0))
 	netif_napi_add(&dma->out.ndev, &dma->out.napi, eip_dma_napi_rx_poll, EIP_DMA_RX_LA_NAPI_WEIGHT);
+#else
+	netif_napi_add_weight(&dma->out.ndev, &dma->out.napi, eip_dma_napi_rx_poll,
+			EIP_DMA_RX_LA_NAPI_WEIGHT);
+#endif
 	napi_enable(&dma->out.napi);
 
 	/*

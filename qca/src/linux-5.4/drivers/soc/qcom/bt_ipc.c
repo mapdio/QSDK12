@@ -580,11 +580,13 @@ void bt_ipc_deinit(struct bt_descriptor *btDesc)
 	struct device *dev = &btDesc->pdev->dev;
 
 	atomic_set(&btDesc->state, 0);
-	devm_free_irq(dev, ipc->irq, btDesc);
-	bt_ipc_purge_tx_queue(btDesc);
-	atomic_notifier_chain_unregister(&panic_notifier_list,
-			&btDesc->panic_nb);
-	flush_work(&ipc->work);
-	destroy_workqueue(ipc->wq);
+	if (ipc->wq != NULL) {
+		devm_free_irq(dev, ipc->irq, btDesc);
+		bt_ipc_purge_tx_queue(btDesc);
+		atomic_notifier_chain_unregister(&panic_notifier_list,
+				&btDesc->panic_nb);
+		flush_work(&ipc->work);
+		destroy_workqueue(ipc->wq);
+	}
 }
 EXPORT_SYMBOL(bt_ipc_deinit);

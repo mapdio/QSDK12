@@ -264,8 +264,6 @@ static int ipq_pwm_config(struct pwm_chip *chip, struct pwm_device *pwm,
 	close_pre_div = ipq_chip->ops->max_pre_div;
 	close_pwm_div = ipq_chip->ops->max_pwm_div;
 
-	ipq_pwm_disable(chip, pwm);
-
 	for (pre_div = 0; pre_div <= ipq_chip->ops->max_pre_div ; pre_div++) {
 		pwm_div = DIV_ROUND_CLOSEST_ULL((uint64_t)period_ns * 1000,
 							fin_ps * (pre_div + 1));
@@ -287,6 +285,8 @@ static int ipq_pwm_config(struct pwm_chip *chip, struct pwm_device *pwm,
 			}
 		}
 	}
+
+	ipq_pwm_disable(chip, pwm);
 
 	/* config divider values for the closest possible frequency */
 	config_div_and_duty(pwm, close_pre_div, close_pwm_div,

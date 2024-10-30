@@ -1,6 +1,6 @@
 /*
  * Copyright (c) 2016-2018, 2021, The Linux Foundation. All rights reserved.
- * Copyright (c) 2022-2023 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2024 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for any
  * purpose with or without fee is hereby granted, provided that the above
@@ -65,7 +65,9 @@ enum {
 	FLD_UPDATE_FLOW_IDX,
 	FLD_UPDATE_CONTEXT_TYPE0 = 18, /*new add for IPQ53xx*/
 	FLD_UPDATE_CONTEXT_TYPE1, /*new add for IPQ53xx*/
-	FLD_UPDATE_FLOW_COOKIE, /*new add for IPQ53xx*/
+	FLD_UPDATE_FLOW_COOKIE_DIS, /*new add for IPQ53xx*/
+	FLD_UPDATE_DECAP_DIS, /*new add for IPQ54xx*/
+	FLD_UPDATE_ENCAP_DIS, /*new add for IPQ54xx*/
 	FLD_UPDATE_SRC_INFO_BYPASS = 24,
 	FLD_UPDATE_DST_INFO_BYPASS,
 	FLD_UPDATE_MAC_HDR_BYPASS,
@@ -140,6 +142,10 @@ enum {
 	TUNL_CONTEXT_BYP,
 	/* new add for IPQ53xx */
 	FLOW_POLICER_BYP,
+	/* new add for IPQ54xx */
+	SMAC_MC_DROP_BYP,
+	L2_FLOODING_BYP,
+	TUNNEL_EXP_CNT_CTRL,
 };
 
 /* bypss_bitmap_2 */
@@ -171,6 +177,9 @@ enum {
 	TL_WRONG_PKT_FMT_L4_BYP,
 	TL_WRONG_PKT_FMT_TUNNEL_BYP,
 	TL_PRE_IPO_BYP = 20,
+	TL_PADDING_STRIP_CKSUM_BYP,
+	TL_INNER_IP_LEN_UPDATE_BYP,
+	TL_INNER_IP_PADDING_EXP_BYP,
 };
 
 typedef struct {
@@ -193,19 +202,6 @@ typedef struct {
 	a_bool_t field_disable; /*updated ver3 field disable*/
 	a_uint8_t dest_port; /*updated dest portid or portmap field*/
 } fal_servcode_athtag_t;
-
-enum
-{
-	/*servcode*/
-	FUNC_SERVCODE_CONFIG_SET = 0,
-	FUNC_SERVCODE_CONFIG_GET,
-	FUNC_SERVCODE_LOOPCHECK_EN,
-	FUNC_SERVCODE_LOOPCHECK_STATUS_GET,
-	FUNC_PORT_SERVCODE_SET,
-	FUNC_PORT_SERVCODE_GET,
-	FUNC_SERVCODE_ATHTAG_SET,
-	FUNC_SERVCODE_ATHTAG_GET,
-};
 
 sw_error_t
 fal_servcode_config_set(a_uint32_t dev_id, a_uint32_t servcode_index, fal_servcode_config_t *entry);

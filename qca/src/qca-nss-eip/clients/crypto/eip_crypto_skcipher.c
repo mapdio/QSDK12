@@ -14,6 +14,7 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  */
 
+#include <linux/version.h>
 #include <linux/of.h>
 
 #include <crypto/ctr.h>
@@ -554,7 +555,9 @@ static int eip_crypto_skcipher_setkey(struct crypto_skcipher *tfm, const u8 *key
 	tr = eip_tr_alloc(skcipher.dma_ctx, &info);
 	if (!tr) {
 		pr_warn("%px: Unable to allocate new TR.\n", tfm_ctx);
+#if (LINUX_VERSION_CODE < KERNEL_VERSION(6, 1, 0))
 		crypto_skcipher_set_flags(tfm, CRYPTO_TFM_RES_BAD_FLAGS);
+#endif
 		tfm_stats->tr_alloc_err++;
 		sk_stats->tr_alloc_err++;
 		return -EBUSY;

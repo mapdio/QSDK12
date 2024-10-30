@@ -423,6 +423,7 @@ store_sec_auth(struct device *dev,
 	ret = kernel_read(file, file_buf, size, 0);
 	if (ret != size) {
 		pr_err("%s file read failed\n", sec_auth_token[QTI_SEC_IMG_ADDR]);
+		ret = ret < 0 ? ret : -EIO;
 		goto un_map;
 	}
 
@@ -440,6 +441,7 @@ store_sec_auth(struct device *dev,
 		if (!hash_file_buf) {
 			pr_err("%s: Memory allocation failed for hash file buffer\n", __func__);
 			vfree(data);
+			ret = -ENOMEM;
 			goto un_map;
 		}
 
@@ -514,7 +516,7 @@ store_list_ipq5322_fuse(struct device *dev, struct device_attribute *attr,
 		fuse[index].fuse_addr = base_addr + next;
 		next += 0x8;
 	}
-	ret = qti_scm_get_ipq5332_fuse_list(QTI_SCM_SVC_FUSE,
+	ret = qti_scm_get_ipq_fuse_list(QTI_SCM_SVC_FUSE,
 			QTI_SCM_OWM_FUSE_CMD_ID, fuse,
 			sizeof(struct fuse_payload ) * MAX_FUSE_ADDR_SIZE);
 	if (ret) {
@@ -545,6 +547,67 @@ fuse_alloc_err:
 }
 
 static ssize_t
+store_list_ipq9574_fuse(struct device *dev, struct device_attribute *attr,
+	      const char *buf, size_t count)
+{
+	int ret = 0;
+	int index = 0, next = 0;
+	unsigned long value;
+	unsigned long base_addr = 0xA00D8;
+	struct fuse_payload_ipq9574 *fuse = NULL;
+
+	ret = kstrtoul(buf, 0, &value);
+	if (ret < 0)
+		return ret;
+
+	if (value != 1) {
+		pr_err("%s : Invalid input\n", __func__);
+		return -EINVAL;
+	}
+
+	fuse = kzalloc((sizeof(struct fuse_payload_ipq9574) *
+			IPQ9574_MAX_FUSE_ADDR_SIZE), GFP_KERNEL);
+	if (fuse == NULL)
+		return -ENOMEM;
+
+	fuse[index++].fuse_addr = 0xA00C0;
+	fuse[index].fuse_addr = 0xA00C4;
+
+	for (index = 2; index < IPQ9574_MAX_FUSE_ADDR_SIZE; index++) {
+		fuse[index].fuse_addr = base_addr + next;
+		next += 0x4;
+	}
+	ret = qti_scm_get_ipq_fuse_list(QTI_SCM_SVC_FUSE,
+				QTI_SCM_OWM_FUSE_CMD_ID, fuse,
+				sizeof(struct fuse_payload_ipq9574) *
+				IPQ9574_MAX_FUSE_ADDR_SIZE);
+	if (ret) {
+		pr_err("SCM Call failed..SCM Call return value = %d\n", ret);
+		goto fuse_alloc_err;
+	}
+
+	pr_info("Fuse Name\tAddress\t\tValue\n");
+	pr_info("------------------------------------------------\n");
+
+	pr_info("TME_AUTH_EN\t0x%08X\t0x%08X\n", fuse[0].fuse_addr,
+			fuse[0].val & 0x80);
+	pr_info("TME_OEM_ID\t0x%08X\t0x%08X\n", fuse[0].fuse_addr,
+			fuse[0].val & 0xFFFF0000);
+	pr_info("TME_PRODUCT_ID\t0x%08X\t0x%08X\n", fuse[1].fuse_addr,
+			fuse[1].val & 0xFFFF);
+
+	for (index = 2; index < IPQ9574_MAX_FUSE_ADDR_SIZE; index++) {
+		pr_info("TME_MRC_HASH\t0x%08X\t0x%08X\n",
+				fuse[index].fuse_addr, fuse[index].val);
+	}
+
+fuse_alloc_err:
+	kfree(fuse);
+	return count;
+}
+
+
+static ssize_t
 store_sec_dat(struct device *dev, struct device_attribute *attr,
 	      const char *buf, size_t count)
 {
@@ -558,7 +621,6 @@ store_sec_dat(struct device *dev, struct device_attribute *attr,
 	dma_addr_t dma_req_addr = 0;
 	size_t req_order = 0;
 	struct page *req_page = NULL;
-	int rc = 0;
 	u64 dma_size;
 
 	fptr = filp_open(buf, O_RDONLY, 0);
@@ -591,6 +653,7 @@ store_sec_dat(struct device *dev, struct device_attribute *attr,
 	ret = kernel_read(fptr, ptr, size, 0);
 	if (ret != size) {
 		pr_err("File read failed\n");
+		ret = ret < 0 ? ret : -EIO;
 		goto free_page;
 	}
 
@@ -604,8 +667,8 @@ store_sec_dat(struct device *dev, struct device_attribute *attr,
 
 	/* map the memory region */
 	dma_req_addr = dma_map_single(dev, ptr, size, DMA_TO_DEVICE);
-	rc = dma_mapping_error(dev, dma_req_addr);
-	if (rc) {
+	ret = dma_mapping_error(dev, dma_req_addr);
+	if (ret) {
 		pr_err("DMA Mapping Error\n");
 		dma_unmap_single(dev, dma_req_addr, size, DMA_TO_DEVICE);
 		free_pages((unsigned long)page_address(req_page), req_order);
@@ -620,16 +683,18 @@ store_sec_dat(struct device *dev, struct device_attribute *attr,
 				    sizeof(fuse_blow));
 	if (ret) {
 		pr_err("Error in QFPROM write (%d %lu)\n", ret, fuse_status);
+		ret = -EIO;
 		goto free_mem;
 	}
+
 	if (fuse_status == FUSEPROV_SECDAT_LOCK_BLOWN)
 		pr_info("Fuse already blown\n");
 	else if (fuse_status == FUSEPROV_INVALID_HASH)
 		pr_info("Invalid sec.dat\n");
-	else if (fuse_status  != FUSEPROV_SUCCESS)
-		pr_info("Failed to Blow fuses\n");
-	else
+	else if (fuse_status == FUSEPROV_SUCCESS)
 		pr_info("Fuse Blow Success\n");
+	else
+		pr_info("Fuse blow failed with err code : 0x%lx\n", fuse_status);
 
 	ret = count;
 
@@ -648,6 +713,9 @@ static struct device_attribute sec_dat_attr =
 
 static struct device_attribute list_ipq5322_fuse_attr =
 	__ATTR(list_ipq5322_fuse, 0200, NULL, store_list_ipq5322_fuse);
+
+static struct device_attribute list_ipq9574_fuse_attr =
+	__ATTR(list_ipq9574_fuse, 0200, NULL, store_list_ipq9574_fuse);
 
 /*
  * Do not change the order of attributes.
@@ -836,16 +904,27 @@ static int qfprom_probe(struct platform_device *pdev)
 			__func__, sec_dat_attr.attr.name, err);
 	}
 
-	err = device_create_file(&device_qfprom, &list_ipq5322_fuse_attr);
-	if (err) {
-		pr_err("%s: device_create_file(%s)=%d\n",
-			__func__, list_ipq5322_fuse_attr.attr.name, err);
+	if (of_device_is_compatible(np, "qcom,qfprom-ipq5332-sec")) {
+		err = device_create_file(&device_qfprom, &list_ipq5322_fuse_attr);
+		if (err) {
+			pr_err("%s: device_create_file(%s)=%d\n",
+				__func__, list_ipq5322_fuse_attr.attr.name, err);
+		}
+	}
+	else if (of_device_is_compatible(np, "qcom,qfprom-ipq9574-sec")) {
+		err = device_create_file(&device_qfprom, &list_ipq9574_fuse_attr);
+		if (err) {
+			pr_err("%s: device_create_file(%s)=%d\n",
+				__func__, list_ipq9574_fuse_attr.attr.name, err);
+		}
 	}
 	return qfprom_create_files(ARRAY_SIZE(qfprom_attrs), sw_bitmap);
 }
 
 static const struct of_device_id qcom_qfprom_dt_match[] = {
 	{ .compatible = "qcom,qfprom-sec",},
+	{ .compatible = "qcom,qfprom-ipq9574-sec",},
+	{ .compatible = "qcom,qfprom-ipq5332-sec",},
 	{}
 };
 

@@ -35,4 +35,5 @@ bool ppe_drv_tun_encap_xlate_rule_configure(struct ppe_drv_tun_encap_xlate_rule 
 		struct ppe_drv_tun_cmn_ctx_xlate_rule *rule, int8_t tun_len, uint32_t l2_flags, bool dmr);
 struct ppe_drv_tun_encap_xlate_rule *ppe_drv_tun_encap_xlate_rule_entries_alloc(struct ppe_drv *p);
 struct ppe_drv_tun_encap_xlate_rule *ppe_drv_tun_encap_xlate_rule_alloc(struct ppe_drv *p);
+struct ppe_drv_tun_encap_xlate_rule *ppe_drv_tun_encap_xlate_rule_ref(struct ppe_drv_tun_encap_xlate_rule *ptecxr);
 #endif /* _PPE_DRV_TUN_ENCAP_XLATE_RULE_ */

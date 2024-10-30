@@ -894,13 +894,13 @@ int ecm_state_init(struct dentry *dentry)
 		return -1;
 	}
 
-	if (!debugfs_create_u32("state_dev_major", S_IRUGO, ecm_state_dentry,
+	if (!ecm_debugfs_create_u32("state_dev_major", S_IRUGO, ecm_state_dentry,
 					(u32 *)&ecm_state_dev_major_id)) {
 		DEBUG_ERROR("Failed to create ecm state dev major file in debugfs\n");
 		goto init_cleanup;
 	}
 
-	if (!debugfs_create_u32("state_file_output_mask", S_IRUGO | S_IWUSR, ecm_state_dentry,
+	if (!ecm_debugfs_create_u32("state_file_output_mask", S_IRUGO | S_IWUSR, ecm_state_dentry,
 					(u32 *)&ecm_state_file_output_mask)) {
 		DEBUG_ERROR("Failed to create ecm state output mask file in debugfs\n");
 		goto init_cleanup;

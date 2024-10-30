@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2022, Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2024, Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for any
  * purpose with or without fee is hereby granted, provided that the above
@@ -236,7 +236,7 @@ static struct net_device *eip_ipsec_xfrm_get_dev(struct net_device *kdev, struct
 		 * check if the xfrm state is offloaded or not.
 		 */
 		if (!eip_ipsec_xfrm_check_state(xs)) {
-			pr_warn("%p: Outbound Plain text packet(%px); not offloaded\n", xs, skb);
+			pr_debug("%p: Outbound Plain text packet(%px); not offloaded\n", xs, skb);
 			return NULL;
 		}
 
@@ -256,6 +256,12 @@ static struct net_device *eip_ipsec_xfrm_get_dev(struct net_device *kdev, struct
 	 */
 	dev = dev_get_by_index(&init_net, skb->skb_iif);
 	if (!dev) {
+		return NULL;
+	}
+
+	if (!eip_ipsec_dev_is_nss(dev)) {
+		pr_debug("%p: Transform packet not managed by NSS\n", xs);
+		dev_put(dev);
 		return NULL;
 	}
 
@@ -402,7 +408,13 @@ static int eip_ipsec_xfrm_sa_data_init(struct xfrm_state *xs, struct eip_ipsec_d
 		ttl_hop_limit = ip4_dst_hoplimit(dst);
 	} else {
 		sa_data->base.flags |= EIP_IPSEC_FLAG_IPV6;
+
+#if (LINUX_VERSION_CODE < KERNEL_VERSION(6, 1, 0))
 		local_dev = ipv6_dev_find(&init_net, &xs->id.daddr.in6, 1);
+#else
+		local_dev = ipv6_dev_find(&init_net, &xs->id.daddr.in6, NULL);
+#endif
+
 		ip_addr_len = sizeof(remote.in6);
 
 		/*
@@ -442,7 +454,7 @@ static int eip_ipsec_xfrm_sa_data_init(struct xfrm_state *xs, struct eip_ipsec_d
 	}
 
 	sa_data->xs = xs;
-	xs->xflags |= XFRM_STATE_OFFLOAD_NSS;
+	sa_data->mtu = READ_ONCE(dst->dev->mtu);
 
 	if (sa_data->base.flags & EIP_IPSEC_FLAG_ENC) {
 		sa_data->base.flags |= EIP_IPSEC_FLAG_CP_DF;
@@ -579,6 +591,7 @@ static int eip_ipsec_xfrm_state_add(struct xfrm_state *xs)
 	 */
 	dev_hold(dev);
 	xs->data = dev;
+	xs->xflags |= XFRM_STATE_OFFLOAD_NSS;
 
 	return 0;
 }
@@ -627,9 +640,16 @@ static void eip_ipsec_xfrm_state_delete(struct xfrm_state *xs)
  * eip_ipsec_xfrm_esp_init_state()
  *	Initialize IPsec xfrm state of type ESP.
  */
+#if (LINUX_VERSION_CODE < KERNEL_VERSION(6, 1, 0))
 static int eip_ipsec_xfrm_esp_init_state(struct xfrm_state *xs)
+#else
+static int eip_ipsec_xfrm_esp_init_state(struct xfrm_state *xs, struct netlink_ext_ack *extack)
+#endif
 {
 	if (eip_ipsec_xfrm_state_add(xs)) {
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(6, 1, 0))
+		NL_SET_ERR_MSG(extack, "Kernel is unable to initialize xfrm state");
+#endif
 		pr_err("%p: Failed to offload xfrm state\n", xs);
 		return -1;
 	}
@@ -658,9 +678,11 @@ static struct xfrm_state_afinfo xfrm_v4_afinfo = {
 	.family = AF_INET,
 	.proto = IPPROTO_IPIP,
 	.output = eip_ipsec_xfrm_v4_output,
+#if (LINUX_VERSION_CODE < KERNEL_VERSION(6, 1, 0))
 	.output_finish = NULL,
 	.extract_input = NULL,
 	.extract_output = NULL,
+#endif
 	.transport_finish = NULL,
 	.local_error = NULL,
 };
@@ -669,7 +691,9 @@ static struct xfrm_state_afinfo xfrm_v4_afinfo = {
  * ESP proto specific init/de-init handlers for ipv4.
  */
 static const struct xfrm_type xfrm_v4_type = {
+#if (LINUX_VERSION_CODE < KERNEL_VERSION(6, 1, 0))
 	.description = "NSS ESP4",
+#endif
 	.owner = THIS_MODULE,
 	.proto = IPPROTO_ESP,
 	.flags = XFRM_TYPE_REPLAY_PROT,
@@ -678,17 +702,6 @@ static const struct xfrm_type xfrm_v4_type = {
 	.get_mtu = eip_ipsec_xfrm_esp_get_mtu,
 	.input = NULL,
 	.output = NULL,
-};
-
-/*
- * ESP proto handler for ipv4
- */
-static struct xfrm4_protocol xfrm4_proto = {
-	.handler = NULL,
-	.input_handler = NULL,
-	.cb_handler = NULL,
-	.err_handler = NULL,
-	.priority = INT_MAX,
 };
 
 /*
@@ -698,9 +711,11 @@ static struct xfrm_state_afinfo xfrm_v6_afinfo = {
 	.family = AF_INET6,
 	.proto = IPPROTO_IPV6,
 	.output = eip_ipsec_xfrm_v6_output,
+#if (LINUX_VERSION_CODE < KERNEL_VERSION(6, 1, 0))
 	.output_finish = NULL,
 	.extract_input = NULL,
 	.extract_output = NULL,
+#endif
 	.transport_finish = NULL,
 	.local_error = NULL,
 };
@@ -709,7 +724,9 @@ static struct xfrm_state_afinfo xfrm_v6_afinfo = {
  * ESP proto specific init/de-init handlers for ipv6.
  */
 static const struct xfrm_type xfrm_v6_type = {
+#if (LINUX_VERSION_CODE < KERNEL_VERSION(6, 1, 0))
 	.description = "NSS ESP6",
+#endif
 	.owner = THIS_MODULE,
 	.proto = IPPROTO_ESP,
 	.flags = XFRM_TYPE_REPLAY_PROT,
@@ -718,17 +735,9 @@ static const struct xfrm_type xfrm_v6_type = {
 	.get_mtu = eip_ipsec_xfrm_esp_get_mtu,
 	.input = NULL,
 	.output = NULL,
+#if (LINUX_VERSION_CODE < KERNEL_VERSION(6, 1, 0))
 	.hdr_offset = NULL,
-};
-
-/*
- * ESP proto handler for ipv6
- */
-static struct xfrm6_protocol xfrm6_proto = {
-	.handler = NULL,
-	.cb_handler = NULL,
-	.err_handler = NULL,
-	.priority = INT_MAX,
+#endif
 };
 
 /*
@@ -867,32 +876,17 @@ int eip_ipsec_xfrm_init(void)
 {
 
 	/*
-	 * Register & overide the inet esp proto handlers.
-	 */
-	if (xfrm4_protocol_register(&xfrm4_proto, IPPROTO_ESP) < 0) {
-		pr_warn("can't overide the ESP handler for IPv4\n");
-		return -EAGAIN;
-	}
-
-	if (xfrm6_protocol_register(&xfrm6_proto, IPPROTO_ESP) < 0) {
-		pr_warn("can't overide the ESP handler for IPv6\n");
-		goto unreg_v4_handler;
-	}
-
-	/*
 	 * overide the xfrm_state afinfo.
 	 */
-	eip_ipsec_xfrm_override_afinfo(AF_INET);
+	if (!disable_v4_offload)
+		eip_ipsec_xfrm_override_afinfo(AF_INET);
+
 	eip_ipsec_xfrm_override_afinfo(AF_INET6);
 
 	ecm_interface_ipsec_register_callbacks(&xfrm_ecm_ipsec_cb);
 
 	pr_info("eip xfrm module loaded\n");
 	return 0;
-
-unreg_v4_handler:
-	xfrm4_protocol_deregister(&xfrm4_proto, IPPROTO_ESP);
-	return -EAGAIN;
 }
 
 /*
@@ -902,15 +896,11 @@ unreg_v4_handler:
 void eip_ipsec_xfrm_exit(void)
 {
 	/*
-	 * De-register the inet esp protocol handlers.
-	 */
-	xfrm4_protocol_deregister(&xfrm4_proto, IPPROTO_ESP);
-	xfrm6_protocol_deregister(&xfrm6_proto, IPPROTO_ESP);
-
-	/*
 	 * Restore the xfrm_state afinfo.
 	 */
-	eip_ipsec_xfrm_restore_afinfo(AF_INET);
+	if (!disable_v4_offload)
+		eip_ipsec_xfrm_restore_afinfo(AF_INET);
+
 	eip_ipsec_xfrm_restore_afinfo(AF_INET6);
 
 	ecm_interface_ipsec_unregister_callbacks();

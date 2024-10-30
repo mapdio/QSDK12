@@ -176,14 +176,6 @@ Signed-off-by: Muna Sinada <quic_msinada@quicinc.com>
  
  	dut->ap_allow_vht_wep = 0;
  	dut->ap_allow_vht_tkip = 0;
-@@ -10879,6 +10919,7 @@ static enum sigma_cmd_result cmd_ap_rese
- 	dut->ap_txBF = 0;
- 	dut->ap_mu_txBF = 0;
- 	dut->ap_su_txBF = 1;
-+	dut->ap_channel = -1;
- 	dut->ap_chwidth = AP_AUTO;
- 	dut->ap_ampdu_exp = 0;
- 	dut->ap_max_mpdu_len = 0;
 --- a/sigma_dut.h
 +++ b/sigma_dut.h
 @@ -1104,6 +1104,8 @@ struct sigma_dut {

@@ -1,9 +1,6 @@
+# SPDX-License-Identifier: GPL-2.0-only
 #
-# Copyright (C) 2006-2008 OpenWrt.org
-#
-# This is free software, licensed under the GNU General Public License v2.
-# See /LICENSE for more information.
-#
+# Copyright (C) 2006-2020 OpenWrt.org
 
 __package_mk:=1
 
@@ -14,28 +11,49 @@ include $(INCLUDE_DIR)/download.mk
 PKG_BUILD_DIR ?= $(BUILD_DIR)/$(if $(BUILD_VARIANT),$(PKG_NAME)-$(BUILD_VARIANT)/)$(PKG_NAME)$(if $(PKG_VERSION),-$(PKG_VERSION))
 PKG_INSTALL_DIR ?= $(PKG_BUILD_DIR)/ipkg-install
 PKG_BUILD_PARALLEL ?=
-PKG_USE_MIPS16 ?= 1
-PKG_IREMAP ?= 1
+PKG_SKIP_DOWNLOAD=$(USE_SOURCE_DIR)$(USE_GIT_TREE)$(USE_GIT_SRC_CHECKOUT)
 
 MAKE_J:=$(if $(MAKE_JOBSERVER),$(MAKE_JOBSERVER) $(if $(filter 3.% 4.0 4.1,$(MAKE_VERSION)),-j))
 
-FindRecipeExt=$(wildcard $(strip $(shell find $(TOPDIR)/qsdk-package -name $(basename $(notdir $(CURDIR))) 2>/dev/null))/$(PKG_NAME).mk)
--include $(FindRecipeExt)
+PKG_SOURCE_DATE_EPOCH:=$(if $(DUMP),,$(shell $(TOPDIR)/scripts/get_source_date_epoch.sh $(CURDIR)))
 
 ifeq ($(strip $(PKG_BUILD_PARALLEL)),0)
 PKG_JOBS?=-j1
 else
 PKG_JOBS?=$(if $(PKG_BUILD_PARALLEL),$(MAKE_J),-j1)
 endif
-ifdef CONFIG_USE_MIPS16
-  ifeq ($(strip $(PKG_USE_MIPS16)),1)
-    TARGET_ASFLAGS_DEFAULT = $(filter-out -mips16 -minterlink-mips16,$(TARGET_CFLAGS))
-    TARGET_CFLAGS += -mips16 -minterlink-mips16
-  endif
+
+PKG_BUILD_FLAGS?=
+__unknown_flags=$(filter-out no-iremap no-mips16 gc-sections no-gc-sections lto no-lto,$(PKG_BUILD_FLAGS))
+ifneq ($(__unknown_flags),)
+  $(error unknown PKG_BUILD_FLAGS: $(__unknown_flags))
 endif
-ifeq ($(strip $(PKG_IREMAP)),1)
+
+# $1=flagname, $2=default (0/1)
+define pkg_build_flag
+$(if $(filter no-$(1),$(PKG_BUILD_FLAGS)),0,$(if $(filter $(1),$(PKG_BUILD_FLAGS)),1,$(2)))
+endef
+
+ifeq ($(call pkg_build_flag,iremap,1),1)
   IREMAP_CFLAGS = $(call iremap,$(PKG_BUILD_DIR),$(notdir $(PKG_BUILD_DIR)))
   TARGET_CFLAGS += $(IREMAP_CFLAGS)
+endif
+ifdef CONFIG_USE_MIPS16
+  ifeq ($(call pkg_build_flag,mips16,1),1)
+    TARGET_ASFLAGS_DEFAULT = $(filter-out -mips16 -minterlink-mips16,$(TARGET_CFLAGS))
+    TARGET_CFLAGS += -mips16 -minterlink-mips16
+    TARGET_CXXFLAGS += -mips16 -minterlink-mips16
+  endif
+endif
+ifeq ($(call pkg_build_flag,gc-sections,$(if $(CONFIG_USE_GC_SECTIONS),1,0)),1)
+  TARGET_CFLAGS+= -ffunction-sections -fdata-sections
+  TARGET_CXXFLAGS+= -ffunction-sections -fdata-sections
+  TARGET_LDFLAGS+= -Wl,--gc-sections
+endif
+ifeq ($(call pkg_build_flag,lto,$(if $(CONFIG_USE_LTO),1,0)),1)
+  TARGET_CFLAGS+= -flto=auto -fno-fat-lto-objects
+  TARGET_CXXFLAGS+= -flto=auto -fno-fat-lto-objects
+  TARGET_LDFLAGS+= -flto=auto -fuse-linker-plugin
 endif
 
 include $(INCLUDE_DIR)/hardening.mk
@@ -62,7 +80,7 @@ include $(INCLUDE_DIR)/quilt.mk
 
 find_library_dependencies = \
 	$(wildcard $(patsubst %,$(STAGING_DIR)/pkginfo/%.version, \
-		$(sort $(foreach dep4, \
+		$(filter-out $(BUILD_PACKAGES), $(sort $(foreach dep4, \
 			$(sort $(foreach dep3, \
 				$(sort $(foreach dep2, \
 					$(sort $(foreach dep1, \
@@ -77,7 +95,7 @@ find_library_dependencies = \
 				$(Package/$(dep3)/depends) $(dep3) \
 			)), \
 			$(Package/$(dep4)/depends) $(dep4) \
-		)), \
+		))) \
 	))
 
 
@@ -88,7 +106,7 @@ ifneq ($(PREV_STAMP_PREPARED),)
   STAMP_PREPARED:=$(PREV_STAMP_PREPARED)
   CONFIG_AUTOREBUILD:=
 else
-  STAMP_PREPARED=$(PKG_BUILD_DIR)/.prepared$(if $(QUILT)$(DUMP),,_$(shell $(call find_md5,${CURDIR} $(PKG_FILE_DEPENDS),))_$(call confvar,CONFIG_AUTOREMOVE $(PKG_PREPARED_DEPENDS)))
+  STAMP_PREPARED=$(PKG_BUILD_DIR)/.prepared$(if $(QUILT)$(DUMP),,_$(shell $(call $(if $(CONFIG_AUTOREMOVE),find_md5_reproducible,find_md5),${CURDIR} $(PKG_FILE_DEPENDS),))_$(call confvar,CONFIG_AUTOREMOVE $(PKG_PREPARED_DEPENDS)))
 endif
 STAMP_CONFIGURED=$(PKG_BUILD_DIR)/.configured$(if $(DUMP),,_$(call confvar,$(PKG_CONFIG_DEPENDS)))
 STAMP_CONFIGURED_WILDCARD=$(PKG_BUILD_DIR)/.configured_*
@@ -177,7 +195,7 @@ define Build/Exports/Default
   $(1) : export CONFIG_SITE:=$$(CONFIG_SITE)
   $(1) : export PKG_CONFIG_PATH:=$$(PKG_CONFIG_PATH)
   $(1) : export PKG_CONFIG_LIBDIR:=$$(PKG_CONFIG_PATH)
-  $(if $(CONFIG_CCACHE),$(1) : export CCACHE_DIR:=$(STAGING_DIR)/ccache)
+  $(1) : export GIT_CEILING_DIRECTORIES:=$$(BUILD_DIR)
 endef
 Build/Exports=$(Build/Exports/Default)
 
@@ -189,7 +207,7 @@ define Build/CoreTargets
   $(call Build/Autoclean)
   $(call DefaultTargets)
 
-  $(DL_DIR)/$(FILE): FORCE
+  $(call check_download_integrity)
 
   download:
 	$(foreach hook,$(Hooks/Download),
@@ -235,7 +253,7 @@ define Build/CoreTargets
   $(STAMP_INSTALLED) : export PATH=$$(TARGET_PATH_PKG)
   $(STAMP_INSTALLED): $(STAMP_BUILT)
 	rm -rf $(TMP_DIR)/stage-$(PKG_DIR_NAME)
-	mkdir -p $(TMP_DIR)/stage-$(PKG_DIR_NAME)/host $(STAGING_DIR)/packages $(STAGING_DIR_HOST)/packages
+	mkdir -p $(TMP_DIR)/stage-$(PKG_DIR_NAME)/host $(STAGING_DIR)/packages
 	$(foreach hook,$(Hooks/InstallDev/Pre),\
 		$(call $(hook),$(TMP_DIR)/stage-$(PKG_DIR_NAME),$(TMP_DIR)/stage-$(PKG_DIR_NAME)/host)$(sep)\
 	)
@@ -270,25 +288,25 @@ define Build/CoreTargets
   ifneq ($(CONFIG_AUTOREMOVE),)
     compile:
 		-touch -r $(PKG_BUILD_DIR)/.built $(PKG_BUILD_DIR)/.autoremove 2>/dev/null >/dev/null
-		$(FIND) $(PKG_BUILD_DIR) -mindepth 1 -maxdepth 1 -not '(' -type f -and -name '.*' -and -size 0 ')' -and -not -name '.pkgdir' | \
-			$(XARGS) rm -rf
+		$(FIND) $(PKG_BUILD_DIR) -mindepth 1 -maxdepth 1 -not '(' -type f -and -name '.*' -and -size 0 ')' -and -not -name '.pkgdir'  -print0 | \
+			$(XARGS) -0 rm -rf
   endif
 endef
 
 define Build/DefaultTargets
-  $(if $(USE_SOURCE_DIR)$(USE_GIT_TREE)$(USE_GIT_SRC_CHECKOUT),,$(if $(strip $(PKG_SOURCE_URL)),$(call Download,default)))
+  $(if $(PKG_SKIP_DOWNLOAD),,$(if $(strip $(PKG_SOURCE_URL)),$(call Download,default)))
   $(if $(DUMP),,$(Build/CoreTargets))
 
   define Build/DefaultTargets
   endef
 endef
 
-define Build/qsdk-package
+define Build/openwrt-patches
   $(eval -include $(wildcard $(call FindPackage,$(basename $(notdir $(CURDIR))))/$(PKG_NAME).mk))
 endef
 
 define BuildPackage
-  $(Build/qsdk-package)
+  $(Build/openwrt-patches)
   $(eval $(Package/Default))
   $(eval $(Package/$(1)))
 
@@ -359,9 +377,9 @@ clean-build: $(if $(wildcard $(PKG_BUILD_DIR)/.autoremove),force-clean-build)
 
 clean: force-clean-build
 	$(CleanStaging)
-	$(call Build/UninstallDev,$(STAGING_DIR),$(STAGING_DIR_HOST))
+	$(call Build/UninstallDev,$(STAGING_DIR),$(STAGING_DIR)/host)
 	$(Build/Clean)
-	rm -f $(STAGING_DIR)/packages/$(STAGING_FILES_LIST) $(STAGING_DIR_HOST)/packages/$(STAGING_FILES_LIST)
+	rm -f $(STAGING_DIR)/packages/$(STAGING_FILES_LIST)
 
 dist:
 	$(Build/Dist)

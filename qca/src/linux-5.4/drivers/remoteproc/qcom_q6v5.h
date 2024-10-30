@@ -34,6 +34,10 @@ struct qcom_q6v5 {
 	struct completion stop_done;
 	struct completion spawn_done;
 
+	bool start_ack;
+	bool stop_ack;
+	bool spawn_ack;
+
 	int remote_id;
 	int crash_reason;
 

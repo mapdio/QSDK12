@@ -1,7 +1,7 @@
 /*
  **************************************************************************
  * Copyright (c) 2020-2021, The Linux Foundation. All rights reserved.
- * Copyright (c) 2022, Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2023, Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
@@ -101,13 +101,14 @@ struct nss_ppe_bridge_mgr_pvt {
 	struct net_device *wan_netdev;		/* WAN interface netdevice */
 	uint32_t mtu;				/* MTU for bridge */
 	uint8_t dev_addr[ETH_ALEN];		/* MAC address for bridge */
+	atomic64_t bridge_vlan_iface_cnt;		/* Number of VLAN interfaces over bridge */
 };
 
 
 
 struct nss_ppe_bridge_mgr_pvt *nss_ppe_bridge_mgr_find_instance(struct net_device *dev);
-int nss_ppe_bridge_mgr_leave_bridge(struct net_device *dev, struct nss_ppe_bridge_mgr_pvt *br);
-int nss_ppe_bridge_mgr_join_bridge(struct net_device *dev, struct nss_ppe_bridge_mgr_pvt *br);
+int nss_ppe_bridge_mgr_leave_bridge(struct net_device *dev, struct net_device *bridge_dev);
+int nss_ppe_bridge_mgr_join_bridge(struct net_device *dev, struct net_device *bridge_dev);
 int nss_ppe_bridge_mgr_unregister_br(struct net_device *dev);
 int nss_ppe_bridge_mgr_register_br(struct net_device *dev);
 void nss_ppe_bridge_mgr_ovs_init(void);

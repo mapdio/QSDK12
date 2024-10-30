@@ -183,27 +183,28 @@ board_recover() {
 __brctl_stp_on_or_off() {
 	local config="$1"
 	local on_or_off="$2"
-	local type br
+	local type name
 
 	config_get type "$config" type
 	[ -z "$type" -o ! "$type" = "bridge" ] && return
 
-	network_get_physdev br $1
+        config_get name "$config" name
+        [ -z "$name" ] && return
 
-        brctl stp $br $on_or_off
+        brctl stp $name $on_or_off
         sleep 1
 
         #sanity check rstp while rstpd is starting
         #In case where kernel stop & start rstpd during init, results with RSTP (802.1w)
         #being disabled in server and STP (802.1d) will be enabled by default
         #even if rstpd is running
-	[ "$on_or_off" = 'on' ] &&{
-	        err=`rstpctl showbridge $br | cut -d' ' -f 6`
-	        [ "$err" = '1002' ] && {  #Err_Bridge_RSTP_not_enabled
-	            sleep 1 #wait time to connect to server
-	            echo "enabling rstp for $br as err:$err" > /dev/console
-	       	    brctl stp $br $on_or_off; sleep 1
-	     	    /sbin/rstpctl rstp $br $on_or_off
+	[ "$on_or_off" = 'on' ] && {
+		err=`rstpctl showbridge $name | cut -d' ' -f 6`
+		[ "$err" = '1002' ] && {  #Err_Bridge_RSTP_not_enabled
+			sleep 1 #wait time to connect to server
+			echo "enabling rstp for $name as err:$err" > /dev/console
+			brctl stp $name $on_or_off; sleep 1
+			/sbin/rstpctl rstp $name $on_or_off
        	 	}
 	}
 }
@@ -211,7 +212,7 @@ __brctl_stp_on_or_off() {
 brctl_stp_on_or_off() {
 	. /lib/functions/network.sh
 	config_load network
-	config_foreach __brctl_stp_on_or_off interface $1
+	config_foreach __brctl_stp_on_or_off device $1
 }
 
 start() {

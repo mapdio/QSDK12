@@ -1,6 +1,6 @@
 /*
  * Copyright (c) 2016-2017, 2019-2020, The Linux Foundation. All rights reserved.
- * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2023 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for any
  * purpose with or without fee is hereby granted, provided that the above
@@ -36,16 +36,6 @@ extern "C" {
 #endif
 #define HPPE_TO_GMAC_PORT_ID(port_id)                      (port_id -1)
 #define HPPE_FCS_LEN                                       4
-
-#define HPPE_MUX_PORT1                                     5
-#define HPPE_MUX_PORT2                                     6
-#if defined(MPPE)
-#define HPPE_UNIPHY1_PORT                                  SSDK_PHYSICAL_PORT2
-#define HPPE_UNIPHY0_PORT_MAX                              SSDK_PHYSICAL_PORT1
-#else
-#define HPPE_UNIPHY1_PORT                                  HPPE_MUX_PORT1
-#define HPPE_UNIPHY0_PORT_MAX                              HPPE_MUX_PORT1
-#endif
 
 #define HPPE_GCC_UNIPHY_PSGMII_SOFT_RESET                  0x3ff2
 #define HPPE_GCC_UNIPHY_USXGMII_SOFT_RESET                 0x36

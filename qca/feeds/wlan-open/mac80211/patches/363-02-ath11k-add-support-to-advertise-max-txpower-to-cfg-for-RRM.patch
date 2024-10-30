@@ -1,0 +1,31 @@
+From 12171f08b20ddec844cfc53d57afd6451945fb8f Mon Sep 17 00:00:00 2001
+From: Raj Kumar Bhagat <quic_rajkbhag@quicinc.com>
+Date: Tue, 29 Nov 2022 15:25:37 +0530
+Subject: [PATCH] ath11k: add support to advertise max txpower to cfg for RRM
+
+Advertise max tx power suported by HW/FW. This is used to advertise
+max txpower to user-space for RRM link Measurement request/report.
+
+Signed-off-by: Raj Kumar Bhagat <quic_rajkbhag@quicinc.com>
+---
+ drivers/net/wireless/ath/ath11k/mac.c | 4 ++++
+ 1 file changed, 4 insertions(+)
+
+diff --git a/drivers/net/wireless/ath/ath11k/mac.c b/drivers/net/wireless/ath/ath11k/mac.c
+index a8323a9..4104869 100644
+--- a/drivers/net/wireless/ath/ath11k/mac.c
++++ b/drivers/net/wireless/ath/ath11k/mac.c
+@@ -12731,6 +12731,10 @@ static int __ath11k_mac_register(struct ath11k *ar)
+ 			ieee80211_hw_set(ar->hw, SUPPORTS_MESH_NSS_OFFLOAD);
+ 	}
+ 
++	ar->hw->wiphy->rdev_max_txpower = ar->max_tx_power/2;
++	wiphy_ext_feature_set(ar->hw->wiphy,
++			      NL80211_EXT_FEATURE_TX_POWER_REPORTING);
++
+ 	ret = ieee80211_register_hw(ar->hw);
+ 	if (ret) {
+ 		ath11k_err(ar->ab, "ieee80211 registration failed: %d\n", ret);
+-- 
+2.17.1
+

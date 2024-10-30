@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2024 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for any
  * purpose with or without fee is hereby granted, provided that the above
@@ -19,46 +19,14 @@
 #include <linux/module.h>
 #include <linux/debugfs.h>
 #include <linux/netdevice.h>
-
+#include <linux/version.h>
 #include <ppe_drv_port.h>
-#include <ppe_vp_public.h>
 #include <ppe_drv_tun_cmn_ctx.h>
 #include <ppe_drv_tun_public.h>
+#include <asm/cmpxchg.h>
 #include "ppe_tun.h"
 
 struct ppe_tun_priv *ptp;
-
-/*
- * ppe_tun_stats()
- *	Update the netdevice stats
- */
-bool ppe_tun_stats(struct net_device *dev, ppe_vp_hw_stats_t *stats)
-{
-	struct pcpu_sw_netstats *tstats = this_cpu_ptr(dev->tstats);
-
-	u64_stats_update_begin(&tstats->syncp);
-	tstats->tx_bytes += stats->tx_byte_cnt;
-	tstats->tx_packets += stats->tx_pkt_cnt;
-	tstats->rx_bytes += stats->rx_byte_cnt;
-	tstats->rx_packets += stats->rx_pkt_cnt;
-
-	/*
-	 * For Map-t device we need to update the rx and tx stats separately.
-	 */
-	if (unlikely(dev->priv_flags_ext & IFF_EXT_MAPT)) {
-		tstats->rx_bytes += stats->tx_byte_cnt;
-		tstats->rx_packets += stats->tx_pkt_cnt;
-		tstats->tx_bytes += stats->rx_byte_cnt;
-		tstats->tx_packets += stats->rx_pkt_cnt;
-	}
-
-	u64_stats_update_end(&tstats->syncp);
-
-	atomic_long_add(stats->tx_drop_pkt_cnt, &dev->tx_dropped);
-	atomic_long_add(stats->rx_drop_pkt_cnt, &dev->rx_dropped);
-
-	return true;
-}
 
 /*
  * ppe_tun_allow_accel()
@@ -95,12 +63,58 @@ static bool ppe_tun_allow_accel(enum ppe_drv_tun_cmn_ctx_type type)
 		ppe_tun_warn("%p: PPE mapt acceleration is not enabled", ptp);
 		break;
 
+	case PPE_DRV_TUN_CMN_CTX_TYPE_L2TP_V2:
+		if (ptp->tun_accel.ppe_tun_l2tp_accel) {
+			return true;
+		}
+		ppe_tun_warn("%p: PPE l2tp acceleration is not enabled", ptp);
+		break;
+
 	default:
 		break;
 	}
 
 	ppe_tun_warn("%p: Accel type %u is invalid", ptp, type);
 	return false;
+}
+
+/*
+ * ppe_tun_set_tun_data()
+ *	Set tunnel information
+ */
+bool ppe_tun_set_tun_data(struct ppe_tun *tun, ppe_tun_data *tun_data)
+{
+	ppe_tun_data *tunnel_data = tun->tun_data;
+
+	if (!tunnel_data) {
+		ppe_tun_trace("%p: tunnel info not allocated for tunnel", tun);
+		return false;
+	}
+
+	if (tun->type == PPE_DRV_TUN_CMN_CTX_TYPE_L2TP_V2) {
+		tunnel_data->l2tp_info.session_id = tun_data->l2tp_info.session_id;
+		tunnel_data->l2tp_info.tunnel_id = tun_data->l2tp_info.tunnel_id;
+		return true;
+	}
+
+	ppe_tun_warn("%p: invalid tunnel type %d to set tunnel info", ptp, tun->type);
+	return false;
+}
+
+/*
+ * ppe_tun_set_tun_data()
+ *	allocate tunnel data memory
+ */
+ppe_tun_data *ppe_tun_alloc_tun_data(void)
+{
+	ppe_tun_data *tun_data;
+
+	tun_data = kzalloc(sizeof(ppe_tun_data), GFP_ATOMIC);
+	if (!tun_data) {
+		ppe_tun_trace("%p: ppe tun data allocation failed\n", ptp);
+	}
+
+	return tun_data;
 }
 
 /*
@@ -115,6 +129,10 @@ static void ppe_tun_ctx_free(struct kref *kref)
 	spin_lock_bh(&ptp->lock);
 	ptp->tun[tun->idx] = NULL;
 	spin_unlock_bh(&ptp->lock);
+
+	if (tun->tun_data) {
+		kfree(tun->tun_data);
+	}
 
 	vp_num = tun->vp_num;
 	ppe_vp_free(vp_num);
@@ -174,6 +192,34 @@ static struct ppe_tun *ppe_tun_get_tun_by_netdev_and_ref(struct net_device *dev)
 	spin_unlock_bh(&ptp->lock);
 
 	return NULL;
+}
+
+/*
+ * ppe_tun_stats()
+ *	Update the netdevice stats
+ */
+bool ppe_tun_stats(struct net_device *dev, ppe_vp_hw_stats_t *stats)
+{
+	struct ppe_tun *tun;
+	bool ret;
+
+	tun = ppe_tun_get_tun_by_netdev_and_ref(dev);
+	if (!tun) {
+		ppe_tun_trace("%p: ppe tun stats update failed: tunnel not found", tun);
+		return false;
+	}
+
+	if (!tun->stats_excp) {
+		ppe_tun_trace("%p: tunnel stats callback not present", tun);
+		ret = false;
+		goto done;
+	}
+
+	ret = tun->stats_excp(dev, stats, tun->tun_data);
+
+done:
+	ppe_tun_deref(tun);
+	return ret;
 }
 
 /*
@@ -260,8 +306,10 @@ static bool ppe_tun_activate_with_conn_entry(uint8_t vp_num, void *create_rule)
  * ppe_tun_exception_dest_cb
  *	Callback handler for destination exception packets.
  */
-static bool ppe_tun_exception_dest_cb(struct net_device *dev, struct sk_buff *skb, void *cb_data)
+static bool ppe_tun_exception_dest_cb(struct ppe_vp_cb_info *info, void *cb_data)
 {
+	struct sk_buff *skb = info->skb;
+	struct net_device *dev = skb->dev;
 	ppe_tun_exception_method_t cb;
 	struct ppe_tun *tun;
 
@@ -274,16 +322,16 @@ static bool ppe_tun_exception_dest_cb(struct net_device *dev, struct sk_buff *sk
 	atomic64_inc(&tun->exception_packet);
 	atomic64_add(skb->len, &tun->exception_bytes);
 
-	cb = tun->dest_cb;
+	cb = tun->dest_excp;
 	if (!cb) {
 		ppe_tun_warn("%p: No registered callback for destination exception %s", tun, dev->name);
 		ppe_tun_deref(tun);
 		goto free_skb;
 	}
 
+	cb(info, tun->tun_data);
 	ppe_tun_deref(tun);
 
-	cb(dev, skb);
 	return true;
 
 free_skb:
@@ -295,8 +343,10 @@ free_skb:
  * ppe_tun_exception_src_cb
  *	Callback handler for src exception packets.
  */
-static bool ppe_tun_exception_src_cb(struct net_device *dev, struct sk_buff *skb, void *cb_data)
+static bool ppe_tun_exception_src_cb(struct ppe_vp_cb_info *info, void *cb_data)
 {
+	struct sk_buff *skb = info->skb;
+	struct net_device *dev = skb->dev;
 	ppe_tun_exception_method_t cb;
 	struct ppe_tun *tun;
 
@@ -309,7 +359,7 @@ static bool ppe_tun_exception_src_cb(struct net_device *dev, struct sk_buff *skb
 	atomic64_inc(&tun->exception_packet);
 	atomic64_add(skb->len, &tun->exception_bytes);
 
-	cb = tun->src_cb;
+	cb = tun->src_excp;
 	if (!cb) {
 		ppe_tun_deref(tun);
 		ppe_tun_warn("%p: No registered callback for source exception %s", tun, dev->name);
@@ -326,11 +376,14 @@ static bool ppe_tun_exception_src_cb(struct net_device *dev, struct sk_buff *skb
 			ppe_tun_deref(tun);
 			goto free_skb;
 		}
+
+		skb->dev = dev;
+		skb->skb_iif = dev->ifindex;
 	}
 
+	cb(info, tun->tun_data);
 	ppe_tun_deref(tun);
 
-	cb(dev, skb);
 	return true;
 
 free_skb:
@@ -537,6 +590,10 @@ bool ppe_tun_conf_accel(enum ppe_drv_tun_cmn_ctx_type type, bool action)
 		ptp->tun_accel.ppe_tun_mapt_accel = action;
 		break;
 
+	case PPE_DRV_TUN_CMN_CTX_TYPE_L2TP_V2:
+		ptp->tun_accel.ppe_tun_l2tp_accel = action;
+		break;
+
 	default:
 		ppe_tun_info("%p: Tunnel type %u is invalid", ptp, type);
 		return false;
@@ -566,9 +623,11 @@ bool ppe_tun_deconfigure(struct net_device *dev)
 		return false;
 	}
 
-	tun->src_cb = NULL;
-	tun->dest_cb = NULL;
-	tun->phys_dev = NULL;
+	xchg(&tun->src_excp, NULL);
+	xchg(&tun->dest_excp, NULL);
+	xchg(&tun->stats_excp, NULL);
+	xchg(&tun->phys_dev, NULL);
+
 	tun->state &= ~PPE_TUN_STATE_CONFIGURED;
 	ppe_tun_info("%p: Tunnel disabled for dev %s", tun, dev->name);
 	ppe_tun_deref(tun);
@@ -580,8 +639,7 @@ EXPORT_SYMBOL(ppe_tun_deconfigure);
  * ppe_tun_configure()
  *	Configure a struct ppe_tun
  */
-bool ppe_tun_configure(struct net_device *dev, struct ppe_drv_tun_cmn_ctx *tun_hdr, ppe_tun_exception_method_t src_cb,
-		       ppe_tun_exception_method_t dest_cb)
+bool ppe_tun_configure(struct net_device *dev, struct ppe_drv_tun_cmn_ctx *tun_hdr, struct ppe_tun_excp *tun_cb)
 {
 	struct ppe_tun *tun = ppe_tun_get_tun_by_netdev_and_ref(dev);
 	ppe_vp_num_t vp_num;
@@ -594,6 +652,12 @@ bool ppe_tun_configure(struct net_device *dev, struct ppe_drv_tun_cmn_ctx *tun_h
 
 	vp_num = tun->vp_num;
 
+	if (tun_cb->tun_data && !ppe_tun_set_tun_data(tun, tun_cb->tun_data)) {
+		ppe_tun_trace("%p: tunnel info set failed", tun);
+		ppe_tun_deref(tun);
+		return false;
+	}
+
 	status = ppe_drv_tun_configure(vp_num, tun_hdr, ppe_tun_activate_with_conn_entry,
 				       ppe_tun_deactivate_with_conn_entry);
 	if (!status) {
@@ -602,8 +666,10 @@ bool ppe_tun_configure(struct net_device *dev, struct ppe_drv_tun_cmn_ctx *tun_h
 		return false;
 	}
 
-	tun->src_cb = src_cb;
-	tun->dest_cb = dest_cb;
+	tun->src_excp = tun_cb->src_excp_method;
+	tun->dest_excp = tun_cb->dest_excp_method;
+	tun->stats_excp = tun_cb->stats_update_method;
+
 
 	tun->state |= PPE_TUN_STATE_CONFIGURED;
 	ppe_tun_info("%p: Tunnel is configured at idx:%d", tun, tun->idx);
@@ -655,6 +721,14 @@ uint8_t ppe_tun_xcpn_mode_get(enum ppe_drv_tun_cmn_ctx_type type)
 		action = ptp->xcpn_mode.ipip6;
 		break;
 
+	case PPE_DRV_TUN_CMN_CTX_TYPE_L2TP_V2:
+		/*
+		 * exception mode is PPE_TUN_XCPN_MODE_1 by default
+		 * for L2TP
+		 */
+		action = ptp->xcpn_mode.l2tp;
+		break;
+
 	default:
 		ppe_tun_info("Tunnel type %u is invalid or doesn't support xcpn mode.", type);
 
@@ -701,7 +775,8 @@ bool ppe_tun_alloc(struct net_device *dev, enum ppe_drv_tun_cmn_ctx_type type)
 	 */
 	if ((type == PPE_DRV_TUN_CMN_CTX_TYPE_GRETAP) || (type == PPE_DRV_TUN_CMN_CTX_TYPE_VXLAN)) {
 		vpai.type = PPE_VP_TYPE_HW_L2TUN;
-	} else if ((type == PPE_DRV_TUN_CMN_CTX_TYPE_IPIP6) || (type == PPE_DRV_TUN_CMN_CTX_TYPE_MAPT)) {
+	} else if ((type == PPE_DRV_TUN_CMN_CTX_TYPE_IPIP6) || (type == PPE_DRV_TUN_CMN_CTX_TYPE_MAPT) ||
+					(type == PPE_DRV_TUN_CMN_CTX_TYPE_L2TP_V2)) {
 		vpai.type = PPE_VP_TYPE_HW_L3TUN;
 	} else {
 		ppe_tun_warn("%p: tunnel type %u is invalid", dev, type);
@@ -715,6 +790,13 @@ bool ppe_tun_alloc(struct net_device *dev, enum ppe_drv_tun_cmn_ctx_type type)
 	vpai.dst_cb_data = NULL;
 	vpai.src_cb_data = NULL;
 	vpai.stats_cb = ppe_tun_stats;
+
+	/*
+	 * For Tunnel VP the xmit port is determined during outer rule push. hence
+	 * setting it as invalid
+	 */
+	vpai.xmit_port = PPE_DRV_PORT_ID_INVALID;
+
 	vp_num = ppe_vp_alloc(dev, &vpai);
 	if (vp_num == -1) {
 		ppe_tun_warn("%p: vp alloc failed for dev %s", ptp, dev->name);
@@ -754,6 +836,16 @@ bool ppe_tun_alloc(struct net_device *dev, enum ppe_drv_tun_cmn_ctx_type type)
 	tun->vp_num = vp_num;
 	tun->idx = idx;
 
+	if (type == PPE_DRV_TUN_CMN_CTX_TYPE_L2TP_V2) {
+		tun->tun_data = ppe_tun_alloc_tun_data();
+		if (!tun->tun_data) {
+			spin_unlock_bh(&ptp->lock);
+			ppe_vp_free(vp_num);
+			kfree(tun);
+			return false;
+		}
+	}
+
 	kref_init(&tun->ref);
 
 	ptp->tun[idx] = tun;
@@ -773,6 +865,7 @@ EXPORT_SYMBOL(ppe_tun_alloc);
  */
 bool ppe_tun_setup(struct net_device *dev, struct ppe_drv_tun_cmn_ctx *tun_hdr)
 {
+	struct ppe_tun_excp tun_cb = {0};
 	bool status;
 
 	status = ppe_tun_alloc(dev, tun_hdr->type);
@@ -781,7 +874,7 @@ bool ppe_tun_setup(struct net_device *dev, struct ppe_drv_tun_cmn_ctx *tun_hdr)
 		return false;
 	}
 
-	status = ppe_tun_configure(dev, tun_hdr, NULL, NULL);
+	status = ppe_tun_configure(dev, tun_hdr, &tun_cb);
 	if (!status) {
 		ppe_tun_free(dev);
 		ppe_tun_warn("%p: tunnel configuration failed", dev);
@@ -821,6 +914,7 @@ bool ppe_tun_decap_disable(struct net_device *dev)
 		ppe_tun_warn("%p, Failed to disable the decap for %s", tun, dev->name);
 	}
 
+	ppe_tun_trace("%px: Successfully enabled decap for nss_dev %s", tun, dev->name);
 	ppe_tun_deref(tun);
 	return ret;
 }
@@ -846,10 +940,91 @@ bool ppe_tun_decap_enable(struct net_device *dev)
 		ppe_tun_warn("%p, Failed to disable the decap for %s", tun, dev->name);
 	}
 
+	ppe_tun_trace("%px: Successfully enabled decap for nss_dev %s", tun, dev->name);
 	ppe_tun_deref(tun);
 	return ret;
 }
 EXPORT_SYMBOL(ppe_tun_decap_enable);
+
+/*
+ * ppe_tun_configure_vxlan_dport()
+ *	Configure the VXLAN destination port
+ */
+bool ppe_tun_configure_vxlan_dport(uint16_t dport)
+{
+	ppe_tun_trace("Configuring the destination port of VXLAN dport: %u", dport);
+	return ppe_drv_tun_configure_vxlan_and_dport(dport);
+}
+EXPORT_SYMBOL(ppe_tun_configure_vxlan_dport);
+
+/*
+ * ppe_tun_l2tp_port_set()
+ *      Set L2TP source and destination  port
+ */
+bool ppe_tun_l2tp_port_set(uint16_t sport, uint16_t dport)
+{
+	ppe_tun_trace("Set L2TP sport: %u, dport: %u", sport, dport);
+	return ppe_drv_tun_l2tp_port_set(sport, dport);
+}
+EXPORT_SYMBOL(ppe_tun_l2tp_port_set);
+
+/*
+ * ppe_tun_l2tp_port_get()
+ *      get L2TP source and destination port
+ */
+bool ppe_tun_l2tp_port_get(uint16_t *sport, uint16_t *dport)
+{
+	return ppe_drv_tun_l2tp_port_get(sport, dport);
+}
+EXPORT_SYMBOL(ppe_tun_l2tp_port_get);
+
+/*
+ * ppe_tun_l2tp_read()
+ *	l2tp read handler
+ */
+static ssize_t ppe_tun_l2tp_read(struct file *f, char *buf, size_t count, loff_t *offset)
+{
+	int len;
+	char lbuf[24];
+
+	len = snprintf(lbuf, sizeof(lbuf), "l2tp accel %s\n", (ptp->tun_accel.ppe_tun_l2tp_accel) ? ("enabled") : ("disabled"));
+
+	return simple_read_from_buffer(buf, count, offset, lbuf, len);
+}
+
+/*
+ * ppe_tun_l2tp_write()
+ *	l2tp write handler
+ */
+static ssize_t ppe_tun_l2tp_write(struct file *f, const char *buffer, size_t len, loff_t *offset)
+{
+	ssize_t size;
+	char data[16];
+	bool res;
+	int status;
+
+	size = simple_write_to_buffer(data, sizeof(data), offset, buffer, len);
+	if (size < 0) {
+		ppe_tun_warn("%p: Error reading the input for l2tp configuration", ptp);
+		return size;
+	}
+
+	status = kstrtobool(data, &res);
+	if (status) {
+		ppe_tun_warn("%p: Error reading the input for l2tp configuration", ptp);
+		return status;
+	}
+
+	ppe_tun_conf_accel(PPE_DRV_TUN_CMN_CTX_TYPE_L2TP_V2, res);
+
+	return len;
+}
+
+const struct file_operations ppe_tun_l2tp_file_fops = {
+	.owner = THIS_MODULE,
+	.write = ppe_tun_l2tp_write,
+	.read = ppe_tun_l2tp_read,
+};
 
 /*
  * ppe_tun_gretap_read()
@@ -1201,12 +1376,63 @@ const struct file_operations ppe_tun_ipip6_xcpn_file_fops = {
 };
 
 /*
+ * ppe_tun_xcpn_l2tp_read()
+ *	l2tp xcpn read handler
+ */
+static ssize_t ppe_tun_xcpn_l2tp_read(struct file *f, char *buf, size_t count, loff_t *offset)
+{
+	int len;
+	char lbuf[24];
+	uint8_t xcpn_mode = ptp->xcpn_mode.l2tp;
+
+	len = snprintf(lbuf, sizeof(lbuf), "L2TP xcpn mode %u \n", xcpn_mode);
+
+	return simple_read_from_buffer(buf, count, offset, lbuf, len);
+}
+
+/*
+ * ppe_tun_xcpn_l2tp_write()
+ *	l2tp xcpn write handler
+ */
+static ssize_t ppe_tun_xcpn_l2tp_write(struct file *f, const char *buffer, size_t len, loff_t *offset)
+{
+	ssize_t size;
+	char data[16];
+	bool res;
+	int status;
+
+	size = simple_write_to_buffer(data, sizeof(data), offset, buffer, len);
+	if (size < 0) {
+		ppe_tun_warn("%p: Error reading the input for l2tp configuration", ptp);
+		return size;
+	}
+
+	status = kstrtobool(data, &res);
+	if (status) {
+		ppe_tun_warn("%p: Error reading the input for l2tp configuration", ptp);
+		return status;
+	}
+
+	ptp->xcpn_mode.l2tp = (uint8_t) res;
+
+	return len;
+}
+
+const struct file_operations ppe_tun_l2tp_xcpn_file_fops = {
+	.owner = THIS_MODULE,
+	.write = ppe_tun_xcpn_l2tp_write,
+	.read = ppe_tun_xcpn_l2tp_read,
+};
+
+/*
  * ppe_tun_module_init()
  *	module init for ppe tunnel driver
  */
 static int __init ppe_tun_module_init(void)
 {
 	struct dentry *dir;
+	ppe_acl_ret_t ret;
+	struct ppe_acl_rule rule = {0};
 
 	ptp = kzalloc(sizeof(struct ppe_tun_priv), GFP_ATOMIC);
 	if (!ptp) {
@@ -1223,9 +1449,11 @@ static int __init ppe_tun_module_init(void)
 	ptp->tun_accel.ppe_tun_vxlan_accel = true;
 	ptp->tun_accel.ppe_tun_ipip6_accel = true;
 	ptp->tun_accel.ppe_tun_mapt_accel = true;
+	ptp->tun_accel.ppe_tun_l2tp_accel = true;
 
 	ptp->xcpn_mode.gretap = PPE_TUN_XCPN_MODE_1;
 	ptp->xcpn_mode.ipip6 = PPE_TUN_XCPN_MODE_1;
+	ptp->xcpn_mode.l2tp = PPE_TUN_XCPN_MODE_1;
 
 
 	atomic_set(&ptp->total_free, PPE_TUN_MAX);
@@ -1269,9 +1497,12 @@ static int __init ppe_tun_module_init(void)
 	if (!debugfs_create_file("mapt", 0644, dir, NULL, &ppe_tun_mapt_file_fops)) {
 		ppe_tun_warn("Failed to create debugfs entry for mapt");
 	}
+	if (!debugfs_create_file("l2tp", 0644, dir, NULL, &ppe_tun_l2tp_file_fops)) {
+		ppe_tun_warn("Failed to create debugfs entry for l2tp");
+	}
 
 	dir = debugfs_create_dir("xcpn_mode", ptp->dentry);
-	if(!dir) {
+	if (!dir) {
 		ppe_tun_warn("%p: Failed to create debugfs entry for xcpn_mode", ptp);
 		goto fail;
 	}
@@ -1283,8 +1514,26 @@ static int __init ppe_tun_module_init(void)
 		ppe_tun_warn("Failed to create debugfs entry for gretap");
 	}
 	if (!debugfs_create_file("ipip6", 0644, dir, NULL, &ppe_tun_ipip6_xcpn_file_fops)) {
-		ppe_tun_warn("Failed to create debugfs entry for ipip6");
+		ppe_tun_warn("failed to create debugfs entry for ipip6");
 	}
+
+	if (!debugfs_create_file("l2tp", 0644, dir, NULL, &ppe_tun_l2tp_xcpn_file_fops)) {
+		ppe_tun_warn("failed to create debugfs entry for l2tp");
+	}
+
+	rule.cmn.cmn_flags = rule.cmn.cmn_flags & PPE_ACL_RULE_CMN_FLAG_NO_RULEID;
+	rule.stype = PPE_ACL_RULE_SRC_TYPE_SC;
+	rule.action.fwd_cmd = PPE_ACL_FWD_CMD_REDIR;
+	rule.valid_flags = (1 << PPE_ACL_RULE_MATCH_TYPE_DEFAULT);
+	rule.action.flags = PPE_ACL_RULE_ACTION_FLAG_FW_CMD;
+	rule.src.sc = PPE_DRV_SC_L2_TUNNEL_EXCEPTION;
+	ret = ppe_acl_rule_create(&rule);
+	if (ret != PPE_ACL_RET_SUCCESS) {
+		ppe_tun_warn("Failed to create ACL rule for VXLAN tunnels. error:%d", ret);
+		goto fail;
+	}
+
+	ptp->ppe_tun_l2_tunnel_rule_id = rule.rule_id;
 
 	ppe_tun_info("ppe tunnel driver initialized");
 	return 0;
@@ -1307,6 +1556,8 @@ module_init(ppe_tun_module_init);
 static void __exit ppe_tun_module_exit(void)
 {
 	debugfs_remove_recursive(ptp->dentry);
+
+	ppe_acl_rule_destroy(ptp->ppe_tun_l2_tunnel_rule_id);
 
 	kfree(ptp);
 }

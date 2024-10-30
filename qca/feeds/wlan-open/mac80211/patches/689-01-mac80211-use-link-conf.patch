@@ -116,7 +116,7 @@ Signed-off-by: Sriram R <quic_srirrama@quicinc.com>
  	}
 --- a/net/mac80211/ieee80211_i.h
 +++ b/net/mac80211/ieee80211_i.h
-@@ -2600,6 +2600,6 @@ ieee80211_eht_cap_ie_to_sta_eht_cap(stru
+@@ -2598,6 +2598,6 @@ ieee80211_eht_cap_ie_to_sta_eht_cap(stru
  				    const struct ieee80211_eht_cap_elem *eht_cap_ie_elem,
  				    u8 eht_cap_len,
  				    struct link_sta_info *link_sta);
@@ -137,51 +137,7 @@ Signed-off-by: Sriram R <quic_srirrama@quicinc.com>
  /**
 --- a/net/mac80211/agg-rx.c
 +++ b/net/mac80211/agg-rx.c
-@@ -207,6 +207,8 @@ static void ieee80211_send_addba_resp(st
- 	struct ieee80211_mgmt *mgmt;
- 	bool amsdu = ieee80211_hw_check(&local->hw, SUPPORTS_AMSDU_IN_AMPDU);
- 	u16 capab;
-+	struct ieee80211_link_data *link;
-+	u8 link_id;
- 
- 	skb = dev_alloc_skb(sizeof(*mgmt) +
- 		    2 + sizeof(struct ieee80211_addba_ext_ie) +
-@@ -218,14 +220,29 @@ static void ieee80211_send_addba_resp(st
- 	mgmt = skb_put_zero(skb, 24);
- 	memcpy(mgmt->da, da, ETH_ALEN);
- 	memcpy(mgmt->sa, sdata->vif.addr, ETH_ALEN);
--	if (sdata->vif.type == NL80211_IFTYPE_AP ||
--	    sdata->vif.type == NL80211_IFTYPE_AP_VLAN ||
--	    sdata->vif.type == NL80211_IFTYPE_MESH_POINT)
-+	if (sdata->vif.type == NL80211_IFTYPE_AP) {
- 		memcpy(mgmt->bssid, sdata->vif.addr, ETH_ALEN);
--	else if (sdata->vif.type == NL80211_IFTYPE_STATION)
-+		/* Override MLD address in A2/A3 with link addr
-+		 * in case of AP MLO and a non ML STA
-+		 */
-+		if (sdata->vif.valid_links && sta && !sta->sta.mlo) {
-+			link_id = sta->deflink.link_id;
-+			rcu_read_lock();
-+			link = rcu_dereference(sdata->link[link_id]);
-+			if (link) {
-+				memcpy(mgmt->sa, link->conf->addr, ETH_ALEN);
-+				memcpy(mgmt->bssid, link->conf->addr, ETH_ALEN);
-+			}
-+			rcu_read_unlock();
-+		}
-+	} else if (sdata->vif.type == NL80211_IFTYPE_AP_VLAN ||
-+		sdata->vif.type == NL80211_IFTYPE_MESH_POINT) {
-+		memcpy(mgmt->bssid, sdata->vif.addr, ETH_ALEN);
-+	} else if (sdata->vif.type == NL80211_IFTYPE_STATION) {
- 		memcpy(mgmt->bssid, sdata->deflink.u.mgd.bssid, ETH_ALEN);
--	else if (sdata->vif.type == NL80211_IFTYPE_ADHOC)
-+	} else if (sdata->vif.type == NL80211_IFTYPE_ADHOC) {
- 		memcpy(mgmt->bssid, sdata->u.ibss.bssid, ETH_ALEN);
-+	}
- 
- 	mgmt->frame_control = cpu_to_le16(IEEE80211_FTYPE_MGMT |
- 					  IEEE80211_STYPE_ACTION);
-@@ -269,6 +286,9 @@ void ___ieee80211_start_rx_ba_session(st
+@@ -269,6 +269,9 @@ void ___ieee80211_start_rx_ba_session(st
  	int i, ret = -EOPNOTSUPP;
  	u16 status = WLAN_STATUS_REQUEST_DECLINED;
  	u16 max_buf_size;
@@ -191,7 +147,7 @@ Signed-off-by: Sriram R <quic_srirrama@quicinc.com>
  
  	if (tid >= IEEE80211_FIRST_TSPEC_TSID) {
  		ht_dbg(sta->sdata,
-@@ -277,8 +297,22 @@ void ___ieee80211_start_rx_ba_session(st
+@@ -277,8 +280,22 @@ void ___ieee80211_start_rx_ba_session(st
  		goto end;
  	}
  

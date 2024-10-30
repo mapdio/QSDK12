@@ -1,5 +1,5 @@
 #
-# Copyright (C) 2006-2016 OpenWrt.org
+# Copyright (C) 2006-2020 OpenWrt.org
 #
 # This is free software, licensed under the GNU General Public License v2.
 # See /LICENSE for more information.
@@ -7,14 +7,16 @@
 include $(TOPDIR)/rules.mk
 
 PKG_NAME:=glibc
-PKG_VERSION:=2.27
+PKG_VERSION:=2.37
+PKG_RELEASE:=1
 
 PKG_SOURCE_PROTO:=git
 PKG_SOURCE_SUBDIR:=$(PKG_NAME)-$(PKG_VERSION)
-PKG_SOURCE_VERSION:=daf88b1dd1a41fcb324801c02ead7a8d5aac3851
-PKG_MIRROR_HASH:=fc78ef46c52c922ea44d079533d4d3017a0c921b4ed9aab8bb1dd071322b169f
+PKG_SOURCE_VERSION:=eee7525d35ec16bbe81435e41079ab72519d825c
+PKG_MIRROR_HASH:=fad5a67d9622b75bce5e3e8c91b07a6df0bf8b21cb001a6d06019a6ce4cff31f
 PKG_SOURCE_URL:=https://sourceware.org/git/glibc.git
 PKG_SOURCE:=$(PKG_NAME)-$(PKG_VERSION)-$(PKG_SOURCE_VERSION).tar.xz
+PKG_CPE_ID:=cpe:/a:gnu:glibc
 
 HOST_BUILD_DIR:=$(BUILD_DIR_TOOLCHAIN)/$(PKG_SOURCE_SUBDIR)
 CUR_BUILD_DIR:=$(HOST_BUILD_DIR)-$(VARIANT)
@@ -39,7 +41,6 @@ ifeq ($(ARCH),mips64)
   endif
 endif
 
-
 # -Os miscompiles w. 2.24 gcc5/gcc6
 # only -O2 tested by upstream changeset
 # "Optimize i386 syscall inlining for GCC 5"
@@ -60,7 +61,11 @@ GLIBC_CONFIGURE:= \
 		--without-gd \
 		--without-cvs \
 		--enable-add-ons \
-		--$(if $(CONFIG_SOFT_FLOAT),without,with)-fp
+		--$(if $(CONFIG_SOFT_FLOAT),without,with)-fp \
+		  $(if $(CONFIG_PKG_CC_STACKPROTECTOR_REGULAR),--enable-stack-protector=yes) \
+		  $(if $(CONFIG_PKG_CC_STACKPROTECTOR_STRONG),--enable-stack-protector=strong) \
+		  $(if $(CONFIG_PKG_RELRO_FULL),--enable-bind-now) \
+		--enable-kernel=5.15.0
 
 export libc_cv_ssp=no
 export libc_cv_ssp_strong=no
@@ -75,11 +80,6 @@ define Host/SetToolchainInfo
 endef
 
 define Host/Configure
-	[ -f $(HOST_BUILD_DIR)/.autoconf ] || { \
-		cd $(HOST_BUILD_DIR)/; \
-		autoconf --force && \
-		touch $(HOST_BUILD_DIR)/.autoconf; \
-	}
 	mkdir -p $(CUR_BUILD_DIR)
 	( cd $(CUR_BUILD_DIR); rm -f config.cache; \
 		$(GLIBC_CONFIGURE) \

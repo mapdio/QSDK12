@@ -7,12 +7,12 @@
 include $(TOPDIR)/rules.mk
 
 PKG_NAME:=atftp
-PKG_VERSION:=0.7.2
+PKG_VERSION:=0.8.0
 PKG_RELEASE:=1
 
 PKG_SOURCE:=$(PKG_NAME)-$(PKG_VERSION).tar.gz
 PKG_SOURCE_URL:=@SF/$(PKG_NAME)
-PKG_HASH:=1ad080674e9f974217b3a703e7356c6c8446dc5e7b2014d0d06e1bfaa11b5041
+PKG_HASH:=df2aa089c7670f9eab40e5598e5d2cb6a582dc5182926ea50b4d690e4e37f316
 
 PKG_MAINTAINER:=Daniel Danzberger <daniel@dd-wrt.com>
 PKG_LICENSE:=GPL-2.0-or-later
@@ -20,6 +20,8 @@ PKG_LICENSE_FILES:=LICENSE
 
 PKG_INSTALL:=1
 PKG_BUILD_PARALLEL:=1
+
+PKG_FIXUP:=autoreconf
 
 include $(INCLUDE_DIR)/package.mk
 
@@ -38,7 +40,7 @@ endef
 
 define Package/atftpd
   $(call Package/atftp/Default)
-  DEPENDS:=+libpcre +libpthread
+  DEPENDS:=+libpcre2 +libpthread
   TITLE+= server
 endef
 
@@ -53,8 +55,17 @@ endef
 
 define Package/atftpd/install
 	$(INSTALL_DIR) $(1)/etc
+	$(INSTALL_DIR) $(1)/etc/init.d
+	$(INSTALL_BIN) ./files/atftpd.init $(1)/etc/init.d/atftpd
+	$(INSTALL_DIR) $(1)/etc/config
+	$(INSTALL_CONF) ./files/atftpd.conf $(1)/etc/config/atftpd
+	$(INSTALL_DIR) $(1)/srv/tftp
 	$(INSTALL_DIR) $(1)/usr/sbin
 	$(INSTALL_BIN) $(PKG_INSTALL_DIR)//usr/sbin/atftpd $(1)/usr/sbin/
+endef
+
+define Package/atftpd/conffiles
+/etc/config/atftpd
 endef
 
 $(eval $(call BuildPackage,atftp))

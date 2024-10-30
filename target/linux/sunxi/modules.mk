@@ -1,14 +1,11 @@
+# SPDX-License-Identifier: GPL-2.0-only
 #
 # Copyright (C) 2013-2016 OpenWrt.org
-#
-# This is free software, licensed under the GNU General Public License v2.
-# See /LICENSE for more information.
 
 define KernelPackage/rtc-sunxi
     SUBMENU:=$(OTHER_MENU)
     TITLE:=Sunxi SoC built-in RTC support
-    DEPENDS:=@TARGET_sunxi
-    $(call AddDepends/rtc)
+    DEPENDS:=@(TARGET_sunxi&&RTC_SUPPORT)
     KCONFIG:= \
 	CONFIG_RTC_DRV_SUNXI \
 	CONFIG_RTC_CLASS=y
@@ -24,20 +21,20 @@ $(eval $(call KernelPackage,rtc-sunxi))
 
 define KernelPackage/sunxi-ir
     SUBMENU:=$(OTHER_MENU)
-    TITLE:=Sunxi SoC built-in IR support (A20)
-    DEPENDS:=@TARGET_sunxi +kmod-input-core
-    $(call AddDepends/rtc)
+    TITLE:=Sunxi SoC built-in IR support
+    DEPENDS:=@(TARGET_sunxi&&RTC_SUPPORT) +kmod-input-core
     KCONFIG:= \
 	CONFIG_MEDIA_SUPPORT=y \
 	CONFIG_MEDIA_RC_SUPPORT=y \
 	CONFIG_RC_DEVICES=y \
+	CONFIG_RC_CORE=y \
 	CONFIG_IR_SUNXI
     FILES:=$(LINUX_DIR)/drivers/media/rc/sunxi-cir.ko
     AUTOLOAD:=$(call AutoLoad,50,sunxi-cir)
 endef
 
 define KernelPackage/sunxi-ir/description
- Support for the AllWinner sunXi SoC's onboard IR (A20)
+ Support for the AllWinner sunXi SoC's onboard IR
 endef
 
 $(eval $(call KernelPackage,sunxi-ir))
@@ -68,7 +65,6 @@ endef
 
 $(eval $(call KernelPackage,sun4i-emac))
 
-
 define KernelPackage/sound-soc-sunxi
   TITLE:=AllWinner built-in SoC sound support
   KCONFIG:=CONFIG_SND_SUN4I_CODEC
@@ -83,3 +79,18 @@ define KernelPackage/sound-soc-sunxi/description
 endef
 
 $(eval $(call KernelPackage,sound-soc-sunxi))
+
+define KernelPackage/sound-soc-sunxi-spdif
+  TITLE:=Allwinner A10 SPDIF Support
+  KCONFIG:=CONFIG_SND_SUN4I_SPDIF
+  FILES:=$(LINUX_DIR)/sound/soc/sunxi/sun4i-spdif.ko
+  AUTOLOAD:=$(call AutoLoad,65,sun4i-spdif)
+  DEPENDS:=@TARGET_sunxi +kmod-sound-soc-spdif
+  $(call AddDepends/sound)
+endef
+
+define KernelPackage/sound-soc-sunxi-spdif/description
+  Kernel support for Allwinner A10 SPDIF Support
+endef
+
+$(eval $(call KernelPackage,sound-soc-sunxi-spdif))

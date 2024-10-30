@@ -1,7 +1,7 @@
 /*
  * Copyright (c) 2013, 2015-2017, 2019, 2021, The Linux Foundation. All rights reserved.
  *
- * Copyright (c) 2022-2023, Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2024, Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for any
  * purpose with or without fee is hereby granted, provided that the above
@@ -450,6 +450,16 @@ struct attr_des_t g_attr_des[] =
 		}
 	},
 #endif
+#ifdef IN_LED
+	{
+		"led_active_level",
+		{
+			{"high", LED_ACTIVE_HIGH},
+			{"low", LED_ACTIVE_LOW},
+			{NULL, INVALID_ARRT_VALUE}
+		}
+	},
+#endif
 	{NULL, {{NULL, INVALID_ARRT_VALUE}}}
 };
 
@@ -565,7 +575,7 @@ static sw_data_type_t sw_data_type[] =
     SW_TYPE_DEF(SW_INT16, NULL, NULL),
     SW_TYPE_DEF(SW_UINT32, cmd_data_check_uint32, NULL),
     SW_TYPE_DEF(SW_INT32, NULL, NULL),
-    SW_TYPE_DEF(SW_UINT64, cmd_data_check_uint64, NULL),
+    SW_TYPE_DEF(SW_UINT64, (param_check_t)cmd_data_check_uint64, NULL),
     SW_TYPE_DEF(SW_INT64, NULL, NULL),
 #ifdef IN_PORTCONTROL
     SW_TYPE_DEF(SW_DUPLEX, cmd_data_check_duplex, NULL),
@@ -673,8 +683,6 @@ static sw_data_type_t sw_data_type[] =
     SW_TYPE_DEF(SW_CABLESTATUS, NULL, NULL),
     SW_TYPE_DEF(SW_CABLELEN, NULL, NULL),
     SW_TYPE_DEF(SW_SSDK_CFG, NULL, NULL),
-    SW_TYPE_DEF(SW_MODULE, (param_check_t)cmd_data_check_module, NULL),
-    SW_TYPE_DEF(SW_FUNC_CTRL, (param_check_t)cmd_data_check_func_ctrl, NULL),
 #ifdef IN_PORTCONTROL
     SW_TYPE_DEF(SW_HDRMODE, cmd_data_check_hdrmode, NULL),
 #endif
@@ -861,13 +869,11 @@ static sw_data_type_t sw_data_type[] =
 #ifdef IN_CTRLPKT
     SW_TYPE_DEF(SW_CTRLPKT_PROFILE, (param_check_t)cmd_data_check_ctrlpkt_appprofile, NULL),
 #endif
-#ifdef IN_TUNNEL
-    SW_TYPE_DEF(SW_TUNNEL_UDP_ENTRY, (param_check_t)cmd_data_check_tunnel_udp_entry, NULL),
-    SW_TYPE_DEF(SW_TUNNEL_UDF_TYPE, (param_check_t)cmd_data_check_tunnel_udf_type, NULL),
-#endif
 #ifdef IN_VXLAN
     SW_TYPE_DEF(SW_VXLAN_TYPE, (param_check_t)cmd_data_check_vxlan_type, NULL),
+#ifndef IN_VXLAN_MINI
     SW_TYPE_DEF(SW_VXLAN_GPE_PROTO, (param_check_t)cmd_data_check_vxlan_gpe_proto, NULL),
+#endif
 #endif
 #ifdef IN_TUNNEL_PROGRAM
     SW_TYPE_DEF(SW_TUNNEL_PROGRAM_TYPE, (param_check_t)cmd_data_check_tunnel_program_type, NULL),
@@ -875,6 +881,7 @@ static sw_data_type_t sw_data_type[] =
     SW_TYPE_DEF(SW_TUNNEL_PROGRAM_CFG, (param_check_t)cmd_data_check_tunnel_program_cfg, NULL),
 #endif
 #ifdef IN_TUNNEL
+	SW_TYPE_DEF(SW_TUNNEL_UDP_ENTRY, (param_check_t)cmd_data_check_tunnel_udp_entry, NULL),
     SW_TYPE_DEF(SW_TUNNEL_UDF_TYPE,
 		    (param_check_t)cmd_data_check_tunnel_udf_type, NULL),
     SW_TYPE_DEF(SW_TUNNEL_INTF,
@@ -885,8 +892,10 @@ static sw_data_type_t sw_data_type[] =
 		    (param_check_t)cmd_data_check_tunnel_encap_rule_entry, NULL),
     SW_TYPE_DEF(SW_TUNNEL_TUNNEL_ID,
 		    (param_check_t)cmd_data_check_tunnel_encap_tunnelid, NULL),
+#ifndef IN_TUNNEL_MINI
     SW_TYPE_DEF(SW_TUNNEL_VLAN_INTF,
 		    (param_check_t)cmd_data_check_tunnel_vlan_intf, NULL),
+#endif
     SW_TYPE_DEF(SW_TUNNEL_DECAP_ENTRY,
 		    (param_check_t)cmd_data_check_tunnel_decap_entry, NULL),
     SW_TYPE_DEF(SW_TUNNEL_ENCAP_ENTRY,
@@ -895,6 +904,7 @@ static sw_data_type_t sw_data_type[] =
 		    (param_check_t)cmd_data_check_tunnel_global_cfg, NULL),
     SW_TYPE_DEF(SW_TUNNEL_ENCAP_HEADER_CTRL,
 		    (param_check_t)cmd_data_check_tunnel_encap_header_ctrl, NULL),
+#ifndef IN_TUNNEL_MINI
     SW_TYPE_DEF(SW_TUNNEL_DECAP_ECN_RULE,
 		    (param_check_t)cmd_data_check_decap_ecn_rule, NULL),
     SW_TYPE_DEF(SW_TUNNEL_DECAP_ECN_ACTION,
@@ -903,6 +913,7 @@ static sw_data_type_t sw_data_type[] =
 		    (param_check_t)cmd_data_check_encap_ecn_rule, NULL),
     SW_TYPE_DEF(SW_TUNNEL_ECN_VAL,
 		    (param_check_t)cmd_data_check_ecn_val, NULL),
+#endif
     SW_TYPE_DEF(SW_TUNNEL_TYPE,
 		    cmd_data_check_tunnel_type, NULL),
     SW_TYPE_DEF(SW_TUNNEL_KEY,
@@ -1063,7 +1074,7 @@ cmd_data_check_uint8(char *cmd_str, a_uint32_t *arg_val, a_uint32_t size)
 }
 
 sw_error_t
-cmd_data_check_uint64(char *cmd_str, a_uint32_t * arg_val, a_uint32_t size)
+cmd_data_check_uint64(char *cmd_str, a_uint64_t * arg_val, a_uint32_t size)
 {
     if (cmd_str == NULL)
         return SW_BAD_PARAM;
@@ -1696,6 +1707,14 @@ cmd_data_check_interface_mode(char *cmd_str, a_uint32_t * arg_val, a_uint32_t si
     else if (!strncasecmp(cmd_str, "uqxgmii_3channels", 20))
     {
 	*arg_val = PORT_UQXGMII_3CHANNELS;
+    }
+    else if (!strncasecmp(cmd_str, "sgmii_fiber", 20))
+    {
+	*arg_val = PORT_SGMII_FIBER;
+    }
+    else if (!strncasecmp(cmd_str, "interfacemode_auto", 20))
+    {
+	*arg_val = PORT_INTERFACE_MODE_AUTO;
     }
     else if (!strncasecmp(cmd_str, "interfacemode_max", 20))
     {
@@ -2866,12 +2885,12 @@ cmd_data_check_fdbentry(char *info, void *val, a_uint32_t size)
     if (rv)
         return rv;
 
-    rv = __cmd_data_check_boolean("clone", "no",
-                        "usage: <yes/no/y/n>\n",
-                        cmd_data_check_confirm, A_FALSE, &entry.clone_en,
-                        sizeof (a_bool_t));
+    rv = __cmd_data_check_complex("entry_ver", "1",
+                        "usage: input number such as <0/1>\n",
+                        (param_check_t)cmd_data_check_uint32, &tmp, sizeof (a_uint32_t));
     if (rv)
         return rv;
+    entry.entry_ver = tmp & 0xffff;
 
     rv = __cmd_data_check_boolean("queue override", "no",
                         "usage: <yes/no/y/n>\n",
@@ -2921,6 +2940,13 @@ cmd_data_check_fdbentry(char *info, void *val, a_uint32_t size)
             return rv;
         entry.load_balance = tmp;
     }
+
+    rv = __cmd_data_check_complex("type", "0",
+                        "usage: the range is 0 or 1\n",
+                        (param_check_t)cmd_data_check_uint8, &tmp, sizeof (a_uint32_t));
+    if (rv)
+        return rv;
+    entry.type = tmp;
 
     *(fal_fdb_entry_t *) val = entry;
 
@@ -3547,6 +3573,26 @@ cmd_data_check_blinkfreq(char *cmd_str, led_blink_freq_t * arg_val,
     {
         *arg_val = LED_BLINK_8HZ;
     }
+    else if (!strcasecmp(cmd_str, "16HZ"))
+    {
+        *arg_val = LED_BLINK_16HZ;
+    }
+    else if (!strcasecmp(cmd_str, "32HZ"))
+    {
+        *arg_val = LED_BLINK_32HZ;
+    }
+    else if (!strcasecmp(cmd_str, "64HZ"))
+    {
+        *arg_val = LED_BLINK_64HZ;
+    }
+    else if (!strcasecmp(cmd_str, "128HZ"))
+    {
+        *arg_val = LED_BLINK_128HZ;
+    }
+    else if (!strcasecmp(cmd_str, "256HZ"))
+    {
+        *arg_val = LED_BLINK_256HZ;
+    }
     else if (!strcasecmp(cmd_str, "TXRX"))
     {
         *arg_val = LED_BLINK_TXRX;
@@ -3562,6 +3608,7 @@ cmd_data_check_blinkfreq(char *cmd_str, led_blink_freq_t * arg_val,
 sw_error_t
 cmd_data_check_ledpattern(char *info, void * val, a_uint32_t size)
 {
+    char *cmd;
     led_ctrl_pattern_t pattern;
     a_uint32_t tmpdata;
     sw_error_t rv;
@@ -3569,6 +3616,10 @@ cmd_data_check_ledpattern(char *info, void * val, a_uint32_t size)
     memset(&pattern, 0, sizeof (led_ctrl_pattern_t));
 
     /* get pattern mode configuration */
+    cmd_data_check_element("active_level", "high",
+                         "usage:high or low, etc\n",
+                         cmd_data_check_attr, ("led_active_level", cmd,
+                         &(pattern.active_level), sizeof(pattern.active_level)));
     rv = __cmd_data_check_complex("pattern_mode", NULL,
                         "usage: <always_off/always_blink/always_on/map>\n",
                         (param_check_t)cmd_data_check_patternmode, &pattern.mode,
@@ -3613,7 +3664,16 @@ cmd_data_check_ledpattern(char *info, void * val, a_uint32_t size)
         {
             pattern.map |= (1 << POWER_ON_LIGHT_EN);
         }
-
+        rv = __cmd_data_check_boolean("link_2500m_light", "no",
+                        "usage: <yes/no/y/n>\n",
+                        cmd_data_check_confirm, A_FALSE, &tmpdata,
+                        sizeof (a_bool_t));
+        if (rv)
+            return rv;
+        if (1 == tmpdata)
+        {
+            pattern.map |= (1 << LINK_2500M_LIGHT_EN);
+        }
         rv = __cmd_data_check_boolean("link_1000m_light", "no",
                         "usage: <yes/no/y/n>\n",
                         cmd_data_check_confirm, A_FALSE, &tmpdata,
@@ -3697,9 +3757,10 @@ cmd_data_check_ledpattern(char *info, void * val, a_uint32_t size)
         {
             pattern.map |= (1 << LINKUP_OVERRIDE_EN);
         }
-
-        rv = __cmd_data_check_complex("blink freq", NULL,
-                        "usage: <2HZ/4HZ/8HZ/TXRX> \n",
+    }
+    if (LED_PATTERN_MAP_EN == pattern.mode || LED_ALWAYS_BLINK == pattern.mode) {
+        rv = __cmd_data_check_complex("blink freq", "4HZ",
+                        "usage: <2HZ/4HZ/8HZ/16HZ/32HZ/64HZ/128HZ/256HZ/TXRX> \n",
                         (param_check_t)cmd_data_check_blinkfreq, &pattern.freq,
                         sizeof (led_blink_freq_t));
         if (rv)
@@ -4212,6 +4273,31 @@ cmd_data_check_egress_mode(char *info, void *val, a_uint32_t size)
 }
 
 sw_error_t
+cmd_data_check_vlan_xlt_tag_fmt(char *cmdstr, a_uint32_t *val, a_uint32_t size)
+{
+	if (!cmdstr)
+		return SW_BAD_VALUE;
+
+	*val = 0;
+
+	if (SW_OK != cmd_data_check_uint8(cmdstr, val, size) && strstr(cmdstr, "tag")) {
+		if (strstr(cmdstr, "untag"))
+			*val |= FAL_PORT_VLAN_XLT_MATCH_UNTAGGED;
+
+		if (strstr(cmdstr, "pri_tag"))
+			*val |= FAL_PORT_VLAN_XLT_MATCH_PRIO_TAG;
+
+		if (strstr(cmdstr, "tagged"))
+			*val |= FAL_PORT_VLAN_XLT_MATCH_TAGGED;
+	}
+
+	if (0 == *val)
+		return SW_BAD_VALUE;
+
+	return SW_OK;
+}
+
+sw_error_t
 cmd_data_check_port_vlan_translation_adv_rule(char *info, void *val, a_uint32_t size)
 {
 	char *cmd = NULL;
@@ -4228,7 +4314,7 @@ cmd_data_check_port_vlan_translation_adv_rule(char *info, void *val, a_uint32_t 
 		cmd = get_sub_cmd("stagformat", "0");
 		SW_RTN_ON_NULL_PARAM(cmd);
 
-		rv = cmd_data_check_uint32(cmd, (a_uint32_t *)&(pEntry->s_tagged), sizeof (a_uint32_t));
+		rv = cmd_data_check_vlan_xlt_tag_fmt(cmd, (a_uint32_t *)&(pEntry->s_tagged), sizeof (a_uint32_t));
 	}
 	while (talk_mode && (SW_OK != rv));
 
@@ -4298,7 +4384,7 @@ cmd_data_check_port_vlan_translation_adv_rule(char *info, void *val, a_uint32_t 
 		cmd = get_sub_cmd("ctagformat", "0");
 		SW_RTN_ON_NULL_PARAM(cmd);
 
-		rv = cmd_data_check_uint32(cmd, (a_uint32_t *)&(pEntry->c_tagged), sizeof (a_uint32_t));
+		rv = cmd_data_check_vlan_xlt_tag_fmt(cmd, (a_uint32_t *)&(pEntry->c_tagged), sizeof (a_uint32_t));
 	}
 	while (talk_mode && (SW_OK != rv));
 
@@ -4469,9 +4555,9 @@ cmd_data_check_srctype(char *cmdstr, a_uint8_t def, a_uint8_t *val, a_uint32_t s
 	if (0 == cmdstr[0]) {
 		*val = def;
 	} else if (!strcasecmp(cmdstr, "vp")) {
-		*val = 0;
+		*val = FAL_CHG_SRC_TYPE_VP;
 	} else if (!strcasecmp(cmdstr, "l3_if")) {
-		*val = 1;
+		*val = FAL_CHG_SRC_L3_IF_TUNNEL;
 	} else {
 		return SW_BAD_VALUE;
 	}
@@ -8130,6 +8216,7 @@ cmd_data_check_intf(char *cmd_str, void * val, a_uint32_t size)
     } while (talk_mode && (SW_OK != rv));
 #endif
 
+
     *(fal_intf_entry_t *)val = entry;
     return SW_OK;
 }
@@ -11162,6 +11249,7 @@ cmd_data_check_rss_hash_config(char *info, fal_rss_hash_config_t *val, a_uint32_
 	*val = entry;
 	return SW_OK;
 }
+
 #endif
 
 #ifdef IN_MIRROR
@@ -11444,111 +11532,6 @@ cmd_data_check_ctrlpkt_appprofile(char *info, void *val, a_uint32_t size)
 }
 #endif
 
-sw_error_t
-cmd_data_check_module(char *cmd_str, a_uint32_t * arg_val, a_uint32_t size)
-{
-	if (cmd_str == NULL)
-		return SW_BAD_PARAM;
-
-	if (!strcasecmp(cmd_str, "acl")) {
-		*arg_val = FAL_MODULE_ACL;
-	} else if (!strcasecmp(cmd_str, "vsi")) {
-		*arg_val = FAL_MODULE_VSI;
-	} else if (!strcasecmp(cmd_str, "ip")) {
-		*arg_val = FAL_MODULE_IP;
-	} else if (!strcasecmp(cmd_str, "flow")) {
-		*arg_val = FAL_MODULE_FLOW;
-	} else if (!strcasecmp(cmd_str, "qm")) {
-		*arg_val = FAL_MODULE_QM;
-	} else if (!strcasecmp(cmd_str, "qos")) {
-		*arg_val = FAL_MODULE_QOS;
-	} else if (!strcasecmp(cmd_str, "bm")) {
-		*arg_val = FAL_MODULE_BM;
-	} else if (!strcasecmp(cmd_str, "servcode")) {
-		*arg_val = FAL_MODULE_SERVCODE;
-	} else if (!strcasecmp(cmd_str, "rsshash")) {
-		*arg_val = FAL_MODULE_RSS_HASH;
-	} else if (!strcasecmp(cmd_str, "pppoe")) {
-		*arg_val = FAL_MODULE_PPPOE;
-	} else if (!strcasecmp(cmd_str, "portctrl")) {
-		*arg_val = FAL_MODULE_PORTCTRL;
-	} else if (!strcasecmp(cmd_str, "shaper")) {
-		*arg_val = FAL_MODULE_SHAPER;
-	} else if (!strcasecmp(cmd_str, "mib")) {
-		*arg_val = FAL_MODULE_MIB;
-	} else if (!strcasecmp(cmd_str, "mirror")) {
-		*arg_val = FAL_MODULE_MIRROR;
-	} else if (!strcasecmp(cmd_str, "fdb")) {
-		*arg_val = FAL_MODULE_FDB;
-	} else if (!strcasecmp(cmd_str, "stp")) {
-		*arg_val = FAL_MODULE_STP;
-	} else if (!strcasecmp(cmd_str, "sec")) {
-		*arg_val = FAL_MODULE_SEC;
-	} else if (!strcasecmp(cmd_str, "trunk")) {
-		*arg_val = FAL_MODULE_TRUNK;
-	} else if (!strcasecmp(cmd_str, "portvlan")) {
-		*arg_val = FAL_MODULE_PORTVLAN;
-	} else if (!strcasecmp(cmd_str, "ctrlpkt")) {
-		*arg_val = FAL_MODULE_CTRLPKT;
-	} else if (!strcasecmp(cmd_str, "policer")) {
-		*arg_val = FAL_MODULE_POLICER;
-#ifdef APPE
-	} else if (!strcasecmp(cmd_str, "vport")) {
-		*arg_val = FAL_MODULE_VPORT;
-	} else if (!strcasecmp(cmd_str, "tunnel")) {
-		*arg_val = FAL_MODULE_TUNNEL;
-	} else if (!strcasecmp(cmd_str, "vxlan")){
-		*arg_val = FAL_MODULE_VXLAN;
-	} else if (!strcasecmp(cmd_str, "geneve")){
-		*arg_val = FAL_MODULE_GENEVE;
-	} else if (!strcasecmp(cmd_str, "mapt")) {
-		*arg_val = FAL_MODULE_MAPT;
-	} else if (!strcasecmp(cmd_str, "tunnelprogram")){
-		*arg_val = FAL_MODULE_TUNNEL_PROGRAM;
-#endif
-#ifdef MPPE
-	} else if (!strcasecmp(cmd_str, "athtag")){
-		*arg_val = FAL_MODULE_ATHTAG;
-#endif
-	}
-	else
-	{
-		return SW_BAD_VALUE;
-	}
-
-	return SW_OK;
-}
-
-sw_error_t
-cmd_data_check_func_ctrl(char *cmd_str, void * val, a_uint32_t size)
-{
-	sw_error_t rv;
-	fal_func_ctrl_t entry;
-
-	aos_mem_zero(&entry, sizeof (fal_func_ctrl_t));
-
-	rv = __cmd_data_check_complex("bitmap0", "0",
-			"usage: the format is HEX \n", cmd_data_check_uint32,
-			&(entry.bitmap[0]), sizeof (a_uint32_t));
-	if (rv)
-		return rv;
-
-	rv = __cmd_data_check_complex("bitmap1", "0",
-			"usage: the format is HEX \n", cmd_data_check_uint32,
-			&(entry.bitmap[1]), sizeof (a_uint32_t));
-	if (rv)
-		return rv;
-
-	rv = __cmd_data_check_complex("bitmap2", "0",
-			"usage: the format is HEX \n", cmd_data_check_uint32,
-			&(entry.bitmap[2]), sizeof (a_uint32_t));
-	if (rv)
-		return rv;
-
-	*(fal_func_ctrl_t *)val = entry;
-
-	return SW_OK;
-}
 #ifdef IN_TUNNEL
 sw_error_t
 cmd_data_check_tunnel_udp_entry(char * cmd_str, void * val, a_uint32_t size)
@@ -11597,6 +11580,7 @@ cmd_data_check_vxlan_type(char *cmd_str, a_uint32_t * arg_val, a_uint32_t size)
                     arg_val, sizeof(*arg_val));
 }
 
+#ifndef IN_VXLAN_MINI
 sw_error_t
 cmd_data_check_vxlan_gpe_proto(char * cmd_str, void * val, a_uint32_t size)
 {
@@ -11627,6 +11611,7 @@ cmd_data_check_vxlan_gpe_proto(char * cmd_str, void * val, a_uint32_t size)
     *(fal_vxlan_gpe_proto_cfg_t *) val = proto;
     return SW_OK;
 }
+#endif
 #endif
 
 #ifdef IN_TUNNEL_PROGRAM
@@ -12084,6 +12069,7 @@ cmd_data_check_vlantag(char *cmd_str, a_uint8_t *arg_val, a_uint32_t size)
 	return SW_OK;
 }
 
+#ifndef IN_TUNNEL_MINI
 sw_error_t
 cmd_data_check_tunnel_vlan_intf(char *cmd_str, fal_tunnel_vlan_intf_t *arg_val, a_uint32_t size)
 {
@@ -12164,6 +12150,7 @@ cmd_data_check_tunnel_vlan_intf(char *cmd_str, fal_tunnel_vlan_intf_t *arg_val, 
 	*(fal_tunnel_vlan_intf_t *)arg_val = entry;
 	return rv;
 }
+#endif
 
 sw_error_t
 cmd_data_check_tag_format(char *cmd_str, a_uint32_t *arg_val, a_uint32_t size)
@@ -12988,6 +12975,7 @@ cmd_data_check_tunnel_global_cfg(char *cmd_str, fal_tunnel_global_cfg_t *arg_val
 	return SW_OK;
 }
 
+#ifndef IN_TUNNEL_MINI
 sw_error_t
 cmd_data_check_encap_ecn_rule(char *cmd_str, fal_tunnel_encap_ecn_t *arg_val, a_uint32_t size)
 {
@@ -13085,6 +13073,7 @@ cmd_data_check_decap_ecn_action(char *cmd_str,
 
 	return SW_OK;
 }
+#endif
 
 sw_error_t
 cmd_data_check_tunnel_type(char *cmd_str, fal_tunnel_type_t *arg_val, a_uint32_t size)
@@ -13700,3 +13689,4 @@ cmd_data_check_athtag_tx_cfg(char * cmd_str, void * val, a_uint32_t size)
     return SW_OK;
 }
 #endif
+

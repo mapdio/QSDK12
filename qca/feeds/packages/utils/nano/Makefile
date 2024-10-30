@@ -8,12 +8,12 @@
 include $(TOPDIR)/rules.mk
 
 PKG_NAME:=nano
-PKG_VERSION:=6.2
-PKG_RELEASE:=1
+PKG_VERSION:=7.2
+PKG_RELEASE:=4
 
 PKG_SOURCE:=$(PKG_NAME)-$(PKG_VERSION).tar.xz
 PKG_SOURCE_URL:=@GNU/nano
-PKG_HASH:=2bca1804bead6aaf4ad791f756e4749bb55ed860eec105a97fba864bc6a77cb3
+PKG_HASH:=86f3442768bd2873cec693f83cdf80b4b444ad3cc14760b74361474fc87a4526
 
 PKG_LICENSE:=GPL-3.0-or-later
 PKG_LICENSE_FILES:=COPYING
@@ -90,7 +90,6 @@ else ifeq ($(BUILD_VARIANT),plus)
 # plus variant with some features included
   CONFIGURE_ARGS += \
 	--enable-help \
-	--enable-justify \
 	--enable-linenumbers \
 	--enable-multibuffer \
 	--enable-nanorc \
@@ -100,6 +99,7 @@ else ifeq ($(BUILD_VARIANT),plus)
 	--disable-comment \
 	--disable-extra \
 	--disable-histories \
+	--disable-justify \
 	--disable-libmagic \
 	--disable-mouse \
 	--disable-operatingdir \
@@ -138,8 +138,9 @@ endef
 define Package/nano-full/install
 	$(call Package/nano/install,$1)
 	$(INSTALL_DIR) $(1)/etc $(1)/usr/share/nano
-	$(INSTALL_CONF) ./files/nanorc $(1)/etc/nanorc
+	$(INSTALL_DATA) ./files/nanorc $(1)/etc/nanorc
 	$(INSTALL_DATA) ./files/uci.nanorc $(1)/usr/share/nano
+	$(INSTALL_DATA) ./files/ucode.nanorc $(1)/usr/share/nano
 	$(CP) $(PKG_INSTALL_DIR)/usr/share/nano/* $(1)/usr/share/nano
 endef
 

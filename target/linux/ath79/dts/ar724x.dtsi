@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: GPL-2.0-or-later OR MIT
-#include <dt-bindings/clock/ath79-clk.h>
+
 #include "ath79.dtsi"
 
 / {
@@ -24,6 +24,13 @@
 		};
 	};
 
+	extosc: ref {
+		compatible = "fixed-clock";
+		#clock-cells = <0>;
+		clock-output-names = "ref";
+		clock-frequency = <40000000>;
+	};
+
 	ahb: ahb {
 		apb {
 			ddr_ctrl: memory-controller@18000000 {
@@ -45,14 +52,12 @@
 				reg-io-width = <4>;
 				reg-shift = <2>;
 				no-loopback-test;
-
-				status = "disabled";
 			};
 
 			gpio: gpio@18040000 {
 				compatible = "qca,ar7240-gpio",
 						"qca,ar7100-gpio";
-				reg = <0x18040000 0x30>;
+				reg = <0x18040000 0x28>;
 				interrupts = <2>;
 
 				ngpios = <18>;
@@ -91,8 +96,8 @@
 				compatible = "qca,ar7240-pll", "syscon";
 				reg = <0x18050000 0x3c>;
 
+				clocks = <&extosc>;
 				clock-names = "ref";
-				/* The board must provides the ref clock */
 
 				#clock-cells = <1>;
 				clock-output-names = "cpu", "ddr", "ahb";
@@ -129,6 +134,11 @@
 					  0x1000000 0 0x00000000 0x0000000 0 0x000001>;		/* io space */
 				interrupt-parent = <&cpuintc>;
 				interrupts = <2>;
+
+				resets = <&rst 6>, <&rst 7>;
+				reset-names = "hc", "phy";
+
+				device_type = "pci";
 
 				interrupt-controller;
 				#interrupt-cells = <1>;

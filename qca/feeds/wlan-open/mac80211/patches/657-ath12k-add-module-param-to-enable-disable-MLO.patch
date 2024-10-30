@@ -14,7 +14,7 @@ Signed-off-by: Karthikeyan Periyasamy <quic_periyasa@quicinc.com>
  MODULE_PARM_DESC(frame_mode,
  		 "Datapath frame mode (0: raw, 1: native wifi (default), 2: ethernet)");
  
-+unsigned int ath12k_mlo_capable = true;
++unsigned int ath12k_mlo_capable = false;
 +module_param_named(mlo_capable, ath12k_mlo_capable, uint, 0644);
 +MODULE_PARM_DESC(mlo_capable, "mlo capable: 0-disable, 1-enable");
 +

@@ -638,7 +638,7 @@ Signed-off-by: P Praneesh <quic_ppranees@quicinc.com>
  struct hal_rx_rxpcu_classification_overview {
 --- a/drivers/net/wireless/ath/ath12k/mac.c
 +++ b/drivers/net/wireless/ath/ath12k/mac.c
-@@ -5969,8 +5969,29 @@ void ath12k_mac_drain_tx(struct ath12k *
+@@ -5967,8 +5967,29 @@ void ath12k_mac_drain_tx(struct ath12k *
  
  static int ath12k_mac_config_mon_status_default(struct ath12k *ar, bool enable)
  {
@@ -670,7 +670,7 @@ Signed-off-by: P Praneesh <quic_ppranees@quicinc.com>
  }
  
  static int ath12k_mac_op_start(struct ieee80211_hw *hw)
-@@ -6586,8 +6607,6 @@ static void ath12k_mac_op_configure_filt
+@@ -6584,8 +6605,6 @@ static void ath12k_mac_op_configure_filt
  					   u64 multicast)
  {
  	struct ath12k *ar = hw->priv;
@@ -679,7 +679,7 @@ Signed-off-by: P Praneesh <quic_ppranees@quicinc.com>
  
  	mutex_lock(&ar->conf_mutex);
  
-@@ -6595,27 +6614,6 @@ static void ath12k_mac_op_configure_filt
+@@ -6593,27 +6612,6 @@ static void ath12k_mac_op_configure_filt
  	*total_flags &= SUPPORTED_FILTERS;
  	ar->filter_flags = *total_flags;
  
@@ -722,7 +722,7 @@ Signed-off-by: P Praneesh <quic_ppranees@quicinc.com>
  	for (i = 0; i < ar->ab->hw_params->num_rxmda_per_pdev; i++) {
  		ring_id = ar->dp.rxdma_mon_dst_ring[i].ring_id;
 -		ret = ath12k_dp_tx_htt_rx_filter_setup(ar->ab, ring_id, ar->dp.mac_id,
-+		ret = ath12k_dp_tx_htt_rx_filter_setup(ar->ab, ring_id, ar->dp.mac_id + i,
++		ret = ath12k_dp_tx_htt_rx_filter_setup(ar->ab, ring_id, ar->dp.mac_id + 1,
  						       HAL_RXDMA_MONITOR_DST,
  						       DP_RXDMA_REFILL_RING_SIZE,
  						       &tlv_filter);

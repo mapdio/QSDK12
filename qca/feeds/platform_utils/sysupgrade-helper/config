@@ -8,6 +8,7 @@ CONFIG_SYS_GENERIC_BOARD=y
 # CONFIG_ARC is not set
 CONFIG_ARM=y
 # CONFIG_AVR32 is not set
+# CONFIG_BOARD_TYPES is not set
 # CONFIG_BLACKFIN is not set
 # CONFIG_M68K is not set
 # CONFIG_MICROBLAZE is not set
@@ -159,6 +160,7 @@ CONFIG_DM_SERIAL=y
 CONFIG_DM_GPIO=y
 # CONFIG_ARMV8_MULTIENTRY is not set
 # CONFIG_QCA_COMMON is not set
+# CONFIG_SKIP_RESET is not set
 
 #
 # ARM debug
@@ -523,3 +525,6 @@ CONFIG_REGEX=y
 # CONFIG_LZMA is not set
 # CONFIG_ERRNO_STR is not set
 # CONFIG_UNIT_TEST is not set
+
+# CONFIG_LIST_OF_CONFIG_NAMES_SUPPORT is not set
+# CONFIG_LIST_FUSE is not set

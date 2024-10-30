@@ -654,16 +654,19 @@ nf_nat_setup_info(struct nf_conn *ct,
 				      &ct->tuplehash[IP_CT_DIR_ORIGINAL].tuple);
 		lock = &nf_nat_locks[srchash % CONNTRACK_LOCKS];
 		spin_lock_bh(lock);
-		hlist_add_head_rcu(&ct->nat_bysource,
-				   &nf_nat_bysource[srchash]);
+		/* The ct could be already in nf_nat_bysource in some race condition cases.*/
+		if(!(ct->status & IPS_SRC_NAT_DONE)){
+			hlist_add_head_rcu(&ct->nat_bysource,
+				 &nf_nat_bysource[srchash]);
+			ct->status |= IPS_SRC_NAT_DONE;
+		}
+
 		spin_unlock_bh(lock);
 	}
 
 	/* It's done. */
 	if (maniptype == NF_NAT_MANIP_DST)
 		ct->status |= IPS_DST_NAT_DONE;
-	else
-		ct->status |= IPS_SRC_NAT_DONE;
 
 	return NF_ACCEPT;
 }

@@ -1,6 +1,6 @@
 /*
  * Copyright (c) 2012, 2017-2019, 2021, The Linux Foundation. All rights reserved.
- * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2024 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
@@ -241,9 +241,6 @@ hsl_dev_init(a_uint32_t dev_id, ssdk_init_cfg *cfg)
             break;
         case CHIP_ISISC:
 #if defined ISISC
-	    rv = sd_mii_update(dev_id, cfg);
-	    SW_RTN_ON_ERROR(rv);
-
             rv = isisc_init(dev_id, cfg);
 #endif
             break;
@@ -305,9 +302,18 @@ hsl_ssdk_cfg(a_uint32_t dev_id, ssdk_cfg_t *ssdk_cfg)
         SSDK_ERROR("the dev%d wasn't initialized\n", dev_id);
         return SW_BAD_VALUE;
     }
+#ifdef IOCTL_COMPAT
+	aos_mem_set(&(ssdk_cfg->init_cfg), 0,  sizeof(ssdk_init_cfg_us));
+	ssdk_cfg->init_cfg.cpu_mode = dev_ssdk_cfg[dev_id]->cpu_mode;
+	ssdk_cfg->init_cfg.reg_mode = dev_ssdk_cfg[dev_id]->reg_mode;
+	ssdk_cfg->init_cfg.chip_type = dev_ssdk_cfg[dev_id]->chip_type;
+	ssdk_cfg->init_cfg.chip_revision = dev_ssdk_cfg[dev_id]->chip_revision;
+	ssdk_cfg->init_cfg.nl_prot = dev_ssdk_cfg[dev_id]->nl_prot;
+#else
     aos_mem_set(&(ssdk_cfg->init_cfg), 0,  sizeof(ssdk_init_cfg));
 
     aos_mem_copy(&(ssdk_cfg->init_cfg), dev_ssdk_cfg[dev_id], sizeof(ssdk_init_cfg));
+#endif
 
 #ifdef VERSION
     aos_mem_copy(ssdk_cfg->build_ver, VERSION, sizeof(VERSION));
@@ -536,206 +542,3 @@ hsl_access_mode_set(a_uint32_t dev_id, hsl_access_mode reg_mode)
 
     return rv;
 }
-
-sw_error_t reduce_hsl_reg_entry_get(a_uint32_t dev,a_uint32_t reg,a_uint8_t* value,a_uint8_t val_len)
-{
-	sw_error_t rv;
-
-	hsl_api_t *p_api = hsl_api_ptr_get(dev);
-	if (p_api) {
-		rv = p_api->reg_get(dev, reg, (a_uint8_t*)value, (a_uint8_t)val_len);
-	} else {
-		rv = SW_NOT_INITIALIZED;
-	}
-
-	return rv;
-}
-
-sw_error_t reduce_hsl_reg_entry_set(a_uint32_t dev,a_uint32_t reg,a_uint8_t* value,a_uint8_t val_len)
-{
-	sw_error_t rv;
-
-	hsl_api_t *p_api = hsl_api_ptr_get(dev);
-	if (p_api) {
-	    rv = p_api->reg_set (dev, reg,
-	                               (a_uint8_t*)value, (a_uint8_t)val_len);
-	} else {
-	    rv = SW_NOT_INITIALIZED;
-	}
-
-	return rv;
-
-}
-
-sw_error_t reduce_hsl_reg_field_get(a_uint32_t dev,a_uint32_t reg,a_uint32_t reg_offset,
-						a_uint32_t reg_offset_len,a_uint8_t* value,a_uint8_t val_len)
-{
-	sw_error_t rv;
-
-	hsl_api_t *p_api = hsl_api_ptr_get(dev);
-	if (p_api) {
-		rv = p_api->reg_field_get(dev, reg, reg_offset, reg_offset_len, (a_uint8_t*)value, val_len);
-	} else {
-		rv = SW_NOT_INITIALIZED;
-	}
-	return rv;
-}
-
-sw_error_t reduce_hsl_reg_field_set(a_uint32_t dev,a_uint32_t reg,a_uint32_t reg_offset,
-						a_uint32_t reg_offset_len,a_uint8_t* value,a_uint8_t val_len)
-{
-	sw_error_t rv;
-
-	hsl_api_t *p_api = hsl_api_ptr_get(dev);
-	if (p_api) {
-		rv = p_api->reg_field_set(dev, reg,
-								  reg_offset,
-								  reg_offset_len, (a_uint8_t*)value, val_len);
-	} else {
-		rv = SW_NOT_INITIALIZED;
-	}
-	return rv;
-}
-
-sw_error_t reduce_hsl_reg_entry_gen_get(a_uint32_t dev,a_uint32_t addr,a_uint8_t* value,a_uint8_t val_len)
-{
-	sw_error_t rv;
-
-	hsl_api_t *p_api = hsl_api_ptr_get(dev);
-	if (p_api) {
-		rv = p_api->reg_get(dev, addr, (a_uint8_t*)value, val_len);
-	} else {
-		rv = SW_NOT_INITIALIZED;
-	}
-
-	return rv;
-}
-
-
-sw_error_t reduce_hsl_reg_entry_gen_set(a_uint32_t dev,a_uint32_t addr,a_uint8_t* value,a_uint8_t val_len)
-{
-	sw_error_t rv;
-
-	hsl_api_t *p_api = hsl_api_ptr_get(dev);
-	if (p_api) {
-		rv = p_api->reg_set(dev, addr, (a_uint8_t*)value, val_len);
-	} else {
-		rv = SW_NOT_INITIALIZED;
-	}
-
-	return rv;
-}
-
-sw_error_t reduce_hsl_reg_field_gen_get(a_uint32_t dev,a_uint32_t reg_addr,a_uint32_t bitoffset,
-						a_uint32_t field_len,a_uint8_t* value,a_uint8_t val_len)
-{
-	sw_error_t rv;
-
-	hsl_api_t *p_api = hsl_api_ptr_get(dev);
-	if (p_api) {
-		rv = p_api->reg_field_get(dev, reg_addr,
-								  bitoffset,
-								  field_len, (a_uint8_t*)value, val_len);
-	} else {
-		rv = SW_NOT_INITIALIZED;
-	}
-	return rv;
-}
-
-
-sw_error_t reduce_hsl_reg_field_gen_set(a_uint32_t dev,a_uint32_t regaddr,a_uint32_t bitoffset,
-						a_uint32_t bitlength,a_uint8_t* value,a_uint8_t val_len)
-{
-	sw_error_t rv;
-
-	hsl_api_t *p_api = hsl_api_ptr_get(dev);
-	if (p_api) {
-		rv = p_api->reg_field_set(dev, regaddr,
-								  bitoffset,
-								  bitlength, (a_uint8_t*)value, val_len);
-	} else {
-		rv = SW_NOT_INITIALIZED;
-	}
-	return rv;
-}
-
-/*qca808x_start*/
-sw_error_t reduce_hsl_phy_set(a_uint32_t dev,a_uint32_t phy_addr,a_uint32_t reg,a_uint16_t value)
-{
-	sw_error_t rv;
-
-	hsl_api_t *p_api = hsl_api_ptr_get(dev); 
-	if (p_api) { 
-	    rv = p_api->phy_set(dev, phy_addr, reg, value); 
-	} else { 
-	    rv = SW_NOT_INITIALIZED; 
-	} 
-
-	return rv;
-}
-
-sw_error_t reduce_hsl_phy_get(a_uint32_t dev,a_uint32_t phy_addr,a_uint32_t reg,a_uint16_t* value)
-{
-	sw_error_t rv;
-
-	hsl_api_t *p_api = hsl_api_ptr_get(dev);
-	if (p_api) {
-	    rv = p_api->phy_get(dev, phy_addr, reg, value);
-	} else {
-	    rv = SW_NOT_INITIALIZED;
-	}
-
-	return rv;
-}
-
-sw_error_t hsl_phy_i2c_set(a_uint32_t dev,a_uint32_t phy_addr,a_uint32_t reg,a_uint16_t value)
-{
-	sw_error_t rv;
-
-	hsl_api_t *p_api = hsl_api_ptr_get(dev);
-	if (p_api) {
-	    rv = p_api->phy_i2c_set(dev, phy_addr, reg, value);
-	} else {
-	    rv = SW_NOT_INITIALIZED;
-	}
-
-	return rv;
-}
-
-sw_error_t hsl_phy_i2c_get(a_uint32_t dev,a_uint32_t phy_addr,a_uint32_t reg,a_uint16_t* value)
-{
-	sw_error_t rv;
-
-	hsl_api_t *p_api = hsl_api_ptr_get(dev);
-	if (p_api) {
-	    rv = p_api->phy_i2c_get(dev, phy_addr, reg, value);
-	} else {
-	    rv = SW_NOT_INITIALIZED;
-	}
-
-	return rv;
-}
-
-#if 0
-void reduce_sw_set_reg_by_field_u32(unsigned int reg_value,unsigned int field_value,
-													unsigned int reg_offset,unsigned int reg_len)
-{
-    do {
-        (reg_value) = (((reg_value) & SW_FIELD_MASK_NOT_U32((reg_offset),(reg_offset)))
-              | (((field_value) & SW_BIT_MASK_U32(reg_len)) << (reg_offset)));
-    } while (0);
-
-}
-
-
-void reduce_sw_field_get_by_reg_u32(unsigned int reg_value,unsigned int field_value,
-													unsigned int reg_offset,unsigned int reg_len)
-{
-    do {
-        (field_value) = (((reg_value) >> (reg_offset)) & SW_BIT_MASK_U32(reg_len));
-    } while (0);
-
-}
-#endif
-/*qca808x_end*/
-

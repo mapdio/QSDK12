@@ -4,18 +4,18 @@
 include $(TOPDIR)/rules.mk
 
 PKG_NAME:=tgt
-PKG_VERSION:=1.0.79
+PKG_VERSION:=1.0.86
 PKG_RELEASE:=1
 
 PKG_SOURCE:=$(PKG_NAME)-$(PKG_VERSION).tar.gz
 PKG_SOURCE_URL:=https://codeload.github.com/fujita/tgt/tar.gz/v$(PKG_VERSION)?
-PKG_HASH:=6736d799a202ff665549359859441c6d2b5e3425bffef9ee60ab5a101342a40d
+PKG_HASH:=af84c16bf8893d65666afcc0424b46dafddd2d0e5dcf818b319ea9ed3c3315a7
 
 PKG_MAINTAINER:=Maxim Storchak <m.storchak@gmail.com>
 PKG_LICENSE:=GPL-2.0-only
 PKG_CPE_ID:=cpe:/a:zaal:tgt
 
-PKG_USE_MIPS16:=0
+PKG_BUILD_FLAGS:=no-mips16
 PKG_INSTALL:=1
 
 include $(INCLUDE_DIR)/package.mk
@@ -23,7 +23,7 @@ include $(INCLUDE_DIR)/package.mk
 define Package/tgt
 	SECTION:=net
 	CATEGORY:=Network
-	URL:=http://stgt.sourceforge.net/
+	URL:=https://github.com/fujita/tgt
 	TITLE:=userspace iSCSI target
 	DEPENDS:=+libpthread +libaio
 endef
@@ -32,8 +32,12 @@ define Package/tgt/description
 The Linux target framework (tgt) is a user space SCSI target framework
 that supports the iSCSI and iSER transport protocols and that also
 supports multiple methods for accessing block storage. Tgt consists of
-a user-space daemon and user-space tools.
+user-space daemon and tools.
 endef
+
+ifneq ($(CONFIG_USE_MUSL),)
+  TARGET_CFLAGS += -D_LARGEFILE64_SOURCE
+endif
 
 define Build/Compile
 	$(call Build/Compile/Default,programs)

@@ -36,7 +36,12 @@
 
 #include "internal.h"
 
+#if CONFIG_IPQ_MEM_PROFILE == 256 || CONFIG_IPQ_MEM_PROFILE == 512
+static bool notests=1;
+#else
 static bool notests;
+#endif
+
 module_param(notests, bool, 0644);
 MODULE_PARM_DESC(notests, "disable crypto self-tests");
 

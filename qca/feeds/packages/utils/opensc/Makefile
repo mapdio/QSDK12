@@ -8,9 +8,9 @@
 include $(TOPDIR)/rules.mk
 
 PKG_NAME:=opensc
-PKG_VERSION:=0.19.0
+PKG_VERSION:=0.22.0
 PKG_RELEASE:=2
-PKG_HASH:=2c5a0e4df9027635290b9c0f3addbbf0d651db5ddb0ab789cb0e978f02fd5826
+PKG_HASH:=8d4e5347195ebea332be585df61dcc470331c26969e4b0447c851fb0844c7186
 
 PKG_LICENSE:=LGPL-2.1-or-later
 PKG_LICENSE_FILES:=COPYING
@@ -99,6 +99,7 @@ endef
 endef
 
 CONFIGURE_ARGS += \
+	--disable-man \
 	--disable-notify \
 	--disable-strict
 

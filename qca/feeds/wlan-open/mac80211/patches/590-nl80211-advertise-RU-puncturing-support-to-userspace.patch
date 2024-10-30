@@ -31,9 +31,9 @@ Signed-off-by: Aloka Dixit <quic_alokad@quicinc.com>
   */
  struct wiphy {
  	struct mutex mtx;
-@@ -5495,6 +5499,8 @@ struct wiphy {
- 	u8 ema_max_profile_periodicity;
- 	u16 max_num_akm_suites;
+@@ -5497,6 +5501,8 @@ struct wiphy {
+ 
+ 	int rdev_max_txpower;
  
 +	enum nl80211_ru_punct_supp_bw ru_punct_supp_bw;
 +
@@ -42,27 +42,27 @@ Signed-off-by: Aloka Dixit <quic_alokad@quicinc.com>
  
 --- a/include/uapi/linux/nl80211.h
 +++ b/include/uapi/linux/nl80211.h
-@@ -2772,6 +2772,10 @@ enum nl80211_commands {
-  *	for co-located APs and neighbor APs in ESS to be added in all
-  *	EMA beacons.
+@@ -2777,6 +2777,10 @@ enum nl80211_commands {
+  * 	authority in signed mBm units.
   *
-+ * @NL80211_ATTR_RU_PUNCT_SUPP_BW: (u8) Minimum bandwidth for which
-+ *      the driver supports preamble puncturing, value should be of type
-+ *      &enum nl80211_ru_punct_supp_bw
-+ *
   * @NUM_NL80211_ATTR: total number of nl80211_attrs available
++ * @NL80211_ATTR_RU_PUNCT_SUPP_BW: (u8) Minimum bandwidth for which
++ *	the driver supports preamble puncturing, value should be of type
++ *	&enum nl80211_ru_punct_supp_bw
++ *
   * @NL80211_ATTR_MAX: highest attribute number currently defined
   * @__NL80211_ATTR_AFTER_LAST: internal use
-@@ -3314,6 +3318,8 @@ enum nl80211_attrs {
+  */
+@@ -3320,6 +3324,8 @@ enum nl80211_attrs {
  
- 	NL80211_ATTR_EMA_RNR_ELEMS,
+ 	NL80211_ATTR_WIPHY_MAX_TX_POWER_LEVEL,
  
 +	NL80211_ATTR_RU_PUNCT_SUPP_BW,
 +
  	/* add attributes here, update the policy in nl80211.c */
  
  	__NL80211_ATTR_AFTER_LAST,
-@@ -7828,6 +7834,23 @@ enum nl80211_ap_settings_flags {
+@@ -7838,6 +7844,23 @@ enum nl80211_ap_settings_flags {
  };
  
  /**
@@ -101,16 +101,16 @@ Signed-off-by: Aloka Dixit <quic_alokad@quicinc.com>
  		 * Validate we have a policy (can be explicitly set to
 --- a/net/wireless/nl80211.c
 +++ b/net/wireless/nl80211.c
-@@ -852,6 +852,8 @@ static const struct nla_policy nl80211_p
- 	[NL80211_ATTR_AWGN_INTERFERENCE_BITMAP] = { .type = NLA_U32 },
+@@ -853,6 +853,8 @@ static const struct nla_policy nl80211_p
  	[NL80211_ATTR_6G_REG_POWER_MODE] = NLA_POLICY_RANGE(NLA_U8, 0, 2),
  	[NL80211_ATTR_EMA_RNR_ELEMS] = { .type = NLA_NESTED },
+ 	[NL80211_ATTR_WIPHY_MAX_TX_POWER_LEVEL] = { .type = NLA_U32 },
 +	[NL80211_ATTR_RU_PUNCT_SUPP_BW] =
-+			NLA_POLICY_MAX(NLA_U8, NL80211_RU_PUNCT_SUPP_BW_320),
++		NLA_POLICY_MAX(NLA_U8, NL80211_RU_PUNCT_SUPP_BW_320),
  };
  
  /* policy for the key attributes */
-@@ -2402,6 +2404,20 @@ fail:
+@@ -2403,6 +2405,20 @@ fail:
  	return -ENOBUFS;
  }
  
@@ -131,7 +131,7 @@ Signed-off-by: Aloka Dixit <quic_alokad@quicinc.com>
  struct nl80211_dump_wiphy_state {
  	s64 filter_wiphy;
  	long start;
-@@ -3006,6 +3022,9 @@ static int nl80211_send_wiphy(struct cfg
+@@ -3007,6 +3023,9 @@ static int nl80211_send_wiphy(struct cfg
  		if (rdev->wiphy.flags & WIPHY_FLAG_SUPPORTS_MLO)
  			nla_put_flag(msg, NL80211_ATTR_MLO_SUPPORT);
  

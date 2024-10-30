@@ -1,53 +1,50 @@
-#
-# Copyright (C) 2014 OpenWrt.org
-#
-# This is free software, licensed under the GNU General Public License v2.
-# See /LICENSE for more information.
-#
+# SPDX-License-Identifier: GPL-2.0-only
 
 include $(TOPDIR)/rules.mk
 
 PKG_NAME:=batctl
-
-PKG_VERSION:=2019.2
-PKG_RELEASE:=8
-PKG_HASH:=fb656208ff7d4cd8b1b422f60c9e6d8747302a347cbf6c199d7afa9b80f80ea3
+PKG_VERSION:=2023.1
+PKG_RELEASE:=2
 
 PKG_SOURCE:=$(PKG_NAME)-$(PKG_VERSION).tar.gz
 PKG_SOURCE_URL:=https://downloads.open-mesh.org/batman/releases/batman-adv-$(PKG_VERSION)
-PKG_LICENSE:=GPL-2.0
-
+PKG_HASH:=e5bf47305d955abb199244bd0e5fffab96108b1affabd0d9705533f8059395f1
 PKG_BUILD_DIR:=$(BUILD_DIR)/$(PKG_NAME)-$(BUILD_VARIANT)/$(PKG_NAME)-$(PKG_VERSION)
+
+PKG_MAINTAINER:=Simon Wunderlich <sw@simonwunderlich.de>
+PKG_LICENSE:=GPL-2.0-only ISC MIT
+PKG_LICENSE_FILES:=LICENSES/preferred/GPL-2.0 LICENSES/preferred/MIT LICENSES/deprecated/ISC
+
+PKG_BUILD_PARALLEL:=1
+PKG_BUILD_FLAGS:=gc-sections lto
 
 include $(INCLUDE_DIR)/package.mk
 
 define Package/batctl/Default
-  URL:=https://www.open-mesh.org/
   SECTION:=net
   CATEGORY:=Network
+  URL:=https://www.open-mesh.org/
   DEPENDS:=+libnl-tiny +libc +librt
   PROVIDES:=batctl
-  MAINTAINER:=Simon Wunderlich <sw@simonwunderlich.de>
 endef
 
 define Package/batctl/description
-batctl is a more intuitive managment utility for B.A.T.M.A.N.-Advanced.
-It is an easier method for configuring batman-adv and provides some
-additional tools for debugging as well. This package builds
-version $(PKG_VERSION) of the user space utility.
+  batctl is a more intuitive managment utility for B.A.T.M.A.N.-Advanced.
+  It is an easier method for configuring batman-adv and provides some
+  additional tools for debugging as well. This package builds
+  version $(PKG_VERSION) of the user space utility.
 endef
 
 define Package/batctl-tiny
 $(call Package/batctl/Default)
   TITLE:=B.A.T.M.A.N. Advanced user space configuration tool (Minimal)
   VARIANT:=tiny
-  PROVIDES:=batctl
   ALTERNATIVES:=100:/usr/sbin/batctl:/usr/libexec/batctl-tiny
 endef
 
 define Package/batctl-tiny/description
 $(Package/batctl/description)
-Only configuration relevant subcommands are enabled.
+  Only configuration relevant subcommands are enabled.
 endef
 
 define Package/batctl-default
@@ -59,7 +56,7 @@ endef
 
 define Package/batctl-default/description
 $(Package/batctl/description)
-Standard subcommands for configuration and online debugging are enabled.
+  Standard subcommands for configuration and online debugging are enabled.
 endef
 
 define Package/batctl-full
@@ -71,36 +68,15 @@ endef
 
 define Package/batctl-full/description
 $(Package/batctl/description)
-Subcommands for configuration, online and offline debugging are enabled.
+  Subcommands for configuration, online and offline debugging are enabled.
 endef
 
-# The linker can identify unused sections of a binary when each symbol is stored
-# in a separate section. This mostly removes unused linker sections and reduces
-# the size by ~3% on mipsel.
-
-TARGET_CFLAGS  += -ffunction-sections -fdata-sections
-TARGET_LDFLAGS += -Wl,--gc-sections
-
-# Link-time optimization allows to move parts of the optimization from the single
-# source file to the global source view. This is done by emitting the GIMPLE
-# representation in each object file and analyzing it again during the link step.
-
-TARGET_CFLAGS  += -flto
-TARGET_LDFLAGS += -fuse-linker-plugin
-
-MAKE_BATCTL_ENV += \
-        CPPFLAGS="$(TARGET_CPPFLAGS)" \
-        CFLAGS="$(TARGET_CFLAGS)" \
-        LDFLAGS="$(TARGET_LDFLAGS)" \
+MAKE_VARS += \
         LIBNL_NAME="libnl-tiny" \
         LIBNL_GENL_NAME="libnl-tiny"
 
-MAKE_BATCTL_ARGS += \
-        REVISION="$(PKG_BATCTL_SHORTREV)" \
-        CC="$(TARGET_CC)" \
-        DESTDIR="$(PKG_INSTALL_DIR)" \
-        batctl install \
-        REVISION="openwrt-$(PKG_VERSION)-$(PKG_RELEASE)"
+MAKE_FLAGS += \
+        REVISION="$(PKG_VERSION)-openwrt-$(PKG_RELEASE)"
 
 config-n := \
 	aggregation \
@@ -108,28 +84,37 @@ config-n := \
 	backbonetable \
 	bisect_iv \
 	bonding \
+	bla_backbone_json \
+	bla_claim_json \
 	bridge_loop_avoidance \
 	claimtable \
 	dat_cache \
+	dat_cache_json \
 	distributed_arp_table \
 	elp_interval \
 	event \
 	fragmentation \
 	gateways \
+	gateways_json \
 	gw_mode \
+	hardif_json \
+	hardifs_json \
 	hop_penalty \
 	interface \
 	isolation_mark \
 	loglevel \
 	mcast_flags \
+	mcast_flags_json \
+	mesh_json \
 	multicast_fanout \
 	multicast_forceflood \
 	multicast_mode \
-	nc_nodes \
 	neighbors \
+	neighbors_json \
 	network_coding \
 	orig_interval \
 	originators \
+	originators_json \
 	ping \
 	routing_algo \
 	statistics \
@@ -140,6 +125,9 @@ config-n := \
 	transglobal \
 	translate \
 	translocal \
+	transtable_global_json \
+	transtable_local_json \
+	vlan_json \
 
 config-settings := \
 	aggregation \
@@ -168,12 +156,26 @@ config-tables := \
 	dat_cache \
 	gateways \
 	mcast_flags \
-	nc_nodes \
 	neighbors \
 	originators \
 	statistics \
 	transglobal \
 	translocal \
+
+config-json := \
+	bla_backbone_json \
+	bla_claim_json \
+	dat_cache_json \
+	gateways_json \
+	hardif_json \
+	hardifs_json \
+	mcast_flags_json \
+	mesh_json \
+	neighbors_json \
+	originators_json \
+	transtable_global_json \
+	transtable_local_json \
+	vlan_json \
 
 config-tools := \
 	event \
@@ -198,6 +200,7 @@ ifeq ($(BUILD_VARIANT),default)
 config-y := \
 	$(config-settings) \
 	$(config-tables) \
+	$(config-json) \
 	$(config-tools) \
 
 endif
@@ -207,6 +210,7 @@ ifeq ($(BUILD_VARIANT),full)
 config-y := \
 	$(config-settings) \
 	$(config-tables) \
+	$(config-json) \
 	$(config-tools) \
 	$(config-extratools) \
 
@@ -222,10 +226,7 @@ $(call ConfigVars,n)$(call ConfigVars,y)
 endef
 $(eval $(call shexport,batctl_config))
 
-define Build/Compile
-	$(MAKE_BATCTL_ENV) $(MAKE) -C "$(PKG_BUILD_DIR)" $(MAKE_BATCTL_ARGS) \
-		$$$$$(call shvar,batctl_config)
-endef
+MAKE_FLAGS += $$$$$(call shvar,batctl_config)
 
 define Package/batctl-tiny/install
 	$(INSTALL_DIR) $(1)/usr/libexec

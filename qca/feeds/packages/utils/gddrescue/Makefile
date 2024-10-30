@@ -5,21 +5,20 @@
 include $(TOPDIR)/rules.mk
 
 PKG_NAME:=gddrescue
-PKG_VERSION:=1.23
-PKG_RELEASE:=2
+PKG_VERSION:=1.27
+PKG_RELEASE:=1
 
 PKG_SOURCE:=$(PKG_NAME)_$(PKG_VERSION).orig.tar.xz
-PKG_SOURCE_URL:=http://http.debian.net/debian/pool/main/g/$(PKG_NAME)
-PKG_HASH:=5831d7e24070bc700d8f22deaeec56af1149392ce30ae67254096eaf8c9169ab
-PKG_MAINTAINER:=Lucian Cristian <lucian.cristian@gmail.com>
+PKG_SOURCE_URL:=http://archive.ubuntu.com/ubuntu/pool/universe/g/$(PKG_NAME)
+PKG_HASH:=dd8af32d9be5afd7a9b9c34014e44358c3bfb193a612a2cb6547499bb1f76698
 
-PKG_LICENSE:=GPL-2.0
+PKG_MAINTAINER:=Lucian Cristian <lucian.cristian@gmail.com>
+PKG_LICENSE:=GPL-2.0-or-later
 PKG_LICENSE_FILES:=LICENSE
 
 PKG_INSTALL:=1
 PKG_BUILD_PARALLEL:=1
 
-include $(INCLUDE_DIR)/uclibc++.mk
 include $(INCLUDE_DIR)/package.mk
 
 define Package/gddrescue
@@ -27,7 +26,7 @@ define Package/gddrescue
   CATEGORY:=Utilities
   TITLE:=Data recovery tool
   URL:=https://www.gnu.org/software/ddrescue/
-  DEPENDS:=$(CXX_DEPENDS)
+  DEPENDS:=+libstdcpp
 endef
 
 define Package/gddrescue/description

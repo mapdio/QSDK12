@@ -1,6 +1,6 @@
 /*
  **************************************************************************
- * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2024 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
@@ -50,8 +50,8 @@ unsigned int nss_udp_st_rx_ipv4_pre_routing_hook(void *priv, struct sk_buff *skb
 		if ((rules->flags & NSS_UDP_ST_FLAG_IPV4) &&
 			(rules->sip.ip.ipv4 == ntohl(iph->daddr)) &&
 			(rules->dip.ip.ipv4 == ntohl(iph->saddr)) &&
-			(rules->sport == ntohs(uh->source)) &&
-			(rules->dport == ntohs(uh->dest)) ) {
+			(rules->sport == ntohs(uh->dest)) &&
+			(rules->dport == ntohs(uh->source)) ) {
 				nss_udp_st_update_stats(ntohs(iph->tot_len) + sizeof(struct ethhdr));
 				kfree_skb(skb);
 				return NF_STOLEN;
@@ -96,8 +96,8 @@ unsigned int nss_udp_st_rx_ipv6_pre_routing_hook(void *priv, struct sk_buff *skb
 		if ((rules->flags & NSS_UDP_ST_FLAG_IPV6) &&
 			(nss_udp_st_compare_ipv6(rules->sip.ip.ipv6, daddr.s6_addr32)) &&
 			(nss_udp_st_compare_ipv6(rules->dip.ip.ipv6, saddr.s6_addr32)) &&
-			(rules->sport == ntohs(uh->source)) &&
-			(rules->dport == ntohs(uh->dest))) {
+			(rules->sport == ntohs(uh->dest)) &&
+			(rules->dport == ntohs(uh->source))) {
 				nss_udp_st_update_stats(ntohs(iph->payload_len) + sizeof(struct ethhdr));
 				kfree_skb(skb);
 				return NF_STOLEN;

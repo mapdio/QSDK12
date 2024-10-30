@@ -11,9 +11,11 @@ Signed-off-by: Pradeep Kumar Chitrapu <quic_pradeepc@quicinc.com>
  drivers/net/wireless/ath/ath12k/dp_tx.c | 14 ++++++++++++++
  1 file changed, 14 insertions(+)
 
+diff --git a/drivers/net/wireless/ath/ath12k/dp_tx.c b/drivers/net/wireless/ath/ath12k/dp_tx.c
+index 0faf8e0cc456..2a1864f20c10 100644
 --- a/drivers/net/wireless/ath/ath12k/dp_tx.c
 +++ b/drivers/net/wireless/ath/ath12k/dp_tx.c
-@@ -124,6 +124,7 @@ int ath12k_dp_tx(struct ath12k *ar, stru
+@@ -124,6 +124,7 @@ int ath12k_dp_tx(struct ath12k *ar, struct ath12k_link_vif *arvif,
  	struct ath12k_base *ab = ar->ab;
  	struct ath12k_hw_group *ag = ab->ag;
  	struct ath12k_dp *dp = &ab->dp;
@@ -21,7 +23,7 @@ Signed-off-by: Pradeep Kumar Chitrapu <quic_pradeepc@quicinc.com>
  	struct hal_tx_info ti = {0};
  	struct ath12k_tx_desc_info *tx_desc = NULL;
  	struct ieee80211_tx_info *info = IEEE80211_SKB_CB(skb);
-@@ -138,6 +139,7 @@ int ath12k_dp_tx(struct ath12k *ar, stru
+@@ -138,6 +139,7 @@ int ath12k_dp_tx(struct ath12k *ar, struct ath12k_link_vif *arvif,
  	int ret;
  	u8 ring_selector = 0, ring_map = 0;
  	bool tcl_ring_retry;
@@ -41,10 +43,14 @@ Signed-off-by: Pradeep Kumar Chitrapu <quic_pradeepc@quicinc.com>
 +			ath12k_dbg(ab, ATH12K_DBG_DP_TX,
 +				   "Dropped packet with non existent peer id %u\n", peer_id);
 +			ret = -EINVAL;
-+			goto fail_remove_tx_buf;
++			goto fail_unmap_dma;
 +		}
 +		spin_unlock_bh(&ab->base_lock);
 +
  	} else {
  		ti.meta_data_flags = arvif->tcl_metadata;
  	}
+
+-- 
+2.17.1
+

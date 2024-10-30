@@ -6,19 +6,19 @@
 include $(TOPDIR)/rules.mk
 
 PKG_NAME:=squeezelite
-PKG_VERSION:=1.9.1-1130
+PKG_VERSION:=1.9.9-1415
 PKG_RELEASE:=1
 
-PKG_LICENSE:=GPL-3.0
-PKG_LICENSE_FILES:=LICENSE.txt
-PKG_MAINTAINER:=Ted Hess <thess@kitschensync.net>
-
 PKG_SOURCE_PROTO:=git
-PKG_SOURCE_URL:=https://github.com/ralph-irving/squeezelite.git
-PKG_SOURCE_SUBDIR:=$(PKG_NAME)-$(PKG_VERSION)
-PKG_SOURCE_VERSION:=451cad8da651073d18118fb9ca39faef550825ff
-PKG_SOURCE:=$(PKG_NAME)-$(PKG_VERSION)-$(PKG_SOURCE_VERSION).tar.gz
-PKG_MIRROR_HASH:=e6082b486e364c8cbd7db96fc06dc5243242a3ac786113e42e3061c06ea8889e
+PKG_SOURCE_URL:=https://github.com/ralph-irving/squeezelite
+PKG_SOURCE_VERSION:=5361789c8df37d87a22cc2253ff746557044931a
+PKG_MIRROR_HASH:=c6cabb4041c1197881d9f5e9ea8293ece2d409356ccf56d4a8948743b49b13ca
+
+PKG_MAINTAINER:=Ted Hess <thess@kitschensync.net>
+PKG_LICENSE:=GPL-3.0-or-later
+PKG_LICENSE_FILES:=LICENSE.txt
+
+PKG_BUILD_PARALLEL:=1
 
 include $(INCLUDE_DIR)/package.mk
 
@@ -36,6 +36,8 @@ define Package/squeezelite-full
     $(call Package/squeezelite/default)
     TITLE+= (full)
     DEPENDS+= +libflac +libvorbis +libmpg123 +libfaad2 \
+              +SQUEEZELITE_OPUS:libopusfile \
+              +SQUEEZELITE_SSL:libopenssl \
               +SQUEEZELITE_WMA:libffmpeg-audio-dec
     VARIANT:=full
 endef
@@ -50,6 +52,7 @@ define Package/squeezelite/config/default
 
 	config SQUEEZELITE_WMA
 	    bool "WMA/ALAC decode support"
+	    depends on BUILD_PATENTED
 	    help
 		Include WMA and ALAC decoding using ffmpeg
 	    default n
@@ -63,7 +66,19 @@ define Package/squeezelite/config/default
 	config SQUEEZELITE_DSD
 	    bool "DSD playback over PCM (DoP)"
 	    help
-		Include support for DSD over PCM for compatible DAC"
+		Include support for DSD over PCM for compatible DAC
+	    default n
+
+	config SQUEEZELITE_SSL
+	    bool "SSL/TLS support"
+	    help
+		Include SSL/TLS support for use with e.g. https media URLs
+	    default n
+
+	config SQUEEZELITE_OPUS
+	    bool "Opus codec support"
+	    help
+		Include Opus codec support
 	    default n
 endef
 
@@ -83,7 +98,7 @@ define Package/squeezelite/description/default
     Squeezelite is a small headless squeezebox emulator for linux using alsa audio output
     It is aimed at supporting high quality audio at multiple sample rates including
     44.1/48/88.2/96/176.4/192k/352.8/384kHz
-    Supported codecs: mp3, flac, ogg, aac, (wma and alac via ffmpeg)
+    Supported codecs: mp3, flac, ogg, aac, (wma and alac via ffmpeg), opus (optional)
     Native support for PCM builtin
     Optional support of DSD playback via PCM for DoP capable DAC
     Optional resampling to match sound device
@@ -101,6 +116,8 @@ define Package/squeezelite-mini/description
     This package will dynamically load installed codecs.
 endef
 
+opts+= -DNO_MAD
+
 ifeq ($(CONFIG_SQUEEZELITE_WMA),y)
     opts+= -DFFMPEG
 endif
@@ -113,15 +130,27 @@ ifeq ($(CONFIG_SQUEEZELITE_RESAMPLE),y)
     opts+= -DRESAMPLE
 endif
 
+ifeq ($(CONFIG_SQUEEZELITE_SSL),y)
+    opts+= -DUSE_SSL
+endif
+
+ifeq ($(CONFIG_SQUEEZELITE_OPUS),y)
+    opts+= -DOPUS
+    TARGET_CFLAGS+=-I$(STAGING_DIR)/usr/include/opus
+endif
+
 ifeq ($(BUILD_VARIANT),full)
     opts+= -DLINKALL
 endif
 
 MAKE_FLAGS+=OPTS="$(opts)"
 
-# Squeezelite uses functions which are deprecated in recent ffmpeg versions.
-# See https://github.com/ralph-irving/squeezelite/issues/60
-TARGET_CFLAGS+=-Wno-deprecated-declarations
+define Package/squeezelite/conffiles
+/etc/config/squeezelite
+endef
+
+Package/squeezelite-mini/conffiles = $(Package/squeezelite/conffiles)
+Package/squeezelite-full/conffiles = $(Package/squeezelite/conffiles)
 
 define Package/squeezelite/install
 	$(INSTALL_DIR) $(1)/usr/bin

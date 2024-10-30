@@ -11,6 +11,11 @@ ifeq ($(SoC),$(filter $(SoC),ipq95xx ipq53xx))
 ccflags-y += -DNSS_VLAN_MGR_PPE_VP_TUN_SUPPORT
 endif
 
+#
+# TODO: Remove the following check when BONDING support is added for PPE
+#
+ifeq ($(findstring 6.1, $(KERNELVERSION)),)
 ifneq (,$(filter $(CONFIG_BONDING),y m))
 ccflags-y += -DBONDING_SUPPORT
+endif
 endif

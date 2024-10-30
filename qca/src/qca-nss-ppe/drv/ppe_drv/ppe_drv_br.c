@@ -177,8 +177,7 @@ ppe_drv_ret_t ppe_drv_br_set_ageing_time(uint32_t ageing_time)
 	}
 
 	spin_unlock_bh(&p->lock);
-	ppe_drv_info("Bridge Ageing time set to %u\n", ageing_time);
-	pr_warn("Set globle Ageing time set to %u which is same for all bridge\n",
+	ppe_drv_trace("Global Bridge Ageing time set to %u, which is same for all bridge\n",
 			ageing_time);
 
 	return PPE_DRV_RET_SUCCESS;
@@ -335,6 +334,56 @@ ppe_drv_ret_t ppe_drv_br_stp_state_set(struct ppe_drv_iface *br_iface, struct ne
 	return PPE_DRV_RET_SUCCESS;
 }
 EXPORT_SYMBOL(ppe_drv_br_stp_state_set);
+
+/**
+ * ppe_drv_br_wanif_clear()
+ *	clear ppe_drv_iface PPE_DRV_IFACE_FLAG_WAN_IF_VALID flag.
+ */
+void ppe_drv_br_wanif_clear(struct net_device *member)
+{
+	struct ppe_drv_iface *member_iface;
+	struct ppe_drv *p = &ppe_drv_gbl;
+
+	/*
+	 * Check if member net-device is a known PPE interface.
+	 */
+	spin_lock_bh(&p->lock);
+	member_iface = ppe_drv_iface_get_by_dev_internal(member);
+	if (!member_iface) {
+		spin_unlock_bh(&p->lock);
+		ppe_drv_warn("%p: Bad member net_device\n", member);
+		return;
+	}
+
+	member_iface->flags &= ~(PPE_DRV_IFACE_FLAG_WAN_IF_VALID);
+	spin_unlock_bh(&p->lock);
+}
+EXPORT_SYMBOL(ppe_drv_br_wanif_clear);
+
+/**
+ * ppe_drv_br_wanif_set()
+ *	Set ppe_drv_iface flag to PPE_DRV_IFACE_FLAG_WAN_IF_VALID.
+ */
+void ppe_drv_br_wanif_set(struct net_device *member)
+{
+	struct ppe_drv_iface *member_iface;
+	struct ppe_drv *p = &ppe_drv_gbl;
+
+	/*
+	 * Check if member net-device is a known PPE interface.
+	 */
+	spin_lock_bh(&p->lock);
+	member_iface = ppe_drv_iface_get_by_dev_internal(member);
+	if (!member_iface) {
+		spin_unlock_bh(&p->lock);
+		ppe_drv_warn("%p: Bad member net_device", member);
+		return;
+	}
+
+	member_iface->flags |= PPE_DRV_IFACE_FLAG_WAN_IF_VALID;
+	spin_unlock_bh(&p->lock);
+}
+EXPORT_SYMBOL(ppe_drv_br_wanif_set);
 
 /**
  * ppe_drv_br_leave

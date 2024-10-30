@@ -37,10 +37,10 @@ Signed-off-by: Aaradhana Sahu <quic_aarasahu@quicinc.com>
 +module_param_named(ftm_mode, ath12k_ftm_mode, uint, 0444);
 +MODULE_PARM_DESC(ftm_mode, "Boots up in factory test mode");
 +
- unsigned int ath12k_mlo_capable = true;
+ unsigned int ath12k_mlo_capable = false;
  module_param_named(mlo_capable, ath12k_mlo_capable, uint, 0644);
  MODULE_PARM_DESC(mlo_capable, "mlo capable: 0-disable, 1-enable");
-@@ -627,6 +631,11 @@ static int ath12k_core_soc_create(struct
+@@ -669,6 +673,11 @@ static int ath12k_core_soc_create(struct
  {
  	int ret;
  
@@ -52,7 +52,7 @@ Signed-off-by: Aaradhana Sahu <quic_aarasahu@quicinc.com>
  	ret = ath12k_qmi_init_service(ab);
  	if (ret) {
  		ath12k_err(ab, "failed to initialize qmi :%d\n", ret);
-@@ -996,7 +1005,7 @@ int ath12k_core_qmi_firmware_ready(struc
+@@ -1023,7 +1032,7 @@ int ath12k_core_qmi_firmware_ready(struc
  	/* This should be the last function, add core related
  	 * initializations within this function
  	 */
@@ -61,7 +61,7 @@ Signed-off-by: Aaradhana Sahu <quic_aarasahu@quicinc.com>
  	if (ret) {
  		ath12k_err(ab, "failed to start core: %d\n", ret);
  		goto err_dp_free;
-@@ -1162,7 +1171,8 @@ static void ath12k_core_restart(struct w
+@@ -1187,7 +1196,8 @@ static void ath12k_core_restart(struct w
  		for (j = 0; j < ab->num_radios; j++) {
  			pdev = &ab->pdevs[j];
  			ar = pdev->ar;
@@ -71,7 +71,7 @@ Signed-off-by: Aaradhana Sahu <quic_aarasahu@quicinc.com>
  				continue;
  
  			mutex_lock(&ar->conf_mutex);
-@@ -1186,6 +1196,9 @@ static void ath12k_core_restart(struct w
+@@ -1211,6 +1221,9 @@ static void ath12k_core_restart(struct w
  				ath12k_warn(ab,
  					    "device is wedged, will not restart radio %d\n", j);
  				break;
@@ -91,7 +91,7 @@ Signed-off-by: Aaradhana Sahu <quic_aarasahu@quicinc.com>
  };
  
  enum ath12k_monitor_flags {
-@@ -568,12 +569,19 @@ enum ath12k_state {
+@@ -567,12 +568,19 @@ enum ath12k_state {
  	ATH12K_STATE_RESTARTING,
  	ATH12K_STATE_RESTARTED,
  	ATH12K_STATE_WEDGED,
@@ -111,16 +111,16 @@ Signed-off-by: Aaradhana Sahu <quic_aarasahu@quicinc.com>
  struct ath12k_fw_stats {
  	struct dentry *debugfs_fwstats;
  	u32 pdev_id;
-@@ -781,6 +789,8 @@ struct ath12k {
- 	int monitor_vdev_id;
- 	u8 twt_enabled;
+@@ -779,6 +787,8 @@ struct ath12k {
+ 	bool dfs_block_radar_events;
+ 	struct ath12k_thermal thermal;
  	s8 max_allowed_tx_power;
 +	struct completion fw_mode_reset;
 +	u8 ftm_msgref;
- 	bool ap_ps_enabled;
- 	enum ath12k_ap_ps_state ap_ps_state;
- 
-@@ -939,6 +949,7 @@ struct ath12k_hw_group {
+	bool ap_ps_enabled;
+	enum ath12k_ap_ps_state ap_ps_state;
+
+@@ -940,6 +950,7 @@ struct ath12k_hw_group {
  /* Master structure to hold the hw data which may be used in core module */
  struct ath12k_base {
  	enum ath12k_hw_rev hw_rev;
@@ -128,7 +128,7 @@ Signed-off-by: Aaradhana Sahu <quic_aarasahu@quicinc.com>
  	struct platform_device *pdev;
  	struct device *dev;
  	struct ath12k_hw_group *ag;
-@@ -1031,6 +1042,8 @@ struct ath12k_base {
+@@ -1032,6 +1043,8 @@ struct ath12k_base {
  		/* protected by data_lock */
  		u32 fw_crash_counter;
  	} stats;
@@ -161,7 +161,7 @@ Signed-off-by: Aaradhana Sahu <quic_aarasahu@quicinc.com>
  
  		if (pdev && pdev->pdev_id == pdev_id)
  			return (pdev->ar ? pdev->ar : NULL);
-@@ -6966,6 +6969,7 @@ static int ath12k_mac_radio_start(struct
+@@ -6887,6 +6890,7 @@ static int ath12k_mac_radio_start(struct
  	case ATH12K_STATE_RESTARTED:
  	case ATH12K_STATE_WEDGED:
  	case ATH12K_STATE_ON:
@@ -169,13 +169,12 @@ Signed-off-by: Aaradhana Sahu <quic_aarasahu@quicinc.com>
  		WARN_ON(1);
  		ret = -EINVAL;
  		goto err;
-@@ -7122,6 +7126,12 @@ static int ath12k_mac_op_start(struct ie
+@@ -7042,6 +7046,11 @@ static int ath12k_mac_op_start(struct ie
  	ar = ah->radio;
  	ab = ar->ab;
  
 +	if (ath12k_ftm_mode) {
 +		ath12k_err(ab, "fail to start mac operations in ftm mode\n");
-+		mutex_unlock(&ah->conf_mutex);
 +		return -EWOULDBLOCK;
 +	}
 +
@@ -184,7 +183,7 @@ Signed-off-by: Aaradhana Sahu <quic_aarasahu@quicinc.com>
  	for (i = 0; i < ah->num_radio; i++) {
 --- a/drivers/net/wireless/ath/ath12k/qmi.c
 +++ b/drivers/net/wireless/ath/ath12k/qmi.c
-@@ -3759,6 +3759,11 @@ int ath12k_config_qdss(struct ath12k_bas
+@@ -3488,6 +3488,11 @@ int ath12k_config_qdss(struct ath12k_bas
  {
  	int ret;
  
@@ -700,7 +699,7 @@ Signed-off-by: Aaradhana Sahu <quic_aarasahu@quicinc.com>
  };
 --- a/drivers/net/wireless/ath/ath12k/wmi.c
 +++ b/drivers/net/wireless/ath/ath12k/wmi.c
-@@ -8154,6 +8154,35 @@ ath12k_wmi_pktlog_decode_info(struct ath
+@@ -8126,6 +8126,35 @@ ath12k_wmi_pktlog_decode_info(struct ath
  	kfree(tb);
  }
  
@@ -736,7 +735,7 @@ Signed-off-by: Aaradhana Sahu <quic_aarasahu@quicinc.com>
  static void
  ath12k_wmi_pdev_temperature_event(struct ath12k_base *ab,
  				  struct sk_buff *skb)
-@@ -9149,6 +9178,12 @@ static void ath12k_wmi_tlv_op_rx(struct
+@@ -9118,6 +9147,12 @@ static void ath12k_wmi_tlv_op_rx(struct
  	case WMI_OBSS_COLOR_COLLISION_DETECTION_EVENTID:
  		ath12k_wmi_obss_color_collision_event(ab, skb);
  		break;
@@ -751,8 +750,8 @@ Signed-off-by: Aaradhana Sahu <quic_aarasahu@quicinc.com>
  		break;
 --- a/drivers/net/wireless/ath/ath12k/wmi.h
 +++ b/drivers/net/wireless/ath/ath12k/wmi.h
-@@ -3786,6 +3786,25 @@ struct wmi_get_pdev_temperature_cmd {
- 	__le32 pdev_id;
+@@ -3828,6 +3828,25 @@ struct wmi_get_pdev_temperature_cmd {
+ 	u32 pdev_id;
  } __packed;
  
 +#define MAX_WMI_UTF_LEN 252
@@ -779,7 +778,7 @@ Signed-off-by: Aaradhana Sahu <quic_aarasahu@quicinc.com>
  #define WMI_BEACON_EMA_PARAM_PERIODICITY_SHIFT         0
 --- a/drivers/net/wireless/ath/ath12k/pci.c
 +++ b/drivers/net/wireless/ath/ath12k/pci.c
-@@ -1269,6 +1269,7 @@ static int ath12k_pci_probe(struct pci_d
+@@ -1324,6 +1324,7 @@ static int ath12k_pci_probe(struct pci_d
  	ab_pci->ab = ab;
  	ab_pci->pdev = pdev;
  	ab->hif.ops = &ath12k_pci_hif_ops;

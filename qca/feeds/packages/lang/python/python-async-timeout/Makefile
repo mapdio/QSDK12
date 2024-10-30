@@ -7,18 +7,18 @@
 
 include $(TOPDIR)/rules.mk
 
-PKG_NAME:=async-timeout
-PKG_VERSION:=3.0.1
+PKG_NAME:=python-async-timeout
+PKG_VERSION:=4.0.2
 PKG_RELEASE:=1
 
-PKG_SOURCE:=async-timeout-$(PKG_VERSION).tar.gz
-PKG_SOURCE_URL:=https://files.pythonhosted.org/packages/source/a/async-timeout/
-PKG_HASH:=0c3c816a028d47f659d6ff5c745cb2acf1f966da1fe5c19c77a70282b25f4c5f
+PYPI_NAME:=async-timeout
+PKG_HASH:=2163e1640ddb52b7a8c80d0a67a08587e5d245cc9c553a74a847056bc2976b15
 
 PKG_MAINTAINER:=Josef Schlehofer <pepe.schlehofer@gmail.com>
 PKG_LICENSE:=Apache-2.0
 PKG_LICENSE_FILES:=LICENSE
 
+include ../pypi.mk
 include $(INCLUDE_DIR)/package.mk
 include ../python3-package.mk
 
@@ -31,7 +31,6 @@ define Package/python3-async-timeout
   DEPENDS:= \
   +python3-light \
   +python3-asyncio
-  VARIANT:=python3
 endef
 
 define Package/python3-async-timeout/description

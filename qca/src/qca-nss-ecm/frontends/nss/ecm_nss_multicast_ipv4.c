@@ -1,7 +1,7 @@
 /*
  **************************************************************************
  * Copyright (c) 2014-2021, The Linux Foundation. All rights reserved.
- * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2024 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
@@ -1631,11 +1631,6 @@ static bool ecm_nss_multicast_ipv4_connection_decelerate_msg_send(struct ecm_fro
 			&nirdm->tuple.return_ip, nirdm->tuple.return_ident);
 
 	/*
-	 * Right place to free multicast destination interfaces list.
-	 */
-	ecm_db_multicast_connection_to_interfaces_clear(feci->ci);
-
-	/*
 	 * Take a ref to the feci->ci so that it will persist until we get a response from the NSS.
 	 * NOTE: This will implicitly hold the feci too.
 	 */
@@ -2619,11 +2614,8 @@ find_next_tuple:
  */
 bool ecm_nss_multicast_ipv4_debugfs_init(struct dentry *dentry)
 {
-	struct dentry *multicast_dentry;
-
-	multicast_dentry = debugfs_create_u32("multicast_accelerated_count", S_IRUGO, dentry,
-						&ecm_nss_multicast_ipv4_accelerated_count);
-	if (!multicast_dentry) {
+	if (!ecm_debugfs_create_u32("multicast_accelerated_count", S_IRUGO, dentry,
+						&ecm_nss_multicast_ipv4_accelerated_count)) {
 		DEBUG_ERROR("Failed to create ecm nss ipv4 multicast_accelerated_count file in debugfs\n");
 		return false;
 	}
@@ -2645,7 +2637,7 @@ void ecm_nss_multicast_ipv4_stop(int num)
  */
 int ecm_nss_multicast_ipv4_init(struct dentry *dentry)
 {
-	if (!debugfs_create_u32("ecm_nss_multicast_ipv4_stop", S_IRUGO | S_IWUSR, dentry,
+	if (!ecm_debugfs_create_u32("ecm_nss_multicast_ipv4_stop", S_IRUGO | S_IWUSR, dentry,
 					(u32 *)&ecm_front_end_ipv4_mc_stopped)) {
 		DEBUG_ERROR("Failed to create ecm front end ipv4 mc stop file in debugfs\n");
 		return -1;

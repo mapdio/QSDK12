@@ -1,7 +1,7 @@
 /*
  * Copyright (c) 2021, The Linux Foundation. All rights reserved.
  *
- * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2024 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for any
  * purpose with or without fee is hereby granted, provided that the above
@@ -27,6 +27,7 @@
 #include "edma_regs.h"
 #include "edma_debug.h"
 #include "edma.h"
+#include <ppe_drv_sc.h>
 
 /*
  * edma_tx_complete()
@@ -43,8 +44,10 @@ uint32_t edma_tx_complete(uint32_t work_to_do, struct edma_txcmpl_ring *txcmpl_r
 	struct sk_buff_head h;
 	uint32_t txcmpl_errors;
 	uint32_t avail, count;
+	uint8_t cpu_id;
 	uint32_t end_idx;
 	uint32_t more_bit = 0;
+	struct netdev_queue *nq;
 
 	cons_idx = txcmpl_ring->cons_idx;
 
@@ -115,8 +118,11 @@ uint32_t edma_tx_complete(uint32_t work_to_do, struct edma_txcmpl_ring *txcmpl_r
 		 */
 		skb = (struct sk_buff *)EDMA_TXCMPL_OPAQUE_GET(txcmpl);
 		if (unlikely(!skb)) {
-			edma_warn("Invalid skb: cons_idx:%u prod_idx:%u word2:%x word3:%x\n",
-					cons_idx, prod_idx, txcmpl->word2, txcmpl->word3);
+			if (net_ratelimit()) {
+				edma_warn("Invalid skb: cons_idx:%u prod_idx:%u word2:%x word3:%x\n",
+						cons_idx, prod_idx, txcmpl->word2, txcmpl->word3);
+			}
+
 			u64_stats_update_begin(&txcmpl_stats->syncp);
 			++txcmpl_stats->invalid_buffer;
 			u64_stats_update_end(&txcmpl_stats->syncp);
@@ -126,8 +132,14 @@ uint32_t edma_tx_complete(uint32_t work_to_do, struct edma_txcmpl_ring *txcmpl_r
 
 			txcmpl_errors = EDMA_TXCOMP_RING_ERROR_GET(txcmpl->word3);
 			if (unlikely(txcmpl_errors)) {
-				edma_err("Error 0x%0x observed in tx complete %d ring\n",
-						txcmpl_errors, txcmpl_ring->id);
+				/*
+				 * TODO : Demux and add a debug print per error type.
+				 */
+				if (net_ratelimit()) {
+					edma_err("Error 0x%0x observed in tx complete %d ring\n",
+							txcmpl_errors, txcmpl_ring->id);
+				}
+
 				u64_stats_update_begin(&txcmpl_stats->syncp);
 				++txcmpl_stats->errors;
 				u64_stats_update_end(&txcmpl_stats->syncp);
@@ -159,6 +171,22 @@ uint32_t edma_tx_complete(uint32_t work_to_do, struct edma_txcmpl_ring *txcmpl_r
 	edma_debug("TXCMPL:%u count:%u prod_idx:%u cons_idx:%u\n",
 			txcmpl_ring->id, count, prod_idx, cons_idx);
 	edma_reg_write(EDMA_REG_TXCMPL_CONS_IDX(txcmpl_ring->id), cons_idx);
+
+	/*
+	 * If tx_requeue_stop disabled (tx_requeue_stop = 0)
+	 * Fetch the tx queue of interface and check if it is stopped.
+	 * if queue is stopped and interface is up, wake up this queue.
+	 */
+	if (likely(!dp_global_ctx.tx_requeue_stop)) {
+		cpu_id = smp_processor_id();
+		nq = netdev_get_tx_queue(txcmpl_ring->napi.dev, cpu_id);
+		if (unlikely(netif_tx_queue_stopped(nq)) && netif_carrier_ok(txcmpl_ring->napi.dev)) {
+			edma_debug("Waking queue number %d, for interface %s\n", cpu_id, txcmpl_ring->napi.dev->name);
+			__netif_tx_lock(nq, cpu_id);
+			netif_tx_wake_queue(nq);
+			__netif_tx_unlock(nq);
+		}
+	}
 
 	return count;
 }
@@ -318,6 +346,12 @@ static uint32_t edma_tx_skb_nr_frags(struct edma_txdesc_ring *txdesc_ring, struc
 static inline void edma_tx_fill_vp_desc(struct nss_dp_dev *dp_dev, struct edma_pri_txdesc *txd,
 			struct sk_buff *skb, struct nss_dp_vp_tx_info *dptxi)
 {
+	if (unlikely(skb->ip_summed == CHECKSUM_PARTIAL)) {
+		EDMA_TXDESC_ADV_OFFLOAD_SET(txd);
+		EDMA_TXDESC_IP_CSUM_SET(txd);
+		EDMA_TXDESC_L4_CSUM_SET(txd);
+	}
+
 	EDMA_TXDESC_SERVICE_CODE_SET(txd, dptxi->sc);
 
 	/*
@@ -330,17 +364,6 @@ static inline void edma_tx_fill_vp_desc(struct nss_dp_dev *dp_dev, struct edma_p
 	 */
 	EDMA_SRC_INFO_SET(txd, dptxi->svp);
 	EDMA_DST_INFO_SET(txd, 0);
-}
-
-
-/*
- *  edma_tx_get_int_pri_from_skb()
- *      We retrieve int_pri from skb using this API
- *
- */
-static inline unsigned int edma_tx_get_int_pri_from_skb(struct sk_buff *skb)
-{
-	return skb->priority;
 }
 
 /*
@@ -368,6 +391,17 @@ static inline void edma_tx_fill_pp_desc(struct nss_dp_dev *dp_dev, struct edma_p
 				(skb_shinfo(skb)->gso_type == SKB_GSO_TCPV6)){
 			uint32_t mss;
 			mss = skb_shinfo(skb)->gso_size;
+
+			/*
+			 * If MSS<256, HW will do TSO using MSS=256,
+			 * if MSS>10K, HW will do TSO using MSS=10K,
+			 * else HW will report error 0x200000 in Tx Cmpl
+			 */
+			if (mss < EDMA_TX_TSO_MSS_MIN)
+				mss = EDMA_TX_TSO_MSS_MIN;
+			else if (mss > EDMA_TX_TSO_MSS_MAX)
+				mss = EDMA_TX_TSO_MSS_MAX;
+
 			EDMA_TXDESC_TSO_ENABLE_SET(txd, 1);
 			EDMA_TXDESC_MSS_SET(txd, mss);
 
@@ -383,12 +417,19 @@ static inline void edma_tx_fill_pp_desc(struct nss_dp_dev *dp_dev, struct edma_p
 	/*
 	 * Set destination information in the descriptor
 	 */
-	EDMA_TXDESC_SERVICE_CODE_SET(txd, EDMA_SC_BYPASS);
+	EDMA_TXDESC_SERVICE_CODE_SET(txd, PPE_DRV_SC_BYPASS_ALL);
 	EDMA_DST_INFO_SET(txd, dp_dev->macid);
+
 	/*
-	 * Set the tx queue priority for the packet
+	 * Set the src info as destination dev in case if
+	 * port mirroring is enabled - to receive the packet back in
+	 * DP with valid source port.
 	 */
-	EDMA_TXDESC_INT_PRI_SET(txd, edma_tx_get_int_pri_from_skb(skb));
+#if defined NSS_DP_PORT_MIRROR_EN
+	EDMA_SRC_INFO_SET(txd, dp_dev->macid);
+#endif
+
+	EDMA_TXDESC_INT_PRI_SET(txd, skb_get_int_pri(skb));
 }
 
 /*
@@ -583,6 +624,7 @@ static uint32_t edma_tx_avail_desc(struct edma_txdesc_ring *txdesc_ring, uint32_
  */
 static inline void edma_tx_phy_tstamp_buf(struct net_device *ndev, struct sk_buff *skb)
 {
+#if (LINUX_VERSION_CODE < KERNEL_VERSION(6, 1, 0))
 	/*
 	 * Function drv->txtstamp will create a clone of skb if necessary,
 	 * the PTP_CLASS_ value 0 is passed to phy driver, which will be
@@ -592,6 +634,11 @@ static inline void edma_tx_phy_tstamp_buf(struct net_device *ndev, struct sk_buf
 	if (ndev && ndev->phydev && ndev->phydev->drv && ndev->phydev->drv->txtstamp) {
 		ndev->phydev->drv->txtstamp(ndev->phydev, skb, 0);
 	}
+#else
+	if (phy_has_txtstamp(ndev->phydev)) {
+		phy_txtstamp(ndev->phydev, skb, 0);
+	}
+#endif
 }
 
 /*
@@ -604,9 +651,10 @@ enum edma_tx edma_tx_ring_xmit(struct net_device *netdev, struct nss_dp_vp_tx_in
 {
 	struct nss_dp_dev *dp_dev = netdev_priv(netdev);
 	struct edma_tx_desc_stats *txdesc_stats = &txdesc_ring->tx_desc_stats;
-	uint32_t hw_next_to_use = 0;
+	uint32_t hw_next_to_use = 0, cons_idx = 0, work_to_do = 0;
 	uint32_t num_tx_desc_needed = 0, num_desc_filled = 0;
 	struct edma_pri_txdesc *txdesc = NULL;
+	struct edma_gbl_ctx *egc = &edma_gbl_ctx;
 
 	hw_next_to_use = txdesc_ring->prod_idx;
 
@@ -620,6 +668,13 @@ enum edma_tx edma_tx_ring_xmit(struct net_device *netdev, struct nss_dp_vp_tx_in
 			++txdesc_stats->no_desc_avail;
 			u64_stats_update_end(&txdesc_stats->syncp);
 			return EDMA_TX_FAIL_NO_DESC;
+		}
+
+		if (unlikely(egc->enable_ring_util_stats)) {
+			cons_idx = edma_reg_read(EDMA_REG_TXDESC_CONS_IDX(txdesc_ring->id)) & EDMA_TXDESC_CONS_IDX_MASK;
+			work_to_do = EDMA_DESC_AVAIL_COUNT(txdesc_ring->prod_idx, cons_idx, txdesc_ring->count);
+			edma_update_ring_stats(work_to_do, txdesc_ring->count,
+					       &txdesc_stats->ring_stats);
 		}
 	}
 

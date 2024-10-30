@@ -70,6 +70,7 @@ struct v2m_data {
 	u32 flags;		/* v2m flags for specific implementation */
 };
 
+#ifdef CONFIG_PCI
 static void gicv2m_mask_msi_irq(struct irq_data *d)
 {
 	pci_msi_mask_irq(d);
@@ -95,6 +96,7 @@ static struct msi_domain_info gicv2m_msi_domain_info = {
 		   MSI_FLAG_PCI_MSIX | MSI_FLAG_MULTI_PCI_MSI),
 	.chip	= &gicv2m_msi_irq_chip,
 };
+#endif
 
 static phys_addr_t gicv2m_get_msi_addr(struct v2m_data *v2m, int hwirq)
 {
@@ -277,6 +279,7 @@ static void gicv2m_teardown(void)
 	}
 }
 
+#ifdef CONFIG_PCI
 static int gicv2m_allocate_domains(struct irq_domain *parent)
 {
 	struct irq_domain *inner_domain, *pci_domain, *plat_domain;
@@ -313,6 +316,39 @@ static int gicv2m_allocate_domains(struct irq_domain *parent)
 
 	return 0;
 }
+#else
+static int gicv2m_allocate_domains(struct irq_domain *parent)
+{
+	struct irq_domain *inner_domain, *plat_domain;
+	struct v2m_data *v2m;
+
+	v2m = list_first_entry_or_null(&v2m_nodes, struct v2m_data, entry);
+	if (!v2m)
+		return 0;
+
+	inner_domain = irq_domain_create_tree(v2m->fwnode,
+					      &gicv2m_domain_ops, v2m);
+	if (!inner_domain) {
+		pr_err("Failed to create GICv2m domain\n");
+		return -ENOMEM;
+	}
+
+	irq_domain_update_bus_token(inner_domain, DOMAIN_BUS_NEXUS);
+	inner_domain->parent = parent;
+	plat_domain = platform_msi_create_irq_domain(v2m->fwnode,
+						     &gicv2m_pmsi_domain_info,
+						     inner_domain);
+	if (!plat_domain) {
+		pr_err("Failed to create MSI domains\n");
+		if (plat_domain)
+			irq_domain_remove(plat_domain);
+		irq_domain_remove(inner_domain);
+		return -ENOMEM;
+	}
+
+	return 0;
+}
+#endif
 
 static int __init gicv2m_init_one(struct fwnode_handle *fwnode,
 				  u32 spi_start, u32 nr_spis,

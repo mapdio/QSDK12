@@ -25,6 +25,8 @@
 #include <uapi/linux/major.h>
 #include <linux/highmem.h>
 #include <linux/ioctl.h>
+#include <linux/io.h>
+#include <linux/of_reserved_mem.h>
 
 typedef struct ctx_save_tlv_msg {
 	unsigned char *msg_buffer;
@@ -81,9 +83,21 @@ struct minidump_metadata {
 	unsigned long cur_mmuinfo_offset;
 };
 
+struct minidump2mem_metadata {
+	struct reserved_mem *rsvd_mem;
+	struct delayed_work work;
+	struct class *dev_class;
+	struct mutex dev_lock;
+	unsigned int max_dump_sz;
+	int dev_major_no;
+	unsigned char *rsvd_mem_ptr;
+};
+
 struct minidump_metadata_list metadata_list;
 struct minidump_metadata minidump_meta_info;
+struct minidump2mem_metadata dump2mem_info;
 
+static const struct file_operations minidump2mem_ops;
 static const struct file_operations mini_dump_ops;
 static struct class *dump_class;
 int dump_major = 0;
@@ -158,6 +172,124 @@ extern struct list_head *minidump_modules;
 char *minidump_module_list[MINIDUMP_MODULE_COUNT] = {"qca_ol", "wifi_3_0", "umac", "qdf"};
 int minidump_dump_wlan_modules(void);
 extern int log_buf_len;
+
+#define MINIDUMP2MEM_CMN_HEADER_SIZE		(32)
+#define MINIDUMP_MAGIC1_COOKIE			(0x4D494E49)	/* MINI */
+#define MINIDUMP_MAGIC2_COOKIE			(0x44554D50)	/* DUMP */
+
+static int minidump2mem_open(struct inode *inode, struct file *file)
+{
+	if (!mutex_trylock(&dump2mem_info.dev_lock))
+		return -EBUSY;
+
+	return 0;
+}
+
+static ssize_t minidump2mem_read(struct file *file, char __user *buf,
+				 size_t count, loff_t *ppos)
+{
+	size_t copy_size = count;
+	int ret;
+
+	if (*ppos >= dump2mem_info.max_dump_sz)
+		return 0;
+
+	else if ((*ppos + count) > dump2mem_info.max_dump_sz)
+		copy_size = (dump2mem_info.max_dump_sz - *ppos);
+
+	ret = copy_to_user(buf, (dump2mem_info.rsvd_mem_ptr + *ppos),
+			  copy_size);
+	if (ret)
+		pr_err("copy_to_user err, copied only: %d \n", ret);
+
+	*ppos += (count - ret);
+	return (count - ret);
+}
+
+static int minidump2mem_release(struct inode *inode, struct file *file)
+{
+	int dump_minor_dev = iminor(inode);
+	int dump_major_dev = imajor(inode);
+
+	device_destroy(dump2mem_info.dev_class,
+			MKDEV(dump_major_dev, dump_minor_dev));
+	class_destroy(dump2mem_info.dev_class);
+	unregister_chrdev(dump_major_dev, "minidump2mem");
+
+	/* clear dump2mem identifier in memory */
+	memset(dump2mem_info.rsvd_mem_ptr, 0,
+			MINIDUMP2MEM_CMN_HEADER_SIZE);
+	memunmap(dump2mem_info.rsvd_mem_ptr);
+	dump2mem_info.rsvd_mem_ptr = NULL;
+	dump2mem_info.max_dump_sz = 0;
+	dump2mem_info.dev_major_no = 0;
+	dump2mem_info.dev_class = NULL;
+
+	mutex_unlock(&dump2mem_info.dev_lock);
+	return 0;
+}
+
+/* file ops for /dev/minidump2mem */
+static const struct file_operations minidump2mem_ops = {
+	.open       =   minidump2mem_open,
+	.read       =   minidump2mem_read,
+	.release    =   minidump2mem_release,
+};
+
+static void dump2mem_workfn(struct work_struct *work)
+{
+	struct device *dump2mem_dev;
+
+	dump2mem_info.rsvd_mem_ptr = memremap(dump2mem_info.rsvd_mem->base,
+			dump2mem_info.rsvd_mem->size, MEMREMAP_WB);
+	if (!dump2mem_info.rsvd_mem_ptr) {
+		pr_err("Unable to memremap rsvd region err\n");
+		return;
+	}
+
+	if ((*((uint32_t*)&dump2mem_info.rsvd_mem_ptr[0])
+			!= MINIDUMP_MAGIC1_COOKIE) ||
+			(*((uint32_t*)&dump2mem_info.rsvd_mem_ptr[4])
+			!= MINIDUMP_MAGIC2_COOKIE)) {
+		pr_debug("Minidump: dump2mem identifier not present!\n");
+		memunmap(dump2mem_info.rsvd_mem_ptr);
+		dump2mem_info.rsvd_mem_ptr = NULL;
+		return;
+	}
+
+	dump2mem_info.max_dump_sz =
+		*((uint32_t*)&dump2mem_info.rsvd_mem_ptr[12]);
+	dump2mem_info.max_dump_sz = ALIGN(dump2mem_info.max_dump_sz, 64);
+
+	mutex_init(&dump2mem_info.dev_lock);
+
+	dump2mem_info.dev_major_no = register_chrdev(UNNAMED_MAJOR,
+			"minidump2mem", &minidump2mem_ops);
+	if (dump2mem_info.dev_major_no < 0) {
+		pr_err("Unable to allocate a major number err = %d \n",
+				dump2mem_info.dev_major_no);
+		return;
+	}
+
+	dump2mem_info.dev_class = class_create(THIS_MODULE,
+			"minidump2mem");
+	if (IS_ERR(dump2mem_info.dev_class)) {
+		pr_err("Unable to create dump class = %ld\n",
+				PTR_ERR(dump2mem_info.dev_class));
+		return;
+	}
+
+	dump2mem_dev = device_create(dump2mem_info.dev_class, NULL,
+			MKDEV(dump2mem_info.dev_major_no, 0), NULL,
+			"minidump2mem");
+	if (IS_ERR(dump2mem_dev)) {
+		pr_err("Unable to create a device err = %ld\n",
+				PTR_ERR(dump2mem_dev));
+		return;
+	}
+
+	return;
+}
 
 /*
 * Function: mini_dump_open
@@ -819,8 +951,14 @@ int minidump_traverse_metadata_list(const char *name, const unsigned long
 		return -ENOMEM;
 	}
 
-	cur_node = (struct minidump_metadata_list *)
-					kmalloc(sizeof(struct minidump_metadata_list), GFP_KERNEL);
+	if (in_interrupt() || !preemptible() || rcu_preempt_depth()) {
+		cur_node = (struct minidump_metadata_list *)
+					 kmalloc(sizeof(struct minidump_metadata_list), GFP_ATOMIC);
+	} else {
+		cur_node = (struct minidump_metadata_list *)
+					 kmalloc(sizeof(struct minidump_metadata_list), GFP_KERNEL);
+	}
+
 
 	if (!cur_node) {
 		return -ENOMEM;
@@ -973,8 +1111,7 @@ int minidump_fill_segments_internal(const uint64_t start_addr, uint64_t size, mi
 	if (ret)
 		return ret;
 
-	if (IS_ENABLED(CONFIG_ARM64) || highmem )
-		minidump_store_mmu_info(start_addr,(const unsigned long)phys_addr);
+	minidump_store_mmu_info(start_addr,(const unsigned long)phys_addr);
 
 	if (name)
 		minidump_store_module_info(name, start_addr,(const unsigned long)phys_addr, type);
@@ -1119,7 +1256,12 @@ int minidump_store_module_info(const char *name ,const unsigned long va,
 	if (!name)
 		return 0;
 
-	mod_name = kstrndup(name, strlen(name), GFP_KERNEL);
+	if (in_interrupt() || !preemptible() || rcu_preempt_depth()) {
+		mod_name = kstrndup(name, strlen(name), GFP_ATOMIC);
+	} else {
+		mod_name = kstrndup(name, strlen(name), GFP_KERNEL);
+	}
+
 	if (!mod_name)
 		return 0;
 
@@ -1464,6 +1606,10 @@ static struct notifier_block panic_nb = {
 static int ctx_save_probe(struct platform_device *pdev)
 {
 	void *scm_regsave;
+#ifdef CONFIG_QCA_MINIDUMP
+	struct device_node *of_node = pdev->dev.of_node;
+	struct device_node *node;
+#endif /* CONFIG_QCA_MINIDUMP */
 	const struct ctx_save_props *prop = device_get_match_data(&pdev->dev);
 	int ret;
 
@@ -1484,6 +1630,23 @@ static int ctx_save_probe(struct platform_device *pdev)
 			"Registers won't be dumped on a dog bite\n");
 		return ret;
 	}
+
+#ifdef CONFIG_QCA_MINIDUMP
+	node = of_parse_phandle(of_node, "memory-region", 0);
+	if (node) {
+		dump2mem_info.rsvd_mem = of_reserved_mem_lookup(node);
+		if (!dump2mem_info.rsvd_mem)
+			pr_warn("Minidump: rsvd region is not specified \n");
+		else {
+			INIT_DELAYED_WORK(&dump2mem_info.work,
+					dump2mem_workfn);
+
+			/* kickstart worker after 50 secs */
+			schedule_delayed_work(&dump2mem_info.work,
+					msecs_to_jiffies(50000));
+		}
+	}
+#endif /* CONFIG_QCA_MINIDUMP */
 
 	spin_lock_init(&tlv_msg.spinlock);
 	tlv_msg.msg_buffer = scm_regsave + prop->tlv_msg_offset;
@@ -1509,8 +1672,8 @@ static int ctx_save_probe(struct platform_device *pdev)
 
 #ifdef CONFIG_QCA_MINIDUMP
 	ret = register_module_notifier(&wlan_module_exit_nb);
-    if (ret)
-        dev_err(&pdev->dev, "Failed to register WLAN  module exit notifier\n");
+	if (ret)
+		dev_err(&pdev->dev, "Failed to register WLAN  module exit notifier\n");
 
 	ret = atomic_notifier_chain_register(&panic_notifier_list,
 				&wlan_panic_nb);

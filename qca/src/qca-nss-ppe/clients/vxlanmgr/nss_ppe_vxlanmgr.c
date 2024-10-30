@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2023 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for any
  * purpose with or without fee is hereby granted, provided that the above
@@ -18,15 +18,26 @@
  * nss_ppe_vxlanmgr.c
  *	VxLAN netdev events
  */
+
+#include <linux/sysctl.h>
 #include <linux/module.h>
 #include <linux/netdevice.h>
 #include <linux/of.h>
 #include <linux/rcupdate.h>
+#include <linux/rwlock_types.h>
+#include <linux/hashtable.h>
 #include <net/vxlan.h>
 #include "nss_ppe_vxlanmgr_priv.h"
 #include "nss_ppe_vxlanmgr_tun_stats.h"
 #include "nss_ppe_tun_drv.h"
 #include "ppe_drv_tun_cmn_ctx.h"
+#include "nss_ppe_bridge_mgr.h"
+
+/*
+ * Module parameter to configure the destination port of VXLAN tunnel.
+ * PPE supports single destination port for all the VXLAN tunnels.
+ */
+int dstport = IANA_VXLAN_UDP_PORT;
 
 /*
  * VxLAN context
@@ -34,13 +45,17 @@
 struct nss_ppe_vxlanmgr_ctx vxlan_ctx;
 
 /*
+ * Extern variable for VXLAN fdb notifier.
+ */
+extern struct notifier_block nss_ppe_vxlanmgr_switchdev_fdb_notifier;
+
+/*
  * nss_ppe_vxlanmgr_netdev_event()
  *	Netdevice notifier for NSS VxLAN manager module
  */
-static int nss_ppe_vxlanmgr_netdev_event(struct notifier_block *nb, unsigned long event, void *dev)
+int nss_ppe_vxlanmgr_netdev_event(struct notifier_block *nb, unsigned long event, void *dev)
 {
 	struct net_device *netdev = netdev_notifier_info_to_dev(dev);
-	struct nss_ppe_vxlanmgr_tun_ctx *tun_ctx;
 
 	/*
 	 * Return if it's not a vxlan netdev
@@ -50,49 +65,25 @@ static int nss_ppe_vxlanmgr_netdev_event(struct notifier_block *nb, unsigned lon
 	}
 
 	switch (event) {
-	case NETDEV_DOWN:
-		tun_ctx = nss_ppe_vxlanmgr_tunnel_ctx_dev_get(netdev);
-		if (!tun_ctx) {
-			nss_ppe_vxlanmgr_warn("%px: tun_ctx is NULL\n", netdev);
-			return NOTIFY_DONE;
-		}
-		tun_ctx->remote_detected = false;
-		nss_ppe_vxlanmgr_trace("%px: NETDEV_DOWN: event %lu name %s\n", netdev, event, netdev->name);
-		ppe_tun_deconfigure(netdev);
-		return NOTIFY_DONE;
-
-	case NETDEV_UP:
-		nss_ppe_vxlanmgr_trace("%px: NETDEV_UP: event %lu name %s\n", netdev, event, netdev->name);
-		return NOTIFY_DONE;
-
-	case NETDEV_UNREGISTER:
-		nss_ppe_vxlanmgr_trace("%px: NETDEV_UNREGISTER: event %lu name %s\n", netdev, event, netdev->name);
-		return nss_ppe_vxlanmgr_tunnel_destroy(netdev);
-
-	case NETDEV_REGISTER:
-		nss_ppe_vxlanmgr_trace("%px: NETDEV_REGISTER: event %lu name %s\n", netdev, event, netdev->name);
-		return nss_ppe_vxlanmgr_tunnel_create(netdev);
-
 	case NETDEV_CHANGEMTU:
-		ppe_tun_mtu_set(netdev, netdev->mtu);
+		nss_ppe_vxlanmgr_trace("%px: NETDEV_CHANGEMTU: name %s", netdev, netdev->name);
+		nss_ppe_vxlanmgr_all_remotes_set_mtu(netdev, netdev->mtu);
 		break;
 
 	case NETDEV_BR_LEAVE:
-		nss_ppe_vxlanmgr_trace("%px: NETDEV_BR_LEAVE: event %lu name %s\n", netdev, event, netdev->name);
-		if (!ppe_tun_decap_disable(netdev)) {
-			nss_ppe_vxlanmgr_warn("%p: Failed disabling decap at index %s", netdev, netdev->name);
-		}
-		return NOTIFY_DONE;
+		nss_ppe_vxlanmgr_trace("%px: NETDEV_BR_LEAVE: name %s", netdev, netdev->name);
+		nss_ppe_vxlanmgr_all_remotes_decap_disable(netdev);
+		nss_ppe_vxlanmgr_all_remotes_leave_bridge(netdev);
+		break;
 
 	case NETDEV_BR_JOIN:
-		nss_ppe_vxlanmgr_trace("%px: NETDEV_BR_JOIN: event %lu name %s\n", netdev, event, netdev->name);
-		if (!ppe_tun_decap_enable(netdev)) {
-			nss_ppe_vxlanmgr_warn("%p: Failed enabling decap at index %s", netdev, netdev->name);
-		}
-		return NOTIFY_DONE;
+		nss_ppe_vxlanmgr_trace("%px: NETDEV_BR_JOIN: name %s", netdev, netdev->name);
+		nss_ppe_vxlanmgr_all_remotes_join_bridge(netdev);
+		nss_ppe_vxlanmgr_all_remotes_decap_enable(netdev);
+		break;
 
 	default:
-		nss_ppe_vxlanmgr_trace("%px: Unhandled notifier event %lu name %s\n", netdev, event, netdev->name);
+		nss_ppe_vxlanmgr_trace("%px: Unhandled notifier event %lu name %s", netdev, event, netdev->name);
 	}
 	return NOTIFY_DONE;
 }
@@ -113,17 +104,22 @@ void __exit nss_ppe_vxlanmgr_exit_module(void)
 	int ret;
 
 	if (!ppe_tun_conf_accel(PPE_DRV_TUN_CMN_CTX_TYPE_VXLAN, false)) {
-		nss_ppe_vxlanmgr_warn("failed to disable the VXLAN tunnels.\n");
+		nss_ppe_vxlanmgr_warn("failed to disable the VXLAN tunnels.");
 	}
 
 	nss_ppe_vxlanmgr_tun_stats_dentry_deinit();
 
+	nss_ppe_vxlanmgr_delete_all_remotes();
+
 	ret = unregister_netdevice_notifier(&nss_ppe_vxlanmgr_netdev_notifier);
 	if (ret) {
-		nss_ppe_vxlanmgr_warn("failed to unregister netdevice notifier: error %d\n", ret);
+		nss_ppe_vxlanmgr_warn("failed to unregister netdevice notifier: error %d", ret);
 	}
 
-	nss_ppe_vxlanmgr_info("disabled all vxlan tunnels. VXLAN module unloaded\n");
+	unregister_switchdev_notifier(&nss_ppe_vxlanmgr_switchdev_fdb_notifier);
+	nss_ppe_vxlanmgr_wq_exit();
+
+	nss_ppe_vxlanmgr_info("disabled all vxlan tunnels. VXLAN module unloaded");
 }
 
 /*
@@ -134,23 +130,47 @@ int __init nss_ppe_vxlanmgr_init_module(void)
 {
 	int ret;
 
-	INIT_LIST_HEAD(&vxlan_ctx.list);
-	spin_lock_init(&vxlan_ctx.tun_lock);
+	vxlan_ctx.nack_limit = NSS_PPE_VXLANMGR_VP_STATUS_DEFAULT_MAX_NACK;
 
-	if (!nss_ppe_vxlanmgr_tun_stats_dentry_init()) {
-		nss_ppe_vxlanmgr_warn("Failed to create debugfs entry\n");
+	if ((dstport < NSS_PPE_VXLANMGR_DST_PORT_MIN) || (dstport > NSS_PPE_VXLANMGR_DST_PORT_MAX)) {
+		nss_ppe_vxlanmgr_warn("Invalid VXLAN dport:%u", dstport);
 		return -1;
+	}
+
+	if (!ppe_tun_configure_vxlan_dport(dstport)) {
+		nss_ppe_vxlanmgr_warn("configuring the destination port of the VXLAN failed");
+		return -1;
+	}
+
+	if (nss_ppe_vxlanmgr_wq_init() < 0) {
+		nss_ppe_vxlanmgr_warn("Failed to initialize work queue");
+		return -1;
+	}
+
+	if (!nss_ppe_vxlanmgr_tun_dentry_init()) {
+		nss_ppe_vxlanmgr_warn("Failed to create debugfs entry");
+		goto wq_exit;
 	}
 
 	ret = register_netdevice_notifier(&nss_ppe_vxlanmgr_netdev_notifier);
 	if (ret) {
-		nss_ppe_vxlanmgr_tun_stats_dentry_deinit();
-		nss_ppe_vxlanmgr_warn("Failed to register netdevice notifier: error %d\n", ret);
-		return -1;
+		nss_ppe_vxlanmgr_warn("Failed to register netdevice notifier: error %d", ret);
+		goto stats_dentry_deinit;
 	}
 
-	nss_ppe_vxlanmgr_info("Module %s loaded\n", NSS_PPE_BUILD_ID);
+	register_switchdev_notifier(&nss_ppe_vxlanmgr_switchdev_fdb_notifier);
+
+	nss_ppe_vxlanmgr_info("Module %s loaded", NSS_PPE_BUILD_ID);
+
 	return 0;
+
+stats_dentry_deinit:
+	nss_ppe_vxlanmgr_tun_stats_dentry_deinit();
+
+wq_exit:
+	nss_ppe_vxlanmgr_wq_exit();
+
+	return -1;
 }
 
 module_init(nss_ppe_vxlanmgr_init_module);
@@ -158,3 +178,6 @@ module_exit(nss_ppe_vxlanmgr_exit_module);
 
 MODULE_LICENSE("Dual BSD/GPL");
 MODULE_DESCRIPTION("NSS PPE VxLAN manager");
+
+module_param(dstport, int, 0644);
+MODULE_PARM_DESC(dstport, "VXLAN destination port number");

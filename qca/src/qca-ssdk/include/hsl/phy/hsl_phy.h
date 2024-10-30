@@ -1,6 +1,6 @@
 /*
  * Copyright (c) 2015, 2017-2021, The Linux Foundation. All rights reserved.
- * Copyright (c) 2022-2023 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2024 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for any
  * purpose with or without fee is hereby granted, provided that the above
@@ -253,6 +253,14 @@ extern "C" {
 					      a_uint32_t phy_id,
 					      a_uint32_t source_id,
 					      led_ctrl_pattern_t * pattern);
+	typedef sw_error_t(*hsl_phy_led_ctrl_source_get) (a_uint32_t dev_id,
+					      a_uint32_t phy_id,
+					      a_uint32_t source_id,
+					      led_ctrl_pattern_t * pattern);
+	typedef sw_error_t(*hsl_phy_pll_on) (a_uint32_t dev_id, a_uint32_t phy_id);
+	typedef sw_error_t(*hsl_phy_pll_off) (a_uint32_t dev_id, a_uint32_t phy_id);
+	typedef sw_error_t(*hsl_phy_ldo_set) (a_uint32_t dev_id, a_uint32_t phy_id,
+				a_bool_t enable);
 	typedef sw_error_t(*hsl_phy_ptp_security_set) (a_uint32_t dev_id,
 				a_uint32_t phy_id, fal_ptp_security_t *sec);
 
@@ -520,6 +528,10 @@ extern "C" {
 		hsl_phy_led_ctrl_pattern_set phy_led_ctrl_pattern_set;
 		hsl_phy_led_ctrl_pattern_get phy_led_ctrl_pattern_get;
 		hsl_phy_led_ctrl_source_set phy_led_ctrl_source_set;
+		hsl_phy_led_ctrl_source_get phy_led_ctrl_source_get;
+		hsl_phy_pll_on phy_pll_on;
+		hsl_phy_pll_off phy_pll_off;
+		hsl_phy_ldo_set phy_ldo_set;
 		hsl_phy_ptp_ops_t phy_ptp_ops;
 /*qca808x_start*/
 	} hsl_phy_ops_t;
@@ -559,7 +571,6 @@ typedef struct {
 	a_uint8_t port_force_duplex[SW_MAX_NR_PORT];
 	a_uint32_t port_force_speed[SW_MAX_NR_PORT];
 	phy_features_t phy_features[SW_MAX_NR_PORT];
-	struct mii_bus *miibus[SW_MAX_NR_PORT];
 	a_uint32_t phy_type[SW_MAX_NR_PORT];
 #if defined(IN_PHY_I2C_MODE)
 	/* fake mdio address is used to register the phy device,
@@ -601,6 +612,7 @@ typedef struct {
 #define AQUANTIA_PHY_113C_B0    0x31c31C12
 #define AQUANTIA_PHY_113C_B1    0x31c31C13
 #define AQUANTIA_PHY_112C       0x03a1b792
+#define MVL_PHY_X3410           0x31c31DD3
 
 #define PHY_805XV2              0x004DD082
 #define PHY_805XV1              0x004DD081
@@ -618,8 +630,8 @@ typedef struct {
 #define PHY_MDIO_ACCESS         0
 #define PHY_I2C_ACCESS          1
 
-#define INVALID_PHY_ADDR        0xff
-#define MAX_PHY_ADDR            0x1f
+#define INVALID_PHY_ADDR        0xfff
+#define MAX_PHY_ADDR            0xf1f
 #define QCA8072_PHY_NUM         0x2
 
 #define PHY_INVALID_DATA 0xffff
@@ -630,6 +642,13 @@ typedef struct {
 #define PHY_RTN_ON_ERROR(rv) \
     do { if (rv != SW_OK) return(rv); } while(0);
 
+#define TO_PHY_ADDR_E(phy_addr, miibus_index) (phy_addr | (miibus_index << 8))
+#define TO_PHY_ADDR(phy_addr_e) (phy_addr_e & 0x1f)
+#define TO_MIIBUS_INDEX(phy_addr_e) (phy_addr_e >> 8 & 0xf)
+
+#define TO_PHY_I2C_ADDR(phy_addr) (BIT(24) | phy_addr)
+#define TO_PHY_I2C_ADDR_VAL(i2c_addr) (i2c_addr & 0x7f)
+#define IS_I2C_PHY_ADDR(phy_addr) (phy_addr & BIT(24))
 sw_error_t
 hsl_phy_api_ops_register(phy_type_t phy_type, hsl_phy_ops_t * phy_api_ops);
 
@@ -640,17 +659,19 @@ hsl_phy_ops_t *hsl_phy_api_ops_get(a_uint32_t dev_id, a_uint32_t port_id);
 
 sw_error_t phy_api_ops_init(phy_type_t phy_type);
 
-int ssdk_phy_driver_init(a_uint32_t dev_id, ssdk_init_cfg *cfg);
+int ssdk_phy_driver_init(a_uint32_t dev_id);
 
 int qca_ssdk_phy_info_init(a_uint32_t dev_id);
 
 void qca_ssdk_port_bmp_init(a_uint32_t dev_id);
+a_bool_t
+qca_ssdk_gpio_is_invalid(a_uint32_t dev_id, a_uint32_t gpio_num);
 /*qca808x_end*/
 void hsl_phy_address_init(a_uint32_t dev_id, a_uint32_t i,
 				a_uint32_t value);
 /*qca808x_start*/
 a_uint32_t
-hsl_phyid_get(a_uint32_t dev_id, a_uint32_t port_id, ssdk_init_cfg *cfg);
+hsl_phyid_get(a_uint32_t dev_id, a_uint32_t port_id);
 
 a_uint32_t
 qca_ssdk_port_to_phy_addr(a_uint32_t dev_id, a_uint32_t port_id);
@@ -658,9 +679,6 @@ qca_ssdk_port_to_phy_addr(a_uint32_t dev_id, a_uint32_t port_id);
 #if defined(IN_PHY_I2C_MODE)
 a_uint32_t
 qca_ssdk_port_to_phy_mdio_fake_addr(a_uint32_t dev_id, a_uint32_t port_id);
-
-a_uint32_t
-qca_ssdk_phy_mdio_fake_addr_to_port(a_uint32_t dev_id, a_uint32_t phy_addr);
 
 void qca_ssdk_phy_mdio_fake_address_set(a_uint32_t dev_id, a_uint32_t i,
 				a_uint32_t value);
@@ -676,6 +694,8 @@ a_uint32_t qca_ssdk_phy_type_port_bmp_get(a_uint32_t dev_id,
 a_uint32_t
 qca_ssdk_phy_addr_to_port(a_uint32_t dev_id, a_uint32_t phy_addr);
 /*qca808x_end*/
+a_uint32_t
+qca_ssdk_phydev_to_port(a_uint32_t dev_id, struct phy_device *phydev);
 void
 hsl_port_phy_c45_capability_set(a_uint32_t dev_id, a_uint32_t port_id,
 			a_bool_t enable);
@@ -727,8 +747,7 @@ a_bool_t hsl_port_phy_connected(a_uint32_t dev_id, fal_port_t port_id);
 sw_error_t ssdk_phy_driver_cleanup(a_uint32_t dev_id);
 /*qca808x_end*/
 sw_error_t
-hsl_phydriver_update(a_uint32_t dev_id, a_uint32_t port_id,
-	a_uint32_t mode);
+hsl_phydriver_update(a_uint32_t dev_id, a_uint32_t port_id);
 
 void
 qca_ssdk_phy_address_set(a_uint32_t dev_id, a_uint32_t port_id,
@@ -743,15 +762,31 @@ hsl_port_phydev_get(a_uint32_t dev_id, a_uint32_t port_id,
 sw_error_t
 hsl_phy_phydev_get(a_uint32_t dev_id, a_uint32_t phy_addr,
 	struct phy_device **phydev);
+a_bool_t
+hsl_phy_autoneg_adv_check(a_uint32_t dev_id, a_uint32_t phy_addr,
+	a_uint32_t adv);
+sw_error_t
+hsl_phy_adv_to_linkmode_adv(a_uint32_t autoadv, a_ulong_t *advertising);
+#ifdef IN_LED
 sw_error_t
 hsl_port_phy_led_ctrl_pattern_set(a_uint32_t dev_id, led_pattern_group_t group,
-	led_pattern_id_t led_pattern_id, led_ctrl_pattern_t * pattern);
+	a_uint32_t port_id, led_ctrl_pattern_t * pattern);
 sw_error_t
 hsl_port_phy_led_ctrl_pattern_get(a_uint32_t dev_id, led_pattern_group_t group,
-	led_pattern_id_t led_pattern_id, led_ctrl_pattern_t * pattern);
+	a_uint32_t port_id, led_ctrl_pattern_t * pattern);
 sw_error_t
-hsl_port_phy_led_ctrl_source_set(a_uint32_t dev_id, a_uint32_t source_id,
-	led_ctrl_pattern_t *pattern);
+hsl_port_phy_led_source_pattern_set(a_uint32_t dev_id, a_uint32_t port_id,
+	a_uint32_t source_id, led_ctrl_pattern_t * pattern);
+sw_error_t
+hsl_port_phy_led_source_pattern_get(a_uint32_t dev_id, a_uint32_t port_id,
+	a_uint32_t source_id, led_ctrl_pattern_t * pattern);
+#endif
+sw_error_t
+hsl_port_phy_pll_on(a_uint32_t dev_id, a_uint32_t port_id);
+sw_error_t
+hsl_port_phy_pll_off(a_uint32_t dev_id, a_uint32_t port_id);
+sw_error_t
+hsl_port_phy_ldo_set(a_uint32_t dev_id, a_uint32_t port_id, a_bool_t enable);
 phy_info_t *hsl_phy_info_get(a_uint32_t dev_id);
 
 sw_error_t
@@ -783,6 +818,9 @@ a_uint32_t
 hsl_port_mode_to_phydev_interface(a_uint32_t dev_id, a_uint32_t port_mode);
 a_uint32_t
 hsl_port_mode_to_uniphy_mode(a_uint32_t dev_id, a_uint32_t port_mode);
+a_uint32_t
+hsl_uniphy_mode_to_port_mode(a_uint32_t dev_id, a_uint32_t port_id,
+	a_uint32_t uniphy_mode);
 a_uint32_t
 hsl_port_to_uniphy(a_uint32_t dev_id, a_uint32_t port_id);
 sw_error_t
@@ -820,18 +858,181 @@ hsl_port_force_duplex_get(a_uint32_t dev_id, a_uint32_t port_id);
 void
 hsl_port_force_duplex_set(a_uint32_t dev_id, a_uint32_t port_id, a_uint8_t duplex);
 /*qca808x_start*/
-struct mii_bus*
-hsl_port_miibus_get(a_uint32_t dev_id, a_uint32_t port_id);
-void
-hsl_port_miibus_set(a_uint32_t dev_id, a_uint32_t port_id, struct mii_bus* mii_bus);
-struct mii_bus*
-hsl_phy_miibus_get(a_uint32_t dev_id, a_uint32_t phy_addr);
 a_bool_t
 hsl_port_feature_get(a_uint32_t dev_id, a_uint32_t port_id, phy_features_t feature);
 sw_error_t
 hsl_port_feature_set(a_uint32_t dev_id, a_uint32_t port_id, phy_features_t feature);
 sw_error_t
 hsl_port_feature_clear(a_uint32_t dev_id, a_uint32_t port_id, phy_features_t feature);
+phy_type_t
+hsl_phytype_get_by_phyid(a_uint32_t dev_id, a_uint32_t phy_id);
+/*********************APIs to access PHY with MDIO and I2C*********************/
+#define HSL_PHY_REG_C45_ADDR(mmd_num, reg_num) (BIT(30) | mmd_num << 16 | reg_num)
+#define HSL_PHY_MMD_CTRL_REG                                   13
+#define HSL_PHY_MMD_DATA_REG                                   14
+#define HSL_PHY_DEBUG_PORT_ADDRESS                             29
+#define HSL_PHY_DEBUG_PORT_DATA                                30
+#define I2C_ADAPTER_DEFAULT_ID                                 0
+
+/*APIs to access mii register*/
+a_uint16_t
+__hsl_phy_mii_reg_read(a_uint32_t dev_id, a_uint32_t phy_addr, a_uint32_t mii_reg);
+sw_error_t
+__hsl_phy_mii_reg_write(a_uint32_t dev_id, a_uint32_t phy_addr, a_uint32_t mii_reg,
+	a_uint16_t reg_val);
+sw_error_t
+__hsl_phy_modify_mii(a_uint32_t dev_id, a_uint32_t phy_addr, a_uint32_t mii_reg,
+	a_uint16_t mask, a_uint16_t value);
+a_uint16_t
+hsl_phy_mii_reg_read(a_uint32_t dev_id, a_uint32_t phy_addr, a_uint32_t mii_reg);
+sw_error_t
+hsl_phy_mii_reg_write(a_uint32_t dev_id, a_uint32_t phy_addr, a_uint32_t mii_reg,
+	a_uint16_t reg_val);
+sw_error_t
+hsl_phy_modify_mii(a_uint32_t dev_id, a_uint32_t phy_addr, a_uint32_t mii_reg,
+	a_uint16_t mask, a_uint16_t value);
+/*APIs to access mmd register*/
+a_uint16_t
+__hsl_phy_mmd_reg_read(a_uint32_t dev_id, a_uint32_t phy_addr, a_bool_t is_c45,
+	a_uint32_t mmd_num, a_uint32_t mmd_reg);
+sw_error_t
+__hsl_phy_mmd_reg_write(a_uint32_t dev_id, a_uint32_t phy_addr, a_bool_t is_c45,
+	a_uint32_t mmd_num, a_uint32_t mmd_reg, a_uint16_t reg_val);
+sw_error_t
+__hsl_phy_modify_mmd(a_uint32_t dev_id, a_uint32_t phy_addr, a_bool_t is_c45,
+	a_uint32_t mmd_num, a_uint32_t mmd_reg, a_uint16_t mask, a_uint16_t value);
+a_uint16_t
+hsl_phy_mmd_reg_read(a_uint32_t dev_id, a_uint32_t phy_addr, a_bool_t is_c45,
+	a_uint32_t mmd_num, a_uint32_t mmd_reg);
+sw_error_t
+hsl_phy_mmd_reg_write(a_uint32_t dev_id, a_uint32_t phy_addr, a_bool_t is_c45,
+	a_uint32_t mmd_num, a_uint32_t mmd_reg, a_uint16_t reg_val);
+sw_error_t
+hsl_phy_modify_mmd(a_uint32_t dev_id, a_uint32_t phy_addr, a_bool_t is_c45,
+	a_uint32_t mmd_num, a_uint32_t mmd_reg, a_uint16_t mask, a_uint16_t value);
+/*APIs to access debug register*/
+a_uint16_t
+__hsl_phy_debug_reg_read(a_uint32_t dev_id, a_uint32_t phy_addr,
+	a_uint32_t debug_reg);
+sw_error_t
+__hsl_phy_debug_reg_write(a_uint32_t dev_id, a_uint32_t phy_id,
+	a_uint32_t debug_reg, a_uint16_t reg_val);
+sw_error_t
+__hsl_phy_modify_debug(a_uint32_t dev_id, a_uint32_t phy_addr,
+	a_uint32_t debug_reg, a_uint16_t mask, a_uint16_t value);
+a_uint16_t
+hsl_phy_debug_reg_read(a_uint32_t dev_id, a_uint32_t phy_addr,
+	a_uint32_t debug_reg);
+sw_error_t
+hsl_phy_debug_reg_write(a_uint32_t dev_id, a_uint32_t phy_addr,
+	a_uint32_t debug_reg, a_uint16_t reg_val);
+sw_error_t
+hsl_phy_modify_debug(a_uint32_t dev_id, a_uint32_t phy_addr,
+	a_uint32_t debug_reg, a_uint16_t mask, a_uint16_t value);
+sw_error_t
+hsl_port_phy_autoneg_status_get(a_uint32_t dev_id, fal_port_t port_id, a_bool_t * status);
+sw_error_t
+hsl_port_phy_autoneg_enable(a_uint32_t dev_id, fal_port_t port_id);
+sw_error_t
+hsl_port_phy_duplex_set(a_uint32_t dev_id, fal_port_t port_id, fal_port_duplex_t duplex);
+sw_error_t
+hsl_port_phy_duplex_get(a_uint32_t dev_id, fal_port_t port_id, fal_port_duplex_t *duplex);
+sw_error_t
+hsl_port_phy_cdt(a_uint32_t dev_id, fal_port_t port_id, a_uint32_t mdi_pair,
+	fal_cable_status_t * cable_status, a_uint32_t * cable_len);
+sw_error_t
+hsl_port_phy_link_status_get(a_uint32_t dev_id, fal_port_t port_id, a_bool_t * status);
+sw_error_t
+hsl_port_phy_power_on(a_uint32_t dev_id, fal_port_t port_id);
+sw_error_t
+hsl_port_phy_power_off(a_uint32_t dev_id, fal_port_t port_id);
+sw_error_t
+hsl_port_phy_speed_set(a_uint32_t dev_id, fal_port_t port_id, fal_port_speed_t speed);
+sw_error_t
+hsl_port_phy_speed_get(a_uint32_t dev_id, fal_port_t port_id, fal_port_speed_t * pspeed);
+sw_error_t
+hsl_port_phy_combo_prefer_medium_set(a_uint32_t dev_id, a_uint32_t port_id,
+	fal_port_medium_t medium);
+sw_error_t
+hsl_port_phy_combo_prefer_medium_get(a_uint32_t dev_id, a_uint32_t port_id,
+	fal_port_medium_t *medium);
+sw_error_t
+hsl_port_phy_reset(a_uint32_t dev_id, fal_port_t port_id);
+sw_error_t
+hsl_port_phy_eee_adv_set(a_uint32_t dev_id, a_uint32_t port_id, a_uint32_t adv);
+sw_error_t
+hsl_port_phy_eee_adv_get(a_uint32_t dev_id, a_uint32_t port_id, a_uint32_t *adv);
+sw_error_t
+hsl_port_phy_eee_partner_adv_get(a_uint32_t dev_id, a_uint32_t port_id,
+	a_uint32_t *adv);
+sw_error_t
+hsl_port_phy_eee_cap_get(a_uint32_t dev_id, a_uint32_t port_id, a_uint32_t *cap);
+sw_error_t
+hsl_port_phy_eee_status_get(a_uint32_t dev_id, a_uint32_t port_id,
+	a_uint32_t *status);
+#ifndef IN_PORTCONTROL_MINI
+sw_error_t
+hsl_port_phy_local_loopback_set(a_uint32_t dev_id, fal_port_t port_id, a_bool_t enable);
+sw_error_t
+hsl_port_phy_local_loopback_get(a_uint32_t dev_id, fal_port_t port_id,
+	a_bool_t * enable);
+sw_error_t
+hsl_port_phy_combo_fiber_mode_set(a_uint32_t dev_id, a_uint32_t port_id,
+	fal_port_fiber_mode_t mode);
+sw_error_t
+hsl_port_phy_combo_fiber_mode_get(a_uint32_t dev_id, a_uint32_t port_id,
+	fal_port_fiber_mode_t * mode);
+sw_error_t
+hsl_port_phy_combo_medium_status_get(a_uint32_t dev_id, a_uint32_t port_id,
+	fal_port_medium_t *medium);
+sw_error_t
+hsl_port_phy_magic_frame_mac_set(a_uint32_t dev_id, fal_port_t port_id,
+	fal_mac_addr_t * mac);
+sw_error_t
+hsl_port_phy_magic_frame_mac_get(a_uint32_t dev_id, fal_port_t port_id,
+	fal_mac_addr_t * mac);
+sw_error_t
+hsl_port_phy_powersave_set(a_uint32_t dev_id, fal_port_t port_id,
+	a_bool_t enable);
+sw_error_t
+hsl_port_phy_powersave_get(a_uint32_t dev_id, fal_port_t port_id,
+	a_bool_t * enable);
+sw_error_t
+hsl_port_phy_hibernate_set(a_uint32_t dev_id, fal_port_t port_id,
+	a_bool_t enable);
+sw_error_t
+hsl_port_phy_hibernate_get(a_uint32_t dev_id, fal_port_t port_id, a_bool_t * enable);
+sw_error_t
+hsl_port_phy_8023az_set(a_uint32_t dev_id, fal_port_t port_id, a_bool_t enable);
+sw_error_t
+hsl_port_phy_8023az_get(a_uint32_t dev_id, fal_port_t port_id, a_bool_t * enable);
+sw_error_t
+hsl_port_phy_remote_loopback_set(a_uint32_t dev_id, fal_port_t port_id, a_bool_t enable);
+sw_error_t
+hsl_port_phy_remote_loopback_get(a_uint32_t dev_id, fal_port_t port_id,
+	a_bool_t * enable);
+sw_error_t
+hsl_port_phy_mdix_set(a_uint32_t dev_id, fal_port_t port_id, fal_port_mdix_mode_t mode);
+sw_error_t
+hsl_port_phy_mdix_get(a_uint32_t dev_id, fal_port_t port_id, fal_port_mdix_mode_t * mode);
+sw_error_t
+hsl_port_phy_mdix_status_get(a_uint32_t dev_id, fal_port_t port_id,
+	fal_port_mdix_status_t * mode);
+sw_error_t
+hsl_port_phy_phyid_get(a_uint32_t dev_id, fal_port_t port_id, a_uint16_t * org_id,
+	a_uint16_t * rev_id);
+sw_error_t
+hsl_port_phy_wol_status_set(a_uint32_t dev_id, fal_port_t port_id, a_bool_t enable);
+sw_error_t
+hsl_port_phy_wol_status_get(a_uint32_t dev_id, fal_port_t port_id, a_bool_t * enable);
+sw_error_t
+hsl_port_phy_mode_get(a_uint32_t dev_id, a_uint32_t port_id,
+	fal_port_interface_mode_t *mode);
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(6,6,0))
+sw_error_t
+hsl_phydev_eee_update(a_uint32_t dev_id, a_uint32_t phy_addr, a_uint32_t adv);
+#endif
+#endif
 #ifdef __cplusplus
 }
 #endif				/* __cplusplus */

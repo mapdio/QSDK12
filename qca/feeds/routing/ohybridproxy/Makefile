@@ -7,24 +7,22 @@
 include $(TOPDIR)/rules.mk
 
 PKG_NAME:=ohybridproxy
-PKG_SOURCE_VERSION:=8a28ae92c97099e771c9ede5641e3782ae809c27
-PKG_VERSION:=2016-06-28-$(PKG_SOURCE_VERSION)
-PKG_RELEASE:=1
+PKG_SOURCE_VERSION:=0dfef1eb5f067250a5f24a899536879ea4fdc4c5
+PKG_SOURCE_DATE:=2020-05-22
+PKG_RELEASE:=3
 
 PKG_SOURCE_PROTO:=git
 PKG_SOURCE_URL:=https://github.com/sbyx/ohybridproxy.git
-PKG_MIRROR_HASH:=bddd7554300b41cc82d24363bfb5f552c1e5ea51b34daeea242c0e5e1522785b
-PKG_MAINTAINER:=Steven Barth <cyrus@openwrt.org>
-PKG_LICENSE:=GPL-2.0
+PKG_MIRROR_HASH:=f47904d8ac860b8b80cb9f99e094cd74e95464b5ed011a7adbfc3445dab598b3
 
-PKG_SOURCE:=$(PKG_NAME)-$(PKG_VERSION).tar.bz2
-PKG_SOURCE_SUBDIR:=$(PKG_NAME)-$(PKG_VERSION)
+PKG_MAINTAINER:=Steven Barth <cyrus@openwrt.org>
+PKG_LICENSE:=GPL-2.0-only
+PKG_LICENSE_FILES:=LICENSE
+
+PKG_BUILD_PARALLEL:=1
 
 include $(INCLUDE_DIR)/package.mk
 include $(INCLUDE_DIR)/cmake.mk
-
-# Spammy debug builds for now
-CMAKE_OPTIONS += -DL_LEVEL=7
 
 define Package/ohybridproxy
   SECTION:=net

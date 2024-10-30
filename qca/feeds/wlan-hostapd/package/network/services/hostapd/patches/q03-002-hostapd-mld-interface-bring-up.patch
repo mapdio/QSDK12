@@ -62,7 +62,7 @@ Signed-off-by: Sriram R <quic_srirrama@quicinc.com>
  #endif
  	params.driver_params = hapd->iconf->driver_params;
  	params.use_pae_group_addr = hapd->conf->use_pae_group_addr;
-@@ -876,6 +893,9 @@ int main(int argc, char *argv[])
+@@ -875,6 +892,9 @@ int main(int argc, char *argv[])
  		}
  		if (start_ifaces_in_sync)
  			interfaces.iface[i]->need_to_start_in_sync = 1;
@@ -282,31 +282,3 @@ Signed-off-by: Sriram R <quic_srirrama@quicinc.com>
  		wpa_printf(MSG_DEBUG, "nl80211: Scan trigger failed: ret=%d "
  			   "(%s)", ret, strerror(-ret));
  		if (drv->hostapd && is_ap_interface(drv->nlmode)) {
---- a/src/ap/beacon.c
-+++ b/src/ap/beacon.c
-@@ -2248,6 +2248,7 @@ fail:
- int ieee802_11_set_beacon(struct hostapd_data *hapd)
- {
- 	struct hostapd_iface *iface = hapd->iface;
-+	struct hostapd_data *colocated_hapd;
- 	int ret;
- 	size_t i, j;
- 	bool is_6g;
-@@ -2272,8 +2273,15 @@ int ieee802_11_set_beacon(struct hostapd
- 			continue;
- 
- 		for (i = 0; i < colocated->num_bss; i++) {
--			if (colocated->bss[i] && colocated->bss[i]->started)
--				__ieee802_11_set_beacon(colocated->bss[i]);
-+			colocated_hapd = colocated->bss[i];
-+
-+			if (!colocated_hapd || !colocated_hapd->started)
-+				continue;
-+
-+			if (colocated_hapd->mld && !colocated_hapd->beacon_set_done)
-+				continue;
-+			
-+			__ieee802_11_set_beacon(colocated_hapd);
- 		}
- 	}
- 

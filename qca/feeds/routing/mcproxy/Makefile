@@ -8,19 +8,17 @@
 include $(TOPDIR)/rules.mk
 
 PKG_NAME:=mcproxy
-PKG_SOURCE_VERSION:=93b5ace42268160ebbfff4c61818fb15fa2d9b99
-PKG_VERSION:=2017-08-24-$(PKG_SOURCE_VERSION)
-PKG_RELEASE:=2
+PKG_RELEASE:=9
 
 PKG_SOURCE_PROTO:=git
 PKG_SOURCE_URL:=https://github.com/mcproxy/mcproxy.git
-PKG_MIRROR_HASH:=5779a78dedaef491825ada632fe6d8282067025dede41d0eede5c441893a2994
-PKG_MAINTAINER:=Steven Barth <cyrus@openwrt.org>
-PKG_LICENSE:=GPL-2.0+
-PKG_MIRROR_MD5SUM:=skip
+PKG_SOURCE_DATE:=2017-08-24
+PKG_SOURCE_VERSION:=93b5ace42268160ebbfff4c61818fb15fa2d9b99
+PKG_MIRROR_HASH:=d9f41f93d471b3c92debffe734f48f03f5c6c6e90bb173993f44b33e699387f9
 
-PKG_SOURCE:=$(PKG_NAME)-$(PKG_VERSION).tar.bz2
-PKG_SOURCE_SUBDIR:=$(PKG_NAME)-$(PKG_VERSION)
+PKG_MAINTAINER:=Steven Barth <cyrus@openwrt.org>
+PKG_LICENSE:=GPL-2.0-or-later
+PKG_LICENSE_FILES:=COPYING
 
 include $(INCLUDE_DIR)/package.mk
 include $(INCLUDE_DIR)/cmake.mk
@@ -30,14 +28,14 @@ define Package/mcproxy
   CATEGORY:=Network
   SUBMENU:=Routing and Redirection
   TITLE:=Multicast Proxy for IGMP/MLD
-  URL:=http://mcproxy.realmv6.org
+  URL:=https://mcproxy.realmv6.org
   DEPENDS:=+libpthread +libstdcpp @(!GCC_VERSION_4_4&&!GCC_VERSION_4_6)
 endef
 
 define Package/mcproxy/description
- mcproxy is a free & open source implementation of the IGMP/MLD proxy function (see  RFC 4605) for Linux systems.
- It operates on the kernel tables for multicast routing and allows for multiple instantiations,
- as well as dynamically changing downstream interfaces.
+  mcproxy is a free & open source implementation of the IGMP/MLD proxy function (see  RFC 4605) for Linux systems.
+  It operates on the kernel tables for multicast routing and allows for multiple instantiations,
+  as well as dynamically changing downstream interfaces.
 endef
 
 define Package/mcproxy/conffiles
@@ -54,8 +52,6 @@ define Package/mcproxy/install
 	$(INSTALL_BIN) ./files/mcproxy.init $(1)/etc/init.d/mcproxy
 	$(INSTALL_DIR) $(1)/usr/sbin
 	$(INSTALL_BIN) $(PKG_BUILD_DIR)/mcproxy-bin $(1)/usr/sbin/mcproxy
-	$(INSTALL_DIR) $(1)/etc/hotplug.d/iface
-	$(INSTALL_CONF) ./files/mcproxy.hotplug $(1)/etc/hotplug.d/iface/55-mcproxy
 endef
 
 $(eval $(call BuildPackage,mcproxy))

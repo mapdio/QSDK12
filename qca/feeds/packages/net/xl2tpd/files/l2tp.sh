@@ -1,17 +1,4 @@
 #!/bin/sh
-# Copyright (c) 2018, The Linux Foundation. All rights reserved.
-#
-# Permission to use, copy, modify, and/or distribute this software for any
-# purpose with or without fee is hereby granted, provided that the above
-# copyright notice and this permission notice appear in all copies.
-#
-# THE SOFTWARE IS PROVIDED "AS IS" AND THE AUTHOR DISCLAIMS ALL WARRANTIES
-# WITH REGARD TO THIS SOFTWARE INCLUDING ALL IMPLIED WARRANTIES OF
-# MERCHANTABILITY AND FITNESS. IN NO EVENT SHALL THE AUTHOR BE LIABLE FOR
-# ANY SPECIAL, DIRECT, INDIRECT, OR CONSEQUENTIAL DAMAGES OR ANY DAMAGES
-# WHATSOEVER RESULTING FROM LOSS OF USE, DATA OR PROFITS, WHETHER IN AN
-# ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF
-# OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
 
 [ -x /usr/sbin/xl2tpd ] || exit 0
 
@@ -30,7 +17,6 @@ proto_l2tp_init_config() {
 	proto_config_add_int "mtu"
 	proto_config_add_int "checkup_interval"
 	proto_config_add_string "server"
-	proto_config_add_string "l2tpoipsec"
 	available=1
 	no_device=1
 	no_proto_task=1
@@ -40,19 +26,14 @@ proto_l2tp_init_config() {
 proto_l2tp_setup() {
 	local interface="$1"
 	local optfile="/tmp/l2tp/options.${interface}"
-	local ip serv_addr server
+	local ip serv_addr server host
 
-	local ip serv_addr server l2tpoipsec_en
-	json_get_var server server && {
-		for ip in $(resolveip -t 5 "$server"); do
-			json_get_var l2tpoipsec_en l2tpoipsec
-			if [ "$l2tpoipsec_en" != "yes" ]; then
-				( proto_add_host_dependency "$interface" "$ip" )
-			fi
-			echo "$ip" >> /tmp/server.l2tp-${interface}
-			serv_addr=1
-		done
-	}
+	json_get_var server server
+	host="${server%:*}"
+	for ip in $(resolveip -t 5 "$host"); do
+		( proto_add_host_dependency "$interface" "$ip" )
+		serv_addr=1
+	done
 	[ -n "$serv_addr" ] || {
 		echo "Could not resolve server address" >&2
 		sleep 5
@@ -107,15 +88,12 @@ $mtu
 $pppd_options
 EOF
 
-	xl2tpd-control add l2tp-${interface} pppoptfile=${optfile} lns=${server} || {
-		/etc/init.d/xl2tpd restart
-		sleep 1
+	xl2tpd-control add-lac l2tp-${interface} pppoptfile=${optfile} lns=${server} || {
 		echo "xl2tpd-control: Add l2tp-$interface failed" >&2
 		proto_setup_failed "$interface"
 		exit 1
 	}
-
-	xl2tpd-control connect l2tp-${interface} || {
+	xl2tpd-control connect-lac l2tp-${interface} || {
 		echo "xl2tpd-control: Connect l2tp-$interface failed" >&2
 		proto_setup_failed "$interface"
 		exit 1
@@ -128,11 +106,10 @@ proto_l2tp_teardown() {
 
 	rm -f ${optfile}
 	if [ -p /var/run/xl2tpd/l2tp-control ]; then
-		xl2tpd-control remove l2tp-${interface} || {
+		xl2tpd-control remove-lac l2tp-${interface} || {
 			echo "xl2tpd-control: Remove l2tp-$interface failed" >&2
 		}
 	fi
-	rm -f /tmp/server.l2tp-${interface}
 	# Wait for interface to go down
         while [ -d /sys/class/net/l2tp-${interface} ]; do
 		sleep 1

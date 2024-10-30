@@ -162,7 +162,7 @@ index c78ffad..4aacae2 100644
 -	TP_PROTO(struct ieee80211_local *local, u32 value),
 -	TP_ARGS(local, value)
 +	TP_PROTO(struct ieee80211_local *local, u32 value, struct ieee80211_vif *vif, int link_id),
-+	TP_ARGS(local, value, vif, link_id)
++	TP_ARGS(local, value, &sdata->vif, link_id)
  );
  
  TRACE_EVENT(drv_set_coverage_class,

@@ -1,6 +1,6 @@
 /*
  * Copyright (c) 2016-2017, 2021, The Linux Foundation. All rights reserved.
- * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2023 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for any
  * purpose with or without fee is hereby granted, provided that the above
@@ -58,6 +58,8 @@ enum {
 	FLD_UPDATE_CONTEXT_TYPE0 = 18, /*new add for IPQ53xx*/
 	FLD_UPDATE_CONTEXT_TYPE1, /*new add for IPQ53xx*/
 	FLD_UPDATE_FLOW_COOKIE_DIS, /*new add for IPQ53xx*/
+	FLD_UPDATE_DECAP_DIS, /*new add for IPQ54xx*/
+	FLD_UPDATE_ENCAP_DIS, /*new add for IPQ54xx*/
 	FLD_UPDATE_SRC_INFO_BYPASS = 24,
 	FLD_UPDATE_DST_INFO_BYPASS,
 	FLD_UPDATE_MAC_HDR_BYPASS,
@@ -101,8 +103,6 @@ enum {
 	MRU_MTU_CHECK_BYP,
 	FLOW_SRC_CHECK_BYP,
 	FLOW_QOS_BYP,
-	/* new add for IPQ53xx */
-	FLOW_POLICER_BYP,
 };
 
 /* bypass_bitmap_1 */
@@ -132,6 +132,12 @@ enum {
 	/* new add for IPQ95xx */
 	FAKE_MAC_DROP_BYP,
 	TUNL_CONTEXT_BYP,
+	/* new add for IPQ53xx */
+	FLOW_POLICER_BYP,
+	/* new add for IPQ54xx */
+	SMAC_MC_DROP_BYP,
+	L2_FLOODING_BYP,
+	TUNNEL_EXP_CNT_CTRL,
 };
 
 /* bypass_bitmap_2 */

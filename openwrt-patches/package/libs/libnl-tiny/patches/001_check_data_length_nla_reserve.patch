@@ -1,0 +1,38 @@
+From ae1821eff72ecdc5604334e6234acd44cb2608fd Mon Sep 17 00:00:00 2001
+From: ratchaya <quic_ratchaya@quicinc.com>
+Date: Tue, 7 Nov 2023 12:59:07 +0530
+Subject: [PATCH] libnl-tiny: Check data length in nla_reserve / nla_put
+
+Ensure predictable behavior when negative values are passed
+to these methods.
+
+Bug: 32255299
+Test: Recompile (integration tests will also run)
+
+Signed-off-by: ratchaya <quic_ratchaya@quicinc.com>
+Change-Id: I907306088b026544c269106c58497bb0dfa86abb
+---
+Index: libnl-tiny-2023-07-27-bc92a280/attr.c
+===================================================================
+--- libnl-tiny-2023-07-27-bc92a280.orig/attr.c
++++ libnl-tiny-2023-07-27-bc92a280/attr.c
+@@ -620,6 +620,9 @@ struct nlattr *nla_reserve(struct nl_msg
+ 	struct nlattr *nla;
+ 	int tlen;
+ 	
++	if (attrlen < 0)
++		return NULL;
++
+ 	tlen = NLMSG_ALIGN(msg->nm_nlh->nlmsg_len) + nla_total_size(attrlen);
+ 
+ 	if ((tlen + msg->nm_nlh->nlmsg_len) > msg->nm_size)
+@@ -658,6 +661,9 @@ int nla_put(struct nl_msg *msg, int attr
+ {
+ 	struct nlattr *nla;
+ 
++	if (datalen < 0)
++		return -NLE_RANGE;
++
+ 	nla = nla_reserve(msg, attrtype, datalen);
+ 	if (!nla)
+ 		return -NLE_NOMEM;

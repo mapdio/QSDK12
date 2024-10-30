@@ -1,6 +1,8 @@
 /*
  * Copyright (c) 2013-2017, The Linux Foundation. All rights reserved.
  *
+ * Copyright (c) 2023 Qualcomm Innovation Center, Inc. All rights reserved.
+ *
  * Permission to use, copy, modify, and/or distribute this software for any
  * purpose with or without fee is hereby granted, provided that the above
  * copyright notice and this permission notice appear in all copies.
@@ -40,9 +42,9 @@
 #include <linux/prefetch.h>
 #include <linux/if.h>
 
-#define SKB_RECYCLE_SIZE	2304
+#define SKB_RECYCLE_SIZE	CONFIG_SKB_RECYCLE_SIZE
 #define SKB_RECYCLE_MIN_SIZE	SKB_RECYCLE_SIZE
-#define SKB_RECYCLE_MAX_SIZE	(3904 - NET_SKB_PAD)
+#define SKB_RECYCLE_MAX_SIZE	SKB_RECYCLE_SIZE
 #define SKB_RECYCLE_MAX_SKBS	1024
 
 #define SKB_RECYCLE_SPARE_MAX_SKBS		256
@@ -127,6 +129,9 @@ static inline bool consume_skb_can_recycle(const struct sk_buff *skb,
 	if (unlikely(skb_shinfo(skb)->tx_flags & SKBTX_DEV_ZEROCOPY))
 		return false;
 
+	if (unlikely(skb->head_frag))
+		return false;
+
 	if (unlikely(skb_is_nonlinear(skb)))
 		return false;
 
@@ -153,6 +158,9 @@ static inline bool consume_skb_can_recycle(const struct sk_buff *skb,
 	if (unlikely(skb_pfmemalloc(skb)))
 		return false;
 
+	if (skb->active_extensions)
+		return false;
+
 	return true;
 }
 
@@ -162,11 +170,13 @@ struct sk_buff *skb_recycler_alloc(struct net_device *dev, unsigned int length, 
 bool skb_recycler_consume(struct sk_buff *skb);
 bool skb_recycler_consume_list_fast(struct sk_buff_head *skb_list);
 void skb_recycler_print_all_lists(void);
+void skb_recycler_clear_flags(struct sk_buff *skb);
 #else
 #define skb_recycler_init()  {}
 #define skb_recycler_alloc(dev, len, reset_skb) NULL
 #define skb_recycler_consume(skb) false
 #define skb_recycler_consume_list_fast(skb_list) false
 #define skb_recycler_print_all_lists() false
+#define skb_recycler_clear_flags(skb) {}
 #endif
 #endif

@@ -34,6 +34,8 @@ struct mdiobb_ops {
 struct mdiobb_ctrl {
 	const struct mdiobb_ops *ops;
 	void (*preinit)(struct mii_bus *bus);
+	u32 (*sw_read)(struct mii_bus *bus, u32 reg);
+	void (*sw_write)(struct mii_bus *bus, u32 reg, u32 val);
 };
 
 /* The returned bus is not yet registered with the phy layer. */

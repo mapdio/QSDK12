@@ -1,24 +1,25 @@
 /*
  * Copyright (c) 2014, 2016, 2018-2019, The Linux Foundation. All rights reserved.
- * Permission to use, copy, modify, and/or distribute this software for
- * any purpose with or without fee is hereby granted, provided that the
- * above copyright notice and this permission notice appear in all copies.
+ * Copyright (c) 2023 Qualcomm Innovation Center, Inc. All rights reserved.
+ *
+ * Permission to use, copy, modify, and/or distribute this software for any
+ * purpose with or without fee is hereby granted, provided that the above
+ * copyright notice and this permission notice appear in all copies.
+ *
  * THE SOFTWARE IS PROVIDED "AS IS" AND THE AUTHOR DISCLAIMS ALL WARRANTIES
  * WITH REGARD TO THIS SOFTWARE INCLUDING ALL IMPLIED WARRANTIES OF
  * MERCHANTABILITY AND FITNESS. IN NO EVENT SHALL THE AUTHOR BE LIABLE FOR
  * ANY SPECIAL, DIRECT, INDIRECT, OR CONSEQUENTIAL DAMAGES OR ANY DAMAGES
  * WHATSOEVER RESULTING FROM LOSS OF USE, DATA OR PROFITS, WHETHER IN AN
- * ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT
- * OF OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
+ * ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF
+ * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  */
+
 
 #include "vty.h"
 #include "cli_lib.h"
 #include "cli.h"
 #include "cli_cmd.h"
-#include "nss_macsec.h"
-#include "nss_macsec_emac.h"
-#include "nss_macsec_interrupt.h"
 #include "nss_macsec_mib.h"
 #include "nss_macsec_secy.h"
 #include "nss_macsec_secy_rx.h"
@@ -1751,10 +1752,10 @@ DEFCMD(fal_tx_sc_mib_t_encrypted_octets_add_func,
 	return CLI_OK;
 }
 
-DEFCMD(nss_macsec_secy_tx_reg_get_func,
-       nss_macsec_secy_tx_reg_get_cmd,
-       "nss_macsec_secy_tx_reg get HEX HEX",
-       "nss_macsec_secy_tx_reg\n" "get\n" "secy_id\n" "addr\n")
+DEFCMD(nss_macsec_secy_ext_reg_get_func,
+       nss_macsec_secy_ext_reg_get_cmd,
+       "nss_macsec_secy_extend_reg get HEX HEX",
+       "nss_macsec_secy_extend_reg\n" "get\n" "secy_id\n" "addr\n")
 {
 	u32 secy_id = 0;
 	u32 addr = 0;
@@ -1763,16 +1764,16 @@ DEFCMD(nss_macsec_secy_tx_reg_get_func,
 	cli_str_2_hex(argv[2], (u32 *) (&secy_id));
 	cli_str_2_hex(argv[3], (u32 *) (&addr));
 
-	CLI_EXEC_API(nss_macsec_secy_tx_reg_get(secy_id, addr, &pvalue));
+	CLI_EXEC_API(nss_macsec_secy_ext_reg_get(secy_id, addr, &pvalue));
 	vty_print("pvalue : 0x%x\n", pvalue);
 
 	return CLI_OK;
 }
 
-DEFCMD(nss_macsec_secy_tx_reg_set_func,
-       nss_macsec_secy_tx_reg_set_cmd,
-       "nss_macsec_secy_tx_reg set HEX HEX HEX",
-       "nss_macsec_secy_tx_reg\n" "set\n" "secy_id\n" "addr\n" "value\n")
+DEFCMD(nss_macsec_secy_ext_reg_set_func,
+       nss_macsec_secy_ext_reg_set_cmd,
+       "nss_macsec_secy_extend_reg set HEX HEX HEX",
+       "nss_macsec_secy_extend_reg\n" "set\n" "secy_id\n" "addr\n" "value\n")
 {
 	u32 secy_id = 0;
 	u32 addr = 0;
@@ -1782,170 +1783,7 @@ DEFCMD(nss_macsec_secy_tx_reg_set_func,
 	cli_str_2_hex(argv[3], (u32 *) (&addr));
 	cli_str_2_hex(argv[4], (u32 *) (&value));
 
-	CLI_EXEC_API(nss_macsec_secy_tx_reg_set(secy_id, addr, value));
-
-	return CLI_OK;
-}
-
-DEFCMD(nss_macsec_secy_tx_drop_sc_sa_invlid_get_func,
-       nss_macsec_secy_tx_drop_sc_sa_invlid_get_cmd,
-       "nss_macsec_secy_tx_drop_sc_sa_invlid get HEX",
-       "nss_macsec_secy_tx_drop_sc_sa_invlid\n" "get\n" "secy_id\n")
-{
-	u32 secy_id = 0;
-	bool penable = 0;
-
-	cli_str_2_hex(argv[2], (u32 *) (&secy_id));
-
-	CLI_EXEC_API(nss_macsec_secy_tx_drop_sc_sa_invalid_get
-		     (secy_id, &penable));
-	vty_print("penable : 0x%x\n", penable);
-
-	return CLI_OK;
-}
-
-DEFCMD(nss_macsec_secy_tx_drop_sc_sa_invlid_set_func,
-       nss_macsec_secy_tx_drop_sc_sa_invlid_set_cmd,
-       "nss_macsec_secy_tx_drop_sc_sa_invlid set HEX HEX",
-       "nss_macsec_secy_tx_drop_sc_sa_invlid\n" "set\n" "secy_id\n" "enable\n")
-{
-	u32 secy_id = 0;
-	u32 enable = 0;
-
-	cli_str_2_hex(argv[2], (u32 *) (&secy_id));
-	cli_str_2_hex(argv[3], (u32 *) (&enable));
-
-	CLI_EXEC_API(nss_macsec_secy_tx_drop_sc_sa_invalid_set(secy_id, enable));
-
-	return CLI_OK;
-}
-
-DEFCMD(nss_macsec_secy_tx_unmatched_use_sc_0_get_func,
-       nss_macsec_secy_tx_unmatched_use_sc_0_get_cmd,
-       "nss_macsec_secy_tx_unmatched_use_sc_0 get HEX",
-       "nss_macsec_secy_tx_unmatched_use_sc_0\n" "get\n" "secy_id\n")
-{
-	u32 secy_id = 0;
-	bool penable = 0;
-
-	cli_str_2_hex(argv[2], (u32 *) (&secy_id));
-
-	CLI_EXEC_API(nss_macsec_secy_tx_unmatched_use_sc_0_get
-		     (secy_id, &penable));
-	vty_print("penable : 0x%x\n", penable);
-
-	return CLI_OK;
-}
-
-DEFCMD(nss_macsec_secy_tx_unmatched_use_sc_0_set_func,
-       nss_macsec_secy_tx_unmatched_use_sc_0_set_cmd,
-       "nss_macsec_secy_tx_unmatched_use_sc_0 set HEX HEX",
-       "nss_macsec_secy_tx_unmatched_use_sc_0\n" "set\n" "secy_id\n" "enable\n")
-{
-	u32 secy_id = 0;
-	u32 enable = 0;
-
-	cli_str_2_hex(argv[2], (u32 *) (&secy_id));
-	cli_str_2_hex(argv[3], (u32 *) (&enable));
-
-	CLI_EXEC_API(nss_macsec_secy_tx_unmatched_use_sc_0_set
-		     (secy_id, enable));
-
-	return CLI_OK;
-}
-
-DEFCMD(nss_macsec_secy_tx_gcm_start_get_func,
-       nss_macsec_secy_tx_gcm_start_get_cmd,
-       "nss_macsec_secy_tx_gcm_start get HEX",
-       "nss_macsec_secy_tx_gcm_start\n" "get\n" "secy_id\n")
-{
-	u32 secy_id = 0;
-	bool penable = 0;
-
-	cli_str_2_hex(argv[2], (u32 *) (&secy_id));
-
-	CLI_EXEC_API(nss_macsec_secy_tx_gcm_start_get(secy_id, &penable));
-	vty_print("penable : 0x%x\n", penable);
-
-	return CLI_OK;
-}
-
-DEFCMD(nss_macsec_secy_tx_gcm_start_set_func,
-       nss_macsec_secy_tx_gcm_start_set_cmd,
-       "nss_macsec_secy_tx_gcm_start set HEX HEX",
-       "nss_macsec_secy_tx_gcm_start\n" "set\n" "secy_id\n" "enable\n")
-{
-	u32 secy_id = 0;
-	u32 enable = 0;
-
-	cli_str_2_hex(argv[2], (u32 *) (&secy_id));
-	cli_str_2_hex(argv[3], (u32 *) (&enable));
-
-	CLI_EXEC_API(nss_macsec_secy_tx_gcm_start_set(secy_id, enable));
-
-	return CLI_OK;
-}
-
-DEFCMD(nss_macsec_secy_tx_drop_class_miss_get_func,
-       nss_macsec_secy_tx_drop_class_miss_get_cmd,
-       "nss_macsec_secy_tx_drop_class_miss get HEX",
-       "nss_macsec_secy_tx_drop_class_miss\n" "get\n" "secy_id\n")
-{
-	u32 secy_id = 0;
-	bool penable = 0;
-
-	cli_str_2_hex(argv[2], (u32 *) (&secy_id));
-
-	CLI_EXEC_API(nss_macsec_secy_tx_drop_class_miss_get(secy_id, &penable));
-	vty_print("penable : 0x%x\n", penable);
-
-	return CLI_OK;
-}
-
-DEFCMD(nss_macsec_secy_tx_drop_class_miss_set_func,
-       nss_macsec_secy_tx_drop_class_miss_set_cmd,
-       "nss_macsec_secy_tx_drop_class_miss set HEX HEX",
-       "nss_macsec_secy_tx_drop_class_miss\n" "set\n" "secy_id\n" "enable\n")
-{
-	u32 secy_id = 0;
-	u32 enable = 0;
-
-	cli_str_2_hex(argv[2], (u32 *) (&secy_id));
-	cli_str_2_hex(argv[3], (u32 *) (&enable));
-
-	CLI_EXEC_API(nss_macsec_secy_tx_drop_class_miss_set(secy_id, enable));
-
-	return CLI_OK;
-}
-
-DEFCMD(nss_macsec_secy_tx_drop_kay_pkt_get_func,
-       nss_macsec_secy_tx_drop_kay_pkt_get_cmd,
-       "nss_macsec_secy_tx_drop_kay_pkt get HEX",
-       "nss_macsec_secy_tx_drop_kay_pkt\n" "get\n" "secy_id\n")
-{
-	u32 secy_id = 0;
-	bool penable = 0;
-
-	cli_str_2_hex(argv[2], (u32 *) (&secy_id));
-
-	CLI_EXEC_API(nss_macsec_secy_tx_drop_kay_pkt_get(secy_id, &penable));
-	vty_print("penable : 0x%x\n", penable);
-
-	return CLI_OK;
-}
-
-DEFCMD(nss_macsec_secy_tx_drop_kay_pkt_set_func,
-       nss_macsec_secy_tx_drop_kay_pkt_set_cmd,
-       "nss_macsec_secy_tx_drop_kay_pkt set HEX HEX",
-       "nss_macsec_secy_tx_drop_kay_pkt\n" "set\n" "secy_id\n" "enable\n")
-{
-	u32 secy_id = 0;
-	u32 enable = 0;
-
-	cli_str_2_hex(argv[2], (u32 *) (&secy_id));
-	cli_str_2_hex(argv[3], (u32 *) (&enable));
-
-	CLI_EXEC_API(nss_macsec_secy_tx_drop_kay_pkt_set(secy_id, enable));
+	CLI_EXEC_API(nss_macsec_secy_ext_reg_set(secy_id, addr, value));
 
 	return CLI_OK;
 }
@@ -2204,45 +2042,6 @@ DEFCMD(nss_macsec_secy_tx_sc_an_set_func,
 	return CLI_OK;
 }
 
-DEFCMD(nss_macsec_secy_tx_sc_an_roll_over_en_get_func,
-       nss_macsec_secy_tx_sc_an_roll_over_en_get_cmd,
-       "nss_macsec_secy_tx_sc_an_roll_over_en get HEX HEX",
-       "nss_macsec_secy_tx_sc_an_roll_over_en\n"
-       "get\n" "secy_id\n" "channel\n")
-{
-	u32 secy_id = 0;
-	u32 channel = 0;
-	bool penable = 0;
-
-	cli_str_2_hex(argv[2], (u32 *) (&secy_id));
-	cli_str_2_hex(argv[3], (u32 *) (&channel));
-
-	CLI_EXEC_API(nss_macsec_secy_tx_sc_an_roll_over_en_get
-		     (secy_id, channel, &penable));
-	vty_print("penable : 0x%x\n", penable);
-
-	return CLI_OK;
-}
-
-DEFCMD(nss_macsec_secy_tx_sc_an_roll_over_en_set_func,
-       nss_macsec_secy_tx_sc_an_roll_over_en_set_cmd,
-       "nss_macsec_secy_tx_sc_an_roll_over_en set HEX HEX HEX",
-       "nss_macsec_secy_tx_sc_an_roll_over_en\n"
-       "set\n" "secy_id\n" "channel\n" "enable\n")
-{
-	u32 secy_id = 0;
-	u32 channel = 0;
-	u32 enable = 0;
-
-	cli_str_2_hex(argv[2], (u32 *) (&secy_id));
-	cli_str_2_hex(argv[3], (u32 *) (&channel));
-	cli_str_2_hex(argv[4], (u32 *) (&enable));
-
-	CLI_EXEC_API(nss_macsec_secy_tx_sc_an_roll_over_en_set
-		     (secy_id, channel, enable));
-
-	return CLI_OK;
-}
 
 DEFCMD(nss_macsec_secy_tx_sc_in_used_get_func,
        nss_macsec_secy_tx_sc_in_used_get_cmd,
@@ -2404,50 +2203,6 @@ DEFCMD(nss_macsec_secy_tx_sc_sci_get_func,
 	return CLI_OK;
 }
 
-DEFCMD(nss_macsec_secy_tx_sc_start_stop_time_get_func,
-       nss_macsec_secy_tx_sc_start_stop_time_get_cmd,
-       "nss_macsec_secy_tx_sc_start_stop_time get HEX HEX",
-       "nss_macsec_secy_tx_sc_start_stop_time\n"
-       "get\n" "secy_id\n" "channel\n")
-{
-	u32 secy_id = 0;
-	u32 channel = 0;
-	u32 p_start_time = 0;
-	u32 p_stop_time = 0;
-
-	cli_str_2_hex(argv[2], (u32 *) (&secy_id));
-	cli_str_2_hex(argv[3], (u32 *) (&channel));
-
-	CLI_EXEC_API(nss_macsec_secy_tx_sc_start_stop_time_get
-		     (secy_id, channel, &p_start_time, &p_stop_time));
-	vty_print("p_start_time : 0x%x\n", p_start_time);
-	vty_print("p_stop_time : 0x%x\n", p_stop_time);
-
-	return CLI_OK;
-}
-
-DEFCMD(nss_macsec_secy_tx_sc_start_stop_time_set_func,
-       nss_macsec_secy_tx_sc_start_stop_time_set_cmd,
-       "nss_macsec_secy_tx_sc_start_stop_time set HEX HEX HEX HEX",
-       "nss_macsec_secy_tx_sc_start_stop_time\n"
-       "set\n" "secy_id\n" "channel\n" "start_time\n" "stop_time\n")
-{
-	u32 secy_id = 0;
-	u32 channel = 0;
-	u32 start_time = 0;
-	u32 stop_time = 0;
-
-	cli_str_2_hex(argv[2], (u32 *) (&secy_id));
-	cli_str_2_hex(argv[3], (u32 *) (&channel));
-	cli_str_2_hex(argv[4], (u32 *) (&start_time));
-	cli_str_2_hex(argv[5], (u32 *) (&stop_time));
-
-	CLI_EXEC_API(nss_macsec_secy_tx_sc_start_stop_time_set
-		     (secy_id, channel, start_time, stop_time));
-
-	return CLI_OK;
-}
-
 DEFCMD(nss_macsec_secy_tx_sa_create_func,
        nss_macsec_secy_tx_sa_create_cmd,
        "nss_macsec_secy_tx_sa create HEX HEX HEX",
@@ -2605,54 +2360,6 @@ DEFCMD(nss_macsec_secy_tx_sa_in_used_get_func,
 	return CLI_OK;
 }
 
-DEFCMD(nss_macsec_secy_tx_sa_start_stop_time_get_func,
-       nss_macsec_secy_tx_sa_start_stop_time_get_cmd,
-       "nss_macsec_secy_tx_sa_start_stop_time get HEX HEX HEX",
-       "nss_macsec_secy_tx_sa_start_stop_time\n"
-       "get\n" "secy_id\n" "channel\n" "an\n")
-{
-	u32 secy_id = 0;
-	u32 channel = 0;
-	u32 an = 0;
-	u32 p_start_time = 0;
-	u32 p_stop_time = 0;
-
-	cli_str_2_hex(argv[2], (u32 *) (&secy_id));
-	cli_str_2_hex(argv[3], (u32 *) (&channel));
-	cli_str_2_hex(argv[4], (u32 *) (&an));
-
-	CLI_EXEC_API(nss_macsec_secy_tx_sa_start_stop_time_get
-		     (secy_id, channel, an, &p_start_time, &p_stop_time));
-	vty_print("p_start_time : 0x%x\n", p_start_time);
-	vty_print("p_stop_time : 0x%x\n", p_stop_time);
-
-	return CLI_OK;
-}
-
-DEFCMD(nss_macsec_secy_tx_sa_start_stop_time_set_func,
-       nss_macsec_secy_tx_sa_start_stop_time_set_cmd,
-       "nss_macsec_secy_tx_sa_start_stop_time set HEX HEX HEX HEX HEX",
-       "nss_macsec_secy_tx_sa_start_stop_time\n"
-       "set\n" "secy_id\n" "channel\n" "an\n" "start_time\n" "stop_time\n")
-{
-	u32 secy_id = 0;
-	u32 channel = 0;
-	u32 an = 0;
-	u32 start_time = 0;
-	u32 stop_time = 0;
-
-	cli_str_2_hex(argv[2], (u32 *) (&secy_id));
-	cli_str_2_hex(argv[3], (u32 *) (&channel));
-	cli_str_2_hex(argv[4], (u32 *) (&an));
-	cli_str_2_hex(argv[5], (u32 *) (&start_time));
-	cli_str_2_hex(argv[6], (u32 *) (&stop_time));
-
-	CLI_EXEC_API(nss_macsec_secy_tx_sa_start_stop_time_set
-		     (secy_id, channel, an, start_time, stop_time));
-
-	return CLI_OK;
-}
-
 DEFCMD(nss_macsec_secy_tx_sak_get_func,
        nss_macsec_secy_tx_sak_get_cmd,
        "nss_macsec_secy_tx_sak get HEX HEX HEX",
@@ -2699,112 +2406,10 @@ DEFCMD(nss_macsec_secy_tx_sak_set_func,
 	return CLI_OK;
 }
 
-DEFCMD(nss_macsec_secy_tx_qtag_parse_set_func,
-       nss_macsec_secy_tx_qtag_parse_set_cmd,
-       "nss_macsec_secy_tx_qtag_parse set HEX HEX HEX",
-       "nss_macsec_secy_tx_qtag_parse\n" "set\n" "secy_id\n" "parse_en\n" "tpid\n")
-{
-	u32 secy_id = 0;
-	fal_tx_vlan_parse_t data;
-
-	cli_str_2_hex(argv[2], (u32 *) (&secy_id));
-	cli_str_2_hex(argv[3], (u32 *) (&data.parse_en));
-	cli_str_2_hex(argv[4], (u32 *) (&data.tpid));
-
-	CLI_EXEC_API(nss_macsec_secy_tx_qtag_parse_set(secy_id, &data));
-
-	return CLI_OK;
-}
-
-DEFCMD(nss_macsec_secy_tx_qtag_parse_get_func,
-       nss_macsec_secy_tx_qtag_parse_get_cmd,
-       "nss_macsec_secy_tx_qtag_parse get HEX",
-       "nss_macsec_secy_tx_qtag_parse\n" "get\n" "secy_id\n")
-{
-	u32 secy_id = 0;
-	fal_tx_vlan_parse_t data;
-
-	cli_str_2_hex(argv[2], (u32 *) (&secy_id));
-
-	CLI_EXEC_API(nss_macsec_secy_tx_qtag_parse_get(secy_id, &data));
-	vty_print("parse_en : 0x%x\n", data.parse_en);
-	vty_print("tpid : 0x%x\n", data.tpid);
-
-	return CLI_OK;
-}
-
-DEFCMD(nss_macsec_secy_tx_stag_parse_set_func,
-       nss_macsec_secy_tx_stag_parse_set_cmd,
-       "nss_macsec_secy_tx_stag_parse set HEX HEX HEX",
-       "nss_macsec_secy_tx_stag_parse\n" "set\n" "secy_id\n" "parse_en\n" "tpid\n")
-{
-	u32 secy_id = 0;
-	fal_tx_vlan_parse_t data;
-
-	cli_str_2_hex(argv[2], (u32 *) (&secy_id));
-	cli_str_2_hex(argv[3], (u32 *) (&data.parse_en));
-	cli_str_2_hex(argv[4], (u32 *) (&data.tpid));
-
-	CLI_EXEC_API(nss_macsec_secy_tx_stag_parse_set(secy_id, &data));
-
-	return CLI_OK;
-}
-
-DEFCMD(nss_macsec_secy_tx_stag_parse_get_func,
-       nss_macsec_secy_tx_stag_parse_get_cmd,
-       "nss_macsec_secy_tx_stag_parse get HEX",
-       "nss_macsec_secy_tx_stag_parse\n" "get\n" "secy_id\n")
-{
-	u32 secy_id = 0;
-	fal_tx_vlan_parse_t data;
-
-	cli_str_2_hex(argv[2], (u32 *) (&secy_id));
-
-	CLI_EXEC_API(nss_macsec_secy_tx_stag_parse_get(secy_id, &data));
-	vty_print("parse_en : 0x%x\n", data.parse_en);
-	vty_print("tpid : 0x%x\n", data.tpid);
-
-	return CLI_OK;
-}
-
-DEFCMD(nss_macsec_secy_tx_pn_threshold_get_func,
-       nss_macsec_secy_tx_pn_threshold_get_cmd,
-       "nss_macsec_secy_tx_pn_threshold get HEX",
-       "nss_macsec_secy_tx_pn_threshold\n" "get\n" "secy_id\n")
-{
-	u32 secy_id = 0;
-	u32 p_pn_threshold = 0;
-
-	cli_str_2_hex(argv[2], (u32 *) (&secy_id));
-
-	CLI_EXEC_API(nss_macsec_secy_tx_pn_threshold_get
-		     (secy_id, &p_pn_threshold));
-	vty_print("p_pn_threshold : 0x%x\n", p_pn_threshold);
-
-	return CLI_OK;
-}
-
-DEFCMD(nss_macsec_secy_tx_pn_threshold_set_func,
-       nss_macsec_secy_tx_pn_threshold_set_cmd,
-       "nss_macsec_secy_tx_pn_threshold set HEX HEX",
-       "nss_macsec_secy_tx_pn_threshold\n" "set\n" "secy_id\n" "pn_threshold\n")
-{
-	u32 secy_id = 0;
-	u32 pn_threshold = 0;
-
-	cli_str_2_hex(argv[2], (u32 *) (&secy_id));
-	cli_str_2_hex(argv[3], (u32 *) (&pn_threshold));
-
-	CLI_EXEC_API(nss_macsec_secy_tx_pn_threshold_set
-		     (secy_id, pn_threshold));
-
-	return CLI_OK;
-}
-
-DEFCMD(nss_macsec_secy_rx_reg_get_func,
-       nss_macsec_secy_rx_reg_get_cmd,
-       "nss_macsec_secy_rx_reg get HEX HEX",
-       "nss_macsec_secy_rx_reg\n" "get\n" "secy_id\n" "addr\n")
+DEFCMD(nss_macsec_secy_genl_reg_get_func,
+       nss_macsec_secy_genl_reg_get_cmd,
+       "nss_macsec_secy_genl_reg get HEX HEX",
+       "nss_macsec_secy_genl_reg\n" "get\n" "secy_id\n" "addr\n")
 {
 	u32 secy_id = 0;
 	u32 addr = 0;
@@ -2813,16 +2418,16 @@ DEFCMD(nss_macsec_secy_rx_reg_get_func,
 	cli_str_2_hex(argv[2], (u32 *) (&secy_id));
 	cli_str_2_hex(argv[3], (u32 *) (&addr));
 
-	CLI_EXEC_API(nss_macsec_secy_rx_reg_get(secy_id, addr, &pvalue));
+	CLI_EXEC_API(nss_macsec_secy_genl_reg_get(secy_id, addr, &pvalue));
 	vty_print("pvalue : 0x%x\n", pvalue);
 
 	return CLI_OK;
 }
 
-DEFCMD(nss_macsec_secy_rx_reg_set_func,
-       nss_macsec_secy_rx_reg_set_cmd,
-       "nss_macsec_secy_rx_reg set HEX HEX HEX",
-       "nss_macsec_secy_rx_reg\n" "set\n" "secy_id\n" "addr\n" "value\n")
+DEFCMD(nss_macsec_secy_genl_reg_set_func,
+       nss_macsec_secy_genl_reg_set_cmd,
+       "nss_macsec_secy_genl_reg set HEX HEX HEX",
+       "nss_macsec_secy_genl_reg\n" "set\n" "secy_id\n" "addr\n" "value\n")
 {
 	u32 secy_id = 0;
 	u32 addr = 0;
@@ -2832,7 +2437,7 @@ DEFCMD(nss_macsec_secy_rx_reg_set_func,
 	cli_str_2_hex(argv[3], (u32 *) (&addr));
 	cli_str_2_hex(argv[4], (u32 *) (&value));
 
-	CLI_EXEC_API(nss_macsec_secy_rx_reg_set(secy_id, addr, value));
+	CLI_EXEC_API(nss_macsec_secy_genl_reg_set(secy_id, addr, value));
 
 	return CLI_OK;
 }
@@ -3253,89 +2858,6 @@ DEFCMD(nss_macsec_secy_rx_sc_in_used_get_func,
 	return CLI_OK;
 }
 
-DEFCMD(nss_macsec_secy_rx_sc_an_roll_over_get_func,
-       nss_macsec_secy_rx_sc_an_roll_over_get_cmd,
-       "nss_macsec_secy_rx_sc_an_roll_over get HEX HEX",
-       "nss_macsec_secy_rx_sc_an_roll_over\n" "get\n" "secy_id\n" "channel\n")
-{
-	u32 secy_id = 0;
-	u32 channel = 0;
-	bool penable = 0;
-
-	cli_str_2_hex(argv[2], (u32 *) (&secy_id));
-	cli_str_2_hex(argv[3], (u32 *) (&channel));
-
-	CLI_EXEC_API(nss_macsec_secy_rx_sc_an_roll_over_get
-		     (secy_id, channel, &penable));
-	vty_print("penable : 0x%x\n", penable);
-
-	return CLI_OK;
-}
-
-DEFCMD(nss_macsec_secy_rx_sc_an_roll_over_set_func,
-       nss_macsec_secy_rx_sc_an_roll_over_set_cmd,
-       "nss_macsec_secy_rx_sc_an_roll_over set HEX HEX HEX",
-       "nss_macsec_secy_rx_sc_an_roll_over\n"
-       "set\n" "secy_id\n" "channel\n" "enable\n")
-{
-	u32 secy_id = 0;
-	u32 channel = 0;
-	u32 enable = 0;
-
-	cli_str_2_hex(argv[2], (u32 *) (&secy_id));
-	cli_str_2_hex(argv[3], (u32 *) (&channel));
-	cli_str_2_hex(argv[4], (u32 *) (&enable));
-
-	CLI_EXEC_API(nss_macsec_secy_rx_sc_an_roll_over_set
-		     (secy_id, channel, enable));
-
-	return CLI_OK;
-}
-
-DEFCMD(nss_macsec_secy_rx_sc_start_stop_time_get_func,
-       nss_macsec_secy_rx_sc_start_stop_time_get_cmd,
-       "nss_macsec_secy_rx_sc_start_stop_time get HEX HEX",
-       "nss_macsec_secy_rx_sc_start_stop_time\n"
-       "get\n" "secy_id\n" "channel\n")
-{
-	u32 secy_id = 0;
-	u32 channel = 0;
-	u32 p_start_time = 0;
-	u32 p_stop_time = 0;
-
-	cli_str_2_hex(argv[2], (u32 *) (&secy_id));
-	cli_str_2_hex(argv[3], (u32 *) (&channel));
-
-	CLI_EXEC_API(nss_macsec_secy_rx_sc_start_stop_time_get
-		     (secy_id, channel, &p_start_time, &p_stop_time));
-	vty_print("p_start_time : 0x%x\n", p_start_time);
-	vty_print("p_stop_time : 0x%x\n", p_stop_time);
-
-	return CLI_OK;
-}
-
-DEFCMD(nss_macsec_secy_rx_sc_start_stop_time_set_func,
-       nss_macsec_secy_rx_sc_start_stop_time_set_cmd,
-       "nss_macsec_secy_rx_sc_start_stop_time set HEX HEX HEX HEX",
-       "nss_macsec_secy_rx_sc_start_stop_time\n"
-       "set\n" "secy_id\n" "channel\n" "start_time\n" "stop_time\n")
-{
-	u32 secy_id = 0;
-	u32 channel = 0;
-	u32 start_time = 0;
-	u32 stop_time = 0;
-
-	cli_str_2_hex(argv[2], (u32 *) (&secy_id));
-	cli_str_2_hex(argv[3], (u32 *) (&channel));
-	cli_str_2_hex(argv[4], (u32 *) (&start_time));
-	cli_str_2_hex(argv[5], (u32 *) (&stop_time));
-
-	CLI_EXEC_API(nss_macsec_secy_rx_sc_start_stop_time_set
-		     (secy_id, channel, start_time, stop_time));
-
-	return CLI_OK;
-}
-
 DEFCMD(nss_macsec_secy_rx_sa_create_func,
        nss_macsec_secy_rx_sa_create_cmd,
        "nss_macsec_secy_rx_sa create HEX HEX HEX",
@@ -3518,128 +3040,6 @@ DEFCMD(nss_macsec_secy_rx_sa_in_used_get_func,
 	return CLI_OK;
 }
 
-DEFCMD(nss_macsec_secy_rx_sa_start_stop_time_get_func,
-       nss_macsec_secy_rx_sa_start_stop_time_get_cmd,
-       "nss_macsec_secy_rx_sa_start_stop_time get HEX HEX HEX",
-       "nss_macsec_secy_rx_sa_start_stop_time\n"
-       "get\n" "secy_id\n" "channel\n" "an\n")
-{
-	u32 secy_id = 0;
-	u32 channel = 0;
-	u32 an = 0;
-	u32 p_start_time = 0;
-	u32 p_stop_time = 0;
-
-	cli_str_2_hex(argv[2], (u32 *) (&secy_id));
-	cli_str_2_hex(argv[3], (u32 *) (&channel));
-	cli_str_2_hex(argv[4], (u32 *) (&an));
-
-	CLI_EXEC_API(nss_macsec_secy_rx_sa_start_stop_time_get
-		     (secy_id, channel, an, &p_start_time, &p_stop_time));
-	vty_print("p_start_time : 0x%x\n", p_start_time);
-	vty_print("p_stop_time : 0x%x\n", p_stop_time);
-
-	return CLI_OK;
-}
-
-DEFCMD(nss_macsec_secy_rx_sa_start_stop_time_set_func,
-       nss_macsec_secy_rx_sa_start_stop_time_set_cmd,
-       "nss_macsec_secy_rx_sa_start_stop_time set HEX HEX HEX HEX HEX",
-       "nss_macsec_secy_rx_sa_start_stop_time\n"
-       "set\n" "secy_id\n" "channel\n" "an\n" "start_time\n" "stop_time\n")
-{
-	u32 secy_id = 0;
-	u32 channel = 0;
-	u32 an = 0;
-	u32 start_time = 0;
-	u32 stop_time = 0;
-
-	cli_str_2_hex(argv[2], (u32 *) (&secy_id));
-	cli_str_2_hex(argv[3], (u32 *) (&channel));
-	cli_str_2_hex(argv[4], (u32 *) (&an));
-	cli_str_2_hex(argv[5], (u32 *) (&start_time));
-	cli_str_2_hex(argv[6], (u32 *) (&stop_time));
-
-	CLI_EXEC_API(nss_macsec_secy_rx_sa_start_stop_time_set
-		     (secy_id, channel, an, start_time, stop_time));
-
-	return CLI_OK;
-}
-
-DEFCMD(nss_macsec_secy_rx_pn_threshold_get_func,
-       nss_macsec_secy_rx_pn_threshold_get_cmd,
-       "nss_macsec_secy_rx_pn_threshold get HEX",
-       "nss_macsec_secy_rx_pn_threshold\n" "get\n" "secy_id\n")
-{
-	u32 secy_id = 0;
-	u32 p_pn_threshold = 0;
-
-	cli_str_2_hex(argv[2], (u32 *) (&secy_id));
-
-	CLI_EXEC_API(nss_macsec_secy_rx_pn_threshold_get
-		     (secy_id, &p_pn_threshold));
-	vty_print("p_pn_threshold : 0x%x\n", p_pn_threshold);
-
-	return CLI_OK;
-}
-
-DEFCMD(nss_macsec_secy_rx_pn_threshold_set_func,
-       nss_macsec_secy_rx_pn_threshold_set_cmd,
-       "nss_macsec_secy_rx_pn_threshold set HEX HEX",
-       "nss_macsec_secy_rx_pn_threshold\n" "set\n" "secy_id\n" "pn_threshold\n")
-{
-	u32 secy_id = 0;
-	u32 pn_threshold = 0;
-
-	cli_str_2_hex(argv[2], (u32 *) (&secy_id));
-	cli_str_2_hex(argv[3], (u32 *) (&pn_threshold));
-
-	CLI_EXEC_API(nss_macsec_secy_rx_pn_threshold_set
-		     (secy_id, pn_threshold));
-
-	return CLI_OK;
-}
-
-DEFCMD(nss_macsec_secy_reset_func,
-       nss_macsec_secy_reset_cmd,
-       "nss_macsec_secy reset HEX", "nss_macsec_secy\n" "reset\n" "secy_id\n")
-{
-	u32 secy_id = 0;
-
-	cli_str_2_hex(argv[2], (u32 *) (&secy_id));
-
-	CLI_EXEC_API(nss_macsec_secy_reset(secy_id));
-
-	return CLI_OK;
-}
-
-DEFCMD(nss_macsec_secy_tx_sw_reset_func,
-       nss_macsec_secy_tx_sw_reset_cmd,
-       "nss_macsec_secy_tx_sw reset HEX",
-       "nss_macsec_secy_tx_sw\n" "reset\n" "secy_id\n")
-{
-	u32 secy_id = 0;
-
-	cli_str_2_hex(argv[2], (u32 *) (&secy_id));
-
-	CLI_EXEC_API(nss_macsec_secy_tx_sw_reset(secy_id));
-
-	return CLI_OK;
-}
-
-DEFCMD(nss_macsec_secy_init_func,
-       nss_macsec_secy_init_cmd,
-       "nss_macsec_secy init HEX", "nss_macsec_secy\n" "init\n" "secy_id\n")
-{
-	u32 secy_id = 0;
-
-	cli_str_2_hex(argv[2], (u32 *) (&secy_id));
-
-	CLI_EXEC_API(nss_macsec_secy_init(secy_id));
-
-	return CLI_OK;
-}
-
 DEFCMD(nss_macsec_secy_sc_sa_mapping_mode_get_func,
        nss_macsec_secy_sc_sa_mapping_mode_get_cmd,
        "nss_macsec_secy_sc_sa_mapping_mode get HEX",
@@ -3704,21 +3104,6 @@ DEFCMD(nss_macsec_secy_controlled_port_en_set_func,
 	return CLI_OK;
 }
 
-DEFCMD(nss_macsec_secy_ip_version_get_func,
-       nss_macsec_secy_ip_version_get_cmd,
-       "nss_macsec_secy_ip_version get HEX",
-       "nss_macsec_secy_ip_version\n" "get\n" "secy_id\n")
-{
-	u32 secy_id = 0;
-	char ver_str[64] = { 0 };
-
-	cli_str_2_hex(argv[2], (u32 *) (&secy_id));
-
-	CLI_EXEC_API(nss_macsec_secy_ip_version_get(secy_id, ver_str, 64));
-	vty_print("ver_str : %s\n", ver_str);
-
-	return CLI_OK;
-}
 
 DEFCMD(nss_macsec_secy_cipher_suite_get_func,
        nss_macsec_secy_cipher_suite_get_cmd,
@@ -4317,37 +3702,6 @@ DEFCMD(nss_macsec_secy_special_pkt_ctrl_set_func,
 
 	CLI_EXEC_API(nss_macsec_secy_special_pkt_ctrl_set(secy_id, packet_type,
 		packet_action));
-
-	return CLI_OK;
-}
-DEFCMD(nss_macsec_secy_loopback_get_func,
-	nss_macsec_secy_loopback_get_cmd,
-	"nss_macsec_secy_loopback get HEX",
-	"nss_macsec_secy_loopback\n get\n secy_id\n")
-{
-	u32 secy_id = 0;
-	enum fal_loopback_type_t loopback_mode = 0;
-
-	cli_str_2_hex(argv[2], (u32 *) (&secy_id));
-
-	CLI_EXEC_API(nss_macsec_secy_loopback_get(secy_id, &loopback_mode));
-	vty_print("loopback_mode : 0x%x\n", loopback_mode);
-
-	return CLI_OK;
-}
-
-DEFCMD(nss_macsec_secy_loopback_set_func,
-	nss_macsec_secy_loopback_set_cmd,
-	"nss_macsec_secy_loopback set HEX HEX",
-	"nss_macsec_secy_loopback\n set\n secy_id\n loopback_mode\n")
-{
-	u32 secy_id = 0;
-	u32 loopback_mode = 0;
-
-	cli_str_2_hex(argv[2], (u32 *) (&secy_id));
-	cli_str_2_hex(argv[3], (u32 *) (&loopback_mode));
-
-	CLI_EXEC_API(nss_macsec_secy_loopback_set(secy_id, loopback_mode));
 
 	return CLI_OK;
 }
@@ -5069,24 +4423,8 @@ DEFCMD(nss_macsec_secy_rx_sa_next_pn_set_func,
 
 int cli_cmd_fal_init(void)
 {
-	cli_install_cmd(CLI_MODE_ENABLE, &nss_macsec_secy_tx_reg_get_cmd);
-	cli_install_cmd(CLI_MODE_ENABLE, &nss_macsec_secy_tx_reg_set_cmd);
-	cli_install_cmd(CLI_MODE_ENABLE,
-			&nss_macsec_secy_tx_drop_sc_sa_invlid_get_cmd);
-	cli_install_cmd(CLI_MODE_ENABLE,
-			&nss_macsec_secy_tx_drop_sc_sa_invlid_set_cmd);
-	cli_install_cmd(CLI_MODE_ENABLE,
-			&nss_macsec_secy_tx_unmatched_use_sc_0_get_cmd);
-	cli_install_cmd(CLI_MODE_ENABLE,
-			&nss_macsec_secy_tx_unmatched_use_sc_0_set_cmd);
-	cli_install_cmd(CLI_MODE_ENABLE, &nss_macsec_secy_tx_gcm_start_get_cmd);
-	cli_install_cmd(CLI_MODE_ENABLE, &nss_macsec_secy_tx_gcm_start_set_cmd);
-	cli_install_cmd(CLI_MODE_ENABLE,
-			&nss_macsec_secy_tx_drop_class_miss_get_cmd);
-	cli_install_cmd(CLI_MODE_ENABLE,
-			&nss_macsec_secy_tx_drop_class_miss_set_cmd);
-	cli_install_cmd(CLI_MODE_ENABLE, &nss_macsec_secy_tx_drop_kay_pkt_get_cmd);
-	cli_install_cmd(CLI_MODE_ENABLE, &nss_macsec_secy_tx_drop_kay_pkt_set_cmd);
+	cli_install_cmd(CLI_MODE_ENABLE, &nss_macsec_secy_ext_reg_get_cmd);
+	cli_install_cmd(CLI_MODE_ENABLE, &nss_macsec_secy_ext_reg_set_cmd);
 	cli_install_cmd(CLI_MODE_ENABLE, &nss_macsec_secy_tx_ctl_filt_get_cmd);
 	cli_install_cmd(CLI_MODE_ENABLE, &nss_macsec_secy_tx_ctl_filt_set_cmd);
 	cli_install_cmd(CLI_MODE_ENABLE, &nss_macsec_secy_tx_ctl_filt_clear_cmd);
@@ -5104,10 +4442,6 @@ int cli_cmd_fal_init(void)
 	cli_install_cmd(CLI_MODE_ENABLE, &nss_macsec_secy_tx_sc_del_all_cmd);
 	cli_install_cmd(CLI_MODE_ENABLE, &nss_macsec_secy_tx_sc_an_get_cmd);
 	cli_install_cmd(CLI_MODE_ENABLE, &nss_macsec_secy_tx_sc_an_set_cmd);
-	cli_install_cmd(CLI_MODE_ENABLE,
-			&nss_macsec_secy_tx_sc_an_roll_over_en_get_cmd);
-	cli_install_cmd(CLI_MODE_ENABLE,
-			&nss_macsec_secy_tx_sc_an_roll_over_en_set_cmd);
 	cli_install_cmd(CLI_MODE_ENABLE, &nss_macsec_secy_tx_sc_in_used_get_cmd);
 	cli_install_cmd(CLI_MODE_ENABLE, &nss_macsec_secy_tx_sc_tci_7_2_get_cmd);
 	cli_install_cmd(CLI_MODE_ENABLE, &nss_macsec_secy_tx_sc_tci_7_2_set_cmd);
@@ -5118,10 +4452,7 @@ int cli_cmd_fal_init(void)
 	cli_install_cmd(CLI_MODE_ENABLE, &nss_macsec_secy_tx_sc_protect_get_cmd);
 	cli_install_cmd(CLI_MODE_ENABLE, &nss_macsec_secy_tx_sc_protect_set_cmd);
 	cli_install_cmd(CLI_MODE_ENABLE, &nss_macsec_secy_tx_sc_sci_get_cmd);
-	cli_install_cmd(CLI_MODE_ENABLE,
-			&nss_macsec_secy_tx_sc_start_stop_time_get_cmd);
-	cli_install_cmd(CLI_MODE_ENABLE,
-			&nss_macsec_secy_tx_sc_start_stop_time_set_cmd);
+
 	cli_install_cmd(CLI_MODE_ENABLE, &nss_macsec_secy_tx_sa_create_cmd);
 	cli_install_cmd(CLI_MODE_ENABLE, &nss_macsec_secy_tx_sa_en_get_cmd);
 	cli_install_cmd(CLI_MODE_ENABLE, &nss_macsec_secy_tx_sa_en_set_cmd);
@@ -5130,16 +4461,10 @@ int cli_cmd_fal_init(void)
 	cli_install_cmd(CLI_MODE_ENABLE, &nss_macsec_secy_tx_sa_next_pn_get_cmd);
 	cli_install_cmd(CLI_MODE_ENABLE, &nss_macsec_secy_tx_sa_next_pn_set_cmd);
 	cli_install_cmd(CLI_MODE_ENABLE, &nss_macsec_secy_tx_sa_in_used_get_cmd);
-	cli_install_cmd(CLI_MODE_ENABLE,
-			&nss_macsec_secy_tx_sa_start_stop_time_get_cmd);
-	cli_install_cmd(CLI_MODE_ENABLE,
-			&nss_macsec_secy_tx_sa_start_stop_time_set_cmd);
 	cli_install_cmd(CLI_MODE_ENABLE, &nss_macsec_secy_tx_sak_get_cmd);
 	cli_install_cmd(CLI_MODE_ENABLE, &nss_macsec_secy_tx_sak_set_cmd);
-	cli_install_cmd(CLI_MODE_ENABLE, &nss_macsec_secy_tx_pn_threshold_get_cmd);
-	cli_install_cmd(CLI_MODE_ENABLE, &nss_macsec_secy_tx_pn_threshold_set_cmd);
-	cli_install_cmd(CLI_MODE_ENABLE, &nss_macsec_secy_rx_reg_get_cmd);
-	cli_install_cmd(CLI_MODE_ENABLE, &nss_macsec_secy_rx_reg_set_cmd);
+	cli_install_cmd(CLI_MODE_ENABLE, &nss_macsec_secy_genl_reg_get_cmd);
+	cli_install_cmd(CLI_MODE_ENABLE, &nss_macsec_secy_genl_reg_set_cmd);
 	cli_install_cmd(CLI_MODE_ENABLE, &nss_macsec_secy_rx_ctl_filt_get_cmd);
 	cli_install_cmd(CLI_MODE_ENABLE, &nss_macsec_secy_rx_ctl_filt_set_cmd);
 	cli_install_cmd(CLI_MODE_ENABLE, &nss_macsec_secy_rx_ctl_filt_clear_cmd);
@@ -5155,13 +4480,6 @@ int cli_cmd_fal_init(void)
 	cli_install_cmd(CLI_MODE_ENABLE, &nss_macsec_secy_rx_sc_en_set_cmd);
 	cli_install_cmd(CLI_MODE_ENABLE, &nss_macsec_secy_rx_sc_del_cmd);
 	cli_install_cmd(CLI_MODE_ENABLE, &nss_macsec_secy_rx_sc_del_all_cmd);
-#if 0
-	cli_install_cmd(CLI_MODE_ENABLE, &nss_macsec_secy_rx_sc_sci_get_cmd);
-	cli_install_cmd(CLI_MODE_ENABLE,
-			&nss_macsec_secy_rx_sc_confidentiality_offset_get_cmd);
-	cli_install_cmd(CLI_MODE_ENABLE,
-			&nss_macsec_secy_rx_sc_confidentiality_offset_set_cmd);
-#endif
 	cli_install_cmd(CLI_MODE_ENABLE,
 			&nss_macsec_secy_rx_sc_validate_frame_get_cmd);
 	cli_install_cmd(CLI_MODE_ENABLE,
@@ -5175,14 +4493,6 @@ int cli_cmd_fal_init(void)
 	cli_install_cmd(CLI_MODE_ENABLE,
 			&nss_macsec_secy_rx_sc_anti_replay_window_set_cmd);
 	cli_install_cmd(CLI_MODE_ENABLE, &nss_macsec_secy_rx_sc_in_used_get_cmd);
-	cli_install_cmd(CLI_MODE_ENABLE,
-			&nss_macsec_secy_rx_sc_an_roll_over_get_cmd);
-	cli_install_cmd(CLI_MODE_ENABLE,
-			&nss_macsec_secy_rx_sc_an_roll_over_set_cmd);
-	cli_install_cmd(CLI_MODE_ENABLE,
-			&nss_macsec_secy_rx_sc_start_stop_time_get_cmd);
-	cli_install_cmd(CLI_MODE_ENABLE,
-			&nss_macsec_secy_rx_sc_start_stop_time_set_cmd);
 	cli_install_cmd(CLI_MODE_ENABLE, &nss_macsec_secy_rx_sa_create_cmd);
 	cli_install_cmd(CLI_MODE_ENABLE, &nss_macsec_secy_rx_sa_en_get_cmd);
 	cli_install_cmd(CLI_MODE_ENABLE, &nss_macsec_secy_rx_sa_en_set_cmd);
@@ -5193,15 +4503,6 @@ int cli_cmd_fal_init(void)
 	cli_install_cmd(CLI_MODE_ENABLE, &nss_macsec_secy_rx_sak_set_cmd);
 	cli_install_cmd(CLI_MODE_ENABLE, &nss_macsec_secy_rx_sa_in_used_get_cmd);
 	cli_install_cmd(CLI_MODE_ENABLE,
-			&nss_macsec_secy_rx_sa_start_stop_time_get_cmd);
-	cli_install_cmd(CLI_MODE_ENABLE,
-			&nss_macsec_secy_rx_sa_start_stop_time_set_cmd);
-	cli_install_cmd(CLI_MODE_ENABLE, &nss_macsec_secy_rx_pn_threshold_get_cmd);
-	cli_install_cmd(CLI_MODE_ENABLE, &nss_macsec_secy_rx_pn_threshold_set_cmd);
-	cli_install_cmd(CLI_MODE_ENABLE, &nss_macsec_secy_reset_cmd);
-	cli_install_cmd(CLI_MODE_ENABLE, &nss_macsec_secy_tx_sw_reset_cmd);
-	cli_install_cmd(CLI_MODE_ENABLE, &nss_macsec_secy_init_cmd);
-	cli_install_cmd(CLI_MODE_ENABLE,
 			&nss_macsec_secy_sc_sa_mapping_mode_get_cmd);
 	cli_install_cmd(CLI_MODE_ENABLE,
 			&nss_macsec_secy_sc_sa_mapping_mode_set_cmd);
@@ -5209,7 +4510,6 @@ int cli_cmd_fal_init(void)
 			&nss_macsec_secy_controlled_port_en_get_cmd);
 	cli_install_cmd(CLI_MODE_ENABLE,
 			&nss_macsec_secy_controlled_port_en_set_cmd);
-	cli_install_cmd(CLI_MODE_ENABLE, &nss_macsec_secy_ip_version_get_cmd);
 	cli_install_cmd(CLI_MODE_ENABLE, &nss_macsec_secy_cipher_suite_get_cmd);
 	cli_install_cmd(CLI_MODE_ENABLE, &nss_macsec_secy_cipher_suite_set_cmd);
 	cli_install_cmd(CLI_MODE_ENABLE, &nss_macsec_secy_mtu_get_cmd);
@@ -5368,14 +4668,6 @@ int cli_cmd_fal_init(void)
 	cli_install_cmd(CLI_MODE_ENABLE,
 			&fal_tx_sc_mib_t_encrypted_octets_add_cmd);
 	cli_install_cmd(CLI_MODE_ENABLE,
-			&nss_macsec_secy_tx_qtag_parse_set_cmd);
-	cli_install_cmd(CLI_MODE_ENABLE,
-			&nss_macsec_secy_tx_qtag_parse_get_cmd);
-	cli_install_cmd(CLI_MODE_ENABLE,
-			&nss_macsec_secy_tx_stag_parse_set_cmd);
-	cli_install_cmd(CLI_MODE_ENABLE,
-			&nss_macsec_secy_tx_stag_parse_get_cmd);
-	cli_install_cmd(CLI_MODE_ENABLE,
 			&nss_macsec_secy_rx_replay_protect_set_cmd);
 	cli_install_cmd(CLI_MODE_ENABLE,
 			&nss_macsec_secy_rx_replay_protect_get_cmd);
@@ -5414,11 +4706,8 @@ int cli_cmd_fal_init(void)
 	cli_install_cmd(CLI_MODE_ENABLE, &nss_macsec_secy_tx_sa_ki_get_cmd);
 	cli_install_cmd(CLI_MODE_ENABLE, &nss_macsec_secy_tx_sa_ki_set_cmd);
 
-
 	cli_install_cmd(CLI_MODE_ENABLE, &nss_macsec_secy_udf_ethtype_get_cmd);
 	cli_install_cmd(CLI_MODE_ENABLE, &nss_macsec_secy_udf_ethtype_set_cmd);
-	cli_install_cmd(CLI_MODE_ENABLE, &nss_macsec_secy_loopback_get_cmd);
-	cli_install_cmd(CLI_MODE_ENABLE, &nss_macsec_secy_loopback_set_cmd);
 
 	cli_install_cmd(CLI_MODE_ENABLE,
 		&nss_macsec_secy_special_pkt_ctrl_get_cmd);

@@ -1,7 +1,7 @@
 /*
  * Copyright (c) 2014, 2016-2018, The Linux Foundation. All rights reserved.
  *
- * Copyright (c) 2021 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2021-2024 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
@@ -60,102 +60,117 @@ set_devid(int dev_id)
 sw_error_t
 cmd_show_fdb(a_ulong_t *arg_val)
 {
-    if ((ssdk_cfg.init_cfg.chip_type == CHIP_ISISC) ||
-		    (ssdk_cfg.init_cfg.chip_type == CHIP_ISIS) ||
-		    (ssdk_cfg.init_cfg.chip_type == CHIP_MHT) ||
-		    (ssdk_cfg.init_cfg.chip_type == CHIP_DESS) ||
-		    (ssdk_cfg.init_cfg.chip_type == CHIP_APPE) ||
-		    (ssdk_cfg.init_cfg.chip_type == CHIP_HPPE)) {
-	    sw_error_t rtn;
-	    a_uint32_t cnt = 0;
-	    a_uint16_t rtn_size = sizeof(sw_error_t);
-	    a_uint16_t p_size = sizeof(a_ulong_t);
+	if ((ssdk_cfg.init_cfg.chip_type == CHIP_ISISC) ||
+			(ssdk_cfg.init_cfg.chip_type == CHIP_ISIS) ||
+			(ssdk_cfg.init_cfg.chip_type == CHIP_MHT) ||
+			(ssdk_cfg.init_cfg.chip_type == CHIP_DESS) ||
+			(ssdk_cfg.init_cfg.chip_type == CHIP_APPE) ||
+		    (ssdk_cfg.init_cfg.chip_type == CHIP_HPPE) ||
+		    (ssdk_cfg.init_cfg.chip_type == CHIP_MRPPE)) {
+		sw_error_t rtn;
+		a_uint32_t cnt = 0, type = 0;
+		a_uint16_t rtn_size = sizeof(sw_error_t);
+		a_uint16_t p_size = sizeof(a_ulong_t);
 
-	    fal_fdb_op_t *fdb_op = (fal_fdb_op_t *)(ioctl_buf+(rtn_size+p_size-1)/p_size);
-	    fal_fdb_entry_t *fdb_entry = (fal_fdb_entry_t *)(ioctl_buf+(rtn_size+p_size-1)/p_size +
-			    (sizeof(fal_fdb_op_t)+p_size-1)/p_size);
+		fal_fdb_op_t *fdb_op = (fal_fdb_op_t *)(ioctl_buf+(rtn_size+p_size-1)/p_size);
+		fal_fdb_entry_t *fdb_entry = (fal_fdb_entry_t *)(ioctl_buf+(rtn_size+p_size-1)/
+			p_size + (sizeof(fal_fdb_op_t)+p_size-1)/p_size);
 
-	    aos_mem_zero(fdb_op, sizeof (fal_fdb_op_t));
-	    aos_mem_zero(fdb_entry, sizeof (fal_fdb_entry_t));
-	    arg_val[0] = SW_API_FDB_EXTEND_FIRST;
+		aos_mem_zero(fdb_op, sizeof (fal_fdb_op_t));
+		aos_mem_zero(fdb_entry, sizeof (fal_fdb_entry_t));
+		if(arg_val[1] != HW_ENTRY && arg_val[1] != SW_ENTRY)
+			return SW_NOT_SUPPORTED;
 
-	    while (1)
-	    {
-	        arg_val[1] = (a_ulong_t) ioctl_buf;
-	        arg_val[2] = get_devid();
-	        arg_val[3] = (a_ulong_t) fdb_op;
-	        arg_val[4] = (a_ulong_t) fdb_entry;
+		if((arg_val[1] == SW_ENTRY) && (ssdk_cfg.init_cfg.chip_type != CHIP_MHT))
+			return SW_NOT_SUPPORTED;
 
-	        rtn = cmd_exec_api(arg_val);
-	        if ((SW_OK != rtn)  || (SW_OK != (sw_error_t) (*ioctl_buf)))
-	        {
-	            break;
-	        }
-	        arg_val[0] = SW_API_FDB_EXTEND_NEXT;
-	        cnt++;
-	    }
+		type = arg_val[1];
+		arg_val[0] = SW_API_FDB_EXTEND_FIRST;
 
-	    if((rtn != SW_OK) && (rtn != SW_NO_MORE))
-	        cmd_print_error(rtn);
-	    else
-	        dprintf("\ntotal %d entries\n", cnt);
-    }else if (ssdk_cfg.init_cfg.chip_type == CHIP_SHIVA) {
-	    sw_error_t rtn;
-	    a_uint32_t cnt = 0;
-	    fal_fdb_entry_t *fdb_entry = (fal_fdb_entry_t *) (ioctl_buf + 2);
+		while (1)
+		{
+			fdb_entry->type = type;
+			arg_val[1] = (a_ulong_t) ioctl_buf;
+			arg_val[2] = get_devid();
+			arg_val[3] = (a_ulong_t) fdb_op;
+			arg_val[4] = (a_ulong_t) fdb_entry;
 
-	    memset(fdb_entry, 0, sizeof (fal_fdb_entry_t));
-	    arg_val[0] = SW_API_FDB_ITERATE;
-	    *(ioctl_buf + 1) = 0;
+			rtn = cmd_exec_api(arg_val);
+			if ((SW_OK != rtn)  || (SW_OK != (sw_error_t) (*ioctl_buf)))
+			{
+				break;
+			}
+			arg_val[0] = SW_API_FDB_EXTEND_NEXT;
+			cnt++;
+			if (cnt > 2048) {
+				dprintf("\n Query FDB entry exception!\n");
+				rtn = SW_ABORTED;
+				break;
+			}
+		}
 
-	    while (1)
-	    {
-	        arg_val[1] = (a_ulong_t) ioctl_buf;
-	        arg_val[2] = get_devid();
-	        arg_val[3] = (a_ulong_t) (ioctl_buf + 1);
-	        arg_val[4] = (a_ulong_t) fdb_entry;
+		if((rtn != SW_OK) && (rtn != SW_NO_MORE))
+			cmd_print_error(rtn);
+		else
+			dprintf("\ntotal %d entries\n", cnt);
+	}else if (ssdk_cfg.init_cfg.chip_type == CHIP_SHIVA) {
+		sw_error_t rtn;
+		a_uint32_t cnt = 0;
+		fal_fdb_entry_t *fdb_entry = (fal_fdb_entry_t *) (ioctl_buf + 2);
 
-	        rtn = cmd_exec_api(arg_val);
-	        if ((SW_OK != rtn)  || (SW_OK != (sw_error_t) (*ioctl_buf)))
-	        {
-	            break;
-	        }
-	        cnt++;
-	    }
+		memset(fdb_entry, 0, sizeof (fal_fdb_entry_t));
+		arg_val[0] = SW_API_FDB_ITERATE;
+		*(ioctl_buf + 1) = 0;
 
-	    if((rtn != SW_OK) && (rtn != SW_NO_MORE))
-	        cmd_print_error(rtn);
-	    else
-	        dprintf("\ntotal %d entries\n", cnt);
-    }else {
-	    sw_error_t rtn;
-	    a_uint32_t cnt = 0;
-	    a_uint16_t rtn_size = sizeof(sw_error_t);
-	    a_uint16_t p_size = sizeof(a_ulong_t);
-	    fal_fdb_entry_t *fdb_entry = (fal_fdb_entry_t *)(ioctl_buf+(rtn_size+p_size-1)/p_size);
+		while (1)
+		{
+			arg_val[1] = (a_ulong_t) ioctl_buf;
+			arg_val[2] = get_devid();
+			arg_val[3] = (a_ulong_t) (ioctl_buf + 1);
+			arg_val[4] = (a_ulong_t) fdb_entry;
 
-	    memset(fdb_entry, 0, sizeof (fal_fdb_entry_t));
-	    arg_val[0] = SW_API_FDB_FIRST;
+			rtn = cmd_exec_api(arg_val);
+			if ((SW_OK != rtn)  || (SW_OK != (sw_error_t) (*ioctl_buf)))
+			{
+				break;
+			}
+			cnt++;
+		}
 
-	    while (1)
-	    {
-	        arg_val[1] = (a_ulong_t) ioctl_buf;
-	        arg_val[2] = get_devid();
-	        arg_val[3] = (a_ulong_t) fdb_entry;
+		if((rtn != SW_OK) && (rtn != SW_NO_MORE))
+			cmd_print_error(rtn);
+		else
+			dprintf("\ntotal %d entries\n", cnt);
+	}else {
+		sw_error_t rtn;
+		a_uint32_t cnt = 0;
+		a_uint16_t rtn_size = sizeof(sw_error_t);
+		a_uint16_t p_size = sizeof(a_ulong_t);
+		fal_fdb_entry_t *fdb_entry = (fal_fdb_entry_t *)(ioctl_buf+(rtn_size+p_size-1)/
+			p_size);
 
-	        rtn = cmd_exec_api(arg_val);
-	        if ((SW_OK != rtn)  || (SW_OK != (sw_error_t) (*ioctl_buf)))
-	        {
-	            break;
-	        }
-	        arg_val[0] = SW_API_FDB_NEXT;
-	        cnt++;
-	    }
+		memset(fdb_entry, 0, sizeof (fal_fdb_entry_t));
+		arg_val[0] = SW_API_FDB_FIRST;
 
-	    if((rtn != SW_OK) && (rtn != SW_NO_MORE))
-	        cmd_print_error(rtn);
-	    else
-	        dprintf("\ntotal %d entries\n", cnt);
+		while (1)
+		{
+			arg_val[1] = (a_ulong_t) ioctl_buf;
+			arg_val[2] = get_devid();
+			arg_val[3] = (a_ulong_t) fdb_entry;
+
+			rtn = cmd_exec_api(arg_val);
+			if ((SW_OK != rtn)  || (SW_OK != (sw_error_t) (*ioctl_buf)))
+			{
+				break;
+			}
+			arg_val[0] = SW_API_FDB_NEXT;
+			cnt++;
+		}
+
+		if((rtn != SW_OK) && (rtn != SW_NO_MORE))
+			cmd_print_error(rtn);
+		else
+			dprintf("\ntotal %d entries\n", cnt);
     }
 
     return SW_OK;
@@ -1216,3 +1231,41 @@ cmd_show_ptp_timestamp(a_ulong_t *arg_val)
 
 	return SW_OK;
 }
+
+sw_error_t
+cmd_show_toeplitz_hash_config(a_ulong_t *arg_val)
+{
+	sw_error_t rtn;
+	a_uint32_t cnt = 0;
+	a_uint16_t rtn_size = sizeof(sw_error_t);
+	a_uint16_t p_size = sizeof(a_ulong_t);
+	fal_toeplitz_hash_config_t *cfg =
+		(fal_toeplitz_hash_config_t *)(ioctl_buf+(rtn_size+p_size-1)/p_size);
+
+	aos_mem_zero(cfg, sizeof (fal_toeplitz_hash_config_t));
+	arg_val[0] = SW_API_TOEPLITZ_HASH_CONFIG_GETFIRST;
+
+	while (1)
+	{
+		arg_val[1] = (a_ulong_t) ioctl_buf;
+		arg_val[2] = get_devid();
+		arg_val[3] = (a_ulong_t) cfg;
+
+		rtn = cmd_exec_api(arg_val);
+		if ((SW_OK != rtn)  || (SW_OK != (sw_error_t) (*ioctl_buf)))
+		{
+			break;
+		}
+		arg_val[0] = SW_API_TOEPLITZ_HASH_CONFIG_GETNEXT;
+		cnt++;
+	}
+
+	if((rtn != SW_OK) && (rtn != SW_NO_MORE))
+		cmd_print_error(rtn);
+	else
+		dprintf("\ntotal %d entries\n", cnt);
+
+	return SW_OK;
+}
+
+

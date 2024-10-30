@@ -8,16 +8,14 @@
 include $(TOPDIR)/rules.mk
 
 PKG_NAME:=smcroute
-PKG_VERSION:=2.4.4
+PKG_VERSION:=2.5.6
 PKG_RELEASE:=1
 PKG_LICENSE:=GPL-2.0-or-later
 PKG_LICENSE_FILES:=COPYING
 
-PKG_SOURCE:=$(PKG_NAME)-$(PKG_VERSION).tar.xz
+PKG_SOURCE:=$(PKG_NAME)-$(PKG_VERSION).tar.gz
 PKG_SOURCE_URL:=https://github.com/troglobit/smcroute/releases/download/$(PKG_VERSION)
-PKG_HASH:=431be94c46646767f69c85fee445277b7e765a55177d3ee29522416cfe2cc067
-
-PKG_FIXUP:=autoreconf
+PKG_HASH:=0be38f617e322daafaa941c02423239f5c117b940cf0f45bacadb6733c4b3916
 
 include $(INCLUDE_DIR)/package.mk
 
@@ -35,7 +33,7 @@ define Package/smcroute/description
 endef
 
 define Package/smcroute/conffiles
-	/etc/smcroute.conf
+/etc/smcroute.conf
 endef
 
 CONFIGURE_ARGS += \

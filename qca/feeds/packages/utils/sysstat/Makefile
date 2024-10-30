@@ -8,26 +8,31 @@
 include $(TOPDIR)/rules.mk
 
 PKG_NAME:=sysstat
-PKG_VERSION:=12.0.5
+PKG_VERSION:=12.4.5
 PKG_RELEASE:=1
-
-PKG_LICENSE:=GPL-2.0
-PKG_MAINTAINER:=Marko Ratkaj <marko.ratkaj@sartura.hr>
-PKG_CPE_ID:=cpe:/a:sysstat:sysstat
 
 PKG_SOURCE:=$(PKG_NAME)-$(PKG_VERSION).tar.xz
 PKG_SOURCE_URL:=http://pagesperso-orange.fr/sebastien.godard/
-PKG_HASH:=58583b0776b9addec69e42eebd6dd1a8e976da8a36bad2422659a1ad6c1a2600
+PKG_HASH:=ef445acea301bbb996e410842f6290a8d049e884d4868cfef7e85dc04b7eee5b
 
+PKG_MAINTAINER:=Marko Ratkaj <markoratkaj@gmail.com>
+PKG_LICENSE:=GPL-2.0-or-later
+PKG_LICENSE_FILES:=COPYING
+PKG_CPE_ID:=cpe:/a:sysstat_project:sysstat
+
+PKG_FIXUP:=autoreconf
 PKG_INSTALL:=1
+PKG_BUILD_PARALLEL:=1
 
 include $(INCLUDE_DIR)/package.mk
+include $(INCLUDE_DIR)/nls.mk
 
 define Package/sysstat
   SECTION:=utils
   CATEGORY:=Utilities
   TITLE:=Sysstat performance monitoring tools
   URL:=http://pagesperso-orange.fr/sebastien.godard/index.html
+  DEPENDS:=$(INTL_DEPENDS)
 endef
 
 define Package/sysstat/description
@@ -36,20 +41,18 @@ define Package/sysstat/description
 endef
 
 define Package/sysstat/conffiles
+/etc/config/sysstat
 /etc/sysstat/sysstat.ioconf
 /etc/sysstat/sysstat
 endef
 
 CONFIGURE_VARS+= \
 	sa_lib_dir="/usr/lib/sysstat" \
-	sa_dir="/var/log/sysstat" \
 	conf_dir="/etc/sysstat"
 
 CONFIGURE_ARGS+= \
 	--disable-documentation \
-	--disable-largefile \
-	--disable-sensors \
-	--disable-nls
+	--disable-sensors
 
 define Package/sysstat/install
 	$(INSTALL_DIR) $(1)/usr/lib/sysstat

@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2022, Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2024, Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for any
  * purpose with or without fee is hereby granted, provided that the above
@@ -19,6 +19,8 @@
 
 #include <net/dst_cache.h>
 
+#define EIP_IPSEC_SA_ESP_TRAILER_LEN 2U	/* ESP trailer len */
+
 struct eip_ipsec_dev;
 
 /*
@@ -36,6 +38,7 @@ struct eip_ipsec_sa_stats {
 	uint64_t fail_transform;	/* transformation error */
 	uint64_t fail_sp_alloc;		/* transformation error */
 	uint64_t dst_cache_miss;	/* DST cache not present */
+	uint64_t fast_recv_miss;	/* Packet sent via slow path */
 };
 
 /*
@@ -57,11 +60,6 @@ struct eip_ipsec_sa {
 	struct eip_tr *tr;		/* Transform record allocated by HW */
 	struct eip_ipsec_sa_stats __percpu *stats_pcpu;	/* SA statistics */
 	struct xfrm_state *xs;          /* offloaded xfrm sate to use in SKB after decap. */
-
-#if defined(EIP_IPSEC_HYBRID)
-	eip_tr_callback_t cb;		/* Callback for VP exception */
-#endif
-
 	struct eip_ipsec_tuple tuple;	/* SA tuple */
 	struct completion completion;   /* Completion to wait for all deref */
 	struct rcu_head rcu;            /* delay rcu free */

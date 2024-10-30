@@ -66,7 +66,7 @@ Signed-off-by: Aditya Kumar Singh <quic_adisi@quicinc.com>
  }
 --- a/drivers/net/wireless/ath/ath12k/wmi.c
 +++ b/drivers/net/wireless/ath/ath12k/wmi.c
-@@ -8052,7 +8052,7 @@ ath12k_wmi_process_csa_switch_count_even
+@@ -8042,7 +8042,7 @@ ath12k_wmi_process_csa_switch_count_even
  		/* FIXME some changes are expected for ML vifs */
  		if (arvif->is_up && link_conf->csa_active) {
  			if (!ev->current_switch_count)
@@ -110,7 +110,7 @@ Signed-off-by: Aditya Kumar Singh <quic_adisi@quicinc.com>
  static enum hrtimer_restart
 --- a/include/net/cfg80211.h
 +++ b/include/net/cfg80211.h
-@@ -4672,7 +4672,8 @@ struct cfg80211_ops {
+@@ -4671,7 +4671,8 @@ struct cfg80211_ops {
  
  	int	(*channel_switch)(struct wiphy *wiphy,
  				  struct net_device *dev,
@@ -120,14 +120,6 @@ Signed-off-by: Aditya Kumar Singh <quic_adisi@quicinc.com>
  
  	int     (*set_qos_map)(struct wiphy *wiphy,
  			       struct net_device *dev,
-@@ -6085,6 +6086,7 @@ struct wireless_dev {
- 			struct {
- 				unsigned int beacon_interval;
- 				struct cfg80211_chan_def chandef;
-+				bool is_going_down;
- 			} ap;
- 			struct {
- 				struct cfg80211_internal_bss *current_bss;
 --- a/include/net/mac80211.h
 +++ b/include/net/mac80211.h
 @@ -5502,12 +5502,13 @@ void ieee80211_beacon_set_cntdwn(struct
@@ -161,7 +153,7 @@ Signed-off-by: Aditya Kumar Singh <quic_adisi@quicinc.com>
  	ieee80211_free_next_beacon(link);
  
  	/* turn off carrier for this interface and dependent VLANs */
-@@ -3615,13 +3622,24 @@ error:
+@@ -3602,13 +3609,24 @@ error:
  	return NULL;
  }
  
@@ -187,7 +179,7 @@ Signed-off-by: Aditya Kumar Singh <quic_adisi@quicinc.com>
  	if (vif->mbssid_tx_vif == vif) {
  		/* Trigger ieee80211_csa_finish() on the non-transmitting
  		 * interfaces when channel switch is received on
-@@ -3640,7 +3658,7 @@ void ieee80211_csa_finish(struct ieee802
+@@ -3627,7 +3645,7 @@ void ieee80211_csa_finish(struct ieee802
  					     &iter->deflink.csa_finalize_work);
  		}
  	}
@@ -196,7 +188,7 @@ Signed-off-by: Aditya Kumar Singh <quic_adisi@quicinc.com>
  
  	rcu_read_unlock();
  }
-@@ -3658,23 +3676,25 @@ void ieee80211_channel_switch_disconnect
+@@ -3645,23 +3663,25 @@ void ieee80211_channel_switch_disconnect
  }
  EXPORT_SYMBOL(ieee80211_channel_switch_disconnect);
  
@@ -227,7 +219,7 @@ Signed-off-by: Aditya Kumar Singh <quic_adisi@quicinc.com>
  		*changed |= err;
  		break;
  	case NL80211_IFTYPE_ADHOC:
-@@ -3699,9 +3719,11 @@ static int ieee80211_set_after_csa_beaco
+@@ -3686,9 +3706,11 @@ static int ieee80211_set_after_csa_beaco
  	return 0;
  }
  
@@ -240,7 +232,7 @@ Signed-off-by: Aditya Kumar Singh <quic_adisi@quicinc.com>
  	u32 changed = 0;
  	int err;
  
-@@ -3716,49 +3738,54 @@ static int __ieee80211_csa_finalize(stru
+@@ -3703,49 +3725,54 @@ static int __ieee80211_csa_finalize(stru
  	 * completed successfully
  	 */
  
@@ -309,7 +301,7 @@ Signed-off-by: Aditya Kumar Singh <quic_adisi@quicinc.com>
  		cfg80211_stop_iface(sdata->local->hw.wiphy, &sdata->wdev,
  				    GFP_KERNEL);
  	}
-@@ -3766,23 +3793,32 @@ static void ieee80211_csa_finalize(struc
+@@ -3753,42 +3780,47 @@ static void ieee80211_csa_finalize(struc
  
  void ieee80211_csa_finalize_work(struct work_struct *work)
  {
@@ -322,15 +314,8 @@ Signed-off-by: Aditya Kumar Singh <quic_adisi@quicinc.com>
 +	struct ieee80211_sub_if_data *sdata = link->sdata;
  	struct ieee80211_local *local = sdata->local;
 +	struct ieee80211_bss_conf *link_conf = link->conf;
-+	struct wireless_dev *wdev = &sdata->wdev;
-+
-+	/* If is_going_down flag is set, this means that this link is going
-+	 * to get removed hence no point in proceeding further
-+	 */
-+	if (wdev->links[link->link_id].ap.is_going_down)
-+		return;
  
- 	sdata_lock(sdata);
+-	sdata_lock(sdata);
  	mutex_lock(&local->mtx);
  	mutex_lock(&local->chanctx_mtx);
  
@@ -339,16 +324,21 @@ Signed-off-by: Aditya Kumar Singh <quic_adisi@quicinc.com>
 +	if (!link_conf->csa_active)
  		goto unlock;
  
++	sdata_lock(sdata);
++
  	if (!ieee80211_sdata_running(sdata))
- 		goto unlock;
+-		goto unlock;
++		goto unlock_all;
  
 -	ieee80211_csa_finalize(sdata);
 +	ieee80211_csa_finalize(link);
  
++unlock_all:
++	sdata_unlock(sdata);
  unlock:
  	mutex_unlock(&local->chanctx_mtx);
-@@ -3790,18 +3826,19 @@ unlock:
- 	sdata_unlock(sdata);
+ 	mutex_unlock(&local->mtx);
+-	sdata_unlock(sdata);
  }
  
 -static int ieee80211_set_csa_beacon(struct ieee80211_sub_if_data *sdata,
@@ -370,7 +360,7 @@ Signed-off-by: Aditya Kumar Singh <quic_adisi@quicinc.com>
  			return -ENOMEM;
  
  		/*
-@@ -3827,7 +3864,7 @@ static int ieee80211_set_csa_beacon(stru
+@@ -3814,7 +3846,7 @@ static int ieee80211_set_csa_beacon(stru
  		     IEEE80211_MAX_CNTDWN_COUNTERS_NUM) ||
  		    (params->n_counter_offsets_presp >
  		     IEEE80211_MAX_CNTDWN_COUNTERS_NUM)) {
@@ -379,7 +369,7 @@ Signed-off-by: Aditya Kumar Singh <quic_adisi@quicinc.com>
  			return -EINVAL;
  		}
  
-@@ -3837,13 +3874,14 @@ static int ieee80211_set_csa_beacon(stru
+@@ -3824,13 +3856,14 @@ static int ieee80211_set_csa_beacon(stru
  		csa.n_counter_offsets_presp = params->n_counter_offsets_presp;
  		csa.count = params->count;
  
@@ -396,7 +386,7 @@ Signed-off-by: Aditya Kumar Singh <quic_adisi@quicinc.com>
  		*changed |= err;
  
  		break;
-@@ -3936,13 +3974,16 @@ static void ieee80211_color_change_abort
+@@ -3923,13 +3956,16 @@ static void ieee80211_color_change_abort
  
  static int
  __ieee80211_channel_switch(struct wiphy *wiphy, struct net_device *dev,
@@ -414,7 +404,7 @@ Signed-off-by: Aditya Kumar Singh <quic_adisi@quicinc.com>
  	u32 changed = 0;
  	int err;
  
-@@ -3955,16 +3996,21 @@ __ieee80211_channel_switch(struct wiphy
+@@ -3942,16 +3978,21 @@ __ieee80211_channel_switch(struct wiphy
  	if (sdata->wdev.cac_started)
  		return -EBUSY;
  
@@ -440,7 +430,7 @@ Signed-off-by: Aditya Kumar Singh <quic_adisi@quicinc.com>
  					 lockdep_is_held(&local->chanctx_mtx));
  	if (!conf) {
  		err = -EBUSY;
-@@ -3985,11 +4031,12 @@ __ieee80211_channel_switch(struct wiphy
+@@ -3972,11 +4013,12 @@ __ieee80211_channel_switch(struct wiphy
  	ch_switch.chandef = params->chandef;
  	ch_switch.count = params->count;
  
@@ -454,7 +444,7 @@ Signed-off-by: Aditya Kumar Singh <quic_adisi@quicinc.com>
  					     chanctx->mode,
  					     params->radar_required);
  	if (err)
-@@ -3998,39 +4045,40 @@ __ieee80211_channel_switch(struct wiphy
+@@ -3985,39 +4027,40 @@ __ieee80211_channel_switch(struct wiphy
  	/* if reservation is invalid then this will fail */
  	err = ieee80211_check_combinations(sdata, NULL, chanctx->mode, 0);
  	if (err) {
@@ -506,7 +496,7 @@ Signed-off-by: Aditya Kumar Singh <quic_adisi@quicinc.com>
  	}
  
  out:
-@@ -4039,14 +4087,15 @@ out:
+@@ -4026,14 +4069,15 @@ out:
  }
  
  int ieee80211_channel_switch(struct wiphy *wiphy, struct net_device *dev,
@@ -537,7 +527,7 @@ Signed-off-by: Aditya Kumar Singh <quic_adisi@quicinc.com>
  	ieee80211_ibss_csa_mark_radar(sdata);
 --- a/net/mac80211/ieee80211_i.h
 +++ b/net/mac80211/ieee80211_i.h
-@@ -1944,7 +1944,8 @@ int ieee80211_mgmt_tx_cancel_wait(struct
+@@ -1941,7 +1941,8 @@ int ieee80211_mgmt_tx_cancel_wait(struct
  /* channel switch handling */
  void ieee80211_csa_finalize_work(struct work_struct *work);
  int ieee80211_channel_switch(struct wiphy *wiphy, struct net_device *dev,
@@ -560,16 +550,7 @@ Signed-off-by: Aditya Kumar Singh <quic_adisi@quicinc.com>
  	return true;
 --- a/net/wireless/nl80211.c
 +++ b/net/wireless/nl80211.c
-@@ -6586,6 +6586,8 @@ static int nl80211_start_ap(struct sk_bu
- 
- 		if (info->attrs[NL80211_ATTR_SOCKET_OWNER])
- 			wdev->conn_owner_nlportid = info->snd_portid;
-+
-+		wdev->links[link_id].ap.is_going_down = false;
- 	}
- out_unlock:
- 	wdev_unlock(wdev);
-@@ -10699,7 +10701,7 @@ skip_beacons:
+@@ -10695,7 +10695,7 @@ skip_beacons:
  		params.block_tx = true;
  
  	wdev_lock(wdev);
@@ -580,7 +561,7 @@ Signed-off-by: Aditya Kumar Singh <quic_adisi@quicinc.com>
  free:
 --- a/net/wireless/rdev-ops.h
 +++ b/net/wireless/rdev-ops.h
-@@ -1087,12 +1087,13 @@ static inline void rdev_crit_proto_stop(
+@@ -1086,12 +1086,13 @@ static inline void rdev_crit_proto_stop(
  
  static inline int rdev_channel_switch(struct cfg80211_registered_device *rdev,
  				      struct net_device *dev,
@@ -599,7 +580,7 @@ Signed-off-by: Aditya Kumar Singh <quic_adisi@quicinc.com>
  }
 --- a/net/wireless/trace.h
 +++ b/net/wireless/trace.h
-@@ -2302,8 +2302,9 @@ TRACE_EVENT(rdev_crit_proto_stop,
+@@ -2301,8 +2301,9 @@ TRACE_EVENT(rdev_crit_proto_stop,
  
  TRACE_EVENT(rdev_channel_switch,
  	TP_PROTO(struct wiphy *wiphy, struct net_device *netdev,
@@ -611,7 +592,7 @@ Signed-off-by: Aditya Kumar Singh <quic_adisi@quicinc.com>
  	TP_STRUCT__entry(
  		WIPHY_ENTRY
  		NETDEV_ENTRY
-@@ -2313,6 +2314,7 @@ TRACE_EVENT(rdev_channel_switch,
+@@ -2312,6 +2313,7 @@ TRACE_EVENT(rdev_channel_switch,
  		__field(u8, count)
  		__dynamic_array(u16, bcn_ofs, params->n_counter_offsets_beacon)
  		__dynamic_array(u16, pres_ofs, params->n_counter_offsets_presp)
@@ -619,7 +600,7 @@ Signed-off-by: Aditya Kumar Singh <quic_adisi@quicinc.com>
  	),
  	TP_fast_assign(
  		WIPHY_ASSIGN;
-@@ -2330,11 +2332,13 @@ TRACE_EVENT(rdev_channel_switch,
+@@ -2329,11 +2331,13 @@ TRACE_EVENT(rdev_channel_switch,
  			memcpy(__get_dynamic_array(pres_ofs),
  			       params->counter_offsets_presp,
  			       params->n_counter_offsets_presp * sizeof(u16));
@@ -635,14 +616,3 @@ Signed-off-by: Aditya Kumar Singh <quic_adisi@quicinc.com>
  );
  
  TRACE_EVENT(rdev_set_qos_map,
---- a/net/wireless/ap.c
-+++ b/net/wireless/ap.c
-@@ -20,6 +20,8 @@ static int ___cfg80211_stop_ap(struct cf
- 
- 	ASSERT_WDEV_LOCK(wdev);
- 
-+	wdev->links[link_id].ap.is_going_down = true;
-+
- 	if (!rdev->ops->stop_ap)
- 		return -EOPNOTSUPP;
- 

@@ -8,20 +8,21 @@
 include $(TOPDIR)/rules.mk
 
 PKG_NAME:=check
-PKG_VERSION:=0.12.0
+PKG_VERSION:=0.15.2
 PKG_RELEASE:=2
 
 PKG_SOURCE:=$(PKG_NAME)-$(PKG_VERSION).tar.gz
 PKG_SOURCE_URL:=https://github.com/libcheck/check/releases/download/$(PKG_VERSION)
-PKG_HASH:=464201098bee00e90f5c4bdfa94a5d3ead8d641f9025b560a27755a83b824234
+PKG_HASH:=a8de4e0bacfb4d76dd1c618ded263523b53b85d92a146d8835eb1a52932fa20a
 
+PKG_MAINTAINER:=Eduardo Abinader <eduardoabinader@gmail.com>
 PKG_LICENSE:=LGPL-2.1-or-later
 PKG_LICENSE_FILES:=COPYING.LESSER
-PKG_MAINTAINER:=Eduardo Abinader <eduardoabinader@gmail.com>
 
-PKG_INSTALL:=1
+CMAKE_INSTALL:=1
 
 include $(INCLUDE_DIR)/package.mk
+include $(INCLUDE_DIR)/cmake.mk
 
 define Package/check
   SECTION:=libs
@@ -39,19 +40,9 @@ define Package/check/description
   code editors and IDEs.
 endef
 
-TARGET_CFLAGS += $(FPIC)
-CONFIGURE_VARS += \
-	hw_cv_func_snprintf_c99=yes \
-	hw_cv_func_vsnprintf_c99=yes \
-
-define Build/InstallDev
-	$(INSTALL_DIR) $(1)/usr/include
-	$(CP) $(PKG_INSTALL_DIR)/usr/include/check*.h $(1)/usr/include/
-	$(INSTALL_DIR) $(1)/usr/lib
-	$(CP) $(PKG_INSTALL_DIR)/usr/lib/libcheck.{a,so*} $(1)/usr/lib/
-	$(INSTALL_DIR) $(1)/usr/lib/pkgconfig
-	$(CP) $(PKG_INSTALL_DIR)/usr/lib/pkgconfig/check.pc $(1)/usr/lib/pkgconfig/
-endef
+CMAKE_OPTIONS += \
+	-DBUILD_TESTING=OFF \
+	-DCMAKE_POSITION_INDEPENDENT_CODE=ON
 
 define Package/check/install
 	$(INSTALL_DIR) $(1)/usr/lib

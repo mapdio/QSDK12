@@ -1,5 +1,6 @@
 /*
  * Copyright (c) 2016-2017, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2023 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for any
  * purpose with or without fee is hereby granted, provided that the above
@@ -292,7 +293,7 @@ static bool genl_dev_linux_ndev_is_bridge_member(struct general_device_system *s
  */
 static bool genl_dev_linux_ndev_flush_fdb(struct general_device_system *system_obj, uint32_t port_dev_obj)
 {
-	char port_name[IFNAMSIZ], path[32 + 2 * IFNAMSIZ];
+	char port_name[IFNAMSIZ], path[36 + 2 * IFNAMSIZ];
 	FILE *fd;
 	int ret;
 

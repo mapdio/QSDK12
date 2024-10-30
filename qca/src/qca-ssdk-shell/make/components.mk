@@ -19,7 +19,7 @@ ifeq (linux, $(OS))
     ifneq (TRUE, $(KERNEL_MODE))
       COMPONENTS = HSL SAL INIT UTIL REF
       ifeq (TRUE, $(FAL))
-        COMPONENTS += FAL
+        COMPONENTS += UK_IF
       endif
     else
       COMPONENTS = UK_IF SAL REF

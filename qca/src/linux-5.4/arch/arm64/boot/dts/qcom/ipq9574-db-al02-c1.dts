@@ -482,7 +482,7 @@
 				   <0 352 4>,			/* Rx desc ring id #21 IRQ info */
 				   <0 353 4>,			/* Rx desc ring id #22 IRQ info */
 				   <0 354 4>,			/* Rx desc ring id #23 IRQ info */
-				   <0 261 4>;			/* Misc error IRQ info */
+				   <0 499 4>;			/* Misc error IRQ info */
 		};
 	};
 };

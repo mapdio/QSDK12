@@ -42,6 +42,8 @@ struct ecm_front_end_fse_info {
 	uint8_t protocol;			/**< Protocol number. */
 	uint16_t src_port;			/**< Source port. */
 	uint16_t dest_port;			/**< Destination port. */
+	uint8_t src_mac[ETH_ALEN];		/**< Source MAC. */
+	uint8_t dest_mac[ETH_ALEN];		/**< Destination MAC. */
 	struct net_device *src_dev;		/**< Source netdevice. */
 	struct net_device *dest_dev;		/**< Destination netdevice. */
 };

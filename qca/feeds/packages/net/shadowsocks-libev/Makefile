@@ -1,5 +1,5 @@
 #
-# Copyright (C) 2017-2019 Yousong Zhou <yszhou4tech@gmail.com>
+# Copyright (C) 2017-2020 Yousong Zhou <yszhou4tech@gmail.com>
 #
 # This is free software, licensed under the GNU General Public License v2.
 # See /LICENSE for more information.
@@ -13,12 +13,12 @@ include $(TOPDIR)/rules.mk
 # - check if default mode has changed from being tcp_only
 #
 PKG_NAME:=shadowsocks-libev
-PKG_VERSION:=3.2.5
-PKG_RELEASE:=5
+PKG_VERSION:=3.3.5
+PKG_RELEASE:=11
 
 PKG_SOURCE:=$(PKG_NAME)-$(PKG_VERSION).tar.gz
 PKG_SOURCE_URL:=https://github.com/shadowsocks/shadowsocks-libev/releases/download/v$(PKG_VERSION)
-PKG_HASH:=02273d571b8bea067eefb203a43c142d052042179904f9050a1f20cb8dc5d242
+PKG_HASH:=cfc8eded35360f4b67e18dc447b0c00cddb29cc57a3cec48b135e5fb87433488
 
 PKG_MAINTAINER:=Yousong Zhou <yszhou4tech@gmail.com>
 
@@ -27,9 +27,9 @@ PKG_LICENSE_FILES:=LICENSE
 
 PKG_FIXUP:=autoreconf
 PKG_INSTALL:=1
-PKG_USE_MIPS16:=0
+PKG_BUILD_FLAGS:=no-mips16 lto
 PKG_BUILD_PARALLEL:=1
-PKG_BUILD_DEPENDS:=c-ares pcre
+PKG_BUILD_DEPENDS:=c-ares pcre2
 
 include $(INCLUDE_DIR)/package.mk
 
@@ -40,6 +40,10 @@ define Package/shadowsocks-libev-config
   SUBMENU:=Web Servers/Proxies
   TITLE:=shadowsocks-libev config scripts
   URL:=https://github.com/shadowsocks/shadowsocks-libev
+endef
+
+define Package/shadowsocks-libev-config/conffiles
+/etc/config/shadowsocks-libev
 endef
 
 define Package/shadowsocks-libev-config/install
@@ -67,8 +71,8 @@ define Package/shadowsocks-libev/Default
 
 endef
 
-DEPENDS_ss-local = +libpcre
-DEPENDS_ss-server = +libcares +libpcre
+DEPENDS_ss-local = +libpcre2
+DEPENDS_ss-server = +libcares +libpcre2
 
 SHADOWSOCKS_COMPONENTS:=ss-local ss-redir ss-tunnel ss-server
 define shadowsocks-libev/templates
@@ -85,25 +89,19 @@ define Package/shadowsocks-libev-ss-rules
   SUBMENU:=Web Servers/Proxies
   TITLE:=shadowsocks-libev ss-rules
   URL:=https://github.com/shadowsocks/shadowsocks-libev
-  DEPENDS:=+ip +ipset +iptables-mod-tproxy +resolveip +shadowsocks-libev-ss-redir +shadowsocks-libev-config
+  DEPENDS:=+firewall4 \
+	   +ip \
+	   +resolveip \
+	   +ucode \
+	   +ucode-mod-fs \
+	   +shadowsocks-libev-ss-redir \
+	   +shadowsocks-libev-config \
+	   +kmod-nft-tproxy
 endef
 
 define Package/shadowsocks-libev-ss-rules/install
-	$(INSTALL_DIR) $(1)/usr/bin
-	$(INSTALL_BIN) ./files/ss-rules $(1)/usr/bin
-	$(INSTALL_DIR) $(1)/etc/uci-defaults
-	$(INSTALL_DATA) ./files/firewall.ss-rules $(1)/etc
-	$(INSTALL_BIN) ./files/ss-rules.defaults $(1)/etc/uci-defaults
-endef
-
-define Package/shadowsocks-libev-ss-rules/prerm
-#!/bin/sh
-s=firewall.ss_rules
-uci get "$$s" >/dev/null || exit 0
-uci batch <<-EOF
-	delete $$s
-	commit firewall
-EOF
+	$(INSTALL_DIR) $(1)/usr/share/ss-rules
+	$(INSTALL_DATA) ./files/ss-rules/* $(1)/usr/share/ss-rules/
 endef
 
 define Build/Prepare
@@ -122,7 +120,6 @@ CONFIGURE_ARGS += \
 	--disable-assert \
 	--disable-ssp \
 
-TARGET_CFLAGS += -flto
 TARGET_LDFLAGS += -Wl,--gc-sections,--as-needed
 
 $(eval $(call BuildPackage,shadowsocks-libev-config))

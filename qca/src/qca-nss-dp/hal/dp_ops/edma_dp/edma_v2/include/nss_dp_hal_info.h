@@ -26,6 +26,10 @@
 struct nss_dp_hal_info {
 	struct edma_txdesc_ring *txr_map[EDMA_TX_MAX_PRIORITY_LEVEL][NR_CPUS];
 				/* Per CPU Tx descriptor ring map */
+#ifdef NSS_DP_MHT_SW_PORT_MAP
+	struct edma_txdesc_ring *txr_sw_port_map[NSS_DP_HAL_MHT_SWT_MAX_PORTS][NR_CPUS];
+				/* Per CPU MHT switch ports Tx descriptor ring map */
+#endif
 	struct edma_pcpu_stats pcpu_stats;
 				/* Per CPU netdev statistics */
 };

@@ -94,12 +94,13 @@ Signed-off-by: Aditya Kumar Singh <quic_adisi@quicinc.com>
  
  	if (err) {
  		wpa_printf(MSG_ERROR,
-@@ -1448,7 +1449,8 @@ static int hostapd_dfs_testmode_set_beac
+@@ -1446,7 +1447,9 @@ static int hostapd_dfs_testmode_set_beac
+ 				      vht_oper_centr_freq_seg0_idx,
  				      vht_oper_centr_freq_seg1_idx,
  				      iface->current_mode->vht_capab,
- 				      &iface->current_mode->he_capab[IEEE80211_MODE_AP],
--				      &iface->current_mode->eht_capab[IEEE80211_MODE_AP]);
-+				      &iface->current_mode->eht_capab[IEEE80211_MODE_AP],
+-				      &iface->current_mode->he_capab[IEEE80211_MODE_AP]);
++				      &iface->current_mode->he_capab[IEEE80211_MODE_AP],
++				      NULL,
 +				      iface->conf->he_6ghz_reg_pwr_type);
  
  	if (err) {
@@ -225,7 +226,7 @@ Signed-off-by: Aditya Kumar Singh <quic_adisi@quicinc.com>
  int ieee80211ac_cap_check(u32 hw, u32 conf);
 --- a/src/common/ieee802_11_defs.h
 +++ b/src/common/ieee802_11_defs.h
-@@ -1960,6 +1960,16 @@ struct tpc_report {
+@@ -1970,6 +1970,16 @@ struct tpc_report {
  } STRUCT_PACKED;
  
  /*
@@ -242,7 +243,7 @@ Signed-off-by: Aditya Kumar Singh <quic_adisi@quicinc.com>
   * IEEE Std 802.11ax-2021, Table 9-275a - Maximum Transmit Power
   * Interpretation subfield encoding
   */
-@@ -2359,6 +2369,9 @@ enum he_6ghz_ap_type {
+@@ -2369,6 +2379,9 @@ enum he_6ghz_ap_type {
  	HE_6GHZ_VERY_LOW_POWER_AP	= 2,
  };
  
@@ -529,7 +530,7 @@ Signed-off-by: Aditya Kumar Singh <quic_adisi@quicinc.com>
  
 --- a/wpa_supplicant/mesh.c
 +++ b/wpa_supplicant/mesh.c
-@@ -232,7 +232,8 @@ static int wpas_mesh_update_freq_params(
+@@ -233,7 +233,8 @@ static int wpas_mesh_update_freq_params(
  		    hostapd_get_oper_centr_freq_seg0_idx(ifmsh->conf),
  		    hostapd_get_oper_centr_freq_seg1_idx(ifmsh->conf),
  		    ifmsh->conf->vht_capab,
@@ -541,7 +542,7 @@ Signed-off-by: Aditya Kumar Singh <quic_adisi@quicinc.com>
  		return -1;
 --- a/wpa_supplicant/wpa_supplicant.c
 +++ b/wpa_supplicant/wpa_supplicant.c
-@@ -2971,7 +2971,7 @@ skip_to_6ghz:
+@@ -2972,7 +2972,7 @@ skip_to_6ghz:
  				    freq->sec_channel_offset,
  				    chwidth, seg0, seg1, vht_caps,
  				    &mode->he_capab[ieee80211_mode],

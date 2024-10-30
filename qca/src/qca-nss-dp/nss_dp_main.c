@@ -1,7 +1,7 @@
 /*
  * Copyright (c) 2016-2021, The Linux Foundation. All rights reserved.
  *
- * Copyright (c) 2021-2023, Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2021-2024, Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
@@ -31,11 +31,15 @@
 #include <ref/ref_vsi.h>
 #endif
 #include <net/switchdev.h>
+#if (LINUX_VERSION_CODE > KERNEL_VERSION(6, 6, 0))
+#include <net/netdev_rx_queue.h>
+#endif
 #if defined(NSS_DP_MAC_POLL_SUPPORT)
 #include <init/ssdk_init.h>
 #endif
-
 #include "nss_dp_hal.h"
+#define JUMBO_MRU_3K 3072
+#define NSS_DP_CAPWAP_VP_RX_CORE_INVALID 0XFFFF
 
 /* ipq40xx_mdio_data */
 struct ipq40xx_mdio_data {
@@ -61,9 +65,13 @@ int jumbo_mru;
 module_param(jumbo_mru, int, 0640);
 MODULE_PARM_DESC(jumbo_mru, "jumbo mode");
 
-int tx_requeue_stop;
-module_param(tx_requeue_stop, int, 0);
+int tx_requeue_stop = 1;
+module_param(tx_requeue_stop, int, 0640);
 MODULE_PARM_DESC(tx_requeue_stop, "disable tx requeue function");
+
+uint32_t nss_dp_capwap_vp_rx_core = NSS_DP_CAPWAP_VP_RX_CORE_INVALID;
+module_param(nss_dp_capwap_vp_rx_core, int, S_IRUGO);
+MODULE_PARM_DESC(nss_dp_capwap_vp_rx_core, "Capwap VP handling core");
 
 int nss_dp_rx_napi_budget = NSS_DP_HAL_RX_NAPI_BUDGET;
 module_param(nss_dp_rx_napi_budget, int, S_IRUGO);
@@ -72,6 +80,16 @@ MODULE_PARM_DESC(nss_dp_rx_napi_budget, "Rx NAPI budget");
 int nss_dp_tx_napi_budget = NSS_DP_HAL_TX_NAPI_BUDGET;
 module_param(nss_dp_tx_napi_budget, int, S_IRUGO);
 MODULE_PARM_DESC(nss_dp_tx_napi_budget, "Tx NAPI budget");
+
+int nss_dp_recovery_en = 0;
+module_param(nss_dp_recovery_en, int, 0640);
+MODULE_PARM_DESC(nss_dp_recovery_en, "Enable EDMA recovery (1 for enable, 0 for disable)");
+
+#ifdef NSS_DP_MHT_SW_PORT_MAP
+int nss_dp_mht_multi_txring = 0;
+module_param(nss_dp_mht_multi_txring, int, S_IRUGO);
+MODULE_PARM_DESC(nss_dp_mht_multi_txring, "MHT SW ports to Tx rings map");
+#endif
 
 #if defined(NSS_DP_EDMA_V2)
 int nss_dp_rx_fc_xoff = NSS_DP_RX_FC_XOFF_DEF;
@@ -102,12 +120,38 @@ int nss_dp_rx_mitigation_pkt_cnt = NSS_DP_RX_MITIGATION_PKT_CNT_DEF;
 module_param(nss_dp_rx_mitigation_pkt_cnt, int, S_IRUGO);
 MODULE_PARM_DESC(nss_dp_rx_mitigation_pkt_cnt, "Rx mitigation packet count value");
 
+#ifdef CONFIG_SKB_TIMESTAMP
+static int nss_dp_tstamp_port_id = NSS_DP_EDMA_DEF_TSTAMP_PORT;
+module_param(nss_dp_tstamp_port_id, int, S_IRUGO);
+MODULE_PARM_DESC(nss_dp_tstamp_port_id, "Port number for time stamping");
+#endif
+
 /*
  * Module parameter for priority mapping
  */
 uint8_t nss_dp_pri_map[EDMA_PRI_MAX] = {0, 1, 2, 3, 4, 5, 6, 7, 7, 7, 7, 7, 7, 7, 7, 7};
 module_param_array(nss_dp_pri_map, byte, NULL, S_IRUGO);
 MODULE_PARM_DESC(nss_dp_pri_map, "Priority to multi-queue mapping");
+#endif
+
+#if defined(NSS_DP_EDMA_LOOPBACK_SUPPORT)
+/*
+ * Module parameter for Loopback ring
+ */
+#define EDMA_LOOPBACK_RING_SIZE 16384
+#define EDMA_LOOPBACK_BUFFER_SIZE 1536
+
+int edma_loopback_ring_size = EDMA_LOOPBACK_RING_SIZE;
+module_param(edma_loopback_ring_size, int, S_IRUGO);
+MODULE_PARM_DESC(edma_loopback_ring_size, "Loopback ring size");
+
+int edma_loopback_buffer_size = EDMA_LOOPBACK_BUFFER_SIZE;
+module_param(edma_loopback_buffer_size, int, S_IRUGO);
+MODULE_PARM_DESC(edma_loopback_buffer_size, "Loopback buffer size");
+
+int edma_loopback_disable = 0;
+module_param(edma_loopback_disable, int, S_IRUGO);
+MODULE_PARM_DESC(edma_loopback_disable, "Loopback disable");
 #endif
 
 /*
@@ -390,7 +434,8 @@ static int nss_dp_open(struct net_device *netdev)
 	}
 #endif
 
-	if (dp_priv->data_plane_ops->mac_addr(dp_priv->dpc, netdev->dev_addr)) {
+	if (dp_priv->data_plane_ops->mac_addr(dp_priv->dpc,
+				(unsigned char *)netdev->dev_addr)) {
 		netdev_dbg(netdev, "Data plane set MAC address failed\n");
 		return -EAGAIN;
 	}
@@ -567,6 +612,9 @@ struct net_device_ops nss_dp_netdev_ops = {
 	.ndo_validate_addr = eth_validate_addr,
 	.ndo_change_mtu = nss_dp_change_mtu,
 	.ndo_do_ioctl = nss_dp_do_ioctl,
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(6, 1, 0))
+	.ndo_eth_ioctl = phy_do_ioctl_running,
+#endif
 
 #if (LINUX_VERSION_CODE < KERNEL_VERSION(4, 5, 0))
 	.ndo_bridge_setlink = switchdev_port_bridge_setlink,
@@ -595,6 +643,9 @@ static int32_t nss_dp_of_get_pdata(struct device_node *np,
 	uint8_t *maddr;
 	struct nss_dp_dev *dp_priv;
 	struct resource memres_devtree = {0};
+#if (LINUX_VERSION_CODE > KERNEL_VERSION(6, 1, 0))
+	uint8_t mac_addr[ETH_ALEN];
+#endif
 
 	dp_priv = netdev_priv(netdev);
 
@@ -621,7 +672,13 @@ static int32_t nss_dp_of_get_pdata(struct device_node *np,
 	hal_pdata->netdev = netdev;
 	hal_pdata->macid = dp_priv->macid;
 
+#if (LINUX_VERSION_CODE < KERNEL_VERSION(6, 1, 0))
 	dp_priv->phy_mii_type = of_get_phy_mode(np);
+#else
+	if (of_get_phy_mode(np, &dp_priv->phy_mii_type))
+		return -EFAULT;
+#endif
+
 	dp_priv->link_poll = of_property_read_bool(np, "qcom,link-poll");
 	if (of_property_read_u32(np, "qcom,phy-mdio-addr",
 		&dp_priv->phy_mdio_addr) && dp_priv->link_poll) {
@@ -633,17 +690,29 @@ static int32_t nss_dp_of_get_pdata(struct device_node *np,
 	of_property_read_u32(np, "qcom,forced-speed", &dp_priv->forced_speed);
 	of_property_read_u32(np, "qcom,forced-duplex", &dp_priv->forced_duplex);
 
+
+#if (LINUX_VERSION_CODE < KERNEL_VERSION(6, 1, 0))
 	maddr = (uint8_t *)of_get_mac_address(np);
 #if (LINUX_VERSION_CODE > KERNEL_VERSION(5, 4, 0))
 	if (IS_ERR((void *)maddr)) {
 		maddr = NULL;
 	}
 #endif
+#else
+	maddr = mac_addr;
+	if (of_get_mac_address(np, maddr))
+		maddr = NULL;
+#endif /* LINUX_VERSION_CODE 6.1.0 */
 
 	if (maddr && is_valid_ether_addr(maddr)) {
-		ether_addr_copy(netdev->dev_addr, maddr);
+#if (LINUX_VERSION_CODE < KERNEL_VERSION(6, 1, 0))
+		ether_addr_copy(netdev->dev_addr, (const uint8_t *)maddr);
+#else
+		eth_hw_addr_set(netdev, maddr);
+#endif
+
 	} else {
-		random_ether_addr(netdev->dev_addr);
+		eth_hw_addr_random(netdev);
 		pr_info("GMAC%d(%px) Invalid MAC@ - using %pM\n", dp_priv->macid,
 						dp_priv, netdev->dev_addr);
 	}
@@ -660,13 +729,53 @@ static int32_t nss_dp_of_get_pdata(struct device_node *np,
 		dp_priv->rx_jumbo_mru = jumbo_mru;
 		pr_info("Jumbo mru is enabled: %d\n", dp_priv->rx_jumbo_mru);
 	}
-#else
+#endif
+
+#if defined(NSS_DP_MEM_PROFILE_MEDIUM)
+	/*
+	 * 512 memory profile supports jumbo mru till 3k.
+	 * For 512 memroy profile, page mode needs to be disabled.
+	 */
+	dp_priv->rx_page_mode = false;
+
+	/*
+	 * 512M profile supports Jumbo mru till 3K
+	 */
+	if (jumbo_mru) {
+		if (jumbo_mru > JUMBO_MRU_3K) {
+			pr_info("Set mru to %d for 512M profile\n", jumbo_mru);
+			jumbo_mru = JUMBO_MRU_3K;
+		}
+
+		dp_priv->rx_jumbo_mru = jumbo_mru;
+		pr_info("Jumbo mru is enabled with size: %d\n", dp_priv->rx_jumbo_mru);
+	}
+
+	if (overwrite_mode || page_mode) {
+		pr_err("512M profile does not support page mode/jumbo mru\n");
+		return -EFAULT;
+	}
+#elif defined(NSS_DP_MEM_PROFILE_LOW)
 	if (overwrite_mode || page_mode || jumbo_mru) {
 		pr_err("Low memory profiles does not support page mode/jumbo mru\n");
 		return -EFAULT;
 	}
 #endif
 
+	dp_priv->ppe_offload_disabled = of_property_read_bool(np, "qcom,ppe-offload-disabled");
+	pr_info("%s: ppe offload disabled: %d for macid %d\n", np->name,
+				dp_priv->ppe_offload_disabled, dp_priv->macid);
+
+	dp_priv->is_switch_connected = of_property_read_bool(np, "qcom,is_switch_connected");
+	pr_info("%s: Switch attached to macid %d status: %d\n", np->name, dp_priv->macid, dp_priv->is_switch_connected);
+
+	/*
+	 * Read switch dev when MHT switch port to txring mapping is enabled.
+	 */
+#ifdef NSS_DP_MHT_SW_PORT_MAP
+	if (dp_global_ctx.is_mht_dev)
+		dp_priv->nss_dp_mht_dev = of_property_read_bool(np, "qcom,mht-dev");
+#endif
 	return 0;
 }
 
@@ -677,7 +786,9 @@ static struct mii_bus *nss_dp_mdio_attach(struct platform_device *pdev)
 {
 	struct device_node *mdio_node;
 	struct platform_device *mdio_plat;
+#if (LINUX_VERSION_CODE < KERNEL_VERSION(6,1,0))
 	struct ipq40xx_mdio_data *mdio_data;
+#endif
 
 	/*
 	 * Find mii_bus using "mdio-bus" handle.
@@ -704,6 +815,9 @@ static struct mii_bus *nss_dp_mdio_attach(struct platform_device *pdev)
 		return NULL;
 	}
 
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(6,1,0))
+	return dev_get_drvdata(&mdio_plat->dev);
+#else
 	mdio_data = dev_get_drvdata(&mdio_plat->dev);
 	if (!mdio_data) {
 		dev_err(&pdev->dev, "cannot get mii bus reference from device data\n");
@@ -712,6 +826,7 @@ static struct mii_bus *nss_dp_mdio_attach(struct platform_device *pdev)
 	}
 
 	return mdio_data->mii_bus;
+#endif
 }
 
 #ifdef CONFIG_NET_SWITCHDEV
@@ -787,6 +902,8 @@ static int32_t nss_dp_probe(struct platform_device *pdev)
 		return -ENOMEM;
 	}
 
+	SET_NETDEV_DEV(netdev, &pdev->dev);
+
 #if (LINUX_VERSION_CODE >= KERNEL_VERSION(4, 10, 0))
 	/* max_mtu is set to 1500 in ether_setup() */
 	netdev->max_mtu = ETH_MAX_MTU;
@@ -858,8 +975,6 @@ static int32_t nss_dp_probe(struct platform_device *pdev)
 		snprintf(phy_id, MII_BUS_ID_SIZE + 3, PHY_ID_FMT,
 				dp_priv->miibus->id, dp_priv->phy_mdio_addr);
 
-		SET_NETDEV_DEV(netdev, &pdev->dev);
-
 		dp_priv->phydev = phy_connect(netdev, phy_id,
 				&nss_dp_adjust_link,
 				dp_priv->phy_mii_type);
@@ -902,6 +1017,30 @@ static int32_t nss_dp_probe(struct platform_device *pdev)
 	dp_global_ctx.slowproto_acl_bm = 0;
 
 	netdev_dbg(netdev, "Init NSS DP GMAC%d (base = 0x%lx)\n", dp_priv->macid, netdev->base_addr);
+
+#ifdef CONFIG_SKB_TIMESTAMP
+	/*
+	 * Validate the Latency port's value and fill up the GMAC timer register addresses
+	 */
+	if ((nss_dp_tstamp_port_id <= 0) || (nss_dp_tstamp_port_id > NSS_DP_HAL_MAX_PORTS)) {
+		nss_dp_tstamp_port_id = NSS_DP_EDMA_DEF_TSTAMP_PORT;
+	}
+
+	if ((dp_priv->macid == nss_dp_tstamp_port_id) && gmac_hal_pdata.mactype) {
+		phys_addr_t sec_addr = NSS_DP_GMAC_TS_ADDR_SEC(netdev->base_addr);
+		phys_addr_t nsec_addr = NSS_DP_GMAC_TS_ADDR_NSEC(netdev->base_addr);
+
+		edma_gbl_ctx.tstamp_sec = ioremap_nocache(sec_addr, sizeof(uint32_t));
+		edma_gbl_ctx.tstamp_nsec = ioremap_nocache(nsec_addr, sizeof(uint32_t));
+
+		if (unlikely(!edma_gbl_ctx.tstamp_sec || !edma_gbl_ctx.tstamp_nsec)) {
+			pr_err("Unable to map the timestamp registers, sec addr:0x%llx,"
+					" nsec addr: 0x%llx\n", sec_addr, nsec_addr);
+			return 0;
+		}
+		pr_info("tstamp_sec: 0x%llx, tstamp_nsec: 0x%llx\n", sec_addr, nsec_addr);
+	}
+#endif
 
 	return 0;
 
@@ -1037,7 +1176,7 @@ EXPORT_SYMBOL(nss_dp_nsm_sawf_sc_stats_read);
  */
 int __init nss_dp_init(void)
 {
-	int ret;
+	int ret, i;
 
 	dp_global_ctx.common_init_done = false;
 
@@ -1049,6 +1188,20 @@ int __init nss_dp_init(void)
 	 * Get the buffer size to allocate
 	 */
 	dp_global_ctx.rx_buf_size = NSS_DP_RX_BUFFER_SIZE;
+
+#if defined(NSS_DP_EDMA_LOOPBACK_SUPPORT)
+	if (edma_loopback_ring_size) {
+		dp_global_ctx.edma_loopback_ring_size = edma_loopback_ring_size;
+	}
+
+	if (edma_loopback_buffer_size) {
+		dp_global_ctx.edma_loopback_buffer_size = edma_loopback_buffer_size;
+	}
+
+	if (edma_loopback_disable) {
+		dp_global_ctx.edma_disable_loopback = edma_loopback_disable;
+	}
+#endif
 
 	/*
 	 * Configure tx requeue functionality based on module param
@@ -1066,11 +1219,33 @@ int __init nss_dp_init(void)
 	dp_global_ctx.overwrite_mode = overwrite_mode;
 	dp_global_ctx.page_mode = page_mode;
 	dp_global_ctx.jumbo_mru = jumbo_mru;
+#elif defined(NSS_DP_MEM_PROFILE_MEDIUM)
+	dp_global_ctx.jumbo_mru = jumbo_mru;
+	if (overwrite_mode && page_mode) {
+		pr_err("512 memory profiles does not support page mode\n");
+	}
 #else
 	if ((overwrite_mode && page_mode) || jumbo_mru) {
 		pr_err("Low memory profiles does not support page mode/jumbo mru\n");
 	}
 #endif
+
+	/*
+	 * Configure MHT switch ports to tx ring mapping
+	 * Default mht ports mapping is disabled.
+	 */
+#ifdef NSS_DP_MHT_SW_PORT_MAP
+	dp_global_ctx.is_mht_dev = false;
+	if (nss_dp_mht_multi_txring)
+		dp_global_ctx.is_mht_dev = true;
+#endif
+
+	/*
+	 * Initialize nss dp pointer to NULL
+	 */
+	for (i = 0; i < NSS_DP_MAX_PORTS; i++) {
+		dp_global_ctx.nss_dp[i] = NULL;
+	}
 
 	/*
 	 * Check platform compatibility and

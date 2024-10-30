@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2024 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for any
  * purpose with or without fee is hereby granted, provided that the above
@@ -96,6 +96,52 @@ ppe_drv_ret_t ppe_drv_vlan_port_role_set(struct ppe_drv_iface *iface, uint32_t p
  */
 ppe_drv_ret_t ppe_drv_vlan_del_xlate_rule(struct ppe_drv_iface *iface, struct ppe_drv_vlan_xlate_info *info);
 
+/*
+ * ppe_drv_vlan_over_bridge_del_ig_rule
+ * 	Deleting ingress xlate rules for the given iface
+ *
+ * @datatypes
+ * ppe_drv_iface
+ *
+ * @param[in] iface PPE interface of the slave
+ * @param[in] iface PPE interface of the VLAN
+ *
+ * @return
+ * Status of the operation.
+ */
+ppe_drv_ret_t ppe_drv_vlan_over_bridge_del_ig_rule(struct ppe_drv_iface *slave_iface,
+						   struct ppe_drv_iface *vlan_iface);
+/*
+ * ppe_drv_vlan_over_bridge_add_ig_rule
+ * 	Installing ingress xlate rules for the given iface
+ *
+ * @datatypes
+ * ppe_drv_iface
+ *
+ * @param[in] iface PPE interface of the slave
+ * @param[in] iface PPE interface of the VLAN
+ *
+ * @return
+ * Status of the operation.
+ */
+ppe_drv_ret_t ppe_drv_vlan_over_bridge_add_ig_rule(struct ppe_drv_iface *slave_iface,
+						   struct ppe_drv_iface *vlan_iface);
+/**
+ * ppe_drv_vlan_as_vp_del_xlate_rules
+ *	Delete vlan translation rules with VP.
+ *
+ * @datatypes
+ * ppe_drv_iface
+ * ppe_drv_vlan_xlate_info
+ *
+ * @param[in] iface  PPE interface for vlan device.
+ * @param[in] ppe_drv_vlan_xlate_info Translation info.
+ *
+ * @return
+ * Status of the operation.
+ */
+ppe_drv_ret_t ppe_drv_vlan_as_vp_del_xlate_rules(struct ppe_drv_iface *iface, struct ppe_drv_vlan_xlate_info *info);
+
 /**
  * ppe_drv_vlan_add_xlate_rule
  *	Add vlan translation rules.
@@ -105,12 +151,28 @@ ppe_drv_ret_t ppe_drv_vlan_del_xlate_rule(struct ppe_drv_iface *iface, struct pp
  * ppe_drv_vlan_xlate_info
  *
  * @param[in] iface  PPE interface for vlan device.
- * @param[in] ppe_drv_vlan_xlate_info	Translation info.
+ * @param[in] ppe_drv_vlan_xlate_info Translation info.
  *
  * @return
  * Status of the operation.
  */
 ppe_drv_ret_t ppe_drv_vlan_add_xlate_rule(struct ppe_drv_iface *iface, struct ppe_drv_vlan_xlate_info *info);
+
+/**
+ * ppe_drv_vlan_as_vp_add_xlate_rules
+ *	Add vlan translation rules with VP.
+ *
+ * @datatypes
+ * ppe_drv_iface
+ * ppe_drv_vlan_xlate_info
+ *
+ * @param[in] iface  PPE interface for vlan device.
+ * @param[in] ppe_drv_vlan_xlate_info Translation info.
+ *
+ * @return
+ * Status of the operation.
+ */
+ppe_drv_ret_t ppe_drv_vlan_as_vp_add_xlate_rules(struct ppe_drv_iface *iface, struct ppe_drv_vlan_xlate_info *info);
 
 /**
  * ppe_drv_vlan_deinit
@@ -137,10 +199,44 @@ void ppe_drv_vlan_deinit(struct ppe_drv_iface *iface);
  * @param[in] iface  PPE interface for vlan device.
  * @param[in] base_dev  Base net device on which vlan is created.
  * @param[in] vlan_id  vlan_id.
+ * @param[in] vlan_over_bridge VLAN interface is created over bridge
  *
  * @return
  * Status of the operation.
  */
-ppe_drv_ret_t ppe_drv_vlan_init(struct ppe_drv_iface *iface, struct net_device *base_dev, uint32_t vlan_id);
+ppe_drv_ret_t ppe_drv_vlan_init(struct ppe_drv_iface *iface, struct net_device *base_dev, uint32_t vlan_id,
+				bool vlan_over_bridge);
+
+/**
+ * ppe_drv_vlan_lag_slave_join
+ *	slave dev inside lag join vlan.
+ *
+ * @datatypes
+ * ppe_drv_iface
+ * net_device
+ *
+ * @param[in] vlan_iface  PPE interface for vlan device.
+ * @param[in] slave_dev  Slave net device
+ *
+ * @return
+ * Status of the operation.
+ */
+ppe_drv_ret_t ppe_drv_vlan_lag_slave_join(struct ppe_drv_iface *vlan_iface, struct net_device *slave_dev);
+
+/**
+ * ppe_drv_vlan_lag_slave_leave
+ *	slave dev inside lag leave vlan.
+ *
+ * @datatypes
+ * ppe_drv_iface
+ * net_device
+ *
+ * @param[in] vlan_iface  PPE interface for vlan device.
+ * @param[in] slave_dev  Slave net device
+ *
+ * @return
+ * Status of the operation.
+ */
+ppe_drv_ret_t ppe_drv_vlan_lag_slave_leave(struct ppe_drv_iface *vlan_iface, struct net_device *slave_dev);
 
 #endif /* _PPE_DRV_VLAN_H_ */

@@ -1,7 +1,7 @@
 /*
  **************************************************************************
  * Copyright (c) 2015-2021 The Linux Foundation. All rights reserved.
- * Copyright (c) 2022-2023 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2024 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
@@ -92,6 +92,7 @@
 static int ecm_sfe_ported_ipv4_accelerated_count[ECM_FRONT_END_PORTED_PROTO_MAX] = {0};
 						/* Array of Number of TCP and UDP connections currently offloaded */
 
+#if (LINUX_VERSION_CODE < KERNEL_VERSION(5, 13, 0))
 /*
  * Expose what should be a static flag in the TCP connection tracker.
  */
@@ -99,6 +100,7 @@ static int ecm_sfe_ported_ipv4_accelerated_count[ECM_FRONT_END_PORTED_PROTO_MAX]
 extern int nf_ct_tcp_no_window_check;
 #endif
 extern int nf_ct_tcp_be_liberal;
+#endif
 
 /*
  * ecm_sfe_ported_ipv4_connection_callback()
@@ -222,6 +224,15 @@ static void ecm_sfe_ported_ipv4_connection_callback(void *app_data, struct sfe_i
 		_ecm_sfe_ipv4_accel_pending_clear(feci, ECM_FRONT_END_ACCELERATION_MODE_DECEL);
 		spin_unlock_bh(&ecm_sfe_ipv4_lock);
 
+		/*
+		 * If there was a defunct attempt while handling the flush event, set the accel mode
+		 * to defunct fail. Then either conntrack timeout or ECM database connection timeout
+		 * will handle the destroy later.
+		 */
+		if (feci->is_defunct) {
+			feci->accel_mode = ECM_FRONT_END_ACCELERATION_MODE_FAIL_DEFUNCT;
+		}
+
 		spin_unlock_bh(&feci->lock);
 
 		/*
@@ -255,14 +266,33 @@ static void ecm_sfe_ported_ipv4_connection_callback(void *app_data, struct sfe_i
 	ecm_sfe_ipv4_accelerated_count++;		/* General running counter */
 
 	if (!_ecm_sfe_ipv4_accel_pending_clear(feci, ECM_FRONT_END_ACCELERATION_MODE_ACCEL)) {
+		int assignment_count;
+		int aci_index;
+		struct ecm_classifier_instance *assignments[ECM_CLASSIFIER_TYPES];
 		/*
 		 * Increment the no-action counter, this is reset if offload action is seen
 		 */
 		feci->stats.no_action_seen++;
 
 		spin_unlock_bh(&ecm_sfe_ipv4_lock);
+		spin_unlock_bh(&feci->lock);
+
+		/*
+		 * Get the assigned classifiers and call their create notify callbacks. If they are interested in this type of
+		 * create, they will handle the event.
+		 */
+		assignment_count = ecm_db_connection_classifier_assignments_get_and_ref(feci->ci, assignments);
+		for (aci_index = 0; aci_index < assignment_count; ++aci_index) {
+			struct ecm_classifier_instance *aci;
+			aci = assignments[aci_index];
+			if (aci->notify_create) {
+				aci->notify_create(aci, NULL);
+			}
+		}
+		ecm_db_connection_assignments_release(assignment_count, assignments);
 
 #ifdef ECM_FRONT_END_FSE_ENABLE
+		spin_lock_bh(&feci->lock);
 		/*
 		 * Check if FSE flow rule programming is enabled or not.
 		 * If yes, call the Wi-Fi registered callback to add a rule in
@@ -275,6 +305,7 @@ static void ecm_sfe_ported_ipv4_connection_callback(void *app_data, struct sfe_i
 
 			if (ecm_front_end_fse_info_get(feci, &fse_info)) {
 				spin_unlock_bh(&feci->lock);
+
 				/*
 				 * Invoke FSE wlan callback for rule addition.
 				 */
@@ -283,6 +314,7 @@ static void ecm_sfe_ported_ipv4_connection_callback(void *app_data, struct sfe_i
 				if (fse_ops)
 					status = fse_ops->create_fse_rule(&fse_info);
 				rcu_read_unlock_bh();
+
 				/*
 				 * In case of a successful rule addition in FSE,
 				 * set fse_configure flag in feci.
@@ -294,8 +326,8 @@ static void ecm_sfe_ported_ipv4_connection_callback(void *app_data, struct sfe_i
 					feci->fse_configure = true;
 			}
 		}
-#endif
 		spin_unlock_bh(&feci->lock);
+#endif
 
 		/*
 		 * Release the connection.
@@ -367,6 +399,9 @@ static void ecm_sfe_ported_ipv4_connection_accelerate(struct ecm_front_end_conne
 	int32_t list_index;
 	int32_t interface_type_counts[ECM_DB_IFACE_TYPE_COUNT];
 	bool rule_invalid;
+#ifdef ECM_FRONT_END_PPE_QOS_ENABLE
+	bool is_ppeq = false;
+#endif
 	uint8_t dest_mac_xlate[ETH_ALEN];
 	ecm_db_direction_t ecm_dir;
 	ecm_front_end_acceleration_mode_t result_mode;
@@ -1101,6 +1136,15 @@ static void ecm_sfe_ported_ipv4_connection_accelerate(struct ecm_front_end_conne
 		if (is_l2_encap) {
 			nircm->rule_flags |= SFE_RULE_CREATE_FLAG_L2_ENCAP;
 		}
+
+		/*
+		 * Bridge vlan passthrough
+		 */
+		if (!(nircm->valid_flags & SFE_RULE_CREATE_VLAN_VALID)) {
+			if (skb_vlan_tag_present(skb)) {
+				nircm->rule_flags |= SFE_RULE_CREATE_FLAG_BRIDGE_VLAN_PASSTHROUGH;
+			}
+		}
 	}
 
 	if (ecm_interface_src_check) {
@@ -1132,16 +1176,47 @@ static void ecm_sfe_ported_ipv4_connection_accelerate(struct ecm_front_end_conne
 	if (pr->process_actions & ECM_CLASSIFIER_PROCESS_ACTION_QOS_TAG) {
 		nircm->qos_rule.flow_qos_tag = (uint32_t)pr->flow_qos_tag;
 		nircm->qos_rule.return_qos_tag = (uint32_t)pr->return_qos_tag;
+
+#ifdef ECM_FRONT_END_PPE_QOS_ENABLE
+		if (ecm_front_end_common_intf_qdisc_check(to_sfe_iface_id, &is_ppeq)
+				&& is_ppeq) {
+			nircm->qos_rule.flow_int_pri = ppe_drv_qos_int_pri_get(dev_get_by_index(&init_net, to_sfe_iface_id),
+					pr->flow_qos_tag);
+		}
+
+		if (ecm_front_end_common_intf_qdisc_check(from_sfe_iface_id, &is_ppeq)
+				&& is_ppeq) {
+			nircm->qos_rule.return_int_pri = ppe_drv_qos_int_pri_get(dev_get_by_index(&init_net, from_sfe_iface_id),
+				       	pr->return_qos_tag);
+		}
+#endif
 		nircm->valid_flags |= SFE_RULE_CREATE_QOS_VALID;
 	}
 
 #ifdef ECM_BRIDGE_VLAN_FILTERING_ENABLE
 	if (feci->ci->vlan_filter_valid) {
-		ecm_sfe_common_ipv4_vlan_filter_set(feci->ci, nircm);
+		DEBUG_INFO("%px: Bridge vlan filter is valid. Updating the create rule\n", feci);
+		if (ecm_sfe_common_vlan_filter_set(feci->ci, &nircm->flow_vlan_filter_rule, true) &&
+			ecm_sfe_common_vlan_filter_set(feci->ci, &nircm->return_vlan_filter_rule, false)) {
+			/*
+			 * Both flow and return directions are valid.
+			 */
+			nircm->valid_flags |= SFE_RULE_CREATE_VLAN_FILTER_VALID;
+		} else {
+			nircm->valid_flags &= ~SFE_RULE_CREATE_VLAN_FILTER_VALID;
+		}
+	}
+
+	/*
+	 * if bridge vlan filtering enabled
+	 * disable the vlan passthrough
+	 */
+	if (nircm->valid_flags & SFE_RULE_CREATE_VLAN_FILTER_VALID) {
+		nircm->rule_flags &= ~SFE_RULE_CREATE_FLAG_BRIDGE_VLAN_PASSTHROUGH;
 	}
 #endif
 
-#if defined ECM_CLASSIFIER_DSCP_ENABLE || defined ECM_CLASSIFIER_EMESH_ENABLE
+#if defined ECM_CLASSIFIER_DSCP_ENABLE || defined ECM_CLASSIFIER_EMESH_ENABLE || ECM_CLASSIFIER_WIFI_ENABLE
 	/*
 	 * DSCP information?
 	 */
@@ -1168,7 +1243,9 @@ static void ecm_sfe_ported_ipv4_connection_accelerate(struct ecm_front_end_conne
 	 */
 	if (pr->process_actions & ECM_CLASSIFIER_PROCESS_ACTION_EMESH_SAWF_TAG) {
 		nircm->sawf_rule.flow_mark = pr->flow_sawf_metadata;
+		nircm->sawf_rule.flow_svc_id = pr->flow_service_class;
 		nircm->sawf_rule.return_mark = pr->return_sawf_metadata;
+		nircm->sawf_rule.return_svc_id = pr->return_service_class;
 	}
 
 	/*
@@ -1205,6 +1282,22 @@ static void ecm_sfe_ported_ipv4_connection_accelerate(struct ecm_front_end_conne
 			nircm->vlan_secondary_rule.ingress_vlan_tag = pr->ingress_vlan_tag[1];
 			nircm->vlan_secondary_rule.egress_vlan_tag = pr->egress_vlan_tag[1];
 		}
+	}
+#endif
+
+#ifdef ECM_MHT_ENABLE
+	/*
+	 * Check if mht feature is enabled or not.
+	 * If yes, add port id to rule mark.
+	 * otherwise try with the next packet until reach to a MAX retry count
+	 */
+	if (ecm_sfe_mht_enable && (!ecm_sfe_common_get_mht_port_id(feci, from_sfe_iface, to_sfe_iface,
+								   &nircm->valid_flags, &nircm->mark_rule))) {
+		ecm_db_connection_interfaces_deref(from_ifaces, from_ifaces_first);
+		ecm_db_connection_interfaces_deref(to_ifaces, to_ifaces_first);
+		ecm_sfe_ipv4_accel_pending_clear(feci, ECM_FRONT_END_ACCELERATION_MODE_DECEL);
+		kfree(nim);
+		return;
 	}
 #endif
 
@@ -1312,7 +1405,14 @@ static void ecm_sfe_ported_ipv4_connection_accelerate(struct ecm_front_end_conne
 		} else {
 			int flow_dir;
 			int return_dir;
-
+#if (LINUX_VERSION_CODE < KERNEL_VERSION(5, 13, 0))
+			uint32_t tcp_be_liberal = nf_ct_tcp_be_liberal;
+			uint32_t tcp_no_window_check = nf_ct_tcp_no_window_check;
+#else
+			struct nf_tcp_net *tn = nf_tcp_pernet(nf_ct_net(ct));
+			uint32_t tcp_be_liberal = tn->tcp_be_liberal;
+			uint32_t tcp_no_window_check = tn->tcp_no_window_check;
+#endif
 			ecm_db_connection_address_get(feci->ci, ECM_DB_OBJ_DIR_FROM, addr);
 			ecm_front_end_flow_and_return_directions_get(ct, addr, 4, &flow_dir, &return_dir);
 
@@ -1326,10 +1426,11 @@ static void ecm_sfe_ported_ipv4_connection_accelerate(struct ecm_front_end_conne
 			nircm->tcp_rule.return_max_window = ct->proto.tcp.seen[return_dir].td_maxwin;
 			nircm->tcp_rule.return_end = ct->proto.tcp.seen[return_dir].td_end;
 			nircm->tcp_rule.return_max_end = ct->proto.tcp.seen[return_dir].td_maxend;
+
 #ifdef ECM_OPENWRT_SUPPORT
-			if (nf_ct_tcp_be_liberal || nf_ct_tcp_no_window_check
+			if (tcp_be_liberal || tcp_no_window_check
 #else
-			if (nf_ct_tcp_be_liberal
+			if (tcp_be_liberal
 #endif
 					|| (ct->proto.tcp.seen[flow_dir].flags & IP_CT_TCP_FLAG_BE_LIBERAL)
 					|| (ct->proto.tcp.seen[return_dir].flags & IP_CT_TCP_FLAG_BE_LIBERAL)) {
@@ -1405,12 +1506,6 @@ static void ecm_sfe_ported_ipv4_connection_accelerate(struct ecm_front_end_conne
 			"secondary_ingress_vlan_tag: %x\n"
 			"secondary_egress_vlan_tag: %x\n"
 			"flags: rule=%x valid=%x src_mac_valid=%x\n"
-#ifdef ECM_BRIDGE_VLAN_FILTERING_ENABLE
-			"flow_vlan_filter_ingress_vlan_tag: %x, flags: %x\n"
-			"flow_vlan_filter_egress_vlan_tag: %x, flags: %x\n"
-			"return_vlan_filter_ingress_vlan_tag: %x, flags: %x\n"
-			"return_vlan_filter_egress_vlan_tag: %x, flags: %x\n"
-#endif
 			"return_pppoe_session_id: %u\n"
 			"return_pppoe_remote_mac: %pM\n"
 			"flow_pppoe_session_id: %u\n"
@@ -1453,12 +1548,6 @@ static void ecm_sfe_ported_ipv4_connection_accelerate(struct ecm_front_end_conne
 			nircm->rule_flags,
 			nircm->valid_flags,
 			nircm->src_mac_rule.mac_valid_flags,
-#ifdef ECM_BRIDGE_VLAN_FILTERING_ENABLE
-			nircm->flow_vlan_filter_rule.ingress_vlan_tag, nircm->flow_vlan_filter_rule.ingress_flags,
-			nircm->flow_vlan_filter_rule.egress_vlan_tag, nircm->flow_vlan_filter_rule.egress_flags,
-			nircm->return_vlan_filter_rule.ingress_vlan_tag, nircm->return_vlan_filter_rule.ingress_flags,
-			nircm->return_vlan_filter_rule.egress_vlan_tag, nircm->return_vlan_filter_rule.egress_flags,
-#endif
 			nircm->pppoe_rule.return_pppoe_session_id,
 			nircm->pppoe_rule.return_pppoe_remote_mac,
 			nircm->pppoe_rule.flow_pppoe_session_id,
@@ -1478,8 +1567,18 @@ static void ecm_sfe_ported_ipv4_connection_accelerate(struct ecm_front_end_conne
 			nircm->mark_rule.flow_mark,
 			nircm->mark_rule.return_mark);
 
-	if (protocol == IPPROTO_TCP) {
+#ifdef ECM_BRIDGE_VLAN_FILTERING_ENABLE
+	DEBUG_INFO("flow_vlan_filter_ingress_vlan_tag: %x, flags: %x\n"
+			"flow_vlan_filter_egress_vlan_tag: %x, flags: %x\n"
+			"return_vlan_filter_ingress_vlan_tag: %x, flags: %x\n"
+			"return_vlan_filter_egress_vlan_tag: %x, flags: %x\n",
+			nircm->flow_vlan_filter_rule.ingress_vlan_tag, nircm->flow_vlan_filter_rule.ingress_flags,
+			nircm->flow_vlan_filter_rule.egress_vlan_tag, nircm->flow_vlan_filter_rule.egress_flags,
+			nircm->return_vlan_filter_rule.ingress_vlan_tag, nircm->return_vlan_filter_rule.ingress_flags,
+			nircm->return_vlan_filter_rule.egress_vlan_tag, nircm->return_vlan_filter_rule.egress_flags);
+#endif
 
+	if (protocol == IPPROTO_TCP) {
 		DEBUG_INFO("flow_window_scale: %u\n"
 			"flow_max_window: %u\n"
 			"flow_end: %u\n"
@@ -1660,39 +1759,6 @@ static void ecm_sfe_ported_ipv4_connection_destroy_callback(void *app_data, stru
 
 	spin_lock_bh(&feci->lock);
 
-#ifdef ECM_FRONT_END_FSE_ENABLE
-	/*
-	 * After removing SFE entry, check if this connection has a
-	 * valid entry in FSE block. If yes, destroy that entry.
-	 */
-	if (feci->fse_configure) {
-		struct ecm_front_end_fse_info fse_info = {0};
-		struct ecm_front_end_fse_callbacks *fse_ops;
-		bool status = false;
-
-		if (ecm_front_end_fse_info_get(feci, &fse_info)) {
-			spin_unlock_bh(&feci->lock);
-			/*
-			 * Invoke the FSE rule delete callback.
-			 */
-			rcu_read_lock_bh();
-			fse_ops = rcu_dereference(ecm_fe_fse_cb);
-			if (fse_ops)
-				status = fse_ops->destroy_fse_rule(&fse_info);
-			rcu_read_unlock_bh();
-			/*
-			 * In case of a successful rule deletion in FSE,
-			 * reset fse_configure flag in feci.
-			 * Retake the lock here which was released for
-			 * invoking the callback.
-			 */
-			spin_lock_bh(&feci->lock);
-			if (status)
-				feci->fse_configure = false;
-		}
-	}
-#endif
-
 	/*
 	 * If decel is not still pending then it's possible that the SFE ended acceleration by some other reason e.g. flush
 	 * In which case we cannot rely on the response we get here.
@@ -1728,14 +1794,48 @@ static void ecm_sfe_ported_ipv4_connection_destroy_callback(void *app_data, stru
 	 * Ported acceleration ends
 	 */
 	spin_lock_bh(&ecm_sfe_ipv4_lock);
-
-	/*
-	 * TODO: Figure out the issue with counters and add the ASSERT for the same.
-	 */
 	ecm_sfe_ported_ipv4_accelerated_count[feci->ported_accelerated_count_index]--;	/* Protocol specific counter */
+	DEBUG_ASSERT(ecm_sfe_ported_ipv4_accelerated_count[feci->ported_accelerated_count_index] >= 0, "Bad udp accel counter\n");
 	ecm_sfe_ipv4_accelerated_count--;		/* General running counter */
+	DEBUG_ASSERT(ecm_sfe_ipv4_accelerated_count >= 0, "Bad accel counter\n");
 	spin_unlock_bh(&ecm_sfe_ipv4_lock);
 
+#ifdef ECM_FRONT_END_FSE_ENABLE
+	/*
+	 * After removing SFE entry, check if this connection has a
+	 * valid entry in FSE block. If yes, destroy that entry.
+	 */
+	spin_lock_bh(&feci->lock);
+	if (feci->fse_configure) {
+		struct ecm_front_end_fse_info fse_info = {0};
+		struct ecm_front_end_fse_callbacks *fse_ops;
+		bool status = false;
+
+		if (ecm_front_end_fse_info_get(feci, &fse_info)) {
+			spin_unlock_bh(&feci->lock);
+
+			/*
+			 * Invoke the FSE rule delete callback.
+			 */
+			rcu_read_lock_bh();
+			fse_ops = rcu_dereference(ecm_fe_fse_cb);
+			if (fse_ops)
+				status = fse_ops->destroy_fse_rule(&fse_info);
+			rcu_read_unlock_bh();
+
+			/*
+			 * In case of a successful rule deletion in FSE,
+			 * reset fse_configure flag in feci.
+			 * Retake the lock here which was released for
+			 * invoking the callback.
+			 */
+			spin_lock_bh(&feci->lock);
+			if (status)
+				feci->fse_configure = false;
+		}
+	}
+	spin_unlock_bh(&feci->lock);
+#endif
 	/*
 	 * Release the connections.
 	 */
@@ -1962,39 +2062,6 @@ static void ecm_sfe_ported_ipv4_connection_accel_ceased(struct ecm_front_end_con
 		feci->stats.no_action_seen_total++;
 	}
 
-#ifdef ECM_FRONT_END_FSE_ENABLE
-	/*
-	 * After removing SFE entry, check if this connection has a
-	 * valid entry in FSE block. If yes, destroy that entry.
-	 */
-	if (feci->fse_configure) {
-		struct ecm_front_end_fse_info fse_info = {0};
-		struct ecm_front_end_fse_callbacks *fse_ops;
-		bool status = false;
-
-		if (ecm_front_end_fse_info_get(feci, &fse_info)) {
-			spin_unlock_bh(&feci->lock);
-			/*
-			 * Invoke the FSE rule delete callback.
-			 */
-			rcu_read_lock_bh();
-			fse_ops = rcu_dereference(ecm_fe_fse_cb);
-			if (fse_ops)
-				status = fse_ops->destroy_fse_rule(&fse_info);
-			rcu_read_unlock_bh();
-			/*
-			 * In case of a successful rule deletion in FSE,
-			 * reset fse_configure flag in feci.
-			 * Retake the lock which was released for
-			 * invoking the callback.
-			 */
-			spin_lock_bh(&feci->lock);
-			if (status)
-				feci->fse_configure = false;
-		}
-	}
-#endif
-
 	/*
 	 * If the no_action_seen indicates successive cessations of acceleration without any offload action occuring
 	 * then we fail out this connection
@@ -2010,13 +2077,48 @@ static void ecm_sfe_ported_ipv4_connection_accel_ceased(struct ecm_front_end_con
 	 * Ported acceleration ends
 	 */
 	spin_lock_bh(&ecm_sfe_ipv4_lock);
-
-	/*
-	 * TODO: Figure out the issue with counters and add the ASSERT for the same.
-	 */
 	ecm_sfe_ported_ipv4_accelerated_count[feci->ported_accelerated_count_index]--;	/* Protocol specific counter */
+	DEBUG_ASSERT(ecm_sfe_ported_ipv4_accelerated_count[feci->ported_accelerated_count_index] >= 0, "Bad ported accel counter\n");
 	ecm_sfe_ipv4_accelerated_count--;		/* General running counter */
+	DEBUG_ASSERT(ecm_sfe_ipv4_accelerated_count >= 0, "Bad accel counter\n");
 	spin_unlock_bh(&ecm_sfe_ipv4_lock);
+
+#ifdef ECM_FRONT_END_FSE_ENABLE
+	/*
+	 * After removing SFE entry, check if this connection has a
+	 * valid entry in FSE block. If yes, destroy that entry.
+	 */
+	spin_lock_bh(&feci->lock);
+	if (feci->fse_configure) {
+		struct ecm_front_end_fse_info fse_info = {0};
+		struct ecm_front_end_fse_callbacks *fse_ops;
+		bool status = false;
+
+		if (ecm_front_end_fse_info_get(feci, &fse_info)) {
+			spin_unlock_bh(&feci->lock);
+
+			/*
+			 * Invoke the FSE rule delete callback.
+			 */
+			rcu_read_lock_bh();
+			fse_ops = rcu_dereference(ecm_fe_fse_cb);
+			if (fse_ops)
+				status = fse_ops->destroy_fse_rule(&fse_info);
+			rcu_read_unlock_bh();
+
+			/*
+			 * In case of a successful rule deletion in FSE,
+			 * reset fse_configure flag in feci.
+			 * Retake the lock which was released for
+			 * invoking the callback.
+			 */
+			spin_lock_bh(&feci->lock);
+			if (status)
+				feci->fse_configure = false;
+		}
+	}
+	spin_unlock_bh(&feci->lock);
+#endif
 }
 
 #ifdef ECM_STATE_OUTPUT_ENABLE
@@ -2053,12 +2155,14 @@ void ecm_sfe_ported_ipv4_connection_set(struct ecm_front_end_connection_instance
 	feci->ae_interface_type_get = ecm_sfe_common_get_interface_type;
 	feci->regenerate = ecm_sfe_common_connection_regenerate;
 	feci->defunct = ecm_sfe_ported_ipv4_connection_defunct_callback;
+	feci->update_rule = ecm_sfe_common_update_rule;
 
 	ecm_sfe_common_init_fe_info(&feci->fe_info);
 
 	feci->get_stats_bitmap = ecm_front_end_common_get_stats_bitmap;
 	feci->set_stats_bitmap = ecm_front_end_common_set_stats_bitmap;
 	feci->fe_info.front_end_flags = flags;
+	feci->next_accel_engine = ECM_FRONT_END_ENGINE_SFE;
 
 	/*
 	 * Just in case this function is called while switching AE to SFE
@@ -2125,7 +2229,6 @@ struct ecm_front_end_connection_instance *ecm_sfe_ported_ipv4_connection_instanc
 
 	feci->protocol = protocol;
 
-	feci->update_rule = ecm_sfe_common_update_rule;
 	ecm_sfe_ported_ipv4_connection_set(feci, accel_flags);
 
 	if (protocol == IPPROTO_TCP) {
@@ -2148,19 +2251,15 @@ struct ecm_front_end_connection_instance *ecm_sfe_ported_ipv4_connection_instanc
  */
 bool ecm_sfe_ported_ipv4_debugfs_init(struct dentry *dentry)
 {
-	struct dentry *udp_dentry;
-
-	udp_dentry = debugfs_create_u32("udp_accelerated_count", S_IRUGO, dentry,
-						&ecm_sfe_ported_ipv4_accelerated_count[ECM_FRONT_END_PORTED_PROTO_UDP]);
-	if (!udp_dentry) {
+	if (!ecm_debugfs_create_u32("udp_accelerated_count", S_IRUGO, dentry,
+				    &ecm_sfe_ported_ipv4_accelerated_count[ECM_FRONT_END_PORTED_PROTO_UDP])) {
 		DEBUG_ERROR("Failed to create ecm sfe ipv4 udp_accelerated_count file in debugfs\n");
 		return false;
 	}
 
-	if (!debugfs_create_u32("tcp_accelerated_count", S_IRUGO, dentry,
+	if (!ecm_debugfs_create_u32("tcp_accelerated_count", S_IRUGO, dentry,
 					&ecm_sfe_ported_ipv4_accelerated_count[ECM_FRONT_END_PORTED_PROTO_TCP])) {
 		DEBUG_ERROR("Failed to create ecm sfe ipv4 tcp_accelerated_count file in debugfs\n");
-		debugfs_remove(udp_dentry);
 		return false;
 	}
 

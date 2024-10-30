@@ -879,14 +879,3 @@ Signed-off-by: Rajat Soni <quic_rajson@quicinc.com>
  struct htt_phy_counters_tlv {
  	u32 rx_ofdma_timing_err_cnt;
  	u32 rx_cck_fail_cnt;
---- a/drivers/net/wireless/ath/ath12k/dp_tx.c
-+++ b/drivers/net/wireless/ath/ath12k/dp_tx.c
-@@ -1156,7 +1156,7 @@ int ath12k_dp_tx_htt_h2t_ppdu_stats_req(
- 		cmd->msg = u32_encode_bits(HTT_H2T_MSG_TYPE_PPDU_STATS_CFG,
- 					   HTT_PPDU_STATS_CFG_MSG_TYPE);
- 
--		pdev_mask = 1 << (i + 1);
-+		pdev_mask = DP_SW2HW_MACID(ar->pdev_idx) + i;
- 		cmd->msg |= u32_encode_bits(pdev_mask, HTT_PPDU_STATS_CFG_PDEV_ID);
- 		cmd->msg |= u32_encode_bits(mask, HTT_PPDU_STATS_CFG_TLV_TYPE_BITMASK);
- 

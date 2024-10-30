@@ -13,4 +13,7 @@ phys_addr_t qcom_smem_virt_to_phys(void *p);
 
 void smem_panic_handler(void);
 
+void qcom_clear_smp2p_last_value(void);
+
+void qcom_log_smp2p_ob_cmd(u8 bit_no, u32 mask, u32 value);
 #endif

@@ -3,11 +3,11 @@ include $(INCLUDE_DIR)/kernel.mk
 
 PKG_NAME:=qca-nss-fw-mp
 PKG_BRANCH:=nss
-PKG_VERSION:=149
+PKG_VERSION:=210
 PKG_RELEASE:=1
 PKG_MD5SUM:=skip
 
-NSS_VER:=12.2
+NSS_VER:=12.5
 NSS_SOC:=MP
 NSS_PROFILE:=E
 
@@ -21,7 +21,7 @@ define NssFirmware
 
   define Package/$(PKG_NAME)-$(1)
     SECTION:=kernel
-    CATEGORY:=$(QTI_SOFTWARE_CATEGORY)
+    CATEGORY:=QTI software
     SUBMENU:=Network Devices
     DEPENDS:=@TARGET_ipq_ipq50xx||TARGET_ipq_ipq50xx_64
     TITLE:=NSS firmware binaries - $(1)

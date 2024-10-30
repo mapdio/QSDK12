@@ -14,11 +14,11 @@ PKG_MAINTAINER:=Harald Geyer <harald@ccbib.org>
 PKG_NAME:=elektra
 PKG_LICENSE:=BSD-3-Clause
 PKG_LICENSE_FILES:=LICENSE.md
-PKG_VERSION:=0.8.21
-PKG_RELEASE:=3
+PKG_VERSION:=0.9.7
+PKG_RELEASE:=4
 
 # Use this for official releasees
-PKG_HASH:=51892570f18d1667d0da4d0908a091e41b41c20db9835765677109a3d150cd26
+PKG_HASH:=12b7b046004db29317b7b937dc794abf719c400ba3115af8d41849127b562681
 PKG_SOURCE:=$(PKG_NAME)-$(PKG_VERSION).tar.gz
 PKG_SOURCE_URL:=http://ftp.libelektra.org/ftp/elektra/releases
 
@@ -29,10 +29,9 @@ PKG_SOURCE_URL:=http://ftp.libelektra.org/ftp/elektra/releases
 #PKG_SOURCE_VERSION:=e97efb29a94f3a49cb952d06552fcf53708ea8c7
 #PKG_SOURCE:=$(PKG_NAME)-$(PKG_VERSION)-$(PKG_SOURCE_VERSION).tar.xz
 
-PKG_BUILD_DEPENDS:=elektra/host swig/host
+PKG_BUILD_DEPENDS:= lua
 
 include $(INCLUDE_DIR)/package.mk
-include $(INCLUDE_DIR)/host-build.mk
 include $(INCLUDE_DIR)/cmake.mk
 include $(INCLUDE_DIR)/nls.mk
 
@@ -41,7 +40,7 @@ define Package/libelektra/Default
   CATEGORY:=Libraries
   TITLE:=Elektra
   URL:=http://www.libelektra.org/
-  SUBMENU:=libelektra
+  SUBMENU:=LibElektra
 endef
 
 define Package/libelektra/Default-description
@@ -98,11 +97,10 @@ define Package/libelektra-plugins
 endef
 
 define CONTENT_ELEKTRA_PLUGINS_TEXT
-base64 boolean cachefilter camel ccode conditionals csvstorage
-date directoryvalue enum file filecheck glob hexcode hidden
-hosts iconv ipaddr keytometa line lineendings list mathcheck
-mini network null path profile range shell syslog uname
-validation
+base64 conditionals csvstorage date file filecheck glob hexcode
+hexnumber hosts iconv ipaddr keytometa line lineendings list
+mathcheck macaddr mini network path profile quickdump
+range reference rgbcolor shell syslog type uname unit validation
 endef
 
 CONTENT_ELEKTRA_PLUGINS = $(strip $(CONTENT_ELEKTRA_PLUGINS_TEXT))
@@ -122,7 +120,7 @@ define Package/libelektra-cpp
   DEPENDS:=+libelektra-core +libstdcpp
 endef
 
-CONTENT_ELEKTRA_CPP=dump regexstore struct type
+CONTENT_ELEKTRA_CPP=ccode directoryvalue dump
 
 define Package/libelektra-cpp/description
 $(call Package/libelektra/Default-description)
@@ -132,23 +130,10 @@ Currently these are:
 $(CONTENT_ELEKTRA_CPP)
 endef
 
-define Package/libelektra-boost
-  $(call Package/libelektra/Default)
-  TITLE:=Elektra plugins depending on boost
-  DEPENDS:=+libelektra-core +libstdcpp +boost
-endef
-
-define Package/libelektra-boost/description
-$(call Package/libelektra/Default-description)
-
-This package contains plugins written in C++ with an dependency on
-boost. Currently this is a plugin for a tcl like format.
-endef
-
 define Package/libelektra-crypto
   $(call Package/libelektra/Default)
   TITLE:=Elektra crypto plugin
-  DEPENDS:=+libelektra-core +libopenssl
+  DEPENDS:=+libelektra-core +libgcrypt
 endef
 
 define Package/libelektra-crypto/description
@@ -180,6 +165,32 @@ $(call Package/libelektra/Default-description)
 
 This package contains support for dbus notification on configuration
 changes.
+endef
+
+define Package/libelektra-ev
+  $(call Package/libelektra/Default)
+  TITLE:=Elektra libev binding plugin
+  DEPENDS:=+libelektra-core +libev
+endef
+
+define Package/libelektra-ev/description
+$(call Package/libelektra/Default-description)
+
+This package contains support for notification on configuration
+changes via libev events.
+endef
+
+define Package/libelektra-uv
+  $(call Package/libelektra/Default)
+  TITLE:=Elektra libuv binding plugin
+  DEPENDS:=+libelektra-core +libuv
+endef
+
+define Package/libelektra-uv/description
+$(call Package/libelektra/Default-description)
+
+This package contains support for notification on configuration
+changes via libuv events.
 endef
 
 define Package/libelektra-xerces
@@ -233,17 +244,10 @@ $(call Package/libelektra/Default-description)
 This package contains support for storing the key database as yaml files.
 endef
 
-
-define Package/libelektra-python2
+define Package/libelektra-zmq
   $(call Package/libelektra/Default)
-  TITLE:=Elektra python2 plugin
-  DEPENDS:=+libelektra-core +python-light +libstdcpp
-endef
-
-define Package/libelektra-python2/description
-$(call Package/libelektra/Default-description)
-
-This package adds python2 support to elektra.
+  TITLE:=Elektra ZeroMQ transport plugins
+  DEPENDS:=+libelektra-core +libzmq
 endef
 
 define Package/libelektra-python3
@@ -261,7 +265,7 @@ endef
 define Package/libelektra-lua
   $(call Package/libelektra/Default)
   TITLE:=Elektra lua plugin
-  DEPENDS:=+libelektra-core +lua +libstdcpp
+  DEPENDS:=+libelektra-core +lua5.3 +libstdcpp
 endef
 
 define Package/libelektra-lua/description
@@ -277,9 +281,9 @@ define Package/libelektra-extra
 endef
 
 define CONTENT_EXTRA_PLUGINS_TEXT
-blockresolver c constants counter desktop dini dpkg error
-fcrypt fstab logchange mozprefs passwd rename required
-simplespeclang timeofday tracer
+blockresolver c constants counter desktop dpkg error fcrypt
+fstab logchange mozprefs passwd process rename
+timeofday tracer
 endef
 
 CONTENT_ELEKTRA_EXTRA:=$(strip $(CONTENT_EXTRA_PLUGINS_TEXT))
@@ -293,52 +297,52 @@ are included in this package. Currently this includes:
 $(CONTENT_EXTRA_PLUGINS_TEXT)
 endef
 
-CMAKE_OPTIONS = \
+CMAKE_BINARY_SUBDIR=build
+
+CMAKE_OPTIONS += \
 	-DTARGET_PLUGIN_FOLDER="" \
+	-DCARGO_EXECUTABLE=OFF \
 	-DBUILD_FULL=OFF \
 	-DBUILD_STATIC=OFF \
 	-DBUILD_DOCUMENTATION=OFF \
 	-DFORCE_IN_SOURCE_BUILD=ON \
 	-DBUILD_TESTING=OFF \
 	-DKDB_DEFAULT_RESOLVER=resolver_fm_pb_b \
-	-DKDB_DEFAULT_STORAGE=ini \
+	-DKDB_DEFAULT_STORAGE=toml \
 	-DENABLE_OPTIMIZATIONS=OFF \
-	-DPLUGINS="ALL;-multifile" \
-	-DICONV_FIND_REQUIRED=ON \
-	-DICONV_INCLUDE_DIR="$(ICONV_PREFIX)/include" \
-	-DICONV_LIBRARY="$(ICONV_PREFIX)/lib"
-
-CMAKE_HOST_OPTIONS = \
-	-DCMAKE_SKIP_RPATH=FALSE \
-	-DCMAKE_INSTALL_RPATH=$(STAGING_DIR_HOST)/lib/ \
-	-DINSTALL_BUILD_TOOLS=ON \
-	-DBUILD_STATIC=OFF \
-	-DBUILD_DOCUMENTATION=OFF \
-	-DINSTALL_SYSTEM_FILES=OFF \
-	-DFORCE_IN_SOURCE_BUILD=ON \
-	-DBUILD_TESTING=OFF \
-	-DPLUGINS="ALL;-python2;-python;-ruby" \
-	-DTOOLS="gen;kdb"
+	-DPLUGINS="ALL;-gpgme;-multifile;-simpleini" \
+	-DBINDINGS="MAINTAINED;-intercept_env;-intercept_fs;-io_glib"
 
 define Package/libelektra-core/install
 	$(INSTALL_DIR) $(1)/etc/kdb/
+	$(INSTALL_DIR) $(1)/etc/profile.d/
 	$(INSTALL_DIR) $(1)/usr/lib/
-	$(CP) $(PKG_INSTALL_DIR)/usr/lib/libelektra.so* $(1)/usr/lib/
+	$(INSTALL_DATA) files/elektra.profile $(1)/etc/profile.d/elektra.sh
 	$(CP) $(PKG_INSTALL_DIR)/usr/lib/libelektra-core.so* $(1)/usr/lib/
 	$(CP) $(PKG_INSTALL_DIR)/usr/lib/libelektra-ease.so* $(1)/usr/lib/
+	$(CP) $(PKG_INSTALL_DIR)/usr/lib/libelektra-globbing.so* $(1)/usr/lib/
+	$(CP) $(PKG_INSTALL_DIR)/usr/lib/libelektra-highlevel.so* $(1)/usr/lib/
 	$(CP) $(PKG_INSTALL_DIR)/usr/lib/libelektra-invoke.so* $(1)/usr/lib/
+	$(CP) $(PKG_INSTALL_DIR)/usr/lib/libelektra-io.so* $(1)/usr/lib/
 	$(CP) $(PKG_INSTALL_DIR)/usr/lib/libelektra-kdb.so* $(1)/usr/lib/
+	$(CP) $(PKG_INSTALL_DIR)/usr/lib/libelektra-merge.so* $(1)/usr/lib/
 	$(CP) $(PKG_INSTALL_DIR)/usr/lib/libelektra-meta.so* $(1)/usr/lib/
+	$(CP) $(PKG_INSTALL_DIR)/usr/lib/libelektra-notification.so* $(1)/usr/lib/
+	$(CP) $(PKG_INSTALL_DIR)/usr/lib/libelektra-opts.so* $(1)/usr/lib/
 	$(CP) $(PKG_INSTALL_DIR)/usr/lib/libelektra-plugin.so* $(1)/usr/lib/
-	$(CP) $(PKG_INSTALL_DIR)/usr/lib/libelektra-proposal.so* $(1)/usr/lib/
+	$(CP) $(PKG_INSTALL_DIR)/usr/lib/libelektra-pluginprocess.so* $(1)/usr/lib/
 	#The next is only supported with glibc, so skip it.
 	#$(CP) $(PKG_INSTALL_DIR)/usr/lib/libelektraintercept-* $(1)/usr/lib/
 	$(CP) $(PKG_INSTALL_DIR)/usr/lib/libelektra-resolver_fm_pb_b.so $(1)/usr/lib/
 	$(CP) $(PKG_INSTALL_DIR)/usr/lib/libelektra-utility.so* $(1)/usr/lib/
+	$(CP) $(PKG_INSTALL_DIR)/usr/lib/libelektra-cache.so $(1)/usr/lib/
+	$(CP) $(PKG_INSTALL_DIR)/usr/lib/libelektra-internalnotification.so $(1)/usr/lib/
+	$(CP) $(PKG_INSTALL_DIR)/usr/lib/libelektra-mmapstorage.so $(1)/usr/lib/
 	$(CP) $(PKG_INSTALL_DIR)/usr/lib/libelektra-ni.so $(1)/usr/lib/
-	$(CP) $(PKG_INSTALL_DIR)/usr/lib/libelektra-ini.so $(1)/usr/lib/
+	$(CP) $(PKG_INSTALL_DIR)/usr/lib/libelektra-spec.so $(1)/usr/lib/
 	$(CP) $(PKG_INSTALL_DIR)/usr/lib/libelektra-sync.so $(1)/usr/lib/
 	$(CP) $(PKG_INSTALL_DIR)/usr/lib/libelektra-storage.so $(1)/usr/lib/
+	$(CP) $(PKG_INSTALL_DIR)/usr/lib/libelektra-toml.so $(1)/usr/lib/
 	$(CP) $(PKG_INSTALL_DIR)/usr/lib/libelektra-resolver.so $(1)/usr/lib/
 endef
 
@@ -363,11 +367,6 @@ define Package/libelektra-plugins/install
 	$(CP) $(foreach plugin,$(CONTENT_ELEKTRA_PLUGINS),$(PKG_INSTALL_DIR)/usr/lib/libelektra-$(plugin).so) $(1)/usr/lib/
 endef
 
-define Package/libelektra-boost/install
-	$(INSTALL_DIR) $(1)/usr/lib/
-	$(CP) $(PKG_INSTALL_DIR)/usr/lib/libelektra-tcl.so $(1)/usr/lib/
-endef
-
 define Package/libelektra-cpp/install
 	$(INSTALL_DIR) $(1)/usr/lib/
 	$(CP) $(foreach plugin,$(CONTENT_ELEKTRA_CPP),$(PKG_INSTALL_DIR)/usr/lib/libelektra-$(plugin).so) $(1)/usr/lib/
@@ -375,7 +374,7 @@ endef
 
 define Package/libelektra-crypto/install
 	$(INSTALL_DIR) $(1)/usr/lib/
-	$(CP) $(PKG_INSTALL_DIR)/usr/lib/libelektra-crypto_openssl.so $(1)/usr/lib/
+	$(CP) $(PKG_INSTALL_DIR)/usr/lib/libelektra-crypto.so $(1)/usr/lib/
 endef
 
 define Package/libelektra-curlget/install
@@ -386,6 +385,17 @@ endef
 define Package/libelektra-dbus/install
 	$(INSTALL_DIR) $(1)/usr/lib/
 	$(CP) $(PKG_INSTALL_DIR)/usr/lib/libelektra-dbus.so $(1)/usr/lib/
+	$(CP) $(PKG_INSTALL_DIR)/usr/lib/libelektra-dbusrecv.so $(1)/usr/lib/
+endef
+
+define Package/libelektra-ev/install
+	$(INSTALL_DIR) $(1)/usr/lib/
+	$(CP) $(PKG_INSTALL_DIR)/usr/lib/libelektra-io-ev.so $(1)/usr/lib/
+endef
+
+define Package/libelektra-uv/install
+	$(INSTALL_DIR) $(1)/usr/lib/
+	$(CP) $(PKG_INSTALL_DIR)/usr/lib/libelektra-io-uv.so $(1)/usr/lib/
 endef
 
 define Package/libelektra-xerces/install
@@ -408,9 +418,10 @@ define Package/libelektra-yamlcpp/install
 	$(CP) $(PKG_INSTALL_DIR)/usr/lib/libelektra-yamlcpp.so $(1)/usr/lib/
 endef
 
-define Package/libelektra-python2/install
+define Package/libelektra-zmq/install
 	$(INSTALL_DIR) $(1)/usr/lib/
-	$(CP) $(PKG_INSTALL_DIR)/usr/lib/libelektra-python2.so $(1)/usr/lib/
+	$(CP) $(PKG_INSTALL_DIR)/usr/lib/libelektra-zeromqsend.so $(1)/usr/lib/
+	$(CP) $(PKG_INSTALL_DIR)/usr/lib/libelektra-zeromqrecv.so $(1)/usr/lib/
 endef
 
 define Package/libelektra-python3/install
@@ -435,22 +446,21 @@ define Build/InstallDev
 	$(CP) $(PKG_INSTALL_DIR)/usr/lib/* $(1)/usr/lib/
 endef
 
-
-$(eval $(call HostBuild))
 $(eval $(call BuildPackage,libelektra-core))
 $(eval $(call BuildPackage,elektra-kdb))
 $(eval $(call BuildPackage,libelektra-resolvers))
 $(eval $(call BuildPackage,libelektra-plugins))
-$(eval $(call BuildPackage,libelektra-boost))
 $(eval $(call BuildPackage,libelektra-cpp))
 $(eval $(call BuildPackage,libelektra-curlget))
 $(eval $(call BuildPackage,libelektra-crypto))
 $(eval $(call BuildPackage,libelektra-dbus))
+$(eval $(call BuildPackage,libelektra-ev))
+$(eval $(call BuildPackage,libelektra-uv))
 $(eval $(call BuildPackage,libelektra-xerces))
-$(eval $(call BuildPackage,libelektra-yamlcpp))
 $(eval $(call BuildPackage,libelektra-xml))
 $(eval $(call BuildPackage,libelektra-yajl))
-$(eval $(call BuildPackage,libelektra-python2))
+$(eval $(call BuildPackage,libelektra-yamlcpp))
 $(eval $(call BuildPackage,libelektra-python3))
 $(eval $(call BuildPackage,libelektra-lua))
+$(eval $(call BuildPackage,libelektra-zmq))
 $(eval $(call BuildPackage,libelektra-extra))

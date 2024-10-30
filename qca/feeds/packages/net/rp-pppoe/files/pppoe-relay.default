@@ -7,3 +7,4 @@ if [ -e /etc/default/pppoe-relay ]; then
 	uci set pppoe.@pppoe-relay[-1].use_non_uci_config=1
 	uci commit pppoe
 fi
+

@@ -13,6 +13,7 @@ export TOPDIR LC_ALL LANG
 export OPENWRT_VERBOSE=s
 all: help
 
+export ORIG_PATH:=$(if $(ORIG_PATH),$(ORIG_PATH),$(PATH))
 export PATH:=$(TOPDIR)/staging_dir/host/bin:$(PATH)
 
 ifneq ($(OPENWRT_BUILD),1)
@@ -27,6 +28,7 @@ include $(INCLUDE_DIR)/rootfs.mk
 
 include $(INCLUDE_DIR)/version.mk
 export REVISION
+export SOURCE_DATE_EPOCH
 
 define Helptext
 Available Commands:
@@ -34,8 +36,11 @@ Available Commands:
 	info:	Show a list of available target profiles
 	clean:	Remove images and temporary build files
 	image:	Build an image (see below for more information).
+	manifest: Show all package that will be installed into the image
+	package_whatdepends: Show which packages have a dependency on this
+	package_depends: Show installation dependency of the package
 
-Building images:
+image:
 	By default 'make image' will create an image with the default
 	target profile and package set. You can use the following parameters
 	to change that:
@@ -46,13 +51,29 @@ Building images:
 	make image BIN_DIR="<path>" # alternative output directory for the images
 	make image EXTRA_IMAGE_NAME="<string>" # Add this to the output image filename (sanitized)
 	make image DISABLED_SERVICES="<svc1> [<svc2> [<svc3> ..]]" # Which services in /etc/init.d/ should be disabled
+	make image ADD_LOCAL_KEY=1 # store locally generated signing key in built images
+	make image ROOTFS_PARTSIZE="<size>" # override the default rootfs partition size in MegaBytes
 
-Print manifest:
+manifest:
 	List "all" packages which get installed into the image.
 	You can use the following parameters:
 
 	make manifest PROFILE="<profilename>" # override the default target profile
 	make manifest PACKAGES="<pkg1> [<pkg2> [<pkg3> ...]]" # include extra packages
+	make manifest STRIP_ABI=1 # remove ABI version from printed package names
+
+
+package_whatdepends:
+	List "all" packages that have a dependency on this package
+	You can use the following parameters:
+
+	make package_whatdepends PACKAGE="<pkg>"
+
+package_depends:
+	List "all" packages dependency of the package
+	You can use the following parameters:
+
+	make package_depends PACKAGE="<pkg>"
 
 endef
 $(eval $(call shexport,Helptext))
@@ -64,8 +85,10 @@ help: FORCE
 # override variables from rules.mk
 PACKAGE_DIR:=$(TOPDIR)/packages
 LISTS_DIR:=$(subst $(space),/,$(patsubst %,..,$(subst /,$(space),$(TARGET_DIR))))$(DL_DIR)
+export OPKG_KEYS:=$(TOPDIR)/keys
 OPKG:=$(call opkg,$(TARGET_DIR)) \
 	-f $(TOPDIR)/repositories.conf \
+	--verify-program $(SCRIPT_DIR)/opkg-key \
 	--cache $(DL_DIR) \
 	--lists-dir $(LISTS_DIR)
 
@@ -98,13 +121,16 @@ staging_dir/host/.prereq-build: include/prereq-build.mk
 
 _call_info: FORCE
 	echo 'Current Target: "$(TARGETID)"'
+	echo 'Current Architecture: "$(ARCH)"'
 	echo 'Current Revision: "$(REVISION)"'
 	echo 'Default Packages: $(DEFAULT_PACKAGES)'
 	echo 'Available Profiles:'
 	echo; $(PROFILE_LIST)
 
-BUILD_PACKAGES:=$(USER_PACKAGES) $(sort $(DEFAULT_PACKAGES) $($(USER_PROFILE)_PACKAGES) kernel)
+BUILD_PACKAGES:=$(sort $(DEFAULT_PACKAGES) $($(USER_PROFILE)_PACKAGES) kernel)
 # "-pkgname" in the package list means remove "pkgname" from the package list
+BUILD_PACKAGES:=$(filter-out $(filter -%,$(BUILD_PACKAGES)) $(patsubst -%,%,$(filter -%,$(BUILD_PACKAGES))),$(BUILD_PACKAGES))
+BUILD_PACKAGES:=$(USER_PACKAGES) $(BUILD_PACKAGES)
 BUILD_PACKAGES:=$(filter-out $(filter -%,$(BUILD_PACKAGES)) $(patsubst -%,%,$(filter -%,$(BUILD_PACKAGES))),$(BUILD_PACKAGES))
 PACKAGES:=
 
@@ -126,19 +152,24 @@ _call_manifest: FORCE
 	mkdir -p $(TARGET_DIR) $(BIN_DIR) $(TMP_DIR) $(DL_DIR)
 	$(MAKE) package_reload >/dev/null
 	$(MAKE) package_install >/dev/null
-	$(OPKG) list-installed
+	$(OPKG) list-installed $(if $(STRIP_ABI),--strip-abi)
 
 package_index: FORCE
 	@echo >&2
 	@echo Building package index... >&2
 	@mkdir -p $(TMP_DIR) $(TARGET_DIR)/tmp
 	(cd $(PACKAGE_DIR); $(SCRIPT_DIR)/ipkg-make-index.sh . > Packages && \
-		gzip -9nc Packages > Packages.gz \
+		gzip -9nc Packages > Packages.gz; \
+		$(if $(CONFIG_SIGNATURE_CHECK), \
+			$(STAGING_DIR_HOST)/bin/usign -S -m Packages -s $(BUILD_KEY)) \
 	) >/dev/null 2>/dev/null
 	$(OPKG) update >&2 || true
 
 package_reload:
-	if [ ! -f "$(PACKAGE_DIR)/Packages" ] || [ ! -f "$(PACKAGE_DIR)/Packages.gz" ] || [ "`find $(PACKAGE_DIR) -cnewer $(PACKAGE_DIR)/Packages.gz`" ]; then \
+	if [ -d "$(PACKAGE_DIR)" ] && ( \
+			[ ! -f "$(PACKAGE_DIR)/Packages" ] || \
+			[ ! -f "$(PACKAGE_DIR)/Packages.gz" ] || \
+			[ "`find $(PACKAGE_DIR) -cnewer $(PACKAGE_DIR)/Packages.gz`" ] ); then \
 		echo "Package list missing or not up-to-date, generating it." >&2 ;\
 		$(MAKE) package_index; \
 	else \
@@ -153,8 +184,8 @@ package_list: FORCE
 package_install: FORCE
 	@echo
 	@echo Installing packages...
-	$(OPKG) install $(firstword $(wildcard $(PACKAGE_DIR)/libc_*.ipk $(PACKAGE_DIR)/base/libc_*.ipk))
-	$(OPKG) install $(firstword $(wildcard $(PACKAGE_DIR)/kernel_*.ipk $(PACKAGE_DIR)/base/kernel_*.ipk))
+	$(OPKG) install $(firstword $(wildcard $(LINUX_DIR)/libc_*.ipk $(PACKAGE_DIR)/libc_*.ipk))
+	$(OPKG) install $(firstword $(wildcard $(LINUX_DIR)/kernel_*.ipk $(PACKAGE_DIR)/kernel_*.ipk))
 	$(OPKG) install $(BUILD_PACKAGES)
 
 prepare_rootfs: FORCE
@@ -162,14 +193,19 @@ prepare_rootfs: FORCE
 	@echo Finalizing root filesystem...
 
 	$(CP) $(TARGET_DIR) $(TARGET_DIR_ORIG)
+	$(if $(CONFIG_SIGNATURE_CHECK), \
+		$(if $(ADD_LOCAL_KEY), \
+			OPKG_KEYS=$(TARGET_DIR)/etc/opkg/keys/ \
+			$(SCRIPT_DIR)/opkg-key add $(BUILD_KEY).pub \
+		) \
+	)
 	$(call prepare_rootfs,$(TARGET_DIR),$(USER_FILES),$(DISABLED_SERVICES))
-
 
 build_image: FORCE
 	@echo
 	@echo Building images...
 	rm -rf $(BUILD_DIR)/json_info_files/
-	$(NO_TRACE_MAKE) -C target/linux/$(BOARD)/image install TARGET_BUILD=1 IB=1 EXTRA_IMAGE_NAME="$(EXTRA_IMAGE_NAME)" \
+	$(NO_TRACE_MAKE) -C $(PLATFORM_DIR)/image install TARGET_BUILD=1 IB=1 EXTRA_IMAGE_NAME="$(EXTRA_IMAGE_NAME)" \
 		$(if $(USER_PROFILE),PROFILE="$(USER_PROFILE)")
 
 $(BIN_DIR)/profiles.json: FORCE
@@ -203,22 +239,59 @@ ifneq ($(PROFILE),)
   endif
 endif
 
+_check_keys: FORCE
+ifneq ($(CONFIG_SIGNATURE_CHECK),)
+	@if [ ! -s $(BUILD_KEY) -o ! -s $(BUILD_KEY).pub ]; then \
+		echo Generate local signing keys... >&2; \
+		$(STAGING_DIR_HOST)/bin/usign -G \
+			-s $(BUILD_KEY) -p $(BUILD_KEY).pub -c "Local build key"; \
+		$(SCRIPT_DIR)/opkg-key add $(BUILD_KEY).pub; \
+	fi
+	if [ ! -s $(BUILD_KEY).ucert ]; then \
+		echo Generate local certificate... >&2; \
+		$(STAGING_DIR_HOST)/bin/ucert -I \
+			-c $(BUILD_KEY).ucert \
+			-p $(BUILD_KEY).pub \
+			-s $(BUILD_KEY); \
+	fi
+endif
+
 image:
 	$(MAKE) -s _check_profile
+	$(MAKE) -s _check_keys
 	(unset PROFILE FILES PACKAGES MAKEFLAGS; \
 	$(MAKE) -s _call_image \
 		$(if $(PROFILE),USER_PROFILE="$(PROFILE_FILTER)") \
 		$(if $(FILES),USER_FILES="$(FILES)") \
 		$(if $(PACKAGES),USER_PACKAGES="$(PACKAGES)") \
 		$(if $(BIN_DIR),BIN_DIR="$(BIN_DIR)") \
+		$(if $(DISABLED_SERVICES),DISABLED_SERVICES="$(DISABLED_SERVICES)") \
 		$(if $(USE_CFG),USER_PACKAGES="$(PACKAGES) $(shell cat $(USE_CFG))") \
-		$(if $(DISABLED_SERVICES),DISABLED_SERVICES="$(DISABLED_SERVICES)"))
+		$(if $(ROOTFS_PARTSIZE),CONFIG_TARGET_ROOTFS_PARTSIZE="$(ROOTFS_PARTSIZE)"))
 
 manifest: FORCE
 	$(MAKE) -s _check_profile
+	$(MAKE) -s _check_keys
 	(unset PROFILE FILES PACKAGES MAKEFLAGS; \
 	$(MAKE) -s _call_manifest \
 		$(if $(PROFILE),USER_PROFILE="$(PROFILE_FILTER)") \
 		$(if $(PACKAGES),USER_PACKAGES="$(PACKAGES)"))
 
-.SILENT: help info image manifest
+package_whatdepends: FORCE
+ifeq ($(PACKAGE),)
+	@echo 'Variable `PACKAGE` is not set but required by `whatdepends`'
+	@exit 1
+endif
+	@$(MAKE) -s package_reload
+	@$(OPKG) whatdepends -A $(PACKAGE)
+
+package_depends: FORCE
+ifeq ($(PACKAGE),)
+	@echo 'Variable `PACKAGE` is not set but required by `package_depends`'
+	@exit 1
+endif
+	@$(MAKE) -s package_reload
+	@$(OPKG) depends -A $(PACKAGE)
+
+
+.SILENT: help info image manifest package_whatdepends package_depends

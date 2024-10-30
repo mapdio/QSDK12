@@ -25,18 +25,17 @@ Signed-off-by: Nagarajan Maran <quic_nmaran@quicinc.com>
  /*
 --- a/include/uapi/linux/nl80211.h
 +++ b/include/uapi/linux/nl80211.h
-@@ -2816,6 +2816,10 @@ enum nl80211_commands {
+@@ -2816,6 +2816,9 @@ enum nl80211_commands {
   *     multiple physical hardware under a wiphy can use this attribute,
   *     see &enum nl80211_multi_hw_mac_attrs.
   *
 + * @NL80211_ATTR_RADAR_BITMAP: (u16) RADAR bitmap where the lowest bit
 + *      corresponds to the lowest 20MHZ channel. Each bit set to 1
 + *      indicates that radar is detected in that sub-channel.
-+ *
-  * @NUM_NL80211_ATTR: total number of nl80211_attrs available
+  *
   * @NL80211_ATTR_MAX: highest attribute number currently defined
   * @__NL80211_ATTR_AFTER_LAST: internal use
-@@ -3367,6 +3371,8 @@ enum nl80211_attrs {
+@@ -3367,6 +3370,8 @@ enum nl80211_attrs {
  	NL80211_ATTR_AP_PS,
  
  	NL80211_ATTR_MULTI_HW_MACS,

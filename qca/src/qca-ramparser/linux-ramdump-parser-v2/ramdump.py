@@ -469,7 +469,10 @@ class RamDump():
                 module_symtab = self.ramdump.read_word(mod_list + self.ramdump.module_symtab_offset)
                 module_strtab = self.ramdump.read_word(mod_list + self.ramdump.module_strtab_offset)
 
-            if (self.ramdump.kernel_version[0], self.ramdump.kernel_version[1]) >= (5, 4):
+            if (self.ramdump.kernel_version[0], self.ramdump.kernel_version[1]) >= (6, 4):
+                module_init_text_size = self.ramdump.read_u32(mod_list + self.ramdump.module_layout_init_offset + self.ramdump.module_size_offset)
+                module_core_text_size = self.ramdump.read_u32(mod_list + self.ramdump.module_layout_core_offset + self.ramdump.module_size_offset)
+            elif (self.ramdump.kernel_version[0], self.ramdump.kernel_version[1]) >= (5, 4):
                 module_init_text_size = self.ramdump.read_u32(mod_list + self.ramdump.module_layout_init_offset + self.ramdump.module_text_size_offset)
                 module_core_text_size = self.ramdump.read_u32(mod_list + self.ramdump.module_layout_core_offset + self.ramdump.module_text_size_offset)
             else:
@@ -506,7 +509,8 @@ class RamDump():
                         if (symtab_st_value <= addr and symtab_st_value > symtab_best_st_value and
                             strtab_name[0] != '\0' and self.ramdump.arm_symbol_mapping(strtab_name) == 0):
                             best = i
-
+                        if nextval is None:
+                           nextval = 0
                         if (symtab_st_value > addr and symtab_st_value < nextval and strtab_name[0] != '\0'
                            and self.ramdump.arm_symbol_mapping(strtab_name) == 0):
                            nextval = symtab_st_value
@@ -592,8 +596,20 @@ class RamDump():
             else:
                 return None
 
+    # check whether module is stripped or unstripped
+    def IsModuleStripped(self, kopath):
+        filecmd = 'file {0}'.format(kopath)
+        fc = os.popen(filecmd)
+        output = fc.read()
+        print_out_str("{0}\nOutput : {1}".format(filecmd, output))
+        index = output.find('with debug_info')
+        if index == -1:
+            return True
+        else:
+            return False
+
     def __init__(self, vmlinux_path, nm_path, gdb_path, readelf_path, ko_path, objdump_path, ebi,
-                 file_path, phys_offset, outdir, qtf_path, custom, scan_dump_output, cpu0_reg_path=None, cpu1_reg_path=None,
+                 file_path, phys_offset, outdir, qtf_path, custom, scan_dump_output, is_kaslr_enabled, cpu0_reg_path=None, cpu1_reg_path=None,
                  hw_id=None,hw_version=None, arm64=False, page_offset=None,
                  qtf=False, t32_host_system=None, ath11k=None, ath12k=None):
         self.ebi_files = []
@@ -625,6 +641,10 @@ class RamDump():
         self.kernel_version = (0, 0, 0)
         self.ath11k = ath11k
         self.ath12k = ath12k
+        self.kaslr_enabled = False
+
+        if self.ko_path is not None and os.path.isfile(self.ko_path):
+            self.ko_path = os.path.dirname(self.ko_path)
 
         if self.ath11k is not None and self.ath12k is not None:
             print_out_str("ath11k and ath12k modules cannot be parsed together. Please check on arguments passed\n")
@@ -634,6 +654,15 @@ class RamDump():
             self.scan_dump_output = scan_dump_output
         else:
             self.scan_dump_output = None
+
+        if self.vmlinux is not None and os.path.isfile(self.vmlinux):
+            if self.IsModuleStripped(self.vmlinux):
+                self.IsVmlinuxStripped = True
+                print_out_str('vmlinux elf is stripped. Please run with unstripped ELF file')
+                return
+            else:
+                self.IsVmlinuxStripped = False
+                print_out_str("vmlinux file is unstripped, proceeding further with extraction")
 
         if self.Is_Ath11k() and readelf_path is not None:
             self.ath11k_path = self.ko_path + "/ath11k.ko"
@@ -645,12 +674,12 @@ class RamDump():
                 try:
                     self.seg_info_offset = ret_nm[2:].strip().split(' ')[0]
                 except:
-                    print_out_str('Unable to get segment info address')
+                    print_out_str('RDDM Error !!! FIELD_NOT_FOUND : Unable to get segment info address')
                     return
             else:
                 self.ath11k_gnu_linkonce_this_size = None
                 self.seg_info_offset = None
-                print_out_str("ath11k module file not present")
+                print_out_str("RDDM Error !!! MODULE_NOT_FOUND : ath11k module file not present")
 
         if self.Is_Ath12k() and readelf_path is not None:
             self.ath12k_path = self.ko_path + "/ath12k.ko"
@@ -662,22 +691,15 @@ class RamDump():
                 try:
                     self.seg_info_offset = ret_nm[2:].strip().split(' ')[0]
                 except:
-                    print_out_str('Unable to get segment info address')
+                    print_out_str('RDDM Error !!! FIELD_NOT_FOUND : Unable to get segment info address')
                     return
             else:
                 self.ath12k_gnu_linkonce_this_size = None
                 self.seg_info_offset = None
-                print_out_str("ath12k module file not present")
+                print_out_str("RDDM Error !!! MODULE_NOT_FOUND : ath12k module file not present")
 
         if self.phys_offset is None:
             self.get_hw_id()
-
-        text_addr = self.addr_lookup('_text')
-        if self.isELF32():
-            self.page_offset = text_addr & 0xF0000000
-        else:
-            self.page_offset = text_addr - 0x80000
-        print_out_str('PageOffset was set to {0:x}'.format(self.page_offset))
 
         if self.ko_path is not None and readelf_path is not None:
             #nss driver module path
@@ -737,6 +759,15 @@ class RamDump():
         if self.arm64:
             self.thread_size = 16384
 
+        text_addr = self.addr_lookup('_text')
+        if self.isELF32():
+            self.page_offset = text_addr & 0xF0000000
+        else:
+            if (self.kernel_version[0], self.kernel_version[1]) >= (6, 1):
+                self.page_offset = text_addr
+            else:
+                self.page_offset = text_addr - 0x80000
+        print_out_str('PageOffset was set to {0:x}'.format(self.page_offset))
         if page_offset is not None:
             print_out_str(
                 '[!!!] Page offset was set to {0:x}'.format(page_offset))
@@ -784,7 +815,13 @@ class RamDump():
             print_out_str('!!! Exiting now')
             sys.exit(1)
         self.swapper_pg_dir_addr =  self.swapper_pg_dir - self.page_offset
-        self.kernel_text_offset = self.addr_lookup('stext') - self.page_offset
+        if (self.kernel_version[0], self.kernel_version[1]) >= (6, 1):
+            if self.arm64:
+                self.kernel_text_offset = self.addr_lookup('_stext') - self.page_offset
+            else:
+                self.kernel_text_offset = self.addr_lookup('stext') - self.page_offset
+        else:
+            self.kernel_text_offset = self.addr_lookup('stext') - self.page_offset
         pg_dir_size = self.kernel_text_offset - self.swapper_pg_dir_addr
         if self.arm64:
             print_out_str('Using 64bit MMU')
@@ -830,6 +867,19 @@ class RamDump():
                 '!!! This is a BUG in the parser and should be reported.')
             sys.exit(1)
 
+        if is_kaslr_enabled:
+            # If KASLR is enabled in dump, KASLR kernel and module offset should be used for parsing.
+            # Kernel and module offset details are stored in the below IMEM region
+            # Module offset in 0x086006BC - 0x086006C0 (8 bytes)
+            # Kernel offset in 0x086006C4 - 0x086006C8 (8 bytes)
+            self.kaslr_enabled = True
+            module_offset = self.read_word(0x086006BC, False)
+            self.kaslr_module_offset = int(f'0x{module_offset:x}', 16)
+            print_out_str ("kaslr_modulel_offset is set as {}".format(hex(self.kaslr_module_offset)))
+            kernel_offset = self.read_word(0x086006C4, False)
+            self.kaslr_kernel_offset = int(f'0x{kernel_offset:x}', 16)
+            print_out_str ("kaslr_kernel_offset is set as {}".format(hex(self.kaslr_kernel_offset)))
+
         if not self.get_config():
             print_out_str('!!! Could not get saved configuration')
             print_out_str(
@@ -840,7 +890,12 @@ class RamDump():
         self.next_mod_offset = self.field_offset('struct module','list')
         self.mod_start = self.read_word('modules')
         self.mod_name_offset = self.field_offset('struct module', 'name')
-        if (self.kernel_version[0], self.kernel_version[1]) >= (5, 4):
+        if (self.kernel_version[0], self.kernel_version[1]) >= (6, 4):
+            self.module_layout_init_offset = self.field_offset('struct module', 'mem[4]')
+            self.module_layout_core_offset = self.field_offset('struct module', 'mem[0]')
+            self.module_offset = self.field_offset('struct module_memory', 'base')
+            self.module_size_offset = self.field_offset('struct module_memory', 'size')
+        elif (self.kernel_version[0], self.kernel_version[1]) >= (5, 4):
             self.module_layout_init_offset = self.field_offset('struct module', 'init_layout')
             self.module_layout_core_offset = self.field_offset('struct module', 'core_layout')
             self.module_offset = self.field_offset('struct module_layout', 'base')
@@ -1100,7 +1155,13 @@ class RamDump():
                     config_value = self.get_config_data('CONFIG_ARM64_VA_BITS')
                     print_out_str('CONFIG_ARM64_VA_BITS={0}'.format(config_value))
                     if config_value is not None:
-                        self.mod_start_addr = ((-(1 << (int(config_value) - 1))) + (1 << 64)) + 0x8000000
+                        if ((self.kernel_version[0], self.kernel_version[1]) >= (6, 1)):
+                           self.mod_start_addr = ((-(1 << (int(config_value) - 1))) + (1 << 64))
+                        else:
+                            if self.kaslr_enabled:
+                                self.mod_start_addr = ((-(1 << (int(config_value) - 1))) + (1 << 64)) + 0x8000000 + self.kaslr_kernel_offset
+                            else:
+                                self.mod_start_addr = ((-(1 << (int(config_value) - 1))) + (1 << 64)) + 0x8000000
                     else:
                         print_out_str("CONFIG_ARM64_VA_BITS not found!!!")
                         return False
@@ -1110,7 +1171,10 @@ class RamDump():
                     config_value = self.get_config_data('CONFIG_KASAN_SHADOW_OFFSET')
                     print_out_str('CONFIG_KASAN_SHADOW_OFFSET={0}'.format(config_value))
                     if config_value is not None:
-                        self.mod_start_addr = ((1 << (64 - 3)) + int(config_value, 16)) + 0x8000000
+                        if ((self.kernel_version[0], self.kernel_version[1]) >= (6, 1)):
+                            self.mod_start_addr = ((1 << (64 - 3)) + int(config_value, 16))
+                        else:
+                            self.mod_start_addr = ((1 << (64 - 3)) + int(config_value, 16)) + 0x8000000
                     else:
                         print_out_str("CONFIG_KASAN_SHADOW_OFFSET not found!!!")
                         return False
@@ -1122,8 +1186,16 @@ class RamDump():
 
         # Set Module end address
         if (self.isELF64()):
-            if ((self.kernel_version[0], self.kernel_version[1]) >= (5, 4)):
-                self.mod_end_addr = self.mod_start_addr + 0x8000000
+            if ((self.kernel_version[0], self.kernel_version[1]) >= (6, 4)):
+                if self.kaslr_enabled:
+                    self.mod_end_addr = self.mod_start_addr + 0x80000000 + self.kaslr_module_offset
+                else:
+                    self.mod_end_addr = self.mod_start_addr + 0x80000000
+            elif ((self.kernel_version[0], self.kernel_version[1]) >= (5, 4)):
+                if self.kaslr_enabled:
+                    self.mod_end_addr = self.mod_start_addr + 0x8000000 + self.kaslr_module_offset
+                else:
+                    self.mod_end_addr = self.mod_start_addr + 0x8000000
             else:
                 self.mod_end_addr = self.page_offset
         else:
@@ -1367,19 +1439,26 @@ class RamDump():
         name_list_walker.walk(self.mod_start, self.get_mod_func)
 
     def get_rddm_dump(self, outdir):
+        qrtr_node_count = 0
         if self.Is_Ath11k():
+            if os.path.isfile(self.ath11k_path):
+                if self.IsModuleStripped(self.ath11k_path):
+                    print_out_str('RDDM Error !!! MODULE_STRIPPED : ath11k.ko module is stripped. Please run with unstripped Module')
+                    return
+                else:
+                    print_out_str('ath11k.ko module is unstripped. Proceeding with Bin File extraction')
             self.get_module("ath11k")
 
             if self.mod_list_addr is None:
-                print_out_str('Unable to get ath11k module address')
+                print_out_str('RDDM Error !!! FIELD_NOT_FOUND : Unable to get ath11k module address')
                 return
 
             if self.ath11k_gnu_linkonce_this_size is None:
-                print_out_str('Unable to get gnu linkonce size')
+                print_out_str('RDDM Error !!! FIELD_NOT_FOUND : Unable to get gnu linkonce size')
                 return
 
             if self.seg_info_offset is None:
-                print_out_str('Unable to get segment info address')
+                print_out_str('RDDM Error !!! FIELD_NOT_FOUND : Unable to get segment info address')
                 return
 
             seg_info = self.mod_list_addr + int (self.seg_info_offset, 16) + int (self.ath11k_gnu_linkonce_this_size, 16)
@@ -1388,11 +1467,11 @@ class RamDump():
 
             self.gdbmi = gdbmi.GdbMI(self.gdb_path, self.ath11k_path)
             self.gdbmi.open()
-
             qrtr_node_id = self.read_structure_field(seg_info, "struct ath11k_coredump_segment_info", "qrtr_id")
             dump_device_id = hex(self.read_structure_field(seg_info, "struct ath11k_coredump_segment_info", "chip_id"))
             if qrtr_node_id != 0:
                 print_out_str('!!! Found RDDM dumps with qrtr node id {0}'.format(qrtr_node_id))
+                qrtr_node_count += 1
 
                 dump_path = os.path.join(outdir, "rddm_dump")
 
@@ -1405,19 +1484,25 @@ class RamDump():
                 self.__dump_rddm_segments(dump_seg, dump_path, dump_device_id, True)
                 self.__dump_rddm_segments(dump_seg, dump_path, dump_device_id, False)
 
+            print_out_str('Total number of attached PCIe : {0}'.format(qrtr_node_count))
             self.gdbmi.close()
 
             self.gdbmi = gdbmi.GdbMI(self.gdb_path, self.vmlinux)
             self.gdbmi.open()
         elif self.Is_Ath12k():
+            if os.path.isfile(self.ath12k_path):
+                if self.IsModuleStripped(self.ath12k_path):
+                    print_out_str('RDDM Error !!! MODULE_STRIPPED : ath12k.ko module is stripped. Please run with unstripped Module')
+                    return
+                else:
+                    print_out_str('ath12k.ko module is unstripped. Proceeding with Bin File extraction')
             self.get_module("ath12k")
-
             if self.mod_list_addr is None:
-                print_out_str('Unable to get ath11k module address')
+                print_out_str('RDDM Error !!! FIELD_NOTFOUND : Unable to get ath11k module address')
                 return
 
             if self.ath12k_gnu_linkonce_this_size is None:
-                print_out_str('Unable to get gnu linkonce size')
+                print_out_str('RDDM Error !!! FIELD_NOT_FOUND : Unable to get gnu linkonce size')
                 return
 
             print_out_str('--------------------- ATH12k Structure Details Extraction STARTED---------------------------------')
@@ -1446,6 +1531,7 @@ class RamDump():
                     print_out_str('Devide_ID_{0} = {1}'.format(i,dump_device_id))
 
                     if qrtr_node_id != 0:
+                        qrtr_node_count += 1
                         print_out_str('!!! Found RDDM dumps with bus id {0}'.format(bus_id))
                         dump_path = os.path.join(outdir, "rddm_dump_id_{0}".format(bus_id))
 
@@ -1462,7 +1548,6 @@ class RamDump():
 
                 self.gdbmi.close()
 
-                print_out_str('--------------------- ATH12k Structure Details Extraction ENDED---------------------------------')
                 self.gdbmi = gdbmi.GdbMI(self.gdb_path, self.vmlinux)
                 self.gdbmi.open()
             else:
@@ -1472,11 +1557,11 @@ class RamDump():
                 try:
                     self.seg_info_offset = ret_nm[2:].strip().split(' ')[0]
                 except:
-                    print_out_str('Unable to get segment info address')
+                    print_out_str('RDDM Error !!! FIELD_NOT_FOUND : Unable to get segment info address')
                     return
 
                 if self.seg_info_offset is None:
-                    print_out_str('Unable to get segment info address')
+                    print_out_str('RDDM Error !!! FIELD_NOT_FOUND : Unable to get segment info address')
                     return
                 seg_info = self.mod_list_addr + int (self.seg_info_offset, 16) + int (self.ath12k_gnu_linkonce_this_size, 16)
 
@@ -1492,6 +1577,7 @@ class RamDump():
                 print_out_str('Devide_ID = {0}'.format(dump_device_id))
                 if qrtr_node_id != 0:
                     print_out_str('!!! Found RDDM dumps with qrtr node id {0}'.format(qrtr_node_id))
+                    qrtr_node_count += 1
 
                     dump_path = os.path.join(outdir, "rddm_dump")
 
@@ -1509,9 +1595,11 @@ class RamDump():
 
                 self.gdbmi.close()
 
-                print_out_str('--------------------- ATH12k Structure Details Extraction ENDED---------------------------------')
                 self.gdbmi = gdbmi.GdbMI(self.gdb_path, self.vmlinux)
                 self.gdbmi.open()
+
+            print_out_str('Total number of attached PCIe : {0}'.format(qrtr_node_count))
+            print_out_str('--------------------- ATH12k Structure Details Extraction ENDED---------------------------------')
         else:
             plat_env_index = self.addr_lookup('plat_env_index')
 
@@ -1531,6 +1619,7 @@ class RamDump():
                     dump_device_id = hex(self.read_structure_field(plat_env, "struct cnss_plat_data", "device_id"))
 
                     if qrtr_node_id != 0:
+                        qrtr_node_count += 1
                         dump_path = os.path.join(outdir, "rddm_dump_id_{0}".format(qrtr_node_id))
 
                         if os.path.exists(dump_path):
@@ -1543,21 +1632,27 @@ class RamDump():
             else:
                 # cnss variables migrated to ipq_cnss2.ko module
                 if self.ko_path is None:
-                    print_out_str('Provide ko module as --ko-path <KoModulePath> if plat_env exists in ipq_cnss2.ko')
+                    print_out_str('RDDM Error !!! MODULE_NOT_FOUND : Provide ko module as --ko-path <KoModulePath> if plat_env exists in ipq_cnss2.ko')
                     return
                 else:
                     self.cnss_path = self.ko_path + "/ipq_cnss2.ko"
                     if not os.path.isfile(self.cnss_path):
-                        print_out_str('ipq_cnss2.ko module does not exists in ko module path.')
+                        print_out_str('RDDM Error !!! MODULE_NOT_FOUND : ipq_cnss2.ko module does not exists in ko module path.')
                         return
 
+                if self.IsModuleStripped(self.cnss_path):
+                    print_out_str('RDDM Error !!! MODULE_STRIPPED : ipqcnss2.ko module is stripped. Please run with unstripped Module')
+                    return
+                else:
+                    print_out_str('ipqcnss2.ko module is unstripped. Proceeding with Bin File extraction')
+
                 if self.readelf_path is None:
-                    print_out_str('readelf file is required for Pine bins extraction. Provide --readelf-path <ReadELFPath>')
+                    print_out_str('RDDM Error !!! READELF_PATH_NOTFOUND : readelf file is required for Pine bins extraction. Provide --readelf-path <ReadELFPath>')
                     return
 
                 self.get_module("ipq_cnss2")
                 if self.mod_list_addr is None:
-                    print_out_str('Unable to get ipq_cnss2 module address')
+                    print_out_str('RDDM Error !!! FIELD_NOT_FOUND : Unable to get ipq_cnss2 module address')
                     return
 
                 self.gdbmi.close()
@@ -1574,12 +1669,12 @@ class RamDump():
                 try:
                     self.seg_info_offset = ret_nm[2:].strip().split(' ')[0]
                 except:
-                    print_out_str('Unable to get segment info address')
+                    print_out_str('RDDM Error : FIELD_NOT_FOUND : Unable to get segment info address')
                     return
 
                 self.cnss_gnu_linkonce_this_size = self.get_gnu_linkonce_size(self.readelf_path, self.cnss_path)
                 if self.cnss_gnu_linkonce_this_size is None:
-                    print_out_str('Unable to get cnss gnu linkonce size')
+                    print_out_str('RDDM Error : FIELD_NOT_FOUND: Unable to get cnss gnu linkonce size')
                     return
 
                 plat_env_index_address = self.mod_list_addr + int (self.cnss_gnu_linkonce_this_size, 16)
@@ -1591,11 +1686,15 @@ class RamDump():
                 dump_data_vaddr_off = dump_data_vaddr_off + self.field_offset("struct cnss_plat_data", "ramdump_info_v2")
 
                 for i in range(plat_env_index):
-                    seg_info_address = self.read_u32(seg_info)
+                    if self.kaslr_enabled:
+                        seg_info_address = self.read_u64(seg_info)
+                    else:
+                        seg_info_address = self.read_u32(seg_info)
 
                     qrtr_node_id = self.read_structure_field(seg_info_address, "struct cnss_plat_data", "qrtr_node_id")
                     dump_device_id = hex(self.read_structure_field(seg_info_address, "struct cnss_plat_data", "device_id"))
                     if qrtr_node_id != 0:
+                        qrtr_node_count += 1
                         dump_path = os.path.join(outdir, "rddm_dump_id_{0}".format(qrtr_node_id))
 
                         if os.path.exists(dump_path):
@@ -1605,8 +1704,16 @@ class RamDump():
 
                         self.__dump_rddm_segments(dump_data_vaddr, dump_path, dump_device_id, True)
                         self.__dump_rddm_segments(dump_data_vaddr, dump_path, dump_device_id, False)
-                    seg_info = seg_info + int (self.seg_info_offset, 16)
+                    if (self.isELF64()):
+                        #seg_info will store the base address of plat_env
+                        #Next following each 8 bytes stores each next index address of plat_env in 64 bit case
+                        seg_info = seg_info + 8
+                    else:
+                        #seg_info will store the base address of plat_env
+                        #Next following each 4 bytes stores each next index address of plat_env in 32 bit case
+                        seg_info = seg_info + 4
 
+                print_out_str('Total number of attached PCIe : {0}'.format(qrtr_node_count))
                 self.gdbmi.close()
                 self.gdbmi = gdbmi.GdbMI(self.gdb_path, self.vmlinux)
                 self.gdbmi.open()
@@ -1866,7 +1973,6 @@ class RamDump():
         launch_config.write('ID=T32_1000002\n')
 
         launch_config.write('TMP=C:\\TEMP\n')
-        launch_config.write('SYS=C:\\T32\n')
         launch_config.write('HELP=C:\\T32\\pdf\n')
         launch_config.write('\n')
         launch_config.write('PBI=SIM\n')
@@ -1900,7 +2006,7 @@ class RamDump():
         for ram in self.ebi_files:
             ebi_name = os.path.basename(ram[3])
             local = local + '&' + ebi_name.split('.')[0] + 'File '
-        local = local + '&ELFFile'
+        local = local + '&ELFFile &T32DEMODIR'
         startup_script.write('{0}\n'.format(local).encode('ascii', 'ignore'))
         entry = 'ENTRY '
         for ram in self.ebi_files:
@@ -1908,6 +2014,7 @@ class RamDump():
             entry = entry + '&' + ebi_name.split('.')[0] + 'File '
         entry = entry + '&ELFFile'
         startup_script.write('{0}\n'.format(entry).encode('ascii', 'ignore'))
+        startup_script.write('&T32DEMODIR=OS.PDD()\n'.encode('ascii', 'ignore'))
         check = 'IF '
         for ram in self.ebi_files:
             ebi_name = os.path.basename(ram[3])
@@ -1951,7 +2058,10 @@ class RamDump():
             ebi_file = ebi_path.split('.')[0] + 'File'
             startup_script.write('data.load.binary &{0} 0x{1:x}\n'.format(
                 ebi_file, ram[1]).encode('ascii', 'ignore'))
-        startup_script.write(
+        if self.kaslr_enabled:
+            startup_script.write('data.load.elf &ELFFile 0x{0:x} /nocode\n'.format(self.kaslr_kernel_offset).encode('ascii', 'ignore'))
+        else:
+            startup_script.write(
             ('data.load.elf &ELFFile /nocode\n').encode('ascii', 'ignore'))
         if self.arm64 and self.Is_Hawkeye() == True:
             #startup_script.write('Register.Set NS 1\n'.encode('ascii', 'ignore'))
@@ -1989,16 +2099,17 @@ class RamDump():
             startup_script.write('mmu.on\n'.encode('ascii', 'ignore'))
             startup_script.write('mmu.scan\n'.encode('ascii', 'ignore'))
 
-        if self.arm64:
+        if ((self.kernel_version[0], self.kernel_version[1]) >= (5, 4)):
+            startup_script.write('system.Option MMUSPACES ON\n'.encode('ascii', 'ignore'))
             startup_script.write(
-                 'task.config C:\\T32\\demo\\arm64\\kernel\\linux\\linux-3.x\\linux3.t32\n'.encode('ascii', 'ignore'))
+                'task.config &T32DEMODIR\\kernel\\linux\\awareness\\linux.t32\n'.encode('ascii', 'ignore'))
             startup_script.write(
-                 'menu.reprogram C:\\T32\\demo\\arm64\\kernel\\linux\\linux-3.x\\linux.men\n'.encode('ascii', 'ignore'))
+                'menu.reprogram &T32DEMODIR\\kernel\\linux\\awareness\\linux.men\n'.encode('ascii', 'ignore'))
         else:
             startup_script.write(
-                'task.config c:\\t32\\demo\\arm\\kernel\\linux\\linux-3.x\\linux3.t32\n'.encode('ascii', 'ignore'))
+                'task.config &T32DEMODIR\\kernel\\linux\\linux-3.x\\linux3.t32\n'.encode('ascii', 'ignore'))
             startup_script.write(
-                'menu.reprogram c:\\t32\\demo\\arm\\kernel\\linux\\linux-3.x\\linux.men\n'.encode('ascii', 'ignore'))
+                'menu.reprogram &T32DEMODIR\\kernel\\linux\\linux-3.x\\linux.men\n'.encode('ascii', 'ignore'))
 
         startup_script.write('task.dtask\n'.encode('ascii', 'ignore'))
         startup_script.write(
@@ -2224,12 +2335,18 @@ class RamDump():
         for line in symbols:
             s = line.split(' ')
             if len(s) == 4:
-                self.lookup_table.append((int(s[0], 16), s[3].rstrip(), int(s[1], 16)))
+                if self.kaslr_enabled:
+                    self.lookup_table.append((int(s[0], 16) + self.kaslr_kernel_offset, s[3].rstrip(), int(s[1], 16)))
+                else:
+                    self.lookup_table.append((int(s[0], 16), s[3].rstrip(), int(s[1], 16)))
         stream.close()
 
     def addr_lookup(self, symbol):
         try:
-            return self.gdbmi.address_of(symbol)
+            if self.kaslr_enabled:
+                return self.gdbmi.address_of(symbol) + self.kaslr_kernel_offset
+            else:
+                return self.gdbmi.address_of(symbol)
         except gdbmi.GdbMIException:
             pass
 
@@ -2313,7 +2430,9 @@ class RamDump():
         vmalloc_start = self.read_u32(high_mem_addr) + vmalloc_offset & (~int(vmalloc_offset - 0x1))
 
         if(self.Is_Hawkeye() and self.isELF64() and check_modules == 1):
-            if (self.kernel_version[0], self.kernel_version[1]) >= (5, 4) and (0xffffffc008000000 <= addr < 0xffffffc010000000):
+            if (self.kaslr_enabled and self.kernel_version[0], self.kernel_version[1]) >= (5, 4) and ((0xffffffc008000000 + self.kaslr_module_offset + self.kaslr_kernel_offset) <= addr < (0xffffffc010000000 + self.kaslr_module_offset + self.kaslr_kernel_offset)):
+                return self.unwind.get_module_name_from_addr(addr)
+            elif (self.kernel_version[0], self.kernel_version[1]) >= (5, 4) and (self.mod_start_addr <= addr <= self.mod_end_addr):
                 return self.unwind.get_module_name_from_addr(addr)
             elif (0xffffffbffc000000 <= addr < 0xffffffc000000000):
                 return self.unwind.get_module_name_from_addr(addr)
@@ -2511,6 +2630,12 @@ class RamDump():
             return None
         else:
             return s[0]
+
+    def struct_field_addr(self, addr, the_type, field):
+        try:
+            return self.gdbmi.field_offset(the_type, field) + addr
+        except gdbmi.GdbMIException:
+            pass
 
     # reads a 4 or 8 byte field from a structure
     def read_structure_field(self, address, struct_name, field):

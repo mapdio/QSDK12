@@ -52,6 +52,11 @@ static bool ovs_enabled = false;
 static struct nss_bridge_mgr_context br_mgr_ctx;
 
 /*
+ * Module parameter to enable/disable FDB learning.
+ */
+static bool fdb_disabled = false;
+
+/*
  * nss_bridge_mgr_create_instance()
  *	Create a bridge instance.
  */
@@ -526,7 +531,8 @@ static int nss_bridge_mgr_bond_fdb_leave(struct nss_bridge_pvt *b_pvt)
 	 * The last bond interface is removed from bridge, we can switch back to FDB
 	 * learning mode.
 	 */
-	if (nss_bridge_mgr_enable_fdb_learning(b_pvt) < 0) {
+	if (!fdb_disabled && (nss_bridge_mgr_enable_fdb_learning(b_pvt) < 0)) {
+		nss_bridge_mgr_warn("%px: Failed to enable fdb learning. fdb_disabled: %d\n", b_pvt, fdb_disabled);
 		return NOTIFY_BAD;
 	}
 
@@ -1104,7 +1110,7 @@ int nss_bridge_mgr_register_br(struct net_device *dev)
 	 * Disable FDB learning if OVS is enabled for
 	 * all bridges (including Linux bridge).
 	 */
-	if (ovs_enabled) {
+	if (ovs_enabled || fdb_disabled) {
 		nss_bridge_mgr_disable_fdb_learning(b_pvt);
 	}
 #endif
@@ -1676,3 +1682,6 @@ MODULE_DESCRIPTION("NSS bridge manager");
 
 module_param(ovs_enabled, bool, 0644);
 MODULE_PARM_DESC(ovs_enabled, "OVS bridge is enabled");
+
+module_param(fdb_disabled, bool, 0644);
+MODULE_PARM_DESC(fdb_disabled, "fdb learning is disabled");

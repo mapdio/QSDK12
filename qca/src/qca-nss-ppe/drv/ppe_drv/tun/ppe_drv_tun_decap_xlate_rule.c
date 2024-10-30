@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2024 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for any
  * purpose with or without fee is hereby granted, provided that the above
@@ -84,7 +84,7 @@ static void ppe_drv_tun_decap_xlate_rule_free(struct kref *kref)
  */
 bool ppe_drv_tun_decap_xlate_rule_deref(struct ppe_drv_tun_decap_xlate_rule *ptdxrule)
 {
-	uint8_t index = ptdxrule->index;
+	uint8_t index __maybe_unused = ptdxrule->index;
 
 	ppe_drv_assert(kref_read(&ptdxrule->ref), "%p: ref count under run for tun_decap_xlate_rule", ptdxrule);
 
@@ -144,7 +144,7 @@ bool ppe_drv_tun_decap_xlate_rule_configure(struct ppe_drv_tun_decap_xlate_rule 
 	}
 
 	/*
-	 *			PL=96   PL=64   PL=56   PL=48   PL=40   PL=32
+	 *	                PL=96   PL=64   PL=56   PL=48   PL=40   PL=32
 	 *	SRC2              1       1       1       1       1       1
 	 *	START2_SUFFIX     0      24      32      40      64      64
 	 *	WIDTH2_SUFFIX    31      31      23      15      23      31
@@ -152,16 +152,16 @@ bool ppe_drv_tun_decap_xlate_rule_configure(struct ppe_drv_tun_decap_xlate_rule 
 	 *	SRC2_VALID        1       1       1       1       1       1
 	 *	START2_PSID       0       0      64      64      48       0
 	 *	WIDTH2_PSID       0       0       7      15       7       0
-	 *	SRC3              0       0       1       0       0       0
+	 *	SRC3              0       0       1       1       0       0
 	 *	START3_PSID       0       0       8       0       0       0
 	 *	WIDTH3_PSID       0       0       0       0       0       0
-	 *	SRC3_VALID        0       0       1       0       0       0
-	 *	CHECK_EN          1       1       1       1       1       1
+	 *	SRC3_VALID        0       0       0       0       0       0
+	 *	CHECK_EN          1       1       0       0       0       1
 	 */
 	if (src_ipv6) {
 		m_decap_edit_rule.ip6_addr_src = FAL_TUNNEL_MAPT_FROM_SRC;
-		m_decap_edit_rule.ip6_proto_sel.enable = true;
-		m_decap_edit_rule.check_proto_enable = true;
+		m_decap_edit_rule.ip6_proto_sel.enable = A_TRUE;
+		m_decap_edit_rule.check_proto_enable =  A_TRUE;
 
 		switch (rule->ipv6_prefix_len) {
 		case 96:
@@ -173,18 +173,20 @@ bool ppe_drv_tun_decap_xlate_rule_configure(struct ppe_drv_tun_decap_xlate_rule 
 			break;
 		case 56:
 			m_decap_edit_rule.ip6_suffix_sel.src_start = 32;
-			m_decap_edit_rule.ip6_suffix_sel.src_width = 32;
+			m_decap_edit_rule.ip6_suffix_sel.src_width = 24;
 			m_decap_edit_rule.ip6_proto_sel.src_start = 64;
 			m_decap_edit_rule.ip6_proto_sel.src_width = 8;
-			m_decap_edit_rule.proto_sel.enable = true;
 			m_decap_edit_rule.proto_sel.src_start = 8;
 			m_decap_edit_rule.proto_src = FAL_TUNNEL_MAPT_FROM_SRC;
+			m_decap_edit_rule.check_proto_enable = A_FALSE;
 			break;
 		case 48:
 			m_decap_edit_rule.ip6_suffix_sel.src_start = 40;
 			m_decap_edit_rule.ip6_suffix_sel.src_width = 16;
 			m_decap_edit_rule.ip6_proto_sel.src_start = 64;
 			m_decap_edit_rule.ip6_proto_sel.src_width = 16;
+			m_decap_edit_rule.proto_src = FAL_TUNNEL_MAPT_FROM_SRC;
+			m_decap_edit_rule.check_proto_enable = A_FALSE;
 			break;
 		case 40:
 			m_decap_edit_rule.ip6_suffix_sel.src_start = 64;
@@ -192,6 +194,7 @@ bool ppe_drv_tun_decap_xlate_rule_configure(struct ppe_drv_tun_decap_xlate_rule 
 			m_decap_edit_rule.ip6_proto_sel.src_start = 48;
 			m_decap_edit_rule.ip6_proto_sel.src_width = 8;
 			m_decap_edit_rule.ip6_suffix_sel.dest_pos = 8;
+			m_decap_edit_rule.check_proto_enable = A_FALSE;
 			break;
 		case 32:
 			m_decap_edit_rule.ip6_suffix_sel.src_start = 64;
@@ -234,14 +237,14 @@ bool ppe_drv_tun_decap_xlate_rule_configure(struct ppe_drv_tun_decap_xlate_rule 
 	m_decap_edit_rule.ip6_addr_src = FAL_TUNNEL_MAPT_FROM_DST;
 	m_decap_edit_rule.ip6_suffix_sel.src_start = start2_suffix;
 	m_decap_edit_rule.ip6_suffix_sel.src_width = p;
-	m_decap_edit_rule.ip6_suffix_sel.enable = true;
+	m_decap_edit_rule.ip6_suffix_sel.enable = A_TRUE;
 	m_decap_edit_rule.ip6_proto_sel.src_start = start2_psid;
 	m_decap_edit_rule.ip6_proto_sel.src_width = psid_len;
-	m_decap_edit_rule.ip6_proto_sel.enable = true;
-	m_decap_edit_rule.proto_sel.enable = true;
+	m_decap_edit_rule.ip6_proto_sel.enable = A_TRUE;
+	m_decap_edit_rule.proto_sel.enable = A_TRUE;
 	m_decap_edit_rule.proto_sel.src_start = start3_psid;
 	m_decap_edit_rule.proto_sel.src_width = psid_len;
-	m_decap_edit_rule.check_proto_enable = true;
+	m_decap_edit_rule.check_proto_enable = A_TRUE;
 	m_decap_edit_rule.proto_src = FAL_TUNNEL_MAPT_FROM_DST;
 
 	err = fal_mapt_decap_rule_entry_set(PPE_DRV_SWITCH_ID, ptdxrule->index, &m_decap_edit_rule);

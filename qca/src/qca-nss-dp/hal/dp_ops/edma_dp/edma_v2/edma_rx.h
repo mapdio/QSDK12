@@ -1,6 +1,6 @@
 /*
  * Copyright (c) 2021, The Linux Foundation. All rights reserved.
- * Copyright (c) 2022-2023 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2024 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for any
  * purpose with or without fee is hereby granted, provided that the above
@@ -40,12 +40,15 @@
 #define EDMA_RXDESC_PRI_DESC(R, i)	EDMA_GET_PDESC(R, i, struct edma_rxdesc_desc)
 #define EDMA_RXDESC_SEC_DESC(R, i)	EDMA_GET_SDESC(R, i, struct edma_rxdesc_sec_desc)
 
+/*
+ * TODO - Make this a tunable parameter using module-param.
+ */
 #if defined(NSS_DP_MEM_PROFILE_LOW)
 #define EDMA_RX_RING_SIZE		512
 #elif defined(NSS_DP_MEM_PROFILE_MEDIUM)
 #define EDMA_RX_RING_SIZE		1024
 #else
-#define EDMA_RX_RING_SIZE		2048
+#define EDMA_RX_RING_SIZE		4096
 #endif
 
 #define EDMA_RX_RING_SIZE_MASK		(EDMA_RX_RING_SIZE - 1)
@@ -134,13 +137,29 @@
 
 #define EDMA_RXFILL_PACKET_LEN_SET(desc, len)	{ \
 	(((desc)->word1) = (uint32_t)((((uint32_t)len) << EDMA_RXFILL_BUF_SIZE_SHIFT) & 0xFFFF0000)); \
-	cpu_to_le32s(&((desc)->word1)); \
 }
-#define EDMA_RXFILL_BUFFER_ADDR_SET(desc, addr)	(((desc)->word0) = (uint32_t)(cpu_to_le32(addr)))
-#define EDMA_RXDESC_SC_CC_VALID_GET(desc)	(((desc)->word1) & 0x01FF1000)
-#define EDMA_RXDESC_CPU_CODE_VALID_GET(desc)	((((desc)->word1) & 0x00001000) >> 12)
-#define EDMA_RXDESC_SERVICE_CODE_GET(desc)	((((desc)->word1) & 0x01FF0000) >> 16)
-#define EDMA_RXDESC_CPU_CODE_GET(desc)		((((desc)->word5) & 0x03FF0000) >> 16)
+#define EDMA_RXFILL_BUFFER_ADDR_SET(desc, addr)	(((desc)->word0) = (uint32_t)(addr))
+#define EDMA_RXDESC_SC_CC_VALID_GET(desc)	((le32_to_cpu((desc)->word1)) & 0x01FF1000)
+#define EDMA_RXDESC_CPU_CODE_VALID_GET(desc)	(((le32_to_cpu((desc)->word1)) & 0x00001000) >> 12)
+#define EDMA_RXDESC_SERVICE_CODE_GET(desc)	(((le32_to_cpu((desc)->word1)) & 0x01FF0000) >> 16)
+#define EDMA_RXDESC_CPU_CODE_GET(desc)		(((le32_to_cpu((desc)->word5)) & 0x03FF0000) >> 16)
+#define EDMA_RXDESC_ACL_IDX_VALID_GET(desc)	(((le32_to_cpu((desc)->word1)) & 0x80000000) >> 31)
+#define EDMA_RXDESC_ACL_IDX_GET(desc)		(((le32_to_cpu((desc)->word1)) & 0x3FFF0000) >> 16)
+#define EDMA_RXDESC_FAKE_MAC_GET(desc)		(((le32_to_cpu((desc)->word1)) & 0x00000400) >> 10)
+
+
+/*
+ * Fields to be obtained from secondary descriptor
+ */
+#define EDMA_RX_SDESC_TSTAMP_VALID_SHIFT	23
+#define EDMA_RX_SDESC_TSTAMP_VALID_MASK		EDMA_RXDESC_GENMASK(23, 23)
+#define EDMA_RX_SDESC_TSTAMP_VALID_GET(desc)	((le32_to_cpu(((desc)->word3)) & EDMA_RX_SDESC_TSTAMP_VALID_MASK) >> EDMA_RX_SDESC_TSTAMP_VALID_SHIFT)
+
+#define EDMA_RX_SDESC_TSTAMP_LO_GET(desc)	(le32_to_cpu(((desc)->word0)))
+
+#define EDMA_RX_SDESC_TSTAMP_HI_SHIFT		0
+#define EDMA_RX_SDESC_TSTAMP_HI_MASK		EDMA_RXDESC_GENMASK(7, 0)
+#define EDMA_RX_SDESC_TSTAMP_HI_GET(desc)	((le32_to_cpu(((desc)->word1)) & EDMA_RX_SDESC_TSTAMP_HI_MASK) >> EDMA_RX_SDESC_TSTAMP_HI_SHIFT)
 
 /*
  * Extracting Tree ID and WiFi-QoS from descriptor.
@@ -155,7 +174,7 @@
 /*
  * Check if WiFi-QoS flag is valid.
  */
-#define EDMA_RXDESC_WIFI_QOS_FLAG_VALID_GET(desc)	(((desc)->word1) & 0x00008000)
+#define EDMA_RXDESC_WIFI_QOS_FLAG_VALID_GET(desc)	((le32_to_cpu((desc)->word1)) & 0x00008000)
 
 /*
  * Tree_id related Macros.
@@ -196,9 +215,56 @@
 								msduq)
 
 /*
+ * MLO related macros for extracting MLO mark from Tree-ID
+ */
+#define EDMA_RXDESC_MLO_MSDUQ_SHIFT			6
+#define EDMA_RXDESC_MLO_MARK_MASK			0x0003FFFF
+#define EDMA_RXDESC_MLO_MARK_GET(desc)			(EDMA_RXDESC_TREE_ID_GET(desc) & EDMA_RXDESC_MLO_MARK_MASK)
+
+/*
+ * Construct the MLO metadata
+ *	-------------------------------------------------------------------------
+ *	|TAG (8 bits) | Tree-ID (Least significant 18 bits) | WiFi-QoS (6 bits) |
+ *	-------------------------------------------------------------------------
+ */
+#define EDMA_RX_MLO_METADATA_CONSTRUCT(mark, msduq)		(EDMA_RX_SAWF_SERVICE_CLASS_TAG | \
+								(mark << EDMA_RXDESC_MLO_MSDUQ_SHIFT) | \
+								(msduq))
+
+/*
+ * Opaque values are set in word2 and word3, they are not accessed by the EDMA HW,
+ * so endianness conversion is not needed.
+*/
+#define EDMA_RXFILL_ENDIAN_SET(desc)	{ \
+	cpu_to_le32s(&((desc)->word0)); \
+	cpu_to_le32s(&((desc)->word1)); \
+}
+
+/*
  * RX DESC size shift to obtain index from descriptor pointer
  */
 #define EDMA_RXDESC_SIZE_SHIFT		5
+
+/*
+ * edma_ring_usage
+ *	Indices for stats
+ */
+enum edma_ring_usage {
+	EDMA_RING_USAGE_100_FULL = 0,
+	EDMA_RING_USAGE_90_TO_100_FULL,
+	EDMA_RING_USAGE_70_TO_90_FULL,
+	EDMA_RING_USAGE_50_TO_70_FULL,
+	EDMA_RING_USAGE_LESS_50_FULL,
+	EDMA_RING_USAGE_MAX_FULL,
+};
+
+/*
+ * edma_ring_util_stats
+ *	Structure for tracking ring utilization
+ */
+struct edma_ring_util_stats {
+	uint32_t util[EDMA_RING_USAGE_MAX_FULL];
+};
 
 /*
  * edma_rx_stats
@@ -223,6 +289,7 @@ struct edma_rx_desc_stats {
 	uint64_t src_port_inval;		/* Invalid source port number */
 	uint64_t src_port_inval_type;		/* Source type is not PORT ID */
 	uint64_t src_port_inval_netdev;		/* Invalid net device for the source port */
+	struct edma_ring_util_stats ring_stats;	/* Tracking EDMA Rx Desc ring utilization */
 	struct u64_stats_sync syncp;		/* Synchronization pointer */
 };
 
@@ -233,6 +300,7 @@ struct edma_rx_desc_stats {
 struct edma_rx_fill_stats {
 	uint64_t alloc_failed;			/* Buffer allocation failure count */
 	uint64_t page_alloc_failed;		/* Page allocation failure count for page mode */
+	struct edma_ring_util_stats ring_stats;    /* Tracking EDMA Rx Fill ring utilization */
 	struct u64_stats_sync syncp;		/* Synchronization pointer */
 };
 
@@ -293,6 +361,8 @@ struct edma_rxfill_ring {
 					/* Rx fill ring statistics */
 };
 
+struct nss_dp_vp_skb_list;
+
 /*
  * RxDesc ring
  */
@@ -317,14 +387,19 @@ struct edma_rxdesc_ring {
 	dma_addr_t sdma;		/* Secondary descriptor ring physical address */
 	struct sk_buff *head;		/* Head of the skb list in case of scatter-gather frame */
 	struct sk_buff *last;		/* Last skb of the skb list in case of scatter-gather frame */
+	struct nss_dp_vp_skb_list *vp_head;
+					/* Last skb of the skb list in case of scatter-gather frame */
 };
 
 irqreturn_t edma_rx_handle_irq(int irq, void *ctx);
 #ifdef NSS_DP_PPEDS_SUPPORT
 irqreturn_t edma_rxfill_handle_irq(int irq, void *ctx);
 #endif
+void edma_rx_free_buffer_loopback(void);
+bool edma_rx_alloc_buffer_loopback(struct edma_rxfill_ring *rxfill_ring, int alloc_count);
 int edma_rx_alloc_buffer(struct edma_rxfill_ring *rxfill_ring, int alloc_count);
 int edma_rx_napi_poll(struct napi_struct *napi, int budget);
 bool edma_rx_phy_tstamp_buf(__attribute__((unused))void *app_data, struct sk_buff *skb, void *sc_data);
+int edma_rx_napi_capwap_poll(struct napi_struct *napi, int budget);
 
 #endif	/* __EDMA_RX_H__ */

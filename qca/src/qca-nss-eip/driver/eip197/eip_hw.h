@@ -64,7 +64,7 @@
 #define EIP_HW_ENB_DSE_THREAD (0x1U << 30)
 
 #define EIP_HW_DSE_CFG \
-	(EIP_HW_DSE_AGGRESIVE_MODE | EIP_HW_DSE_EN_SINGLE_WR | \
+	(EIP_HW_DSE_AGGRESIVE_MODE | \
 	EIP_HW_DSE_BUFFER_CTRL | EIP_HW_DSE_OUTPUT_BUF_MAX | \
 	EIP_HW_DSE_RD_CACHE | EIP_HW_DSE_OUTPUT_BUF_MIN)
 
@@ -119,6 +119,7 @@
  * Configure Processing engine token control register
  */
 #define EIP_HW_TOKEN_CFG 0x40424004U
+#define EIP_HW_TOKEN2_CFG (0x1U << 1) /* Strip excess IP packet data for outbound */
 
 /*
  * Configure Input and Output classification's engine
@@ -380,6 +381,7 @@
  */
 #define EIP_HW_PE_EIP96_BASE 0x21000U
 #define EIP_HW_PE_EIP96_TOKEN_CTRL (EIP_HW_PE_EIP96_BASE + 0x0)
+#define EIP_HW_PE_EIP96_TOKEN_CTRL2 (EIP_HW_PE_EIP96_BASE + 0x2CU)
 #define EIP_HW_PE_EIP96_FUNC_EN (EIP_HW_PE_EIP96_BASE + 0x4U)
 #define EIP_HW_PE_EIP96_CONTEXT_CTRL (EIP_HW_PE_EIP96_BASE + 0x8U)
 #define EIP_HW_PE_EIP96_CONTEXT_STAT (EIP_HW_PE_EIP96_BASE + 0xCU)
@@ -789,6 +791,7 @@
 #define EIP_HW_RES_ERR_IKE 164U
 #define EIP_HW_RES_ERR_FLOW_FAIL 188U
 #define EIP_HW_RES_BYPASS_SRC_PORT(by) ((by) & 0xFFFFU)
+#define EIP_HW_RES_OFFST(res) (((res) >> 16) & 0xFFU)
 
 /*
  * HW specific service number.

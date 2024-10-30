@@ -87,6 +87,7 @@ static ssize_t eip_ctx_read_tr_stats(struct file *filep, char __user *ubuf, size
 		len += snprintf(buf + len, max_buf_len - len, "\tTx Packets - %llu\n", stats.tx_pkts);
 		len += snprintf(buf + len, max_buf_len - len, "\tTx SG fragments - %llu\n", stats.tx_frags);
 		len += snprintf(buf + len, max_buf_len - len, "\tTx bytes - %llu\n", stats.tx_bytes);
+		len += snprintf(buf + len, max_buf_len - len, "\tTx Error len - %llu\n", stats.tx_error_len);
 		len += snprintf(buf + len, max_buf_len - len, "\tRx Packets - %llu\n", stats.rx_pkts);
 		len += snprintf(buf + len, max_buf_len - len, "\tRx bytes - %llu\n", stats.rx_bytes);
 		len += snprintf(buf + len, max_buf_len - len, "\tError - %llu\n", stats.rx_error);

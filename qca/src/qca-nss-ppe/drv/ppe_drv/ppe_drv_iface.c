@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2022-2023 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2024 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for any
  * purpose with or without fee is hereby granted, provided that the above
@@ -28,6 +28,19 @@ static void ppe_drv_iface_free(struct kref *kref)
 	ppe_drv_assert(!iface->port, "%p: Interface still associated with the port", iface);
 	ppe_drv_assert(!iface->vsi, "%p: Interface still associated with the vsi", iface);
 	ppe_drv_assert(!iface->l3, "%p: Interface still associated with the l3_if", iface);
+
+	/*
+	 * The cleanup_cb is registered when
+	 * the references held by other components(like ECM).
+	 * When the reference count of the ppe_iface reaches 0 and
+	 * callback is registered, we perform the deinitialization/cleanup of
+	 * the port before proceeding to clean up the ppe_iface.
+	 * This is a WAR to handle async free call for ppe-vp.
+	 */
+	if (iface->cleanup_cb) {
+		iface->cleanup_cb(iface);
+		iface->cleanup_cb = NULL;
+	}
 
 	iface->flags &= ~PPE_DRV_IFACE_FLAG_VALID;
 
@@ -111,6 +124,35 @@ bool ppe_drv_iface_is_physical(struct ppe_drv_iface *iface)
 	return iface->type == PPE_DRV_IFACE_TYPE_PHYSICAL;
 }
 EXPORT_SYMBOL(ppe_drv_iface_is_physical);
+
+/*
+ * ppe_drv_dev_get_by_iface_idx
+ *	Get Netdev by PPE interface index.
+ */
+struct net_device *ppe_drv_dev_get_by_iface_idx(ppe_drv_iface_t index)
+{
+	struct ppe_drv *p = &ppe_drv_gbl;
+	struct ppe_drv_iface *iface;
+	struct net_device *dev = NULL;
+
+	spin_lock_bh(&p->lock);
+	if (index < 0 || index >= p->iface_num) {
+		ppe_drv_warn("Index out of bounds %d\n", index);
+		goto error;
+	}
+
+	iface = &p->iface[index];
+	if (!kref_read(&iface->ref) || ((iface->flags & PPE_DRV_IFACE_FLAG_VALID) != PPE_DRV_IFACE_FLAG_VALID)) {
+		ppe_drv_warn("Invalid iface index %d\n", index);
+		goto error;
+	}
+
+	dev = iface->dev;
+error:
+	spin_unlock_bh(&p->lock);
+	return dev;
+}
+EXPORT_SYMBOL(ppe_drv_dev_get_by_iface_idx);
 
 /*
  * ppe_drv_iface_idx_get_by_dev()
@@ -354,6 +396,25 @@ bool ppe_drv_iface_port_set(struct ppe_drv_iface *iface, struct ppe_drv_port *po
 }
 
 /*
+ * ppe_drv_iface_vsi_idx_get()
+ *	Get vsi index of a given PPE interface
+ */
+int32_t ppe_drv_iface_vsi_idx_get(struct ppe_drv_iface *iface)
+{
+	struct ppe_drv_vsi *vsi;
+	if ((iface->flags & PPE_DRV_IFACE_FLAG_VSI_VALID) != PPE_DRV_IFACE_FLAG_VSI_VALID) {
+		return -1;
+	}
+
+	vsi = ppe_drv_iface_vsi_get(iface);
+	if (!vsi) {
+		return -1;
+	}
+
+	return vsi->index;
+}
+
+/*
  * ppe_drv_iface_vsi_clear()
  *	Clear VSI of a given PPE interface
  */
@@ -392,6 +453,25 @@ bool ppe_drv_iface_vsi_set(struct ppe_drv_iface *iface, struct ppe_drv_vsi *vsi)
 	iface->vsi = vsi;
 	iface->flags |= PPE_DRV_IFACE_FLAG_VSI_VALID;
 	return true;
+}
+
+/*
+ * ppe_drv_iface_l3_if_idx_get()
+ *	Get l3_if index of a given PPE interface
+ */
+int32_t ppe_drv_iface_l3_if_idx_get(struct ppe_drv_iface *iface)
+{
+	struct ppe_drv_l3_if *l3_if;
+	if ((iface->flags & PPE_DRV_IFACE_FLAG_L3_IF_VALID) != PPE_DRV_IFACE_FLAG_L3_IF_VALID) {
+		return -1;
+	}
+
+	l3_if = ppe_drv_iface_l3_if_get(iface);
+	if (!l3_if) {
+		return -1;
+	}
+
+	return l3_if->l3_if_index;
 }
 
 /*
@@ -443,6 +523,7 @@ ppe_drv_ret_t ppe_drv_iface_eip_set(struct ppe_drv_iface *iface, ppe_drv_eip_ser
 {
 	struct ppe_drv *p = &ppe_drv_gbl;
 	struct ppe_drv_port *vp;
+	int32_t queue_id;
 
 	spin_lock_bh(&p->lock);
 	vp = ppe_drv_iface_port_get(iface);
@@ -457,22 +538,25 @@ ppe_drv_ret_t ppe_drv_iface_eip_set(struct ppe_drv_iface *iface, ppe_drv_eip_ser
 		/*
 		 * Mark virtual port as inline IPsec ports
 		 */
+		queue_id = ppe_drv_port_ucast_queue_get_by_port(PPE_DRV_PORT_EIP197);
 		ppe_drv_port_flags_set(vp, PPE_DRV_PORT_FLAG_IIPSEC);
+
+		/*
+		 * Map VP queues to EIP port.
+		 */
+		if ((queue_id < 0) || !ppe_drv_port_ucast_queue_set(vp, queue_id)) {
+			spin_unlock_bh(&p->lock);
+			ppe_drv_warn("%p: failed to set queue for the port: %u", iface, vp->port);
+			return PPE_DRV_RET_QUEUE_CFG_FAIL;
+		}
+
+		break;
+	case PPE_DRV_EIP_SERVICE_NONINLINE:
 		break;
 	default:
 		spin_unlock_bh(&p->lock);
 		ppe_drv_warn("%p: unsupported EIP service type: %u", iface, type);
 		return PPE_DRV_RET_INVALID_EIP_SERVICE;
-	}
-
-	/*
-	 * Map VP queues to EIP port.
-	 * TODO: Update this after rebasing it on queue mapping patch.
-	 */
-	if (!ppe_drv_port_ucast_queue_set(vp, 252)) {
-		spin_unlock_bh(&p->lock);
-		ppe_drv_warn("%p: failed to set queue for the port: %u", iface, vp->port);
-		return PPE_DRV_RET_QUEUE_CFG_FAIL;
 	}
 
 	/*
@@ -656,6 +740,10 @@ ppe_drv_ret_t ppe_drv_iface_mtu_set(struct ppe_drv_iface *iface, uint16_t mtu)
 			break;
 		}
 
+		if (p->disable_port_mtu_check) {
+			ppe_drv_info("Disabling MTU for port %d\n", port->port);
+			ppe_drv_port_mtu_disable(port);
+		}
 		break;
 	}
 
@@ -972,12 +1060,97 @@ struct ppe_drv_iface *ppe_drv_iface_alloc(enum ppe_drv_iface_type type, struct n
 	iface->port = NULL;
 	iface->vsi = NULL;
 	iface->l3 = NULL;
+	iface->cleanup_cb = NULL;
 
 	spin_unlock_bh(&p->lock);
 
 	return iface;
 }
 EXPORT_SYMBOL(ppe_drv_iface_alloc);
+
+/*
+ * ppe_drv_iface_check_flow_offload_enabled()
+ *	Check whether the given interface indexes are enabled for offload or not
+ */
+bool ppe_drv_iface_check_flow_offload_enabled(ppe_drv_iface_t rx_if,
+						ppe_drv_iface_t tx_if)
+{
+	struct ppe_drv *p = &ppe_drv_gbl;
+	struct ppe_drv_port *tx_pp = NULL;
+	struct ppe_drv_port *rx_pp = NULL;
+	struct ppe_drv_iface *if_rx, *if_tx;
+
+	spin_lock_bh(&p->lock);
+	if_rx = ppe_drv_iface_get_by_idx(rx_if);
+	if (!if_rx) {
+		ppe_drv_trace("%p: No PPE interface corresponding to rx_if: %d", p, rx_if);
+		goto offload_disabled;
+	}
+
+	if_tx = ppe_drv_iface_get_by_idx(tx_if);
+	if (!if_tx) {
+		ppe_drv_trace("%p: No PPE interface corresponding to tx_if: %d", p, tx_if);
+		goto offload_disabled;
+	}
+
+	tx_pp = ppe_drv_iface_port_get(if_tx);
+	if (!tx_pp) {
+		ppe_drv_trace("%p: Invalid TX port", p);
+		goto offload_enabled;
+	}
+
+	rx_pp = ppe_drv_iface_port_get(if_rx);
+	if (!rx_pp) {
+		ppe_drv_trace("%p: Invalid RX port", p);
+		goto offload_enabled;
+	}
+
+	if ((rx_pp->user_type == PPE_DRV_PORT_USER_TYPE_ACTIVE_VP) ||
+			(rx_pp->user_type == PPE_DRV_PORT_USER_TYPE_DS)) {
+		if (!ppe_drv_port_check_flow_offload_enabled(tx_pp)) {
+			ppe_drv_trace("%p: offload not enabled for %d port\n",
+					p, tx_pp->port);
+			goto offload_disabled;
+		}
+	}
+
+	if ((tx_pp->user_type == PPE_DRV_PORT_USER_TYPE_ACTIVE_VP) ||
+			(tx_pp->user_type == PPE_DRV_PORT_USER_TYPE_DS)) {
+		if (!ppe_drv_port_check_flow_offload_enabled(rx_pp)) {
+			ppe_drv_trace("%p: offload not enabled for %d port\n",
+					p, rx_pp->port);
+			goto offload_disabled;
+		}
+	}
+
+	if ((if_tx->flags & PPE_DRV_IFACE_FLAG_MHT_SWITCH_VALID) ||
+			(if_rx->flags & PPE_DRV_IFACE_FLAG_MHT_SWITCH_VALID)) {
+		ppe_drv_trace("%p: Either tx or rx interface has mht switch\n", p);
+		goto offload_disabled;
+	}
+
+	if (p->eth2eth_offload_if_bitmap) {
+		if (!ppe_drv_port_check_flow_offload_enabled(tx_pp)) {
+			ppe_drv_trace("%p: offload not enabled for %d port\n",
+					p, tx_pp->port);
+			goto offload_disabled;
+		}
+
+		if (!ppe_drv_port_check_flow_offload_enabled(rx_pp)) {
+			ppe_drv_trace("%p: offload not enabled for %d port\n",
+					p, rx_pp->port);
+			goto offload_disabled;
+		}
+	}
+
+offload_enabled:
+	spin_unlock_bh(&p->lock);
+	return true;
+offload_disabled:
+	spin_unlock_bh(&p->lock);
+	return false;
+}
+EXPORT_SYMBOL(ppe_drv_iface_check_flow_offload_enabled);
 
 /*
  * ppe_drv_iface_get_index

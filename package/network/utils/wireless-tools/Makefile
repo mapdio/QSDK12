@@ -8,6 +8,7 @@
 include $(TOPDIR)/rules.mk
 
 PKG_NAME:=wireless-tools
+PKG_CPE_ID:=cpe:/a:wireless_tools_project:wireless_tools
 PKG_VERSION:=29
 PKG_MINOR:=
 PKG_RELEASE:=6
@@ -90,5 +91,5 @@ define Package/libiw/install
 	$(CP) $(PKG_BUILD_DIR)/libiw.so.* $(1)/usr/lib/
 endef
 
-$(eval $(call BuildPackage,wireless-tools))
 $(eval $(call BuildPackage,libiw))
+$(eval $(call BuildPackage,wireless-tools))

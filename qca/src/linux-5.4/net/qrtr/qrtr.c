@@ -748,6 +748,9 @@ static void qrtr_fwd_ctrl_pkt(struct sk_buff *skb)
 	struct qrtr_cb *cb = (struct qrtr_cb *)skb->cb;
 
 	src = qrtr_node_lookup(cb->src_node);
+	if (!src)
+		return;
+
 	down_read(&qrtr_node_lock);
 	list_for_each_entry(node, &qrtr_all_epts, item) {
 		struct sockaddr_qrtr from;
@@ -1027,6 +1030,8 @@ static void qrtr_node_rx_work(struct kthread_work *work)
 					radix_tree_for_each_slot(slot, &node->qrtr_tx_flow, &iter, 0) {
 						flow = *slot;
 						wake_up_interruptible_all(&flow->resume_tx);
+						kfree(flow);
+						radix_tree_delete(&node->qrtr_tx_flow, iter.index);
 					}
 					mutex_unlock(&node->qrtr_tx_lock);
 

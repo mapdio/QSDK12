@@ -1,34 +1,31 @@
 include $(TOPDIR)/rules.mk
 
 PKG_NAME:=oonf-dlep-proxy
-PKG_VERSION:=0.14.1-1
-PKG_REV:=d86825c0bdf144db706da444be7b0a2e8722b54d
-PKG_RELEASE:=$(PKG_REV)
+PKG_RELEASE:=1
 
-PKG_SOURCE:=$(PKG_NAME)-$(PKG_VERSION).tar.bz2
-PKG_SOURCE_URL:=https://github.com/OLSR/OONF.git
-PKG_MIRROR_HASH:=cee8fb6c087e6dc62789fabccbe79e3cbc843a669a3f79cde885e8f81b4585f4
 PKG_SOURCE_PROTO:=git
-PKG_SOURCE_SUBDIR:=$(PKG_NAME)-$(PKG_VERSION)
-PKG_SOURCE_VERSION:=$(PKG_REV)
+PKG_SOURCE_URL:=https://github.com/OLSR/OONF.git
+PKG_SOURCE_DATE:=2022-08-25
+PKG_SOURCE_VERSION:=fb15d54d6a7a087cb0c5ec37c49804f6ce432396
+PKG_MIRROR_HASH:=ad88fa237d2b04119fe2e94ef7ab73d9e6361c1e922fd3f9265ea04d9a653a76
 
 CMAKE_INSTALL:=1
 
 include $(INCLUDE_DIR)/package.mk
 include $(INCLUDE_DIR)/cmake.mk
 
-CMAKE_OPTIONS=-D OONF_NO_WERROR:Bool=true \
-              -D OONF_LOGGING_LEVEL:String=debug \
-              -D OONF_NO_TESTING:Bool=true \
-              -D UCI:Bool=true \
-              -D OONF_APP_DEFAULT_CFG_HANDLER:String=uci \
-              -D OONF_STATIC_PLUGINS:String="class;clock;layer2;packet_socket;socket;stream_socket;telnet;timer;viewer;os_clock;os_fd;os_interface;os_system;nl80211_listener;layer2info;systeminfo;cfg_uciloader;cfg_compact;dlep_proxy" \
-              -D OONF_LIB_GIT:String=v$(PKG_VERSION)-archive \
-              -D OONF_VERSION:String=$(PKG_VERSION) \
-              -D INSTALL_LIB_DIR:Path=lib/oonf \
-              -D INSTALL_INCLUDE_DIR:Path=include/oonf \
-              -D INSTALL_CMAKE_DIR:Path=lib/oonf \
-              -D CMAKE_PREFIX_PATH=$(STAGING_DIR)/usr
+CMAKE_OPTIONS+=-D OONF_NO_WERROR:Bool=true \
+               -D OONF_LOGGING_LEVEL:String=debug \
+               -D OONF_NO_TESTING:Bool=true \
+               -D UCI:Bool=true \
+               -D OONF_APP_DEFAULT_CFG_HANDLER:String=uci \
+               -D OONF_STATIC_PLUGINS:String="class;clock;layer2;packet_socket;socket;stream_socket;telnet;timer;viewer;os_clock;os_fd;os_interface;os_system;nl80211_listener;layer2info;systeminfo;cfg_uciloader;cfg_compact;dlep_proxy" \
+               -D OONF_LIB_GIT:String=v$(PKG_SOURCE_VERSION) \
+               -D VERSION_SUB_TAG:String=$(PKG_SOURCE_DATE) \
+               -D INSTALL_LIB_DIR:Path=lib/oonf \
+               -D INSTALL_INCLUDE_DIR:Path=include/oonf \
+               -D INSTALL_CMAKE_DIR:Path=lib/oonf \
+               -D CMAKE_PREFIX_PATH=$(STAGING_DIR)/usr
 
 define Package/oonf-git/template
 	SECTION:=net

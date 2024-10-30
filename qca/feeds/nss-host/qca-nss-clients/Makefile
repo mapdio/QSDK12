@@ -652,9 +652,7 @@ MAKE_OPTS+=wifi-meshmgr=y
 endif
 
 define Build/Compile
-	$(MAKE) -C "$(LINUX_DIR)" $(strip $(MAKE_OPTS)) \
-		CROSS_COMPILE="$(TARGET_CROSS)" \
-		ARCH="$(LINUX_KARCH)" \
+	$(KERNEL_MAKE) $(strip $(MAKE_OPTS)) \
 		M="$(PKG_BUILD_DIR)" \
 		EXTRA_CFLAGS="$(EXTRA_CFLAGS)" \
 		SoC="$(subtarget)" \

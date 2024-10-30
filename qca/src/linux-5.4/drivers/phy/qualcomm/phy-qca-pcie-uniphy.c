@@ -51,6 +51,10 @@
 #define PHY_CFG_EIOS_DTCT_REG		0x3E4
 #define PHY_CFG_GEN3_ALIGN_HOLDOFF_TIME	0x3E8
 
+/* PCIe mode control register values */
+#define TCSR_2LANE_MODE			0x0
+#define TCSR_2PORT_MODE			0x1
+
 enum qca_uni_pcie_phy_type {
 	PHY_TYPE_PCIE,
 	PHY_TYPE_PCIE_GEN2,
@@ -172,17 +176,15 @@ static int qca_uni_pcie_phy_power_on(struct phy *x)
 	return 0;
 }
 
-static int phy_mux_sel(struct qca_uni_pcie_phy *phy)
+static int phy_mux_sel(struct qca_uni_pcie_phy *phy, unsigned int mode)
 {
 	struct of_phandle_args args;
 	int ret;
 
 	ret = of_parse_phandle_with_fixed_args(phy->dev->of_node,
 			"qti,phy-mux-regs", 1, 0, &args);
-	if (ret) {
-		dev_err(phy->dev, "failed to parse qti,phy-mux-regs\n");
+	if (ret)
 		return ret;
-	}
 
 	phy->phy_mux_map = syscon_node_to_regmap(args.np);
 	of_node_put(args.np);
@@ -193,8 +195,10 @@ static int phy_mux_sel(struct qca_uni_pcie_phy *phy)
 	}
 
 	phy->phy_mux_reg = args.args[0];
-	/* two single lane mux selection */
-	ret = regmap_write(phy->phy_mux_map, phy->phy_mux_reg, 0x1);
+
+	/* Select mode. Two lane or Two port */
+	ret = regmap_write(phy->phy_mux_map, phy->phy_mux_reg, mode);
+
 	if (ret) {
 		dev_err(phy->dev,
 			"Not able to configure phy mux selection: %d\n", ret);
@@ -291,7 +295,9 @@ static int qca_uni_pcie_get_resources(struct platform_device *pdev,
 	}
 
 	if (device_property_read_bool(phy->dev, "qti,multiplexed-phy"))
-		phy_mux_sel(phy);
+		phy_mux_sel(phy, TCSR_2PORT_MODE);
+	else
+		phy_mux_sel(phy, TCSR_2LANE_MODE);
 
 	return 0;
 }

@@ -23,6 +23,8 @@ kslib_o:
 
 uslib:uslib_o
 	$(AR) -r $(BIN_DIR)/$(US_MOD)_$(RUNMODE).a $(wildcard $(BLD_DIR)/USLIB/*.o)
+	$(CC) -fPIC -shared -o $(BIN_DIR)/$(US_MOD).so $(wildcard $(BLD_DIR)/USLIB/*.o)
+	$(STRIP) $(BIN_DIR)/$(US_MOD).so
 
 uslib_o:
 	$(foreach i, $(SUB_LIB), $(MAKE) MODULE_TYPE=USLIB -C src/$i all || exit 1;)

@@ -40,8 +40,19 @@ class DebugImage_v3():
         data_address = context_dump_pointer_address + 0x8
         data = ram_dump.read_cstring(data_address, 8, False)
         print_out_str('Reading from address (0x{1:x}) (WDT String) : {2}'.format(context_dump_pointer_address, data_address, data))
-        data = ram_dump.read_u32(0x8600764, False)
-        print_out_str('Reading from address 0x{0:x} : 0x{1:x}'.format(0x8600764, data))
+        if data == "sysdbg":
+            data = ram_dump.read_u32(0x86007a4, False)
+            if data == 0x23:
+                print_out_str('Reading from address 0x{0:x} : 0x{1:x}'.format(0x86007a4, data))
+            else:
+                data = ram_dump.read_u32(0x8600764, False)
+                print_out_str('Reading from address 0x{0:x} : 0x{1:x}'.format(0x8600764, data))
+
+        print_out_str('\n============OEM Reset Reason Extraction=============\n')
+        data = ram_dump.read_u32(0x86007a4, False)
+        print_out_str('OEM Reset Reason 0x{0:x} : 0x{1:x}'.format(0x86007a4, data))
+        print_out_str('\n========End of OEM Reset Reason Extraction ==========\n')
+
         regs = TZRegDump_v3()
 
         if ram_dump.scan_dump_output is None:
@@ -58,3 +69,4 @@ class DebugImage_v3():
             print_out_str('\n======== PC/LR and BackTrace for DCC Scan Dump ==========\n')
             regs.dump_core_pc(ram_dump, True)
             print_out_str('======== End of PC/LR and BackTrace for DCC Scan Dump ==========\n')
+            regs.dump_dcc_all_regs(ram_dump)

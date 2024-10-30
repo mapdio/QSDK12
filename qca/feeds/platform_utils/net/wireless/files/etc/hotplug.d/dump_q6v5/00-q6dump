@@ -16,10 +16,24 @@
 '
 
 SERVER=$(fw_printenv serverip | cut -c10-24);
+DUMP_LOCATION=/tmp
 
 if [ ! -n "$SERVER" ]; then
 	printf "%s\n" "Wrong configuaration SERVER = $SERVER" > /dev/console
 	exit 0
+fi
+
+if [ ! -f /sys/firmware/devicetree/base/MP_256 ] && [ ! -f /sys/firmware/devicetree/base/MP_512 ]; then
+	ini_path="ini/internal/global_i.ini"
+	compress_dump_enable=`grep "compres_fw_recov_dump_collect" $ini_path | grep -m1 -v "^[#]" | awk -F'=' '{print $2}'`
+else
+	compress_dump_enable=0
+fi
+
+if [ "$compress_dump_enable" == "1" ]; then
+	COMPR_DUMP_NAME=$DEVICENAME.gz
+	#Setting Max size of Compressed Wkk Q6 Memory
+	DUMP_MAX_SIZE=30
 fi
 
 TSTAMP=0
@@ -34,14 +48,43 @@ if [ -e /dev/$DEVICENAME ] && [ "$ACTION" = add ]; then
 		REMOTE=${DEVICENAME}
 	fi
 
-	printf "%s\n" "Collecting $REMOTE dump in $SERVER" > /dev/console
-	$(tftp -l $DEVICENAME -r $REMOTE -p $SERVER 2>&1)
-	if [ $? -eq 0 ]; then
-		printf "%s\n" "$REMOTE dump collected in $SERVER" \
+	MEM_AVAILABLE=$(df -Ph $DUMP_LOCATION | awk 'NR==2 {print $4}')
+	MEM_AVAILABLE=${MEM_AVAILABLE%.*}
+	if [ $MEM_AVAILABLE -gt $DUMP_MAX_SIZE ] && [ "$compress_dump_enable" == "1" ]; then
+		if [ "$TSTAMP" -ne 0 ]; then
+			REMOTE="${COMPR_DUMP_NAME}"_`date +%y%m%d%H%M%S`
+		else
+			REMOTE=${COMPR_DUMP_NAME}
+		fi
+
+		$(dd if=$DEVICENAME | gzip -c -1 > $DUMP_LOCATION/$COMPR_DUMP_NAME)
+		if [ $? -eq 0 ]; then
+			printf "%s\n" "$DEVICENAME dump copied to $DUMP_LOCATION" \
 								> /dev/console
+			{ $(tftp -l $DUMP_LOCATION/$COMPR_DUMP_NAME -r $REMOTE -p $SERVER 2>&1) &&
+			if [ $? -eq 0 ]; then
+				printf "%s\n" "$REMOTE dump collected in $SERVER" \
+								> /dev/console
+			else
+				printf "%s\n" "$REMOTE dump collection failed in $SERVER" \
+                                                                                > /dev/console
+			fi &&
+			$(rm $DUMP_LOCATION/$COMPR_DUMP_NAME); } &
+		else
+			printf "%s\n" "Dump not copied" > /dev/console
+		fi
 	else
-		printf "%s\n" "$REMOTE dump collection failed in $SERVER" \
-								> /dev/console
+		if [ "$compress_dump_enable" == "1" ]; then
+			printf "%s\n" "$DUMP_LOCATION space not available, so collecting $REMOTE dump in $SERVER" > /dev/console
+		else
+			printf "%s\n" "Collecting $REMOTE dump in $SERVER" > /dev/console
+		fi
+		{ $(tftp -l $DEVICENAME -r $REMOTE -p $SERVER 2>&1) &&
+		if [ $? -eq 0 ]; then
+			printf "%s\n" "$REMOTE dump collected in $SERVER" > /dev/console
+		else
+			printf "%s\n" "$REMOTE dump collection failed in $SERVER" > /dev/console
+		fi; } &
 	fi
 	cd /proc/ath_pktlog
 	for radio in wifi0 wifi1 wifi2 wifi3 wifi4

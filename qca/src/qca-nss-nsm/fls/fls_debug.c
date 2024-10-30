@@ -1,6 +1,6 @@
 /*
  **************************************************************************
- * Copyright (c) 2023, Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2023-2024, Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for any
  * purpose with or without fee is hereby granted, provided that the above
@@ -20,7 +20,7 @@
 #include <linux/net.h>
 #include "fls_debug.h"
 
-#define FLS_DEBUG_LEVEL_DEFAULT FLS_DEBUG_LEVEL_WARN
+#define FLS_DEBUG_LEVEL_DEFAULT FLS_DEBUG_LEVEL_ERROR
 
 static uint32_t fls_debug_level_current;
 static uint32_t fls_debug_level_min = FLS_DEBUG_LEVEL_NONE;
@@ -56,11 +56,11 @@ static struct ctl_table fls_debug_table[] = {
 		.proc_handler	= &proc_dointvec,
 	},
 	{
-		.procname	= "sample_window",
-		.data		= &fls_def_sensor_sample_length,
-		.maxlen		= sizeof(fls_def_sensor_sample_length),
+		.procname	= "window_sz",
+		.data		= fls_def_sensor_window_sz,
+		.maxlen		= sizeof(fls_def_sensor_window_sz),
 		.mode		= 0644,
-		.proc_handler	= &proc_douintvec,
+		.proc_handler	= &proc_dointvec,
 	},
 	{
 		.procname	= "sample_count",
@@ -72,7 +72,21 @@ static struct ctl_table fls_debug_table[] = {
 		.proc_handler	= &proc_douintvec_minmax,
 	},
 	{
-		.procname	= "stats_bytes",
+		.procname	= "pkts_hwm",
+		.data		= &fls_def_sensor_pkts_hwm,
+		.maxlen		= sizeof(fls_def_sensor_pkts_hwm),
+		.mode		= 0644,
+		.proc_handler	= &proc_douintvec,
+	},
+	{
+		.procname	= "bytes_hwm",
+		.data		= &fls_def_sensor_bytes_hwm,
+		.maxlen		= sizeof(fls_def_sensor_bytes_hwm),
+		.mode		= 0644,
+		.proc_handler	= &proc_douintvec,
+	},
+	{
+		.procname	= "stats_bytes_en",
 		.data		= &fls_def_sensor_bytes,
 		.maxlen		= sizeof(fls_def_sensor_bytes),
 		.extra1		= &fls_debug_bool_min,
@@ -81,7 +95,7 @@ static struct ctl_table fls_debug_table[] = {
 		.proc_handler	= &proc_douintvec_minmax,
 	},
 	{
-		.procname	= "stats_ipat",
+		.procname	= "stats_ipat_en",
 		.data		= &fls_def_sensor_ipat,
 		.maxlen		= sizeof(fls_def_sensor_ipat),
 		.extra1		= &fls_debug_bool_min,
@@ -89,23 +103,79 @@ static struct ctl_table fls_debug_table[] = {
 		.mode		= 0644,
 		.proc_handler	= &proc_douintvec_minmax,
 	},
-	{ }
-};
-
-static struct ctl_table fls_debug_dir[] = {
 	{
-		.procname	= "fls",
-		.mode		= 0555,
-		.child		= fls_debug_table,
+		.procname	= "stop_forever",
+		.data		= &fls_def_sensor_stop_forever,
+		.maxlen		= sizeof(fls_def_sensor_stop_forever),
+		.extra1		= &fls_debug_bool_min,
+		.extra2		= &fls_debug_bool_max,
+		.mode		= 0644,
+		.proc_handler	= &proc_douintvec_minmax,
 	},
-	{ }
-};
-
-static struct ctl_table fls_debug_root_dir[] = {
 	{
-		.procname	= "net",
-		.mode		= 0555,
-		.child		= fls_debug_dir,
+		.procname	= "stats_burst_en",
+		.data		= &fls_def_sensor_burst,
+		.maxlen		= sizeof(fls_def_sensor_burst),
+		.extra1		= &fls_debug_bool_min,
+		.extra2		= &fls_debug_bool_max,
+		.mode		= 0644,
+		.proc_handler	= &proc_douintvec_minmax,
+	},
+	{
+		.procname	= "burst_thresh",
+		.data		= fls_def_sensor_burst_threshold,
+		.maxlen		= sizeof(fls_def_sensor_burst_threshold),
+		.mode		= 0644,
+		.proc_handler	= &proc_dointvec,
+	},
+	{
+		.procname	= "burst_short_intvl",
+		.data		= fls_def_sensor_burst_short_intvl,
+		.maxlen		= sizeof(fls_def_sensor_burst_short_intvl),
+		.mode		= 0644,
+		.proc_handler	= &proc_dointvec,
+	},
+	{
+		.procname	= "burst_long_intvl",
+		.data		= fls_def_sensor_burst_long_intvl,
+		.maxlen		= sizeof(fls_def_sensor_burst_long_intvl),
+		.mode		= 0644,
+		.proc_handler	= &proc_dointvec
+	},
+	{
+		.procname	= "xl_sz_threshold",
+		.data		= &fls_def_sensor_xl_sz_threshold,
+		.maxlen		= sizeof(fls_def_sensor_xl_sz_threshold),
+		.mode		= 0644,
+		.proc_handler	= &proc_douintvec,
+	},
+	{
+		.procname	= "xl_short",
+		.data		= &fls_def_sensor_xl_short,
+		.maxlen		= sizeof(fls_def_sensor_xl_short),
+		.mode		= 0644,
+		.proc_handler	= &proc_douintvec,
+	},
+	{
+		.procname	= "xl_long",
+		.data		= &fls_def_sensor_xl_long,
+		.maxlen		= sizeof(fls_def_sensor_xl_long),
+		.mode		= 0644,
+		.proc_handler	= &proc_douintvec,
+	},
+	{
+		.procname	= "xl_window",
+		.data		= &fls_def_sensor_xl_window,
+		.maxlen		= sizeof(fls_def_sensor_xl_window),
+		.mode		= 0644,
+		.proc_handler	= &proc_douintvec,
+	},
+	{
+		.procname	= "conn_timeout",
+		.data		= &fls_conn_timeout,
+		.maxlen		= sizeof(fls_conn_timeout),
+		.mode		= 0644,
+		.proc_handler	= &proc_dointvec
 	},
 	{ }
 };
@@ -121,9 +191,9 @@ static int fls_conn_ipv4_sprint(uint32_t addr, char *str, size_t len)
 
 void fls_debug_print(uint32_t level, char *fmt, ...) {
 	va_list args;
-	va_start(args, fmt);
 
 	if (level <= fls_debug_level_current) {
+		va_start(args, fmt);
 		vprintk(fmt, args);
 	}
 }
@@ -212,7 +282,7 @@ void fls_debug_deinit(void)
 void fls_debug_init(void)
 {
 	fls_debug_level_current = FLS_DEBUG_LEVEL_DEFAULT;
-	fls_debug_header = register_sysctl_table(fls_debug_root_dir);
+	fls_debug_header = register_sysctl("net/fls", fls_debug_table);
 	if (!fls_debug_header) {
 		printk("Failed to register fls sysctl table.\n");
 	}

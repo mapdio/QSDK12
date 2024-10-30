@@ -1,0 +1,26 @@
+From 647c3eced4fafba22f85a4ef2a283bd1a62e8e72 Mon Sep 17 00:00:00 2001
+From: Hariprasad Sampatirao <quic_hsampati@quicinc.com>
+Date: Tue, 30 May 2023 14:30:00 -0700
+Subject: [PATCH] elftools fix and disablebacktrace
+
+Signed-off-by: Hariprasad Sampatirao <quic_hsampati@quicinc.com>
+---
+ config/rte_config.h | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/config/rte_config.h b/config/rte_config.h
+index cab4390a97..f2d91049bb 100644
+--- a/config/rte_config.h
++++ b/config/rte_config.h
+@@ -37,7 +37,7 @@
+ #define RTE_MAX_MEMZONE 2560
+ #define RTE_MAX_TAILQ 32
+ #define RTE_LOG_DP_LEVEL RTE_LOG_INFO
+-#define RTE_BACKTRACE 1
++//#define RTE_BACKTRACE 1
+ #define RTE_MAX_VFIO_CONTAINERS 64
+ 
+ /* bsd module defines */
+-- 
+2.17.1
+

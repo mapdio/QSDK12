@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2022, Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022, 2024 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for any
  * purpose with or without fee is hereby granted, provided that the above
@@ -25,3 +25,15 @@
  * true if packet is consumed by the API or false if the packet is not consumed.
  */
 bool ppe_vp_tx_to_ppe(int32_t vp_num, struct sk_buff *skb);
+
+/*
+ * ppe_vp_tx_to_ppe_by_dev()
+ *      API for PPE VP user to enqueue packet for PPE processing on a particular dev.
+ *
+ * @param[IN] dev	net device on which the packet has to xmit.
+ * @param[IN] skb	Socket buffer to be enqueued.
+ *
+ * @return
+ * true if packet is consumed by the API or false if the packet is not consumed.
+ */
+bool ppe_vp_tx_to_ppe_by_dev(struct net_device *dev, struct sk_buff *skb);

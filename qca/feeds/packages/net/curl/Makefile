@@ -6,16 +6,18 @@
 #
 
 include $(TOPDIR)/rules.mk
+include $(INCLUDE_DIR)/nls.mk
 
 PKG_NAME:=curl
-PKG_VERSION:=7.80.0
-PKG_RELEASE:=$(AUTORELEASE)
+PKG_VERSION:=8.6.0
+PKG_RELEASE:=1
 
-PKG_SOURCE:=$(PKG_NAME)-$(PKG_VERSION).tar.xz
-PKG_SOURCE_URL:=https://dl.uxnr.de/mirror/curl/ \
+PKG_SOURCE:=$(PKG_NAME)-$(PKG_VERSION).tar.bz2
+PKG_SOURCE_URL:=https://github.com/curl/curl/releases/download/curl-$(subst .,_,$(PKG_VERSION))/ \
+	https://dl.uxnr.de/mirror/curl/ \
 	https://curl.askapache.com/download/ \
 	https://curl.se/download/
-PKG_HASH:=a132bd93188b938771135ac7c1f3ac1d3ce507c1fcbef8c471397639214ae2ab
+PKG_HASH:=b4785f2d8877fa92c0e45d7155cf8cc6750dbda961f4b1a45bcbec990cf2fa9b
 
 PKG_LICENSE:=MIT
 PKG_LICENSE_FILES:=COPYING
@@ -56,6 +58,8 @@ PKG_CONFIG_DEPENDS:= \
   CONFIG_LIBCURL_TELNET \
   CONFIG_LIBCURL_TFTP \
   CONFIG_LIBCURL_NGHTTP2 \
+  CONFIG_LIBCURL_NGHTTP3 \
+  CONFIG_LIBCURL_NGTCP2 \
   \
   CONFIG_LIBCURL_COOKIES \
   CONFIG_LIBCURL_CRYPTO_AUTH \
@@ -93,7 +97,7 @@ define Package/libcurl
   CATEGORY:=Libraries
   DEPENDS:= +LIBCURL_WOLFSSL:libwolfssl +LIBCURL_OPENSSL:libopenssl +LIBCURL_GNUTLS:libgnutls +LIBCURL_MBEDTLS:libmbedtls
   DEPENDS += +LIBCURL_ZLIB:zlib +LIBCURL_ZSTD:libzstd +LIBCURL_THREADED_RESOLVER:libpthread +LIBCURL_LDAP:libopenldap
-  DEPENDS += +LIBCURL_LIBIDN2:libidn2 +LIBCURL_SSH2:libssh2 +LIBCURL_NGHTTP2:libnghttp2 +ca-bundle
+  DEPENDS += +LIBCURL_LIBIDN2:libidn2 +LIBCURL_SSH2:libssh2 +LIBCURL_NGHTTP2:libnghttp2 +LIBCURL_NGHTTP3:libnghttp3 +LIBCURL_NGTCP2:libngtcp2 +ca-bundle
   TITLE:=A client-side URL transfer library
   MENU:=1
   ABI_VERSION:=4
@@ -103,7 +107,7 @@ define Package/libcurl/config
   source "$(SOURCE)/Config.in"
 endef
 
-TARGET_CFLAGS += $(FPIC) -ffunction-sections -fdata-sections
+TARGET_CFLAGS += $(FPIC)
 TARGET_CPPFLAGS += $(if $(CONFIG_LIBCURL_NTLM),,-DCURL_DISABLE_NTLM)
 TARGET_LDFLAGS += -Wl,--gc-sections
 
@@ -115,7 +119,6 @@ CONFIGURE_ARGS += \
 	--disable-manual \
 	--without-nss \
 	--without-librtmp \
-	--without-libidn \
 	--without-ca-path \
 	--without-libpsl \
 	--without-zstd \
@@ -123,9 +126,10 @@ CONFIGURE_ARGS += \
 	\
 	$(call autoconf_bool,CONFIG_IPV6,ipv6) \
 	\
+	$(if $(CONFIG_LIBCURL_WOLFSSL)$(CONFIG_LIBCURL_GNUTLS)$(CONFIG_LIBCURL_OPENSSL)$(CONFIG_LIBCURL_MBEDTLS),,--without-ssl) \
 	$(if $(CONFIG_LIBCURL_WOLFSSL),--with-wolfssl="$(STAGING_DIR)/usr",--without-wolfssl) \
 	$(if $(CONFIG_LIBCURL_GNUTLS),--with-gnutls="$(STAGING_DIR)/usr",--without-gnutls) \
-	$(if $(CONFIG_LIBCURL_OPENSSL),--with-ssl="$(STAGING_DIR)/usr",--without-ssl) \
+	$(if $(CONFIG_LIBCURL_OPENSSL),--with-openssl="$(STAGING_DIR)/usr",--without-openssl) \
 	$(if $(CONFIG_LIBCURL_MBEDTLS),--with-mbedtls="$(STAGING_DIR)/usr",--without-mbedtls) \
 	\
 	$(if $(CONFIG_LIBCURL_LIBIDN2),--with-libidn2="$(STAGING_DIR)/usr",--without-libidn2) \
@@ -133,6 +137,8 @@ CONFIGURE_ARGS += \
 	$(if $(CONFIG_LIBCURL_ZLIB),--with-zlib="$(STAGING_DIR)/usr",--without-zlib) \
 	$(if $(CONFIG_LIBCURL_ZSTD),--with-zstd="$(STAGING_DIR)/usr",--without-zstd) \
 	$(if $(CONFIG_LIBCURL_NGHTTP2),--with-nghttp2="$(STAGING_DIR)/usr",--without-nghttp2) \
+	$(if $(CONFIG_LIBCURL_NGHTTP3),--with-nghttp3="$(STAGING_DIR)/usr",--without-nghttp3) \
+	$(if $(CONFIG_LIBCURL_NGTCP2),--with-ngtcp2="$(STAGING_DIR)/usr",--without-ngtcp2) \
 	\
 	$(call autoconf_bool,CONFIG_LIBCURL_DICT,dict) \
 	$(call autoconf_bool,CONFIG_LIBCURL_FILE,file) \
@@ -179,5 +185,5 @@ define Package/libcurl/install
 	$(CP) $(PKG_INSTALL_DIR)/usr/lib/libcurl.so.* $(1)/usr/lib/
 endef
 
-$(eval $(call BuildPackage,curl))
 $(eval $(call BuildPackage,libcurl))
+$(eval $(call BuildPackage,curl))

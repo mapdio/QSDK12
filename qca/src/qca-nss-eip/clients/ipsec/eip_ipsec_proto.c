@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2022-2023, Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2024, Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for any
  * purpose with or without fee is hereby granted, provided that the above
@@ -68,7 +68,6 @@ void eip_ipsec_proto_dec_err(void *app_data, eip_req_t req, int err)
 	sa_stats->fail_transform++;
 
 	eip_ipsec_sa_deref(sa);
-	skb_dump(KERN_DEBUG, skb, false);
 	consume_skb(skb);
 }
 
@@ -81,7 +80,10 @@ void eip_ipsec_proto_dec_done(void *app_data, eip_req_t req)
 	struct eip_ipsec_sa *sa = eip_ipsec_sa_ref_unless_zero((struct eip_ipsec_sa *)app_data);
 	struct sk_buff *skb = eip_req2skb(req);
 	struct eip_ipsec_dev_stats *dev_stats;
+	int (*fast_recv)(struct sk_buff *skb);
+	int ip_hdr_sz = sizeof(struct iphdr);
 	struct eip_ipsec_sa_stats *sa_stats;
+	uint16_t proto = htons(ETH_P_IP);
 	struct eip_ipsec_dev *eid;
 
 	if (unlikely(!sa)) {
@@ -95,16 +97,51 @@ void eip_ipsec_proto_dec_done(void *app_data, eip_req_t req)
 	sa_stats = this_cpu_ptr(sa->stats_pcpu);
 
 	/*
-	 * Update SA statistics.
+	 * Update SA & dev statistics.
 	 */
 	sa_stats->rx_pkts++;
 	sa_stats->rx_bytes += skb->len;
-
-	skb_scrub_packet(skb, false);
+	dev_stats->rx_pkts++;
+	dev_stats->rx_bytes += skb->len;
 
 	/*
+	 * Reset General SKB fields for further processing.
+	 */
+	skb_scrub_packet(skb, false);
+	skb_reset_mac_header(skb);
+	skb_reset_network_header(skb);
+	skb->dev = sa->ndev;
+	skb->skb_iif = sa->ndev->ifindex;
+	skb->ip_summed = CHECKSUM_NONE;
+
+	if (unlikely(ip_hdr(skb)->version != IPVERSION)) {
+		ip_hdr_sz = sizeof(struct ipv6hdr);
+		proto = htons(ETH_P_IPV6);
+	}
+
+	skb->protocol = proto;
+	skb_set_transport_header(skb, ip_hdr_sz);
+
+	/*
+	 * Try to send packet via SFE
+	 */
+	rcu_read_lock_bh();
+
+	fast_recv = rcu_dereference(athrs_fast_nat_recv);
+	if (likely(fast_recv) && likely(fast_recv(skb))) {
+		eip_ipsec_sa_deref(sa);
+		rcu_read_unlock_bh();
+		return;
+	}
+
+	rcu_read_unlock_bh();
+
+	/*
+	 * Forwarding with SFE failed, possibly connection does not exist yet.
+	 * We should not come here very often, update and send packet to Linux stack.
 	 * Linux requires sp in SKB when xfrm is enabled.
 	 */
+	sa_stats->fast_recv_miss++;
 	if (sa->xs) {
 		struct xfrm_state *x = sa->xs;
 		struct sec_path *sp;
@@ -126,29 +163,6 @@ void eip_ipsec_proto_dec_done(void *app_data, eip_req_t req)
 		sp->xvec[sp->len++] = x;
 	}
 
-	/*
-	 * Reset General SKB fields for further processing.
-	 */
-	skb_reset_mac_header(skb);
-	skb_reset_network_header(skb);
-	skb->dev = sa->ndev;
-	skb->skb_iif = sa->ndev->ifindex;
-	skb->ip_summed = CHECKSUM_NONE;
-
-	if (ip_hdr(skb)->version == IPVERSION) {
-		skb->protocol = htons(ETH_P_IP);
-		skb_set_transport_header(skb, sizeof(struct iphdr));
-	} else {
-		skb->protocol = htons(ETH_P_IPV6);
-		skb_set_transport_header(skb, sizeof(struct ipv6hdr));
-	}
-
-	/*
-	 * Update device statistics.
-	 */
-	dev_stats->rx_pkts++;
-	dev_stats->rx_bytes += skb->len;
-
 	netif_receive_skb(skb);
 	eip_ipsec_sa_deref(sa);
 	return;
@@ -164,7 +178,7 @@ drop:
  * eip_ipsec_proto_esp_rx()
  *	ESP Protocol handler for IPsec encapsulated packets.
  */
-static inline int eip_ipsec_proto_esp_rx(struct eip_ipsec_sa *sa, struct sk_buff *skb)
+static inline void eip_ipsec_proto_esp_rx(struct eip_ipsec_sa *sa, struct sk_buff *skb)
 {
 	struct eip_ipsec_dev *eid = netdev_priv(sa->ndev);
 	struct eip_ipsec_dev_stats *dev_stats;
@@ -196,13 +210,12 @@ static inline int eip_ipsec_proto_esp_rx(struct eip_ipsec_sa *sa, struct sk_buff
 	 */
 	sa_stats->tx_pkts++;
 	sa_stats->tx_bytes += len;
-
-	return 0;
+	return;
 
 fail:
 	dev_stats->rx_fail++;
 	consume_skb(skb);
-	return 0;
+	return;
 }
 
 /*
@@ -212,7 +225,6 @@ fail:
 static int eip_ipsec_proto_esp4_rx(struct sk_buff *skb)
 {
 	struct eip_ipsec_sa *sa;
-	int ret;
 
 	/*
 	 * Lookup SA using <ESP SPI, IP Destination address>.
@@ -220,14 +232,17 @@ static int eip_ipsec_proto_esp4_rx(struct sk_buff *skb)
 	 */
 	sa = eip_ipsec_sa_ref_get_decap_v4(&ip_hdr(skb)->daddr, ip_esp_hdr(skb)->spi);
 	if (!sa) {
-		pr_debug("IPv4 SA not found %pI4n %x\n", ipv6_hdr(skb)->daddr.s6_addr32, ip_esp_hdr(skb)->spi);
-		return -EHOSTUNREACH;
+		pr_debug("IPv4 SA not found %pI4n SPI is: %x\n", &(ip_hdr(skb)->daddr), ip_esp_hdr(skb)->spi);
+		goto drop;
 	}
 
-	ret = eip_ipsec_proto_esp_rx(sa, skb);
-
+	eip_ipsec_proto_esp_rx(sa, skb);
 	eip_ipsec_sa_deref(sa);
-	return ret;
+	return 0;
+
+drop:
+	consume_skb(skb);
+	return 0;
 }
 
 /*
@@ -237,7 +252,6 @@ static int eip_ipsec_proto_esp4_rx(struct sk_buff *skb)
 static int eip_ipsec_proto_esp6_rx(struct sk_buff *skb)
 {
 	struct eip_ipsec_sa *sa;
-	int ret;
 
 	/*
 	 * Lookup SA using <ESP SPI, IP Destination address>.
@@ -246,13 +260,16 @@ static int eip_ipsec_proto_esp6_rx(struct sk_buff *skb)
 	sa = eip_ipsec_sa_ref_get_decap_v6(ipv6_hdr(skb)->daddr.s6_addr32, ip_esp_hdr(skb)->spi);
 	if (!sa) {
 		pr_debug("IPv6 SA not found %pI6 %x\n", ipv6_hdr(skb)->daddr.s6_addr32, ip_esp_hdr(skb)->spi);
-		return -EHOSTUNREACH;
+		goto drop;
 	}
 
-	ret = eip_ipsec_proto_esp_rx(sa, skb);
-
+	eip_ipsec_proto_esp_rx(sa, skb);
 	eip_ipsec_sa_deref(sa);
-	return ret;
+	return 0;
+
+drop:
+	consume_skb(skb);
+	return 0;
 }
 
 /*
@@ -319,12 +336,70 @@ non_esp_pkt:
 }
 
 /*
+ * eip_ipsec_proto_vp_rx()
+ * 	VP callback after PPE lookup.
+ */
+bool eip_ipsec_proto_vp_rx(struct ppe_vp_cb_info *info, void *cb_data)
+{
+	struct sk_buff *skb = info->skb;
+	struct eip_ipsec_drv *drv = &eip_ipsec_drv_g;
+	struct eip_ipsec_dev *eid = cb_data;
+	struct eip_ipsec_dev_stats *dev_stats;
+	struct iphdr *iph;
+
+	skb_reset_network_header(skb);
+	dev_stats = this_cpu_ptr(eid->stats_pcpu);
+	iph = ip_hdr(skb);
+
+	/*
+	 * Update device stats
+	 */
+	dev_stats->rx_vp++;
+
+	/*
+	 * We need to pull ip header to point to ESP or UDP header and then
+	 * send packet to the ESP packet handler
+	 */
+	if (iph->version != IPVERSION) {
+		skb_pull(skb, sizeof(struct ipv6hdr));
+		skb_reset_transport_header(skb);
+		eip_ipsec_proto_esp6_rx(skb);
+		return true;
+	}
+
+	skb_pull(skb, sizeof(struct iphdr));
+	skb_reset_transport_header(skb);
+
+	if (iph->protocol == IPPROTO_UDP) {
+		int ret;
+
+		ret = eip_ipsec_proto_udp_rx(drv->sk, skb);
+
+		/*
+		 * Send the NONESP packet to Linux
+		 */
+		if (unlikely(ret)) {
+			skb_push(skb, sizeof(struct iphdr));
+			skb->ip_summed = CHECKSUM_NONE;
+			netif_receive_skb(skb);
+		}
+
+		return true;
+	}
+
+	eip_ipsec_proto_esp4_rx(skb);
+	return true;
+}
+
+/*
  * IPv4 ESP handler
  */
 static struct net_protocol esp_protocol = {
 	.handler = eip_ipsec_proto_esp4_rx,
 	.no_policy = 1,
+#if (LINUX_VERSION_CODE < KERNEL_VERSION(6, 1, 0))
 	.netns_ok  = 1,
+#endif
 };
 
 /*
@@ -343,7 +418,7 @@ bool eip_ipsec_proto_esp_init(void)
 {
 	const struct net_protocol *ip_prot = &esp_protocol;
 
-	if (inet_update_protocol(&esp_protocol, IPPROTO_ESP, &linux_esp_handler) < 0) {
+	if (!disable_v4_offload && inet_update_protocol(&esp_protocol, IPPROTO_ESP, &linux_esp_handler) < 0) {
 		pr_err("Failed to update ESP protocol handler for IPv4\n");
 		return false;
 	}
@@ -354,6 +429,9 @@ bool eip_ipsec_proto_esp_init(void)
 		 * Revert v4 ESP handler to original handler.
 		 */
 		xchg(&linux_esp6_handler, NULL);
+		if (disable_v4_offload)
+			return false;
+
 		inet_update_protocol(linux_esp_handler, IPPROTO_ESP, &ip_prot);
 		xchg(&linux_esp_handler, NULL);
 		return false;
@@ -388,8 +466,7 @@ bool eip_ipsec_proto_udp_sock_override(struct eip_ipsec_tuple *sa_tuple)
 		return false;
 	}
 
-	if (!drv->sk) {
-		sock_hold(sk);
+	if (READ_ONCE(up->encap_rcv) != eip_ipsec_proto_udp_rx) {
 		drv->sk_encap_rcv = xchg(&up->encap_rcv, eip_ipsec_proto_udp_rx);
 		drv->sk = sk;
 		pr_debug("%px: Overriden socket encap handler\n", up);
@@ -397,10 +474,6 @@ bool eip_ipsec_proto_udp_sock_override(struct eip_ipsec_tuple *sa_tuple)
 
 	rcu_read_unlock();
 
-	/*
-	 * TODO: Add support for multiple Socket handling.
-	 */
-	WARN_ON(drv->sk != sk);
 	return true;
 }
 
@@ -414,7 +487,6 @@ void eip_ipsec_proto_udp_sock_restore(void)
 	if (drv->sk) {
 		struct udp_sock *up = udp_sk(drv->sk);
 		xchg(&up->encap_rcv, drv->sk_encap_rcv);
-		sock_put(drv->sk);
 		drv->sk_encap_rcv = NULL;
 		drv->sk = NULL;
 		pr_debug("%px: Released socket encap handler\n", up);
@@ -433,8 +505,10 @@ void eip_ipsec_proto_esp_deinit(void)
 	/*
 	 * Revert v4 ESP handler to original handler.
 	 */
-	inet_update_protocol(linux_esp_handler, IPPROTO_ESP, &ip_prot);
-	xchg(&linux_esp_handler, NULL);
+	if (!disable_v4_offload) {
+		inet_update_protocol(linux_esp_handler, IPPROTO_ESP, &ip_prot);
+		xchg(&linux_esp_handler, NULL);
+	}
 
 	inet6_update_protocol(linux_esp6_handler, IPPROTO_ESP, &ip6_prot);
 	xchg(&linux_esp6_handler, NULL);

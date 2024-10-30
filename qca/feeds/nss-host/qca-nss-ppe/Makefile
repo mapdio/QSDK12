@@ -37,72 +37,11 @@ define KernelPackage/qca-nss-ppe/Description
 Kernel module for PPE core driver
 endef
 
-define KernelPackage/qca-nss-ppe-bridge-mgr
-  SECTION:=kernel
-  CATEGORY:=Kernel modules
-  SUBMENU:=Network Devices
-  TITLE:=Kernel driver for NSS PPE bridge manager
-  DEPENDS:=@TARGET_ipq95xx||TARGET_ipq95xx_32||TARGET_ipq53xx \
-		+kmod-qca-nss-ppe \
-		+kmod-qca-nss-ppe-vlan-mgr \
-		+PACKAGE_kmod-bonding:kmod-bonding \
-		+PACKAGE_kmod-qca-ovsmgr:kmod-qca-ovsmgr
-  FILES:=$(PKG_BUILD_DIR)/clients/bridge/qca-nss-ppe-bridge-mgr.ko
-  AUTOLOAD:=$(call AutoLoad,51,qca-nss-ppe-bridge-mgr)
-endef
-
-define KernelPackage/qca-nss-ppe-bridge-mgr/Description
-Kernel modules for NSS PPE bridge manager
-endef
-
-define KernelPackage/qca-nss-ppe-vlan-mgr
-  SECTION:=kernel
-  CATEGORY:=Kernel modules
-  SUBMENU:=Network Devices
-  TITLE:=Kernel driver for NSS PPE vlan manager
-  DEPENDS:=@TARGET_ipq95xx||TARGET_ipq95xx_32||TARGET_ipq53xx \
-		+kmod-qca-nss-ppe \
-		+PACKAGE_kmod-bonding:kmod-bonding
-  FILES:=$(PKG_BUILD_DIR)/clients/vlan/qca-nss-ppe-vlan.ko
-  AUTOLOAD:=$(call AutoLoad,51,qca-nss-ppe-vlan)
-endef
-
-define KernelPackage/qca-nss-ppe-vlan-mgr/Description
-Kernel modules for NSS PPE vlan manager
-endef
-
-define KernelPackage/qca-nss-ppe-pppoe-mgr
-  SECTION:=kernel
-  CATEGORY:=Kernel modules
-  SUBMENU:=Network Devices
-  TITLE:=Kernel driver for NSS PPE PPPoE manager
-  DEPENDS:=@TARGET_ipq95xx||TARGET_ipq95xx_32||TARGET_ipq53xx \
-		+kmod-qca-nss-ppe \
-		+kmod-pppoe @!LINUX_3_18 \
-		+PACKAGE_kmod-bonding:kmod-bonding
-  FILES:=$(PKG_BUILD_DIR)/clients/pppoe/qca-nss-ppe-pppoe-mgr.ko
-  AUTOLOAD:=$(call AutoLoad,51,qca-nss-ppe-pppoe-mgr)
-endef
-
-define KernelPackage/qca-nss-ppe-pppoe-mgr/Description
-Kernel modules for NSS PPE PPPoE manager
-endef
-
-define KernelPackage/qca-nss-ppe-lag-mgr
-  SECTION:=kernel
-  CATEGORY:=Kernel modules
-  SUBMENU:=Network Devices
-  TITLE:=Kernel driver for NSS LAG manager
-  DEPENDS:=@TARGET_ipq95xx||TARGET_ipq95xx_32||TARGET_ipq53xx \
-		+kmod-qca-nss-ppe \
-		+kmod-qca-nss-ppe-vlan-mgr \
-		+kmod-bonding
-  FILES:=$(PKG_BUILD_DIR)/clients/lag/qca-nss-ppe-lag.ko
-  AUTOLOAD:=$(call AutoLoad,51,qca-nss-ppe-lag)
-endef
-
-define KernelPackage/qca-nss-ppe-lag-mgr/Description
-Kernel modules for NSS PPE LAG manager
+define KernelPackage/qca-nss-ppe/install
+        $(INSTALL_DIR) $(1)/usr/bin
+	$(INSTALL_BIN) ./files/ppe_flow_dump $(1)/usr/bin/
+	$(INSTALL_BIN) ./files/ppe_if_map $(1)/usr/bin/
+	$(INSTALL_BIN) ./files/nss_perf_config.sh $(1)/lib/
 endef
 
 define Build/InstallDev/qca-nss-ppe
@@ -121,36 +60,29 @@ EXTRA_CFLAGS+= \
 	-I$(STAGING_DIR)/usr/include/qca-ssdk/init \
 	-I$(STAGING_DIR)/usr/include/nat46 \
 
-ifneq ($(CONFIG_PACKAGE_kmod-qca-nss-ppe-bridge-mgr),)
-MAKE_OPTS+=bridge-mgr=y
-# enable OVS bridge if ovsmgr is enabled
-ifneq ($(CONFIG_PACKAGE_kmod-qca-ovsmgr),)
-MAKE_OPTS+=NSS_PPE_BRIDGE_MGR_OVS_ENABLE=y
-EXTRA_CFLAGS+= -I$(STAGING_DIR)/usr/include/qca-ovsmgr
-endif
-# disable FDB learning for open profile
-ifeq ($(CONFIG_TARGET_ipq95xx_generic_QSDK_Open)$(CONFIG_TARGET_ipq95xx_ipq95xx_32_QSDK_Open)$(CONFIG_TARGET_ipq53xx_generic_QSDK_Open)$(CONFIG_TARGET_ipq53xx_ipq53xx_32_QSDK_Open), y)
-EXTRA_CFLAGS+=-DNSS_PPE_BRIDGE_MGR_FDB_DISABLE
+MAKE_OPTS+=ppe-drv=y
+
+ifeq ($(CONFIG_LOWMEM_FLASH),y)
+MAKE_OPTS+=PPE_16M_PROFILE=y
 endif
 
+ifeq ($(CONFIG_KERNEL_IPQ_MEM_PROFILE),256)
+MAKE_OPTS+=PPE_256M_PROFILE=y
 endif
 
-ifneq ($(CONFIG_PACKAGE_kmod-qca-nss-ppe-vlan-mgr),)
-MAKE_OPTS+=vlan-mgr=y
+ifneq ($(CONFIG_KERNEL_IPQ_MEM_PROFILE),256)
+ifneq ($(CONFIG_LOWMEM_FLASH),y)
+MAKE_OPTS+=PPE_IPSEC_ENABLE=y
+MAKE_OPTS+=PPE_TUN_ENABLE=y
+endif
 endif
 
-ifneq ($(CONFIG_PACKAGE_kmod-qca-nss-ppe-pppoe-mgr),)
-MAKE_OPTS+=pppoe-mgr=y
-endif
-
-ifneq ($(CONFIG_PACKAGE_kmod-qca-nss-ppe-lag-mgr),)
-MAKE_OPTS+=lag-mgr=y
+ifeq ($(CONFIG_TARGET_ipq95xx_generic_QSDK_MinEnt), y)
+EXTRA_CFLAGS+= -DPPE_V4_BAD_LEN_EXCEP_DIS
 endif
 
 define Build/Compile
-	$(MAKE) -C "$(LINUX_DIR)" $(strip $(MAKE_OPTS)) \
-		CROSS_COMPILE="$(TARGET_CROSS)" \
-		ARCH="$(LINUX_KARCH)" \
+	$(KERNEL_MAKE) $(strip $(MAKE_OPTS)) \
 		M="$(PKG_BUILD_DIR)" \
 		EXTRA_CFLAGS="$(EXTRA_CFLAGS)" \
 		SoC="$(subtarget)" \
@@ -158,7 +90,3 @@ define Build/Compile
 endef
 
 $(eval $(call KernelPackage,qca-nss-ppe))
-$(eval $(call KernelPackage,qca-nss-ppe-bridge-mgr))
-$(eval $(call KernelPackage,qca-nss-ppe-vlan-mgr))
-$(eval $(call KernelPackage,qca-nss-ppe-pppoe-mgr))
-$(eval $(call KernelPackage,qca-nss-ppe-lag-mgr))

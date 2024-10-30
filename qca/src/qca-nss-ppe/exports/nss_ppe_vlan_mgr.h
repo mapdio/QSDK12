@@ -1,7 +1,7 @@
 /*
  **************************************************************************
  * Copyright (c) 2017, 2021 The Linux Foundation. All rights reserved.
- * Copyright (c) 2022, Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2023, Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
@@ -23,6 +23,34 @@
  */
 #ifndef _NSS_PPE_VLAN_MGR_H_
 #define _NSS_PPE_VLAN_MGR_H_
+
+/*
+ * enum nss_ppe_vlan_mgr_ingress_br_vlan_rule
+ *	Enum for creating and deleting ingress rule for VLAN over bridge topology
+ */
+enum nss_ppe_vlan_mgr_ingress_br_vlan_rule {
+	NSS_PPE_VLAN_MGR_INGRESS_BR_VLAN_RULE_ADD,	/**< Used for adding the ingress rules. */
+	NSS_PPE_VLAN_MGR_INGRESS_BR_VLAN_RULE_DEL,	/**< Used for deleting the ingress rules. */
+};
+
+/*
+ * enum nss_ppe_vlan_mgr_vlan
+ *	Enum for incrementing and decreasing the number of bridge VLAN netdev in bridge mgr
+ */
+enum nss_ppe_vlan_mgr_vlan {
+	NSS_PPE_VLAN_MGR_BR_VLAN_INC,	/**< Used for incrementing the number of bridge VLAN netdev. */
+	NSS_PPE_VLAN_MGR_BR_VLAN_DEC,	/**< Used for decrementing the number of bridge VLAN netdev. */
+};
+
+/*
+ * nss_ppe_vlan_mgr_br_vlan_cb_t
+ *	Callback API to update bridge manager at bridge netdev level
+ *
+ * @param bridge_dev[IN] netdevice of bridge
+ * @param br_action[IN] Add or delete the ingress rule
+ * @return true for success, false for failure
+ */
+typedef bool (*nss_ppe_vlan_mgr_br_vlan_cb_t)(struct net_device *bridge_dev, enum nss_ppe_vlan_mgr_vlan br_action);
 
 /*
  * nss_ppe_vlan_mgr_leave_bridge()
@@ -92,4 +120,33 @@ void nss_ppe_vlan_mgr_del_vlan_rule(struct net_device *dev, struct ppe_drv_iface
  * @param vid[IN] VLAN ID
  */
 void nss_ppe_vlan_mgr_add_vlan_rule(struct net_device *dev, struct ppe_drv_iface *bridge_iface, int vid);
+
+/*
+ * nss_ppe_vlan_mgr_vlan_over_bridge_unregister_cb()
+ *	Un-registering the callback in VLAN manager
+ *
+ * @param no input and output parameter
+ */
+void nss_ppe_vlan_mgr_vlan_over_bridge_unregister_cb(void);
+
+/*
+ * nss_ppe_vlan_mgr_vlan_over_bridge_register_cb()
+ *	Registering the callback in VLAN manager
+ *
+ * @param Callback API to register it in VLAN mgr
+ */
+void nss_ppe_vlan_mgr_vlan_over_bridge_register_cb(nss_ppe_vlan_mgr_br_vlan_cb_t cb);
+
+/*
+ * nss_ppe_vlan_mgr_config_bridge_vlan_ingress_rule()
+ *	Create and delete the ingress VLAN translation rule in the slave
+ *
+ * @param slave_iface[IN] iface of the slave
+ * @param bridge_dev[IN] net device of the bridge
+ * @param action[IN] Delete or install the ingress VLAN translation rule
+ *
+ * @return 0 for success, -1 for failure
+ */
+int nss_ppe_vlan_mgr_config_bridge_vlan_ingress_rule(struct ppe_drv_iface *slave_iface, struct net_device *bridge_dev,
+						     enum nss_ppe_vlan_mgr_ingress_br_vlan_rule rule_action);
 #endif /* _NSS_PPE_VLAN_MGR_H_ */

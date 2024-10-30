@@ -38,7 +38,7 @@ $(eval $(call KernelPackage,ata-core))
 
 define AddDepends/ata
   SUBMENU:=$(BLOCK_MENU)
-  DEPENDS+=kmod-ata-core $(1)
+  DEPENDS+=+kmod-ata-core $(1)
 endef
 
 
@@ -47,7 +47,7 @@ define KernelPackage/ata-ahci
   KCONFIG:=CONFIG_SATA_AHCI
   FILES:= \
     $(LINUX_DIR)/drivers/ata/ahci.ko
-  AUTOLOAD:=$(call AutoLoad,91,libahci ahci)
+  AUTOLOAD:=$(call AutoLoad,41,libahci ahci,1)
   $(call AddDepends/ata)
 endef
 
@@ -65,7 +65,7 @@ define KernelPackage/ata-ahci-platform
     $(LINUX_DIR)/drivers/ata/ahci_platform.ko \
     $(LINUX_DIR)/drivers/ata/libahci_platform.ko
   AUTOLOAD:=$(call AutoLoad,40,libahci libahci_platform ahci_platform,1)
-  $(call AddDepends/ata,@TARGET_ipq806x||TARGET_sunxi)
+  $(call AddDepends/ata,@TARGET_ipq806x||TARGET_layerscape||TARGET_sunxi)
 endef
 
 define KernelPackage/ata-ahci-platform/description
@@ -90,21 +90,6 @@ endef
 $(eval $(call KernelPackage,ata-artop))
 
 
-define KernelPackage/ata-marvell-sata
-  TITLE:=Marvell Serial ATA support
-  KCONFIG:=CONFIG_SATA_MV
-  FILES:=$(LINUX_DIR)/drivers/ata/sata_mv.ko
-  AUTOLOAD:=$(call AutoLoad,41,sata_mv,1)
-  $(call AddDepends/ata)
-endef
-
-define KernelPackage/ata-marvell-sata/description
- SATA support for marvell chipsets
-endef
-
-$(eval $(call KernelPackage,ata-marvell-sata))
-
-
 define KernelPackage/ata-nvidia-sata
   TITLE:=Nvidia Serial ATA support
   KCONFIG:=CONFIG_SATA_NV
@@ -117,14 +102,13 @@ $(eval $(call KernelPackage,ata-nvidia-sata))
 
 
 define KernelPackage/ata-pdc202xx-old
-  SUBMENU:=$(BLOCK_MENU)
   TITLE:=Older Promise PATA controller support
-  DEPENDS:=kmod-ata-core
   KCONFIG:= \
        CONFIG_ATA_SFF=y \
        CONFIG_PATA_PDC_OLD
   FILES:=$(LINUX_DIR)/drivers/ata/pata_pdc202xx_old.ko
   AUTOLOAD:=$(call AutoLoad,41,pata_pdc202xx_old,1)
+  $(call AddDepends/ata)
 endef
 
 define KernelPackage/ata-pdc202xx-old/description
@@ -209,7 +193,7 @@ $(eval $(call KernelPackage,block2mtd))
 define KernelPackage/dax
   SUBMENU:=$(BLOCK_MENU)
   TITLE:=DAX: direct access to differentiated memory
-  KCONFIG:=CONFIG_DAX
+  KCONFIG:=CONFIG_DAX=y
   FILES:=$(LINUX_DIR)/drivers/dax/dax.ko
 endef
 
@@ -219,7 +203,7 @@ $(eval $(call KernelPackage,dax))
 define KernelPackage/dm
   SUBMENU:=$(BLOCK_MENU)
   TITLE:=Device Mapper
-  DEPENDS:=+kmod-crypto-manager
+  DEPENDS:=+kmod-crypto-manager +kmod-dax +KERNEL_KEYS:kmod-keys-encrypted
   # All the "=n" are unnecessary, they're only there
   # to stop the config from asking the question.
   # MIRROR is M because I've needed it for pvmove.
@@ -234,14 +218,16 @@ define KernelPackage/dm
 	CONFIG_DM_ZERO=n \
 	CONFIG_DM_SNAPSHOT=n \
 	CONFIG_DM_LOG_USERSPACE=n \
-	CONFIG_DM_MQ_DEFAULT=n \
-	CONFIG_DM_LOG_WRITES=n \
 	CONFIG_MD=y \
 	CONFIG_BLK_DEV_DM=y \
-	CONFIG_DM_CRYPT \
+	CONFIG_DM_CRYPT=y \
 	CONFIG_DM_MIRROR
-  FILES:=$(LINUX_DIR)/drivers/md/dm-*.ko
-  AUTOLOAD:=$(call AutoLoad,30,dm-mod dm-log dm-region-hash dm-mirror dm-crypt)
+  FILES:= \
+    $(LINUX_DIR)/drivers/md/dm-mod.ko \
+    $(LINUX_DIR)/drivers/md/dm-log.ko \
+    $(LINUX_DIR)/drivers/md/dm-mirror.ko \
+    $(LINUX_DIR)/drivers/md/dm-region-hash.ko
+  AUTOLOAD:=$(call AutoLoad,30,dm-mod dm-log dm-region-hash dm-mirror dm-crypt,1)
 endef
 
 define KernelPackage/dm/description
@@ -249,6 +235,49 @@ define KernelPackage/dm/description
 endef
 
 $(eval $(call KernelPackage,dm))
+
+define KernelPackage/dm-raid
+  SUBMENU:=$(BLOCK_MENU)
+  TITLE:=LVM2 raid support
+  DEPENDS:=+kmod-dm +kmod-md-mod \
+           +kmod-md-raid0 +kmod-md-raid1 +kmod-md-raid10 +kmod-md-raid456
+  KCONFIG:= \
+	CONFIG_DM_RAID
+  FILES:=$(LINUX_DIR)/drivers/md/dm-raid.ko
+  AUTOLOAD:=$(call AutoLoad,31,dm-raid)
+endef
+
+define KernelPackage/dm-raid/description
+ Kernel module necessary for LVM2 raid support
+endef
+
+$(eval $(call KernelPackage,dm-raid))
+
+
+define KernelPackage/iscsi-initiator
+  SUBMENU:=$(BLOCK_MENU)
+  TITLE:=iSCSI Initiator over TCP/IP
+  DEPENDS:=+kmod-scsi-core +kmod-crypto-hash
+  KCONFIG:= \
+	CONFIG_INET \
+	CONFIG_SCSI_LOWLEVEL=y \
+	CONFIG_ISCSI_TCP \
+	CONFIG_SCSI_ISCSI_ATTRS=y
+  FILES:= \
+	$(LINUX_DIR)/drivers/scsi/iscsi_tcp.ko \
+	$(LINUX_DIR)/drivers/scsi/libiscsi.ko \
+	$(LINUX_DIR)/drivers/scsi/libiscsi_tcp.ko \
+	$(LINUX_DIR)/drivers/scsi/scsi_transport_iscsi.ko
+  AUTOLOAD:=$(call AutoProbe,libiscsi libiscsi_tcp scsi_transport_iscsi iscsi_tcp)
+endef
+
+define KernelPackage/iscsi-initiator/description
+The iSCSI Driver provides a host with the ability to access storage through an
+IP network. The driver uses the iSCSI protocol to transport SCSI requests and
+responses over a TCP/IP network between the host (the "initiator") and "targets".
+endef
+
+$(eval $(call KernelPackage,iscsi-initiator))
 
 
 define KernelPackage/md-mod
@@ -420,7 +449,7 @@ define KernelPackage/loop
 	CONFIG_BLK_DEV_LOOP \
 	CONFIG_BLK_DEV_CRYPTOLOOP=n
   FILES:=$(LINUX_DIR)/drivers/block/loop.ko
-  AUTOLOAD:=$(call AutoLoad,30,loop)
+  AUTOLOAD:=$(call AutoLoad,30,loop,1)
 endef
 
 define KernelPackage/loop/description
@@ -463,16 +492,41 @@ endef
 $(eval $(call KernelPackage,nbd))
 
 
+define KernelPackage/nvme
+  SUBMENU:=$(BLOCK_MENU)
+  TITLE:=NVM Express block device
+  DEPENDS:=@PCI_SUPPORT
+  KCONFIG:= \
+	CONFIG_NVME_CORE \
+	CONFIG_BLK_DEV_NVME \
+	CONFIG_NVME_MULTIPATH=n \
+	CONFIG_NVME_HWMON=n
+  FILES:= \
+	$(LINUX_DIR)/drivers/nvme/host/nvme-core.ko \
+	$(LINUX_DIR)/drivers/nvme/host/nvme.ko
+  AUTOLOAD:=$(call AutoLoad,30,nvme-core nvme,1)
+endef
+
+define KernelPackage/nvme/description
+ Kernel module for NVM Express solid state drives directly
+ connected to the PCI or PCI Express bus.
+endef
+
+$(eval $(call KernelPackage,nvme))
+
+
 define KernelPackage/scsi-core
   SUBMENU:=$(BLOCK_MENU)
   TITLE:=SCSI device support
   KCONFIG:= \
 	CONFIG_SCSI \
+	CONFIG_SCSI_COMMON@ge5.15 \
 	CONFIG_BLK_DEV_SD
   FILES:= \
 	$(LINUX_DIR)/drivers/scsi/scsi_mod.ko \
+	$(LINUX_DIR)/drivers/scsi/scsi_common.ko@gt5.15 \
 	$(LINUX_DIR)/drivers/scsi/sd_mod.ko
-  AUTOLOAD:=$(call AutoLoad,90,scsi_mod sd_mod)
+  AUTOLOAD:=$(call AutoLoad,40,scsi_mod scsi_common sd_mod,1)
 endef
 
 $(eval $(call KernelPackage,scsi-core))
@@ -492,16 +546,24 @@ endef
 $(eval $(call KernelPackage,scsi-generic))
 
 
+define KernelPackage/cdrom
+  TITLE:=Kernel library module for CD / DVD drives
+  KCONFIG:=CONFIG_CDROM
+  HIDDEN:=1
+  FILES:=$(LINUX_DIR)/drivers/cdrom/cdrom.ko
+endef
+
+$(eval $(call KernelPackage,cdrom))
+
+
 define KernelPackage/scsi-cdrom
   SUBMENU:=$(BLOCK_MENU)
   TITLE:=Kernel support for CD / DVD drives
-  DEPENDS:=+kmod-scsi-core
+  DEPENDS:=+kmod-scsi-core +kmod-cdrom
   KCONFIG:= \
     CONFIG_BLK_DEV_SR \
     CONFIG_BLK_DEV_SR_VENDOR=n
-  FILES:= \
-    $(LINUX_DIR)/drivers/cdrom/cdrom.ko \
-    $(LINUX_DIR)/drivers/scsi/sr_mod.ko
+  FILES:=$(LINUX_DIR)/drivers/scsi/sr_mod.ko
   AUTOLOAD:=$(call AutoLoad,45,sr_mod)
 endef
 
@@ -520,3 +582,17 @@ define KernelPackage/scsi-tape
 endef
 
 $(eval $(call KernelPackage,scsi-tape))
+
+define KernelPackage/iosched-bfq
+  SUBMENU:=$(BLOCK_MENU)
+  TITLE:=Kernel support for BFQ I/O scheduler
+  KCONFIG:= \
+    CONFIG_IOSCHED_BFQ \
+    CONFIG_BFQ_GROUP_IOSCHED=y \
+    CONFIG_BFQ_CGROUP_DEBUG=n
+  FILES:= \
+    $(LINUX_DIR)/block/bfq.ko
+  AUTOLOAD:=$(call AutoLoad,10,bfq)
+endef
+
+$(eval $(call KernelPackage,iosched-bfq))

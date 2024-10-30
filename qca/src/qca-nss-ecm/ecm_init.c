@@ -1,7 +1,7 @@
 /*
  **************************************************************************
  * Copyright (c) 2014-2016, 2018, 2020-2021, The Linux Foundation. All rights reserved.
- * Copyright (c) 2022, Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2023 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for any
  * purpose with or without fee is hereby granted, provided that the above
@@ -114,13 +114,18 @@ extern void ecm_classifier_emesh_sawf_exit(void);
 extern int ecm_classifier_mscs_init(struct dentry *dentry);
 extern void ecm_classifier_mscs_exit(void);
 #endif
+#ifdef ECM_CLASSIFIER_WIFI_ENABLE
+extern int ecm_classifier_wifi_init(struct dentry *dentry);
+extern void ecm_classifier_wifi_exit(void);
+#endif
 
 /*
  * ecm_init()
  */
 static int __init ecm_init(void)
 {
-	int ret;
+	int ret = -1;
+	struct dentry *ecm_stats_dentry;
 
 	printk(KERN_INFO "ECM init\n");
 
@@ -141,6 +146,17 @@ static int __init ecm_init(void)
 		return -1;
 	}
 
+	ecm_stats_dentry = debugfs_create_dir("stats", ecm_dentry);
+	if (!ecm_stats_dentry) {
+		DEBUG_ERROR("Failed to create stats dir in ecm\n");
+		goto err_db;
+	}
+
+#ifdef ECM_FRONT_END_PPE_ENABLE
+	if (ecm_front_end_ppe_fse_enable) {
+		ppe_drv_fse_feature_enable();
+	}
+#endif
 	ret = ecm_db_init(ecm_dentry);
 	if (0 != ret) {
 		goto err_db;
@@ -206,6 +222,13 @@ static int __init ecm_init(void)
 	}
 #endif
 
+#ifdef ECM_CLASSIFIER_WIFI_ENABLE
+	ret = ecm_classifier_wifi_init(ecm_dentry);
+	if (0 != ret) {
+		goto err_cls_wifi;
+	}
+#endif
+
 	ret = ecm_interface_init();
 	if (0 != ret) {
 		goto err_iface;
@@ -242,13 +265,7 @@ static int __init ecm_init(void)
 	}
 #endif
 
-#ifdef ECM_FRONT_END_PPE_ENABLE
-	if (ecm_front_end_ppe_fse_enable) {
-		ppe_drv_fse_feature_enable();
-	}
-#endif
 	ecm_front_end_common_sysctl_register();
-
 	printk(KERN_INFO "ECM init complete\n");
 	return 0;
 
@@ -269,6 +286,14 @@ err_bond:
 #endif
 	ecm_interface_exit();
 err_iface:
+#ifdef ECM_CLASSIFIER_WIFI_ENABLE
+	ecm_classifier_wifi_exit();
+err_cls_wifi:
+#endif
+#ifdef ECM_CLASSIFIER_MSCS_ENABLE
+	ecm_classifier_mscs_exit();
+err_cls_mscs:
+#endif
 #ifdef ECM_CLASSIFIER_EMESH_ENABLE
 	ecm_classifier_emesh_sawf_exit();
 err_cls_emesh:
@@ -297,14 +322,15 @@ err_cls_hyfi:
 	ecm_classifier_nl_rules_exit();
 err_cls_nl:
 #endif
-#ifdef ECM_CLASSIFIER_MSCS_ENABLE
-	ecm_classifier_mscs_exit();
-err_cls_mscs:
-#endif
 	ecm_classifier_default_exit();
 err_cls_default:
 	ecm_db_exit();
 err_db:
+#ifdef ECM_FRONT_END_PPE_ENABLE
+	if (ecm_front_end_ppe_fse_enable) {
+		ppe_drv_fse_feature_disable();
+	}
+#endif
 	debugfs_remove_recursive(ecm_dentry);
 
 	printk(KERN_INFO "ECM init failed: %d\n", ret);
@@ -385,6 +411,10 @@ static void __exit ecm_exit(void)
 #ifdef ECM_CLASSIFIER_MSCS_ENABLE
 	DEBUG_INFO("exit mscs classifier\n");
 	ecm_classifier_mscs_exit();
+#endif
+#ifdef ECM_CLASSIFIER_WIFI_ENABLE
+	DEBUG_INFO("exit wifi classifier\n");
+	ecm_classifier_wifi_exit();
 #endif
 	DEBUG_INFO("exit default classifier\n");
 	ecm_classifier_default_exit();

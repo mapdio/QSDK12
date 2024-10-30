@@ -14,3 +14,7 @@ ccflags-y += -I$(obj)/
 ccflags-y += -DNSS_IPSEC_XFRM_DEBUG_LEVEL=3
 ccflags-y += -DNSS_CLIENT_BUILD_ID="$(BUILD_ID)"
 ccflags-y += -Wall -Werror
+
+ifeq ($(SoC),$(filter $(SoC),ipq50xx ipq50xx_64))
+ccflags-y += -DNSS_IPSEC_XFRM_IPQ50XX
+endif

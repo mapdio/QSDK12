@@ -1,5 +1,3 @@
-#!/bin/ash
-
 . /lib/functions.sh
 . /usr/share/libubox/jshn.sh
 
@@ -41,7 +39,13 @@ ucidef_set_interface() {
 
 		[ -n "$opt" -a -n "$val" ] || break
 
-		json_add_string "$opt" "$val"
+		[ "$opt" = "device" -a "$val" != "${val/ //}" ] && {
+			json_select_array "ports"
+			for e in $val; do json_add_string "" "$e"; done
+			json_close_array
+		} || {
+			json_add_string "$opt" "$val"
+		}
 	done
 
 	if ! json_is_a protocol string; then
@@ -68,12 +72,18 @@ ucidef_set_model_name() {
 	json_select ..
 }
 
+ucidef_set_compat_version() {
+	json_select_object system
+	json_add_string compat_version "${1:-1.0}"
+	json_select ..
+}
+
 ucidef_set_interface_lan() {
-	ucidef_set_interface "lan" ifname "$1" protocol "${2:-static}"
+	ucidef_set_interface "lan" device "$1" protocol "${2:-static}"
 }
 
 ucidef_set_interface_wan() {
-	ucidef_set_interface "wan" ifname "$1" protocol "${2:-dhcp}"
+	ucidef_set_interface "wan" device "$1" protocol "${2:-dhcp}"
 }
 
 ucidef_set_interfaces_lan_wan() {
@@ -82,6 +92,34 @@ ucidef_set_interfaces_lan_wan() {
 
 	ucidef_set_interface_lan "$lan_if"
 	ucidef_set_interface_wan "$wan_if"
+}
+
+ucidef_set_bridge_device() {
+	json_select_object bridge
+	json_add_string name "${1:-switch0}"
+	json_select ..
+}
+
+ucidef_set_bridge_mac() {
+	json_select_object bridge
+	json_add_string macaddr "${1}"
+	json_select ..
+}
+
+ucidef_set_network_device_mac() {
+	json_select_object "network_device"
+	json_select_object "${1}"
+	json_add_string macaddr "${2}"
+	json_select ..
+	json_select ..
+}
+
+ucidef_set_network_device_path() {
+	json_select_object "network_device"
+	json_select_object "$1"
+	json_add_string path "$2"
+	json_select ..
+	json_select ..
 }
 
 _ucidef_add_switch_port() {
@@ -171,14 +209,14 @@ _ucidef_finish_switch_roles() {
 
 			json_select_object "$role"
 				# attach previous interfaces (for multi-switch devices)
-				json_get_var devices ifname
+				json_get_var devices device
 				if ! list_contains devices "$device"; then
 					devices="${devices:+$devices }$device"
 				fi
 			json_select ..
 		json_select ..
 
-		ucidef_set_interface "$role" ifname "$devices"
+		ucidef_set_interface "$role" device "$devices"
 	done
 }
 
@@ -307,6 +345,14 @@ ucidef_set_interface_macaddr() {
 	ucidef_set_interface "$network" macaddr "$macaddr"
 }
 
+ucidef_set_label_macaddr() {
+	local macaddr="$1"
+
+	json_select_object system
+		json_add_string label_macaddr "$macaddr"
+	json_select ..
+}
+
 ucidef_add_atm_bridge() {
 	local vpi="$1"
 	local vci="$2"
@@ -380,6 +426,15 @@ ucidef_set_led_default() {
 	json_select ..
 }
 
+ucidef_set_led_heartbeat() {
+	_ucidef_set_led_common "$1" "$2" "$3"
+
+	json_add_string trigger heartbeat
+	json_select ..
+
+	json_select ..
+}
+
 ucidef_set_led_gpio() {
 	local gpio="$4"
 	local inverted="$5"
@@ -396,7 +451,7 @@ ucidef_set_led_gpio() {
 }
 
 ucidef_set_led_ide() {
-	_ucidef_set_led_trigger "$1" "$2" "$3" ide-disk
+	_ucidef_set_led_trigger "$1" "$2" "$3" disk-activity
 }
 
 ucidef_set_led_netdev() {
@@ -565,7 +620,7 @@ ucidef_add_gpio_switch() {
 	json_select_object gpioswitch
 		json_select_object "$cfg"
 			json_add_string name "$name"
-			json_add_int pin "$pin"
+			json_add_string pin "$pin"
 			json_add_int default "$default"
 		json_select ..
 	json_select ..
@@ -591,6 +646,21 @@ ucidef_set_ntpserver() {
 	json_select ..
 }
 
+ucidef_add_wlan() {
+	local path="$1"; shift
+
+	ucidef_wlan_idx=${ucidef_wlan_idx:-0}
+
+	json_select_object wlan
+	json_select_object "wl$ucidef_wlan_idx"
+	json_add_string path "$path"
+	json_add_fields "$@"
+	json_select ..
+	json_select ..
+
+	ucidef_wlan_idx="$((ucidef_wlan_idx + 1))"
+}
+
 board_config_update() {
 	json_init
 	[ -f ${CFG} ] && json_load "$(cat ${CFG})"
@@ -607,6 +677,5 @@ board_config_update() {
 }
 
 board_config_flush() {
-	json_dump -i > /tmp/.board.json
-	mv /tmp/.board.json ${CFG}
+	json_dump -i -o ${CFG}
 }

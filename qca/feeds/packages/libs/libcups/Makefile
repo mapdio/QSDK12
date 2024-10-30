@@ -9,12 +9,12 @@
 include $(TOPDIR)/rules.mk
 
 PKG_NAME:=cups
-PKG_VERSION:=2.2.11
-PKG_RELEASE:=1
+PKG_VERSION:=2.2.12
+PKG_RELEASE:=2
 
 PKG_SOURCE:=$(PKG_NAME)-$(PKG_VERSION)-source.tar.gz
 PKG_SOURCE_URL:=https://github.com/apple/cups/releases/download/v$(PKG_VERSION)/
-PKG_HASH:=f58010813fd6903f690cdb0c0b91e4d1bc9e5b9570c28734229ba3ed2908b76c
+PKG_HASH:=0f61ab449e4748a24c6ab355b481ff7691247a140d327b2b7526fce34b7f9aa8
 PKG_MAINTAINER:=Luiz Angelo Daros de Luca <luizluca@gmail.com>
 PKG_LICENSE:=GPL-2.0
 PKG_LICENSE_FILES:=LICENSE.txt
@@ -39,8 +39,6 @@ endef
 define Package/libcups/description
 	Common UNIX Printing System - Core library
 endef
-
-TARGET_LDFLAGS+=-Wl,-rpath-link=$(STAGING_DIR)/usr/lib
 
 CONFIGURE_ARGS+=--with-cups-user="nobody" \
 		--with-cups-group="nogroup" \
@@ -84,8 +82,11 @@ define Build/Compile
 endef
 
 define Build/InstallDev
-	$(INSTALL_DIR) $(2)/usr/bin
-	$(INSTALL_BIN) $(PKG_INSTALL_DIR)/usr/bin/cups-config $(2)/usr/bin/
+	$(INSTALL_DIR) $(1)/usr/bin
+	$(INSTALL_BIN) $(PKG_INSTALL_DIR)/usr/bin/cups-config $(1)/usr/bin/
+	$(INSTALL_DIR) $(2)/bin
+	$(LN) $(STAGING_DIR)/usr/bin/cups-config $(2)/bin
+
 	$(INSTALL_DIR) $(1)/usr/include
 	$(CP) $(PKG_INSTALL_DIR)/usr/include/cups $(1)/usr/include/
 	$(INSTALL_DIR) $(1)/usr/lib

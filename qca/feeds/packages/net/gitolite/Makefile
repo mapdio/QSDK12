@@ -9,7 +9,7 @@ include $(TOPDIR)/rules.mk
 
 PKG_NAME:=gitolite
 PKG_VERSION:=3.6.11
-PKG_RELEASE:=2
+PKG_RELEASE:=3
 
 PKG_SOURCE:=$(PKG_NAME)-$(PKG_VERSION).tar.gz
 PKG_HASH:=2166a61b14de19e605b14f4a13a070fbfd5ecd247b6fd725108f111198a2c121
@@ -40,7 +40,6 @@ define Package/gitolite
 
   TITLE:=Easy administration of git repositories
   URL:=http://gitolite.com/gitolite
-  MAINTAINER:=Daniel Dickinson <cshored@thecshore.com>
   USERID:=git=382:git=382
 endef
 
@@ -66,7 +65,7 @@ define Build/Compile
 	mkdir -p $(PKG_INSTALL_DIR)/usr/libexec/gitolite
 	$(PKG_BUILD_DIR)/install -to $(PKG_INSTALL_DIR)/usr/libexec/gitolite
 	mkdir -p $(PKG_INSTALL_DIR)/usr/bin
-	ln -sf /usr/libexec/gitolite/gitolite $(PKG_INSTALL_DIR)/usr/bin/gitolite
+	$(LN) ../libexec/gitolite/gitolite $(PKG_INSTALL_DIR)/usr/bin/gitolite
 endef
 
 define Package/gitolite/install

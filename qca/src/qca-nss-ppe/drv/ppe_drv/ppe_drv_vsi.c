@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2024 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for any
  * purpose with or without fee is hereby granted, provided that the above
@@ -133,7 +133,7 @@ void ppe_drv_vsi_l3_if_detach(struct ppe_drv_vsi *vsi)
 
 	ppe_drv_trace("%p: detaching l3_if %u from vsi %u", vsi, vsi->l3_if->l3_if_index, vsi->index);
 
-	cfg.l3_if_valid = false;
+	cfg.l3_if_valid = A_FALSE;
 	err = fal_ip_vsi_intf_set(PPE_DRV_SWITCH_ID, vsi->index, &cfg);
 	if (err != SW_OK) {
 		ppe_drv_warn("%p: Error in detaching l3_if %u from vsi %u", vsi, vsi->l3_if->l3_if_index, vsi->index);
@@ -170,7 +170,7 @@ void ppe_drv_vsi_l3_if_attach(struct ppe_drv_vsi *vsi, struct ppe_drv_l3_if *l3_
 	 */
 	ppe_drv_trace("%p: attaching l3_if %u to vsi %u", vsi, l3_if->l3_if_index, vsi->index);
 
-	cfg.l3_if_valid = true;
+	cfg.l3_if_valid =  A_TRUE;
 	cfg.l3_if_index = l3_if->l3_if_index;
 
 	err = fal_ip_vsi_intf_set(PPE_DRV_SWITCH_ID, vsi->index, &cfg);
@@ -278,6 +278,7 @@ bool ppe_drv_vsi_set_vlan(struct ppe_drv_vsi *vsi, uint32_t vlan_id, struct ppe_
 	if ((nh_iface->type == PPE_DRV_IFACE_TYPE_PHYSICAL)
 		|| (nh_iface->type == PPE_DRV_IFACE_TYPE_LAG)
 		|| (nh_iface->type == PPE_DRV_IFACE_TYPE_VIRTUAL)
+		|| (nh_iface->flags & PPE_DRV_IFACE_VLAN_OVER_BRIDGE)
 		|| (nh_iface->type == PPE_DRV_IFACE_TYPE_VIRTUAL_PO)
 		|| (nh_iface->type == PPE_DRV_IFACE_TYPE_VP_L2_TUN)) {
 
@@ -295,11 +296,14 @@ bool ppe_drv_vsi_set_vlan(struct ppe_drv_vsi *vsi, uint32_t vlan_id, struct ppe_
 		vsi->vlan.outer_vlan = nh_vsi->vlan.inner_vlan;
 		vsi->vlan.inner_vlan = vlan_id;
 	} else {
-		ppe_drv_warn("%p: Invalid nh_iface type(%d) during vlan setup", vsi, nh_iface->type);
+		ppe_drv_warn("%p: Invalid nh_iface type(%d) during vlan setup dev name %s\n", vsi, nh_iface->type,
+			     nh_iface->dev->name);
 		return false;
 	}
 
-	ppe_drv_trace("%p: vsi configuration done for vlan_id(%d) and interface_type(%d)", vsi, vlan_id, nh_iface->type);
+	ppe_drv_trace("%p: vsi configuration done for outer vlan_id(%d) inner vlan_id(%d) and interface_type(%d)\n"
+		      "dev(%s) flag %d\n", vsi, vsi->vlan.outer_vlan, vsi->vlan.inner_vlan, nh_iface->type,
+		      nh_iface->dev->name, nh_iface->flags);
 	return true;
 }
 
@@ -378,9 +382,9 @@ void ppe_drv_vsi_mc_enable(struct ppe_drv_vsi *vsi)
 	 */
 	ppe_drv_trace("%p: Enabling mc on vsi %u l3_if %u", vsi, vsi->index, vsi->l3_if->l3_if_index);
 
-	cfg.l2_ipv4_mc_en = true;
+	cfg.l2_ipv4_mc_en =  A_TRUE;
 	cfg.l2_ipv4_mc_mode = FAL_MC_MODE_SGV;
-	cfg.l2_ipv6_mc_en = true;
+	cfg.l2_ipv6_mc_en =  A_TRUE;
 	cfg.l2_ipv6_mc_mode = FAL_MC_MODE_SGV;
 
 	if (fal_ip_vsi_mc_mode_set(PPE_DRV_SWITCH_ID, vsi->index, &cfg) != SW_OK) {
@@ -477,7 +481,7 @@ struct ppe_drv_vsi *ppe_drv_vsi_alloc(enum ppe_drv_vsi_type type)
 	 * Enable learning
 	 */
 	addr_cfg.lrn_en = 1;
-	addr_cfg.action = FAL_MAC_RDT_TO_CPU;
+	addr_cfg.action = FAL_MAC_FRWRD;
 	if (fal_vsi_newaddr_lrn_set(PPE_DRV_SWITCH_ID, vsi->index, &addr_cfg) != SW_OK) {
 		ppe_drv_l3_if_deref(l3_if);
 		ppe_drv_vsi_deref(vsi);

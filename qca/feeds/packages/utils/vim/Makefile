@@ -8,23 +8,18 @@
 include $(TOPDIR)/rules.mk
 
 PKG_NAME:=vim
-PKG_VERSION:=8.1
-PKG_RELEASE:=6
-VIMVER:=81
+PKG_VERSION:=9.0
+PKG_RELEASE:=1
+VIMVER:=90
 
 PKG_SOURCE:=$(PKG_NAME)-$(PKG_VERSION).tar.bz2
 PKG_SOURCE_URL:=http://ftp.vim.org/pub/vim/unix
-PKG_HASH:=8b69fbd01c877dd8ecbbeca1dc66e5e927228d631ac4c2174b9307eb5c827c86
-PKG_MAINTAINER:=Marko Ratkaj <marko.ratkaj@sartura.hr>
+PKG_HASH:=a6456bc154999d83d0c20d968ac7ba6e7df0d02f3cb6427fb248660bacfb336e
+PKG_MAINTAINER:=Marko Ratkaj <markoratkaj@gmail.com>
 PKG_CPE_ID:=cpe:/a:vim:vim
 
 PKG_BUILD_DIR:=$(BUILD_DIR)/$(PKG_NAME)$(VIMVER)
 PKG_BUILD_PARALLEL:=1
-
-HOST_BUILD_DEPENDS:=libiconv/host
-
-HOST_BUILD_DIR:=$(BUILD_DIR_HOST)/$(PKG_NAME)$(VIMVER)
-HOST_BUILD_PARALLEL:=1
 
 include $(INCLUDE_DIR)/package.mk
 include $(INCLUDE_DIR)/host-build.mk
@@ -116,15 +111,6 @@ define Package/xxd/description
  a hex dump back to its original binary form.
 endef
 
-HOST_CONFIGURE_ARGS += \
-	--disable-acl \
-	--disable-gpm \
-	--disable-nls \
-	--disable-selinux \
-	--enable-gui=no \
-	--with-features=normal \
-	--without-x
-
 CONFIGURE_ARGS += \
 	--disable-gui \
 	--disable-gtktest \
@@ -134,6 +120,8 @@ CONFIGURE_ARGS += \
 	--disable-cscope \
 	--disable-gpm \
 	--disable-acl \
+	--disable-libsodium \
+	--disable-selinux \
 	--with-tlib=ncurses \
 	--with-compiledby="non-existent-hostname-compiled"
 
@@ -161,7 +149,6 @@ ifneq ($(CONFIG_PACKAGE_vim),)
 define Build/Compile/vim
 	$(call Build/Configure/Default, \
 		--with-features=tiny \
-		--disable-multibyte \
 	)
 	+$(MAKE) $(PKG_JOBS) -C $(PKG_BUILD_DIR) \
 		DESTDIR="$(PKG_INSTALL_DIR)" all
@@ -173,7 +160,6 @@ ifneq ($(CONFIG_PACKAGE_vim-full),)
 define Build/Compile/vim-full
 	$(call Build/Configure/Default, \
 		--with-features=normal \
-		--enable-multibyte \
 	)
 	+$(MAKE) $(PKG_JOBS) -C $(PKG_BUILD_DIR) \
 		DESTDIR="$(PKG_INSTALL_DIR)" all
@@ -185,7 +171,6 @@ ifneq ($(CONFIG_PACKAGE_vim-fuller),)
 define Build/Compile/vim-fuller
 	$(call Build/Configure/Default, \
 		--with-features=big \
-		--enable-multibyte \
 	)
 	+$(MAKE) $(PKG_JOBS) -C $(PKG_BUILD_DIR) \
 		DESTDIR="$(PKG_INSTALL_DIR)" all
@@ -228,6 +213,7 @@ define Package/vim-full/install
 	$(INSTALL_DIR) $(1)/usr/bin
 	$(INSTALL_BIN) $(PKG_BUILD_DIR)/vim_normal $(1)/usr/bin/vim
 	$(INSTALL_DIR) $(1)/usr/share/vim
+	$(LN) vim $(1)/usr/bin/vimdiff
 	$(INSTALL_CONF) ./files/vimrc.full $(1)/usr/share/vim/vimrc
 endef
 
@@ -236,7 +222,8 @@ define Package/vim-fuller/install
 	$(INSTALL_DIR) $(1)/usr/bin
 	$(INSTALL_BIN) $(PKG_BUILD_DIR)/vim_big $(1)/usr/bin/vim
 	$(INSTALL_DIR) $(1)/usr/share/vim
-	$(CP) -r $(PKG_INSTALL_DIR)/usr/share/vim/vim$(VIMVER) $(1)/usr/share/vim
+	$(LN) vim $(1)/usr/bin/vimdiff
+	$(CP) $(PKG_INSTALL_DIR)/usr/share/vim/vim$(VIMVER) $(1)/usr/share/vim
 	$(INSTALL_CONF) ./files/vimrc.full $(1)/usr/share/vim/vimrc
 endef
 
@@ -262,4 +249,3 @@ $(eval $(call BuildPackage,vim-fuller))
 $(eval $(call BuildPackage,vim-runtime))
 $(eval $(call BuildPackage,vim-help))
 $(eval $(call BuildPackage,xxd))
-$(eval $(call HostBuild))

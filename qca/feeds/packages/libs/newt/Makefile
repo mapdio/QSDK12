@@ -1,7 +1,7 @@
 #
 # Copyright (C) 2006-2011 OpenWrt.org
 # Copyright (C) 2011 SMBPhone Inc.
-# Copyright (C) 2019 Jeffery To
+# Copyright (C) 2019-2020, 2023 Jeffery To
 #
 # This is free software, licensed under the GNU General Public License v2.
 # See /LICENSE for more information.
@@ -10,20 +10,21 @@
 include $(TOPDIR)/rules.mk
 
 PKG_NAME:=newt
-PKG_VERSION:=0.52.21
+PKG_VERSION:=0.52.23
 PKG_RELEASE:=1
 
 PKG_SOURCE:=$(PKG_NAME)-$(PKG_VERSION).tar.gz
 PKG_SOURCE_URL:=https://releases.pagure.org/newt
-PKG_HASH:=265eb46b55d7eaeb887fca7a1d51fe115658882dfe148164b6c49fccac5abb31
+PKG_HASH:=caa372907b14ececfe298f0d512a62f41d33b290610244a58aed07bbc5ada12a
 
-PKG_LICENSE:=LGPL-2.0
+PKG_MAINTAINER:=Jeffery To <jeffery.to@gmail.com>
+PKG_LICENSE:=LGPL-2.0-only
 PKG_LICENSE_FILES:=COPYING
 PKG_CPE_ID:=cpe:/a:fedorahosted:newt
-PKG_MAINTAINER:=Jeffery To <jeffery.to@gmail.com>
 
 PKG_BUILD_PARALLEL:=1
 PKG_INSTALL:=1
+PYTHON3_PKG_BUILD:=0
 
 include $(INCLUDE_DIR)/package.mk
 include $(INCLUDE_DIR)/nls.mk
@@ -73,7 +74,6 @@ $(call Package/newt/Default)
   SUBMENU:=Python
   TITLE+= module for Python
   DEPENDS:=+libnewt +python3-light
-  VARIANT:=python3
 endef
 
 define Package/python3-newt/description
@@ -89,9 +89,9 @@ CONFIGURE_ARGS+= \
 	--without-gpm-support \
 	--with-colorsfile=/etc/newt/palette
 
-MAKE_VARS+= PYTHON_CONFIG_PATH="$(STAGING_DIR)/host/bin"
+CONFIGURE_VARS += $(if $(CONFIG_BUILD_NLS),ac_cv_lib_c_gettext=no)
 
-Build/Compile=$(call Build/Compile/Default,)
+MAKE_VARS+= PYTHON_CONFIG_PATH="$(STAGING_DIR)/host/bin"
 
 define Build/InstallDev
 	$(INSTALL_DIR) $(1)/usr/include

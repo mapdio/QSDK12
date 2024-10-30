@@ -3,7 +3,7 @@
  * IPQ9574 AL02-C4 board device tree source
  *
  * Copyright (c) 2020-2021 The Linux Foundation. All rights reserved.
- * Copyright (c) 2021-2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2021-2023 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 /dts-v1/;
@@ -69,6 +69,34 @@
 				output-low;
 			};
 
+			pcie0_wake_pins: pcie0_wake_gpio {
+				pins = "gpio24";
+				function = "pcie0_wake";
+				drive-strength = <8>;
+				bias-pull-up;
+			};
+
+			pcie1_wake_pins: pcie1_wake_gpio {
+				pins = "gpio27";
+				function = "pcie1_wake";
+				drive-strength = <8>;
+				bias-pull-up;
+			};
+
+			pcie2_wake_pins: pcie2_wake_gpio {
+				pins = "gpio30";
+				function = "pcie2_wake";
+				drive-strength = <8>;
+				bias-pull-up;
+			};
+
+			pcie3_wake_pins: pcie3_wake_gpio {
+				pins = "gpio33";
+				function = "pcie3_wake";
+				drive-strength = <8>;
+				bias-pull-up;
+			};
+
 			blsp1_uart2_pins: blsp1_uart2_pinmux {
 				pins = "gpio34", "gpio35";
 				function = "blsp2_uart";
@@ -131,6 +159,13 @@
 				bias-disable;
 			};
 
+			spi_1_pins: spi-1-pins {
+				pins = "gpio61", "gpio62", "gpio63", "gpio64";
+				function = "blsp1_spi";
+				drive-strength = <8>;
+				bias-pull-down;
+			};
+
 			i2c_3_pins: i2c-3-pins {
 				pins = "gpio15", "gpio16";
 				function = "blsp3_i2c";
@@ -150,6 +185,66 @@
 					function = "mdio";
 					drive-strength = <8>;
 					bias-pull-up;
+				};
+			};
+
+			audio_pins_pri: audio_pinmux_pri {
+				mux_1 {
+					pins = "gpio41";
+					function = "audio_pri";
+					drive-strength = <8>;
+					bias-pull-down;
+				};
+
+				mux_2 {
+					pins = "gpio40";
+					function = "audio_pri";
+					drive-strength = <8>;
+					bias-pull-down;
+				};
+
+				mux_3 {
+					pins = "gpio42";
+					function = "audio_pri";
+					drive-strength = <8>;
+					bias-pull-down;
+				};
+
+				mux_4 {
+					pins = "gpio43";
+					function = "audio_pri";
+					drive-strength = <16>;
+					bias-pull-down;
+				};
+			};
+
+			audio_pins_sec: audio_pinmux_sec {
+				mux_1 {
+					pins = "gpio47";
+					function = "audio_sec";
+					drive-strength = <16>;
+					bias-pull-down;
+				};
+
+				mux_2 {
+					pins = "gpio46";
+					function = "audio_sec";
+					drive-strength = <16>;
+					bias-pull-down;
+				};
+
+				mux_3 {
+					pins = "gpio45";
+					function = "audio_sec";
+					drive-strength = <16>;
+					bias-pull-down;
+				};
+
+				mux_4 {
+					pins = "gpio44";
+					function = "audio_sec";
+					drive-strength = <16>;
+					bias-pull-down;
 				};
 			};
 
@@ -217,6 +312,14 @@
 			status = "ok";
 		};
 
+		pcm: pcm@0xA3C0000{
+			pinctrl-0 = <&audio_pins_pri>;
+			pinctrl-1 = <&audio_pins_sec>;
+			pinctrl-names = "primary",
+					 "secondary";
+			status = "disabled";
+		};
+
 		gpio_keys {
 			compatible = "gpio-keys";
 			pinctrl-0 = <&button_pins>;
@@ -242,6 +345,7 @@
 			local-mac-address = [000000000000];
 			qcom,phy-mdio-addr = <16>;
 			phy-mode = "sgmii";
+			qcom,ppe-offload-disabled = <1>;
 		};
 
 		dp2 {
@@ -254,6 +358,7 @@
 			local-mac-address = [000000000000];
 			qcom,phy-mdio-addr = <17>;
 			phy-mode = "sgmii";
+			qcom,ppe-offload-disabled = <1>;
 		};
 
 		dp3 {
@@ -266,6 +371,7 @@
 			local-mac-address = [000000000000];
 			qcom,phy-mdio-addr = <18>;
 			phy-mode = "sgmii";
+			qcom,ppe-offload-disabled = <1>;
 		};
 
 		dp4 {
@@ -278,6 +384,7 @@
 			local-mac-address = [000000000000];
 			qcom,phy-mdio-addr = <19>;
 			phy-mode = "sgmii";
+			qcom,ppe-offload-disabled = <1>;
 		};
 
 		dp5 {
@@ -302,11 +409,6 @@
 			local-mac-address = [000000000000];
 			qcom,phy-mdio-addr = <0>;
 			phy-mode = "sgmii";
-		};
-
-		license_manager {
-			compatible = "qti,license-manager-service";
-			device-license-termination;
 		};
 
 		qpic_bam: dma@7984000 {
@@ -341,6 +443,19 @@
 				#size-cells = <1>;
 				reg = <0>;
 				spi-max-frequency = <50000000>;
+			};
+		};
+
+		spi_1: spi@78b6000 {
+			status = "disabled";
+			pinctrl-0 = <&spi_1_pins>;
+			pinctrl-names = "default";
+			cs-select = <0>;
+
+			spidev1: spi@0 {
+				compatible = "qca,spidev";
+				reg = <0>;
+				spi-max-frequency = <9600000>;
 			};
 		};
 
@@ -404,8 +519,11 @@
 		};
 
 		pcie1_x1: pci@10000000 {
-			pinctrl-0 = <&pci1_pin>;
+			pinctrl-0 = <&pcie1_wake_pins &pci1_pin>;
 			pinctrl-names = "default";
+			interrupts-extended = <&tlmm 27 IRQ_TYPE_LEVEL_HIGH>,
+					      <&intc GIC_SPI 25 IRQ_TYPE_LEVEL_HIGH>;
+			interrupt-names = "wake_gpio", "global_irq";
 			perst-gpio = <&tlmm 26 1>;
 			max-payload-size = <1>; // 1-256 TLP bytes for WKK
 			status = "ok";
@@ -421,6 +539,7 @@
 							0x4 0x4 0x18 0x3 0x0 0x0  /* RFA1p2 Rail, GPIO24, Drive strength 0x3 */
 							0x0 0x4 0x0 0x0 0x0 0x0>; /* End of arguments */
 					license-file = "";
+					qcom,wsi = <&wsi>;
 #if defined(__CNSS2__)
 					qrtr_node_id = <0x31>;
 					memory-region = <0>,<&mhi_region1>;
@@ -441,7 +560,6 @@
 					*/
 					memory-region = <&qcn9224_pcie1>;
 					qcom,board_id = <0x01>;
-					qcom,wsi = <&wsi>;
 					qcom,pta-num = <0>;
 					qcom,coex-mode = <0x2>;
 					qcom,bt-active-time = <0x18>;
@@ -458,8 +576,11 @@
 		};
 
 		pcie2_x2: pci@20000000 {
-			pinctrl-0 = <&pci2_pin>;
+			pinctrl-0 = <&pcie2_wake_pins &pci2_pin>;
 			pinctrl-names = "default";
+			interrupts-extended = <&tlmm 30 IRQ_TYPE_LEVEL_HIGH>,
+					      <&intc GIC_SPI 125 IRQ_TYPE_LEVEL_HIGH>;
+			interrupt-names = "wake_gpio", "global_irq";
 			perst-gpio = <&tlmm 29 1>;
 			max-payload-size = <1>; // 1-256 TLP bytes for WKK
 			status = "ok";
@@ -475,6 +596,7 @@
 							0x4 0x4 0x18 0x3 0x0 0x0  /* RFA1p2 Rail, GPIO24, Drive strength 0x3 */
 							0x0 0x4 0x0 0x0 0x0 0x0>; /* End of arguments */
 					license-file = "";
+					qcom,wsi = <&wsi>;
 #if defined(__CNSS2__)
 					qrtr_node_id = <0x32>;
 					memory-region = <0>,<&mhi_region2>;
@@ -495,7 +617,6 @@
 					*/
 					memory-region = <&qcn9224_pcie2>;
 					qcom,board_id = <0x04>;
-					qcom,wsi = <&wsi>;
 #endif
 				};
 			};
@@ -506,8 +627,11 @@
 		};
 
 		pcie3_x2: pci@18000000 {
-			pinctrl-0 = <&pci3_pin>;
+			pinctrl-0 = <&pcie3_wake_pins &pci3_pin>;
 			pinctrl-names = "default";
+			interrupts-extended = <&tlmm 33 IRQ_TYPE_LEVEL_HIGH>,
+					      <&intc GIC_SPI 188 IRQ_TYPE_LEVEL_HIGH>;
+			interrupt-names = "wake_gpio", "global_irq";
 			perst-gpio = <&tlmm 32 1>;
 			max-payload-size = <1>; // 1-256 TLP bytes for WKK
 			status = "ok";
@@ -523,6 +647,7 @@
 							0x4 0x4 0x18 0x3 0x0 0x0  /* RFA1p2 Rail, GPIO24, Drive strength 0x3 */
 							0x0 0x4 0x0 0x0 0x0 0x0>; /* End of arguments */
 					license-file = "";
+					qcom,wsi = <&wsi>;
 #if defined(__CNSS2__)
 					qrtr_node_id = <0x33>;
 					memory-region = <0>,<&mhi_region3>;
@@ -543,7 +668,6 @@
 					 */
 					memory-region = <&qcn9224_pcie3>;
 					qcom,board_id = <0x02>;
-					qcom,wsi = <&wsi>;
 #endif
 				};
 			};
@@ -703,7 +827,7 @@
 				   <0 352 4>,			/* Rx desc ring id #21 IRQ info */
 				   <0 353 4>,			/* Rx desc ring id #22 IRQ info */
 				   <0 354 4>,			/* Rx desc ring id #23 IRQ info */
-				   <0 261 4>,			/* Misc error IRQ info */
+				   <0 499 4>,			/* Misc error IRQ info */
 				   <0 364 4>,			/* PPEDS Node #1(TxComp ring id #1) TxComplete IRQ info */
 				   <0 332 4>,			/* PPEDS Node #1(Rx Desc ring id #1) Rx Desc IRQ info */
 				   <0 356 4>,			/* PPEDS Node #1(RxFill Desc ring id #1) Rx Fill IRQ info */
@@ -756,17 +880,20 @@
 &wifi5 {
 	hremote_node = <&qcn9224_pcie1>;
 	board_id = <0x01>;
+	hw_link_id = <0 0>;
 	status = "ok";
 };
 
 &wifi6 {
 	hremote_node = <&qcn9224_pcie2>;
 	board_id = <0x04>;
+	hw_link_id = <1 0>;
 	status = "ok";
 };
 
 &wifi7 {
 	hremote_node = <&qcn9224_pcie3>;
 	board_id = <0x02>;
+	hw_link_id = <2 0>;
 	status = "ok";
 };

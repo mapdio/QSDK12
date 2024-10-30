@@ -28,10 +28,17 @@
 
 #define EDMA_MAX_TXDESC_RINGS		NSS_DP_EDMA_MAX_TXDESC_RINGS
 #define EDMA_MAX_TXCMPL_RINGS		NSS_DP_EDMA_MAX_TXCMPL_RINGS
-#define EDMA_TXCMPL_RING_PER_CORE_MAX	EDMA_MAX_PORTS
-						/* Includes the one additional for VP */
-#define EDMA_TX_MAX_PRIORITY_LEVEL	1
 
+#ifdef NSS_DP_MHT_SW_PORT_MAP
+#define EDMA_TXCMPL_RING_PER_CORE_MAX	EDMA_MAX_TX_PORTS
+						/* Includes the one additional for VP */
+#define EDMA_TX_RING_PER_CORE_MAX	(EDMA_TX_MAX_PRIORITY_LEVEL * EDMA_MAX_TX_PORTS)
+#else
+#define EDMA_TXCMPL_RING_PER_CORE_MAX	EDMA_MAX_PORTS
+#define EDMA_TX_RING_PER_CORE_MAX	(EDMA_TX_MAX_PRIORITY_LEVEL * EDMA_MAX_PORTS)
+#endif
+
+#define EDMA_TX_MAX_PRIORITY_LEVEL	1
 #if defined(NSS_DP_MEM_PROFILE_LOW) || defined(NSS_DP_MEM_PROFILE_MEDIUM)
 #define EDMA_TX_RING_SIZE		1024
 #else
@@ -41,8 +48,9 @@
 #define EDMA_TX_RING_SIZE_MASK		(EDMA_TX_RING_SIZE - 1)
 
 #define EDMA_TX_TSO_SEG_MAX		32	/* Max segment processing capacity of HW for TSO */
+#define EDMA_TX_TSO_MSS_MIN		256	/* HW defined low MSS size */
+#define EDMA_TX_TSO_MSS_MAX		10240	/* HW defined high MSS size */
 
-#define EDMA_TX_RING_PER_CORE_MAX	(EDMA_TX_MAX_PRIORITY_LEVEL * EDMA_MAX_PORTS)
 
 #define EDMA_SRC_PORT_TYPE		2
 #define EDMA_SRC_PORT_TYPE_SHIFT	12
@@ -88,10 +96,11 @@
 #define EDMA_TXDESC_SERVICE_CODE_SET(desc, x)	((desc)->word1 |= (((x) << EDMA_TXDESC_SERVICE_CODE_SHIFT) & EDMA_TXDESC_SERVICE_CODE_MASK))
 #define EDMA_TXDESC_BUFFER_ADDR_SET(desc, addr)	(((desc)->word0) = (addr))
 
+#define EDMA_TXDESC_INT_PRI_VALID_SHIFT	25
 #define EDMA_TXDESC_INT_PRI_SHIFT	26
-#define EDMA_TXDESC_INT_PRI_VALID	(1 << 25)
+#define EDMA_TXDESC_INT_PRI_VALID	(1 << EDMA_TXDESC_INT_PRI_VALID_SHIFT)
 #define EDMA_TXDESC_INT_PRI_MASK	(0xF << EDMA_TXDESC_INT_PRI_SHIFT)
-#define EDMA_TXDESC_INT_PRI_SET(desc, x)	((desc)->word1 |= ((((x) << EDMA_TXDESC_INT_PRI_SHIFT) & EDMA_TXDESC_INT_PRI_MASK)) | EDMA_TXDESC_INT_PRI_VALID)
+#define EDMA_TXDESC_INT_PRI_SET(desc, x)	((desc)->word1 |= ((((x) << EDMA_TXDESC_INT_PRI_SHIFT) & EDMA_TXDESC_INT_PRI_MASK) | EDMA_TXDESC_INT_PRI_VALID))
 
 #define EDMA_TXDESC_FAKE_MAC_HDR_SHIFT		10
 #define EDMA_TXDESC_FAKE_MAC_HDR_MASK		(0x1 << EDMA_TXDESC_FAKE_MAC_HDR_SHIFT)
@@ -119,6 +128,19 @@
 #define EDMA_TXCOMP_RING_ERROR_GET(x)	((le32_to_cpu(x)) & EDMA_TXCOMP_RING_ERROR_MASK)
 
 /*
+ * Construct the MHT SW Port metadata
+ *	----------------------------------------------------------------------------
+ *	|TAG (8 bits) | 			 MHT SWITCH PORT METADATA(8 bits))|
+ *	----------------------------------------------------------------------------
+ */
+#ifdef NSS_DP_MHT_SW_PORT_MAP
+#define EDMA_TX_MHT_SW_PORT_MARK_TAG			0xBB000000
+#define EDMA_TX_MHT_SW_PORT_METADATA_MASK		0x3
+#define EDMA_TX_MHT_SW_PORT_MARK_VALID(n)	(n & EDMA_TX_MHT_SW_PORT_MARK_TAG)
+#define EDMA_TX_MHT_SW_PORT_MARK_GET(n)	(n & EDMA_TX_MHT_SW_PORT_METADATA_MASK)
+#endif
+
+/*
  * Opaque values are set in word2 and word3, they are not accessed by the EDMA HW,
  * so endianness conversion is not needed.
  */
@@ -128,6 +150,7 @@
 	cpu_to_le32s(&((desc)->word4)); \
 	cpu_to_le32s(&((desc)->word5)); \
 	cpu_to_le32s(&((desc)->word6)); \
+	cpu_to_le32s(&((desc)->word7)); \
 }
 
 /*
@@ -165,6 +188,7 @@ struct edma_tx_stats {
 	uint64_t tx_tso_drop_pkts;
 	uint64_t tx_gso_pkts;
 	uint64_t tx_gso_drop_pkts;
+	uint64_t tx_queue_stopped[NR_CPUS];
 	struct u64_stats_sync syncp;
 };
 
@@ -177,6 +201,7 @@ struct edma_tx_cmpl_stats {
 	uint64_t errors;			/* Other Tx complete descriptor errors indicated by the hardware */
 	uint64_t desc_with_more_bit;		/* Packet's segment transmit count */
 	uint64_t no_pending_desc;		/* No descriptor is pending for processing */
+	struct edma_ring_util_stats ring_stats;    /* Tracking EDMA Tx cmpl ring utilization */
 	struct u64_stats_sync syncp;		/* Synchronization pointer */
 };
 
@@ -187,6 +212,7 @@ struct edma_tx_cmpl_stats {
 struct edma_tx_desc_stats {
 	uint64_t no_desc_avail;			/* No descriptor available to transmit */
 	uint64_t tso_max_seg_exceed;		/* Packets extending EDMA_TX_TSO_SEG_MAX segments */
+	struct edma_ring_util_stats ring_stats;    /* Tracking EDMA Tx ring utilization */
 	struct u64_stats_sync syncp;		/* Synchronization pointer */
 };
 

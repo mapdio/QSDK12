@@ -8,12 +8,12 @@
 include $(TOPDIR)/rules.mk
 
 PKG_NAME:=chrony
-PKG_VERSION:=3.5.1
+PKG_VERSION:=4.4
 PKG_RELEASE:=1
 
 PKG_SOURCE:=$(PKG_NAME)-$(PKG_VERSION).tar.gz
-PKG_SOURCE_URL:=https://download.tuxfamily.org/chrony/
-PKG_HASH:=1ba82f70db85d414cd7420c39858e3ceca4b9eb8b028cbe869512c3a14a2dca7
+PKG_SOURCE_URL:=https://chrony-project.org/releases/
+PKG_HASH:=eafb07e6daf92b142200f478856dfed6efc9ea2d146eeded5edcb09b93127088
 
 PKG_MAINTAINER:=Miroslav Lichvar <mlichvar0@gmail.com>
 PKG_LICENSE:=GPL-2.0
@@ -21,10 +21,11 @@ PKG_LICENSE_FILES:=COPYING
 PKG_CPE_ID:=cpe:/a:tuxfamily:chrony
 
 PKG_BUILD_DEPENDS:=pps-tools
+PKG_BUILD_FLAGS:=lto
 
 include $(INCLUDE_DIR)/package.mk
 
-define Package/chrony
+define Package/chrony/Default
   SUBMENU:=Time Synchronization
   SECTION:=net
   CATEGORY:=Network
@@ -32,6 +33,21 @@ define Package/chrony
   USERID:=chrony=323:chrony=323
   TITLE:=A versatile NTP client and server
   URL:=http://chrony.tuxfamily.org/
+  PROVIDES:=nts
+endef
+
+define Package/chrony
+$(call Package/chrony/Default)
+  TITLE+= (without NTS)
+  VARIANT:=normal
+  CONFLICTS:=chrony-nts
+endef
+
+define Package/chrony-nts
+$(call Package/chrony/Default)
+  TITLE+= (with NTS)
+  DEPENDS+= +PACKAGE_chrony-nts:libgnutls +PACKAGE_chrony-nts:ca-bundle
+  VARIANT:=with-nts
 endef
 
 define Package/chrony/description
@@ -40,10 +56,14 @@ define Package/chrony/description
 	reference clocks, and manual input using wristwatch and keyboard.
 endef
 
+Package/chrony-nts/description = $(Package/chrony/description)
+
 define Package/chrony/conffiles
 /etc/chrony/chrony.conf
 /etc/config/chrony
 endef
+
+Package/chrony-nts/conffiles = $(Package/chrony/conffiles)
 
 CONFIGURE_ARGS+= \
 	--host-machine=$(shell echo $(GNU_TARGET_NAME) | sed -e 's/-.*//') \
@@ -52,6 +72,7 @@ CONFIGURE_ARGS+= \
 	--sysconfdir=/etc/chrony \
 	--prefix=/usr \
 	--chronyrundir=/var/run/chrony \
+	$(if $(findstring normal,$(BUILD_VARIANT)),--disable-nts,--enable,nts) \
 	--disable-readline \
 	--disable-rtc \
 	--disable-sechash \
@@ -74,4 +95,7 @@ define Package/chrony/install
 	$(INSTALL_CONF) ./files/chrony.conf $(1)/etc/chrony/chrony.conf
 endef
 
+Package/chrony-nts/install= $(Package/chrony/install)
+
 $(eval $(call BuildPackage,chrony))
+$(eval $(call BuildPackage,chrony-nts))

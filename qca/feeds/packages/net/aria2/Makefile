@@ -1,5 +1,5 @@
 #
-# Copyright (C) 2012-2018 OpenWrt.org
+# Copyright (C) 2012-2021 OpenWrt.org
 #
 # This is free software, licensed under the GNU General Public License v2.
 # See /LICENSE for more information.
@@ -7,14 +7,15 @@
 include $(TOPDIR)/rules.mk
 
 PKG_NAME:=aria2
-PKG_VERSION:=1.35.0
+PKG_VERSION:=1.36.0
 PKG_RELEASE:=2
 
 PKG_SOURCE:=$(PKG_NAME)-$(PKG_VERSION).tar.xz
 PKG_SOURCE_URL:=https://github.com/aria2/aria2/releases/download/release-$(PKG_VERSION)/
-PKG_HASH:=1e2b7fd08d6af228856e51c07173cfcf987528f1ac97e04c5af4a47642617dfd
+PKG_HASH:=58d1e7608c12404f0229a3d9a4953d0d00c18040504498b483305bcb3de907a5
 PKG_INSTALL:=1
 PKG_BUILD_PARALLEL:=1
+PKG_BUILD_FLAGS:=gc-sections lto
 
 PKG_MAINTAINER:=Imre Kaloz <kaloz@openwrt.org>, \
 	Hsing-Wang Liao <kuoruan@gmail.com>
@@ -40,6 +41,7 @@ PKG_CONFIG_DEPENDS := \
 	CONFIG_ARIA2_WEBSOCKET
 
 include $(INCLUDE_DIR)/package.mk
+include $(INCLUDE_DIR)/nls.mk
 
 define Package/aria2/config
   source "$(SOURCE)/Config.in"
@@ -82,8 +84,9 @@ CONFIGURE_ARGS += \
 	--without-libuv \
 	--with-libz
 
-TARGET_CXXFLAGS += -ffunction-sections -fdata-sections -flto
-TARGET_LDFLAGS += -Wl,--gc-sections -flto
+define Package/aria2/conffiles
+/etc/config/aria2
+endef
 
 define Package/aria2/install
 	$(INSTALL_DIR) $(1)/usr/bin

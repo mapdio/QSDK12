@@ -48,7 +48,7 @@ class PageTracking(RamParser):
         self.pageflags[pageflags_table.index("PG_slab")] = 'S'
         self.pageflags[pageflags_table.index("PG_lru")] = 'L'
 
-        if("5, 4" in str(ramdump.kernel_version)):
+        if ramdump.kernel_version >= (5, 4, 0):
             page_ext_flags_table = ramdump.gdbmi.get_enum_lookup_table(
                 'page_ext_flags', 4)
         else:
@@ -57,14 +57,18 @@ class PageTracking(RamParser):
 
         PAGE_EXT_OWNER = (1 << page_ext_flags_table.index('PAGE_EXT_OWNER'))
 
+        if ramdump.kernel_version >= (6, 1, 0):
+           SLAB_INDEX_BIT  = 16
+           SLAB_OFFSET_START = 17
+        else:
+           SLAB_INDEX_BIT  = 21
+           SLAB_OFFSET_START = 22
+
         SLAB_INDEX_START = 1
-        SLAB_INDEX_BIT  = 21
-        SLAB_OFFSET_START = 22
         SLAB_OFFSET_BIT = 10
         PAGE_SHIFT = 4
 
         page_ext_obj = mm_page_ext(ramdump)
-
         meminfo.gen_symbol_info(ramdump.nm_path, ramdump.vmlinux)
 
         min_pfn = page_ext_obj.get_min_pfn()
@@ -100,7 +104,7 @@ class PageTracking(RamParser):
                 page = pfn_to_page(ramdump, pfn)
                 page_flags = ramdump.read_u32(page + page_flags_offset)
 
-                if("5, 4" in str(ramdump.kernel_version)):
+                if ramdump.kernel_version >= (5, 4, 0):
                     handle = ramdump.read_u32(page_owner + handle_offset)
                     slab_index = (((1 << SLAB_INDEX_BIT) - 1) & (handle >> (SLAB_INDEX_START - 1)))
                     slub_offset = (((1 << SLAB_OFFSET_BIT) - 1) & (handle >> (SLAB_OFFSET_START - 1)))

@@ -9,7 +9,7 @@ include $(TOPDIR)/rules.mk
 
 PKG_NAME:=libdcwsocket
 PKG_VERSION:=1.1.0
-PKG_RELEASE:=1
+PKG_RELEASE:=2
 
 PKG_SOURCE:=$(PKG_NAME)-$(PKG_VERSION).tar.gz
 PKG_SOURCE_URL:=https://codeload.github.com/ewsi/$(PKG_NAME)/tar.gz/v$(PKG_VERSION)?
@@ -22,6 +22,7 @@ PKG_LICENSE_FILES:=COPYING
 
 PKG_INSTALL:=1
 PKG_BUILD_PARALLEL:=1
+PKG_BUILD_FLAGS:=gc-sections lto
 
 include $(INCLUDE_DIR)/package.mk
 
@@ -37,8 +38,8 @@ define Package/libdcwsocket/description
   User-land C library for sending and receiving DCW "EtherType"d messages
 endef
 
-TARGET_CFLAGS += -std=c89 -ffunction-sections -fdata-sections -flto
-TARGET_LDFLAGS += -Wl,--gc-sections,--as-needed
+TARGET_CFLAGS += -std=c89
+TARGET_LDFLAGS += -Wl,--as-needed
 
 define Build/InstallDev
 	$(INSTALL_DIR) $(1)/usr/include

@@ -70,6 +70,12 @@ config QCOM_SDM845_LLCC
 	  data required to configure LLCC so that clients can start using the
 	  LLCC slices.
 
+config QCOM_SOC_NETSTANDBY
+	bool "Qualcomm Technologies, Inc. SoC network standby driver"
+	depends on ARCH_QCOM
+	help
+	  SoC network standby driver for ErP support
+
 config IPQ_REG_UPDATE
 	bool "QTI, Subsystem register update driver"
 	depends on ARCH_QCOM
@@ -332,4 +338,14 @@ config QTI_BT_INTERFACE
 	default n
 	help
 	  Enable TTY support for BT host over IMEM.
+
+config QCOM_QDSS_BRIDGE
+        bool "Configure bridge driver for QTI/Qualcomm Technologies, Inc. MDM"
+        depends on MHI_BUS
+        help
+          The driver will help route diag traffic from modem side over the QDSS
+          sub-system to USB on APSS side. The driver acts as a bridge between the
+          MHI and USB interface.
+          If unsure, say N.
+
 endmenu

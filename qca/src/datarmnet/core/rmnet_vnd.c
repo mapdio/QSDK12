@@ -369,6 +369,8 @@ void rmnet_vnd_setup(struct net_device *rmnet_dev)
 
 	rmnet_dev->needs_free_netdev = true;
 	rmnet_dev->ethtool_ops = &rmnet_ethtool_ops;
+
+	rmnet_dev->priv_flags |= IFF_PHONY_HEADROOM;
 }
 
 /* Exposed API */

@@ -1,0 +1,102 @@
+From 579c69d4363a2967d1b82b601508ccdd40186467 Mon Sep 17 00:00:00 2001
+From: Raj Kumar Bhagat <quic_rajkbhag@quicinc.com>
+Date: Mon, 28 Nov 2022 17:14:19 +0530
+Subject: [PATCH] cfg80211: Add support to advertise max txpower
+
+Currently only current tx power is advertised to the userspace. For
+RRM link Measurement request/report both current and max tx power
+is required.
+
+Hence add support to advertise max tx power to userspace by adding
+new NL attribute NL80211_ATTR_WIPHY_MAX_TX_POWER_LEVEL and new NL
+extended feature NL80211_EXT_FEATURE_TX_POWER_REPORTING.
+
+Signed-off-by: Raj Kumar Bhagat <quic_rajkbhag@quicinc.com>
+---
+ include/net/cfg80211.h       |  2 ++
+ include/uapi/linux/nl80211.h | 10 ++++++++++
+ net/wireless/nl80211.c       | 11 ++++++++++-
+ 3 files changed, 22 insertions(+), 1 deletion(-)
+
+--- a/include/net/cfg80211.h
++++ b/include/net/cfg80211.h
+@@ -5492,6 +5492,8 @@ struct wiphy {
+ 	u8 ema_max_profile_periodicity;
+ 	u16 max_num_akm_suites;
+ 
++	int rdev_max_txpower;
++
+ 	char priv[] __aligned(NETDEV_ALIGN);
+ };
+ 
+--- a/include/uapi/linux/nl80211.h
++++ b/include/uapi/linux/nl80211.h
+@@ -2771,6 +2771,10 @@ enum nl80211_commands {
+  *	for co-located APs and neighbor APs in ESS to be added in all
+  *	EMA beacons.
+  *
++ * @NL80211_ATTR_WIPHY_MAX_TX_POWER_LEVEL: Max transmit power level allowed in
++ * 	the operating channel as per device capability, policy and regulatory
++ * 	authority in signed mBm units.
++ *
+  * @NUM_NL80211_ATTR: total number of nl80211_attrs available
+  * @NL80211_ATTR_MAX: highest attribute number currently defined
+  * @__NL80211_ATTR_AFTER_LAST: internal use
+@@ -3313,6 +3317,8 @@ enum nl80211_attrs {
+ 
+ 	NL80211_ATTR_EMA_RNR_ELEMS,
+ 
++	NL80211_ATTR_WIPHY_MAX_TX_POWER_LEVEL,
++
+ 	/* add attributes here, update the policy in nl80211.c */
+ 
+ 	__NL80211_ATTR_AFTER_LAST,
+@@ -6361,6 +6367,9 @@ enum nl80211_feature_flags {
+  * @NL80211_EXT_FEATURE_WIDE_BAND_SCAN: Driver/device supports wide band scan
+  *	 on a frequency along with its corresponding phymode (40Mhz, 80Mhz)
+  *
++ * @NL80211_EXT_FEATURE_TX_POWER_REPORTING: Driver supports reporting the
++ *      transmit power information to the userspace.
++ *
+  * @NUM_NL80211_EXT_FEATURES: number of extended features.
+  * @MAX_NL80211_EXT_FEATURES: highest extended feature index.
+  */
+@@ -6430,6 +6439,7 @@ enum nl80211_ext_feature_index {
+ 	NL80211_EXT_FEATURE_WIDE_BAND_SCAN,
+ 	NL80211_EXT_FEATURE_RADAR_BACKGROUND,
+ 	NL80211_EXT_FEATURE_STA_MGMT_RTS_CTS,
++	NL80211_EXT_FEATURE_TX_POWER_REPORTING,
+ 
+ 	/* add new features before the definition below */
+ 	NUM_NL80211_EXT_FEATURES,
+--- a/net/wireless/nl80211.c
++++ b/net/wireless/nl80211.c
+@@ -838,6 +838,7 @@ static const struct nla_policy nl80211_p
+ 	[NL80211_ATTR_AWGN_INTERFERENCE_BITMAP] = { .type = NLA_U32 },
+ 	[NL80211_ATTR_6G_REG_POWER_MODE] = NLA_POLICY_RANGE(NLA_U8, 0, 2),
+ 	[NL80211_ATTR_EMA_RNR_ELEMS] = { .type = NLA_NESTED },
++	[NL80211_ATTR_WIPHY_MAX_TX_POWER_LEVEL] = { .type = NLA_U32 },
+ };
+ 
+ /* policy for the key attributes */
+@@ -3839,11 +3840,19 @@ static int nl80211_send_iface(struct sk_
+ 
+ 	if (rdev->ops->get_channel && !wdev->valid_links) {
+ 		struct cfg80211_chan_def chandef = {};
+-		int ret;
++		int ret, dbm;
+ 
+ 		ret = rdev_get_channel(rdev, wdev, 0, &chandef);
+ 		if (ret == 0 && nl80211_send_chandef(msg, &chandef))
+ 			goto nla_put_failure;
++		if (chandef.chan && chandef.chan->max_power) {
++			dbm = min(chandef.chan->max_power,
++				  rdev->wiphy.rdev_max_txpower);
++			if(nla_put_u32(msg,
++				       NL80211_ATTR_WIPHY_MAX_TX_POWER_LEVEL,
++				       DBM_TO_MBM(dbm)))
++				goto nla_put_failure;
++		}
+ 	}
+ 
+ 	if (rdev->ops->get_tx_power) {

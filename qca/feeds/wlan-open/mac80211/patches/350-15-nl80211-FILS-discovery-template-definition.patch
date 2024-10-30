@@ -108,7 +108,7 @@ Signed-off-by: Aloka Dixit <quic_alokad@quicinc.com>
  	int err;
  
  	if (dev->ieee80211_ptr->iftype != NL80211_IFTYPE_AP &&
-@@ -6111,17 +6111,38 @@ static int nl80211_set_beacon(struct sk_
+@@ -6111,17 +6111,30 @@ static int nl80211_set_beacon(struct sk_
  	if (!wdev->links[link_id].ap.beacon_interval)
  		return -EINVAL;
  
@@ -125,14 +125,6 @@ Signed-off-by: Aloka Dixit <quic_alokad@quicinc.com>
 +		err = nl80211_parse_fils_discovery(rdev,
 +						   info->attrs[NL80211_ATTR_FILS_DISCOVERY],
 +						   params);
-+		if (err)
-+			goto out;
-+	}
-+
-+	if (info->attrs[NL80211_ATTR_UNSOL_BCAST_PROBE_RESP]) {
-+		err = nl80211_parse_unsol_bcast_probe_resp(rdev,
-+							   info->attrs[NL80211_ATTR_UNSOL_BCAST_PROBE_RESP],
-+							   params);
 +		if (err)
 +			goto out;
 +	}

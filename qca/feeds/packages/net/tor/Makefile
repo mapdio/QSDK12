@@ -8,13 +8,13 @@
 include $(TOPDIR)/rules.mk
 
 PKG_NAME:=tor
-PKG_VERSION:=0.4.5.10
+PKG_VERSION:=0.4.8.7
 PKG_RELEASE:=1
 
 PKG_SOURCE:=$(PKG_NAME)-$(PKG_VERSION).tar.gz
 PKG_SOURCE_URL:=https://dist.torproject.org/ \
 	https://archive.torproject.org/tor-package-archive
-PKG_HASH:=8fe32222f8f2b4e65c6f50ac32eb4dfca59b8af71d0d16781f7ee5bec4c00743
+PKG_HASH:=b20d2b9c74db28a00c07f090ee5b0241b2b684f3afdecccc6b8008931c557491
 PKG_MAINTAINER:=Hauke Mehrtens <hauke@hauke-m.de> \
 		Peter Wagner <tripolar@gmx.at>
 PKG_LICENSE_FILES:=LICENSE
@@ -23,6 +23,7 @@ PKG_CPE_ID:=cpe:/a:torproject:tor
 PKG_INSTALL:=1
 PKG_FIXUP:=autoreconf
 PKG_BUILD_PARALLEL:=1
+PKG_BUILD_FLAGS:=gc-sections lto
 
 include $(INCLUDE_DIR)/package.mk
 
@@ -31,58 +32,83 @@ define Package/tor/Default
   CATEGORY:=Network
   URL:=https://www.torproject.org/
   USERID:=tor=52:tor=52
+  DEPENDS:=+libevent2 +libopenssl +libpthread +librt +zlib +libcap
+  TITLE:=Tor routing daemon
 endef
 
 define Package/tor/Default/description
- Tor is a toolset for a wide range of organizations and people that want to
- improve their safety and security on the Internet. Using Tor can help you
- anonymize web browsing and publishing, instant messaging, IRC, SSH, and
- more. Tor also provides a platform on which software developers can build
- new applications with built-in anonymity, safety, and privacy features.
+Tor is a toolset for a wide range of organizations and people that want to
+improve their safety and security on the Internet. Using Tor can help you
+anonymize web browsing and publishing, instant messaging, IRC, SSH, and
+more. Tor also provides a platform on which software developers can build
+new applications with built-in anonymity, safety, and privacy features.
 endef
 
 define Package/tor
 $(call Package/tor/Default)
-  TITLE:=An anonymous Internet communication system
-  DEPENDS:=+libevent2 +libopenssl +libpthread +librt +zlib +libcap
+  TITLE+= (full)
+  CONFLICTS:=tor-basic
+  PROVIDES:=tor-basic
+  VARIANT:=full
 endef
 
 define Package/tor/description
 $(call Package/tor/Default/description)
- This package contains the tor daemon.
+
+This package contains the full tor daemon.
+
+endef
+
+define Package/tor-basic
+$(call Package/tor/Default)
+  TITLE+= (no bridge/relay support)
+  VARIANT:=basic
+endef
+
+define Package/tor-basic/description
+$(call Package/tor/Default/description)
+
+This package contains the basic tor daemon, without bridge/relay support.
+
 endef
 
 define Package/tor-gencert
 $(call Package/tor/Default)
   TITLE:=Tor certificate generation
-  DEPENDS:=+tor
+  DEPENDS:=tor
 endef
 
 define Package/tor-gencert/description
 $(call Package/tor/Default/description)
- Generate certs and keys for Tor directory authorities
+
+Generate certs and keys for Tor directory authorities.
+
 endef
 
 define Package/tor-resolve
 $(call Package/tor/Default)
   TITLE:=tor hostname resolve
-  DEPENDS:=+tor
+  DEPENDS:=tor-basic
 endef
 
 define Package/tor-resolve/description
 $(call Package/tor/Default/description)
- Resolve a hostname to an IP address via tor
+
+Resolve a hostname to an IP address via tor.
+
 endef
 
 define Package/tor-geoip
 $(call Package/tor/Default)
   TITLE:=GeoIP db for tor
-  DEPENDS:=+tor
+  DEPENDS:=tor-basic
 endef
 
 define Package/tor-geoip/description
 $(call Package/tor/Default/description)
- This package contains a GeoIP database mapping IP addresses to countries.
+
+This package contains a GeoIP database mapping IP addresses to countries.
+
 endef
 
 define Package/tor/conffiles
@@ -91,6 +117,8 @@ define Package/tor/conffiles
 /var/lib/tor/keys/*
 /etc/config/tor
 endef
+
+Package/tor-basic/conffiles = $(Package/tor/conffiles)
 
 CONFIGURE_ARGS += \
 	--with-libevent-dir="$(STAGING_DIR)/usr" \
@@ -105,19 +133,15 @@ CONFIGURE_ARGS += \
 	--disable-lzma \
 	--disable-zstd \
 	--with-tor-user=tor \
-	--with-tor-group=tor
+	--with-tor-group=tor \
+	--enable-pic
 
-TARGET_CFLAGS += -ffunction-sections -fdata-sections -flto
-TARGET_CFLAGS += -ffunction-sections -fdata-sections -flto \
-       $(if $(CONFIG_OPENSSL_ENGINE),,-DDISABLE_ENGINES)
-TARGET_LDFLAGS += -Wl,--gc-sections -flto
-
-ifneq ($(CONFIG_SSP_SUPPORT),y)
-	CONFIGURE_ARGS += \
-		--disable-gcc-hardening
-else
-	EXTRA_CFLAGS += $(FPIC)
+ifeq ($(BUILD_VARIANT),basic)
+  CONFIGURE_ARGS += --disable-module-relay
 endif
+
+
+TARGET_CFLAGS += $(if $(CONFIG_OPENSSL_ENGINE),,-DDISABLE_ENGINES)
 
 CONFIGURE_VARS += \
 	CROSS_COMPILE="yes" \
@@ -133,6 +157,8 @@ define Package/tor/install
 	$(INSTALL_DIR) $(1)/etc/config
 	$(INSTALL_CONF) ./files/tor.conf $(1)/etc/config/tor
 endef
+
+Package/tor-basic/install = $(Package/tor/install)
 
 define Package/tor-gencert/install
 	$(INSTALL_DIR) $(1)/usr/sbin
@@ -153,6 +179,7 @@ define Package/tor-geoip/install
 endef
 
 $(eval $(call BuildPackage,tor))
+$(eval $(call BuildPackage,tor-basic))
 $(eval $(call BuildPackage,tor-gencert))
 $(eval $(call BuildPackage,tor-resolve))
 $(eval $(call BuildPackage,tor-geoip))

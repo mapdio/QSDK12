@@ -2,14 +2,13 @@ include $(TOPDIR)/rules.mk
 
 PKG_NAME:=device-observatory
 PKG_VERSION:=1.2.0
-PKG_RELEASE:=5
+PKG_RELEASE:=7
 
 PKG_SOURCE_URL:=https://codeload.github.com/mwarning/device-observatory/tar.gz/v$(PKG_VERSION)?
 PKG_SOURCE:=$(PKG_NAME)-$(PKG_VERSION).tar.gz
 PKG_HASH:=83b3f362f154a427abbd3af31b3c2dda9983cdc15f6b833d804727ef0fbdc72e
 
 PKG_LICENSE:=GPL-3.0-or-later
-PKG_BUILD_DEPENDS:=vim/host
 
 include $(INCLUDE_DIR)/package.mk
 
@@ -20,6 +19,10 @@ define Package/device-observatory
 	MAINTAINER:=Moritz Warning <moritzwarning@web.de>
 	URL:=https://github.com/mwarning/device-observatory/
 	DEPENDS:=+iw +libpcap +libmicrohttpd
+endef
+
+define Package/device-observatory/conffiles
+/etc/config/device-observatory
 endef
 
 define Package/device-observatory/description

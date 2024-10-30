@@ -372,12 +372,30 @@ config SKB_RECYCLE_MAX_PREALLOC_SKBS
 	---help---
 	 Number of SKBs each of 4K size to be preallocated for recycling
 
+config SKB_RECYCLE_SIZE
+	int "Minimum size for a recycled buffer"
+	depends on SKB_RECYCLER
+	default 2304
+	---help---
+	Minimum size for a recycled buffer
+
 config ALLOC_SKB_PAGE_FRAG_DISABLE
 	bool "Disable page fragment based skbuff payload allocations"
 	depends on !SKB_RECYCLER
 	default n
 	---help---
 	 Disable page fragment based allocations for skbuff payloads.
+
+config SKB_FAST_RECYCLABLE_DEBUG_ENABLE
+	bool "Enable debug API for fast recycled skbs"
+	depends on SKB_RECYCLER
+	default n
+	---help---
+	Enable debug API for fast recycled skbs.
+
+config SKB_TIMESTAMP
+	bool "Timestamp storage enablement in the packet"
+	default n
 
 menu "Network testing"
 
@@ -406,6 +424,12 @@ config NET_DROP_MONITOR
 	process.  If you don't need network drop alerts, or if you are ok
 	just checking the various proc files and other utilities for
 	drop statistics, say N here.
+
+config DEFAULT_QDISC_DISABLE
+	bool "Diable default qdisc configuration"
+	---help---
+	  Use this config to disable default qdisc configuration on network
+	  devices.
 
 endmenu
 

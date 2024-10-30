@@ -13,10 +13,16 @@ facters_dir="/etc/alfred"
 enable=0
 vis_enable=0
 
+append_interface()
+{
+	append "interfaces" "$1" ","
+}
+
 alfred_start() {
 	local args=""
 	local section="$1"
 	local disabled interface mode
+	local interfaces
 
 	# check if section is disabled
 	config_get_bool disabled "$section" disabled 0
@@ -24,8 +30,12 @@ alfred_start() {
 
 	args="-f"
 
-	config_get interface "$section" interface
-	append args "-i $interface"
+	config_list_foreach "$section" "interface" append_interface
+	if [ -z "$interfaces" ]; then
+		config_get interface "$section" interface
+		append_interface "$interface"
+	fi
+	append args "-i $interfaces"
 
 	config_get mode "$section" mode
 	[ "$mode" = "master" ] && append args "-m"

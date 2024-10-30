@@ -1,6 +1,6 @@
 /*
  * Copyright (c) 2012, 2014-2015, 2017-2020, The Linux Foundation. All rights reserved.
- * Copyright (c) 2021-2023, Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2021-2024, Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for any
  * purpose with or without fee is hereby granted, provided that the above
@@ -34,8 +34,16 @@
 #include <net/switch.h>
 #endif
 #endif
+#if defined(CONFIG_OF) && (LINUX_VERSION_CODE >= KERNEL_VERSION(6,1,0))
+#include <dt-bindings/arm/qcom,ids.h>
+#include <linux/soc/qcom/smem.h>
+#else
+#include <soc/qcom/socinfo.h>
+#endif
+
 /*qca808x_start*/
 #include <linux/phy.h>
+#include <linux/bitfield.h>
 
 #ifndef BIT
 #define BIT(_n)                                      (1UL << (_n))
@@ -172,7 +180,8 @@
 
 #define SSDK_GPIO_RESET                              0
 #define SSDK_GPIO_RELEASE                            1
-#define SSDK_INVALID_GPIO                            0
+#define SSDK_MAX_GPIO                                0xffff
+#define SSDK_INVALID_GPIO                            (SSDK_MAX_GPIO+1)
 
 enum {
     AR8327_PORT_SPEED_10M = 0,
@@ -242,6 +251,13 @@ enum {
 #define SSDK_LOG_LEVEL_INFO     2
 #define SSDK_LOG_LEVEL_DEBUG    3
 #define SSDK_LOG_LEVEL_DEFAULT  SSDK_LOG_LEVEL_INFO
+#define SSDK_MII_BUS_MAX           2
+#define SSDK_MII_INVALID_BUS_ID    SSDK_MII_BUS_MAX
+#define SSDK_MII_DEFAULT_BUS_ID    0
+
+#define SSDK_ADDR_C45            (1<<30)
+#define SSDK_DEVADDR_C45_MASK    GENMASK(20, 16)
+#define SSDK_REGADDR_C45_MASK    GENMASK(15, 0)
 
 extern a_uint32_t ssdk_log_level;
 
@@ -267,6 +283,12 @@ extern a_uint32_t ssdk_log_level;
 #define SSDK_WARN(fmt, ...)  __SSDK_LOG_FUN(WARN, fmt, ##__VA_ARGS__)
 #define SSDK_INFO(fmt, ...)  __SSDK_LOG_FUN(INFO, fmt, ##__VA_ARGS__)
 #define SSDK_DEBUG(fmt, ...) __SSDK_LOG_FUN(DEBUG, fmt, ##__VA_ARGS__)
+
+typedef enum {
+	FDB_SYNC_DIS = 0,
+	FDB_SYNC_INTR,
+	FDB_SYNC_POLLING,
+} fdb_sync_t;
 
 struct qca_phy_priv {
 	struct phy_device *phy;
@@ -324,22 +346,24 @@ struct qca_phy_priv {
 	struct delayed_work mac_sw_sync_dwork;
 	/*hppe_mac_sw_sync end*/
 	/*hppe_fdb_sw_sync*/
-	struct mutex fdb_sw_sync_lock;
+	aos_lock_t fdb_sw_sync_lock;
 	struct delayed_work fdb_sw_sync_dwork;
 	fal_pbmp_t fdb_sw_sync_port_map;
+	struct list_head sw_fdb_tbl;
+	a_bool_t fdb_polling_started;
 	/*hppe_fdb_sw_sync end*/
 /*qca808x_start*/
-	struct mii_bus *miibus;
+	struct mii_bus *miibus[SSDK_MII_BUS_MAX];
 /*qca808x_end*/
 	u64 *mib_counters;
 	a_uint32_t mib_loop_cnt;
 	/* dump buf */
 	a_uint8_t  buf[2048];
 	a_uint32_t link_polling_required;
-	/* it is valid only when link_polling_required is false*/
-	a_uint32_t link_interrupt_no;
+	fdb_sync_t fdb_sync;
+	a_uint32_t interrupt_no;
 	a_uint32_t interrupt_flag;
-	char link_intr_name[IFNAMSIZ];
+	char intr_name[IFNAMSIZ];
 	/* VLAN database */
 	bool       vlan;  /* True: 1q vlan mode, False: port vlan mode */
 	a_uint16_t vlan_id[AR8327_MAX_VLANS];
@@ -356,17 +380,25 @@ struct qca_phy_priv {
 	a_uint32_t sfp_mod_present_pin[SW_MAX_NR_PORT];
 	/*sfp_medium_pin, use to select sfp medium or not in combo mode*/
 	a_uint32_t sfp_medium_pin[SW_MAX_NR_PORT];
+	a_uint32_t uniphy_clk_output[SSDK_UNIPHY_INSTANCE2];
 /*qca808x_start*/
 };
+
+#define SSDK_SWITCH_REG_TYPE_MASK		GENMASK(31, 28)
+#define SSDK_SWITCH_REG_TYPE_QCA8337		FIELD_PREP(SSDK_SWITCH_REG_TYPE_MASK, 1)
+#define SSDK_SWITCH_REG_TYPE_QCA8386		FIELD_PREP(SSDK_SWITCH_REG_TYPE_MASK, 0)
 
 #if (LINUX_VERSION_CODE >= KERNEL_VERSION(6,1,0))
 #define ETH_LDO_RDY_CNT		3
 struct qca_mdio_data{
-	void __iomem	*membase;
+	void __iomem	*membase[2];
 	void __iomem *eth_ldo_rdy[ETH_LDO_RDY_CNT];
 	int clk_div;
+	bool force_c22;
 	struct gpio_descs *reset_gpios;
 	void (*preinit)(struct mii_bus *bus);
+	u32 (*sw_read)(struct mii_bus *bus, u32 reg);
+	void (*sw_write)(struct mii_bus *bus, u32 reg, u32 val);
 	struct clk *clk[];
 };
 #else
@@ -376,7 +408,10 @@ struct qca_mdio_data {
 	void __iomem *membase;
 	int phy_irq[PHY_MAX_ADDR];
 	int clk_div;
+	bool force_c22;
 	void (*preinit)(struct mii_bus *bus);
+	u32 (*sw_read)(struct mii_bus *bus, u32 reg);
+	void (*sw_write)(struct mii_bus *bus, u32 reg, u32 val);
 };
 #endif
 
@@ -386,64 +421,60 @@ struct qca_mdio_data {
 #endif
 
 /*qca808x_end*/
-a_uint32_t
-qca_ar8216_mii_read(a_uint32_t dev_id, a_uint32_t reg);
-void
-qca_ar8216_mii_write(a_uint32_t dev_id, a_uint32_t reg, a_uint32_t val);
-a_uint32_t
-qca_mht_mii_read(a_uint32_t dev_id, a_uint32_t reg);
-void
-qca_mht_mii_write(a_uint32_t dev_id, a_uint32_t reg, a_uint32_t val);
-void
-qca_mht_mii_update(a_uint32_t dev_id, a_uint32_t reg, a_uint32_t mask, a_uint32_t val);
+
 sw_error_t
-qca_mht_mii_field_get(a_uint32_t dev_id, a_uint32_t reg_addr,
+qca_mii_bus_lock(a_uint32_t dev_id, a_bool_t enable);
+
+sw_error_t
+__qca_mii_reg_get(a_uint32_t dev_id, a_uint32_t reg_addr,
+                   a_uint8_t value[], a_uint32_t value_len);
+sw_error_t
+__qca_mii_reg_set(a_uint32_t dev_id, a_uint32_t reg_addr, a_uint8_t value[],
+                   a_uint32_t value_len);
+sw_error_t
+__qca_mii_field_get(a_uint32_t dev_id, a_uint32_t reg_addr,
                     a_uint32_t bit_offset, a_uint32_t field_len,
                     a_uint8_t value[], a_uint32_t value_len);
 sw_error_t
-qca_mht_mii_field_set(a_uint32_t dev_id, a_uint32_t reg_addr,
+__qca_mii_field_set(a_uint32_t dev_id, a_uint32_t reg_addr,
+                   a_uint32_t bit_offset, a_uint32_t field_len,
+                   const a_uint8_t value[], a_uint32_t value_len);
+sw_error_t
+qca_mii_reg_get(a_uint32_t dev_id, a_uint32_t reg_addr,
+                   a_uint8_t value[], a_uint32_t value_len);
+sw_error_t
+qca_mii_reg_set(a_uint32_t dev_id, a_uint32_t reg_addr, a_uint8_t value[],
+                   a_uint32_t value_len);
+sw_error_t
+qca_mii_field_get(a_uint32_t dev_id, a_uint32_t reg_addr,
+                   a_uint32_t bit_offset, a_uint32_t field_len,
+                   a_uint8_t value[], a_uint32_t value_len);
+sw_error_t
+qca_mii_field_set(a_uint32_t dev_id, a_uint32_t reg_addr,
                    a_uint32_t bit_offset, a_uint32_t field_len,
                    const a_uint8_t value[], a_uint32_t value_len);
 
 #define MHT_REG_FIELD_GET(rv, dev, reg, index, field, value, val_len) \
-	rv = qca_mht_mii_field_get(dev, reg##_OFFSET + ((a_uint32_t)index) * reg##_E_OFFSET,\
+	rv = qca_mii_field_get(dev, reg##_OFFSET + ((a_uint32_t)index) * reg##_E_OFFSET,\
 	reg##_##field##_BOFFSET, \
 	reg##_##field##_BLEN, value, val_len);
 
 #define MHT_REG_FIELD_SET(rv, dev, reg, index, field, value, val_len) \
-		rv = qca_mht_mii_field_set(dev, reg##_OFFSET + ((a_uint32_t)index) * reg##_E_OFFSET,\
+		rv = qca_mii_field_set(dev, reg##_OFFSET + ((a_uint32_t)index) * reg##_E_OFFSET,\
 		reg##_##field##_BOFFSET, \
 		reg##_##field##_BLEN, value, val_len);
+sw_error_t qca_mii_raw_read(struct mii_bus *bus, a_uint32_t reg, a_uint32_t *val);
+sw_error_t qca_mii_raw_write(struct mii_bus *bus, a_uint32_t reg, a_uint32_t val);
+sw_error_t qca_mii_raw_update(struct mii_bus *bus, a_uint32_t reg,
+		a_uint32_t clear, a_uint32_t set);
+a_uint32_t qca_mii_read(a_uint32_t dev_id, a_uint32_t reg);
+void qca_mii_write(a_uint32_t dev_id, a_uint32_t reg, a_uint32_t val);
+int qca_mii_update(a_uint32_t dev_id, a_uint32_t reg, a_uint32_t mask, a_uint32_t val);
 
-a_uint32_t
-qca_mii_read(a_uint32_t dev_id, a_uint32_t reg);
-void
-qca_mii_write(a_uint32_t dev_id, a_uint32_t reg, a_uint32_t val);
-/*qca808x_start*/
-sw_error_t
-qca_ar8327_phy_read(a_uint32_t dev_id, a_uint32_t phy_addr,
-			a_uint32_t reg, a_uint16_t* data);
-sw_error_t
-qca_ar8327_phy_write(a_uint32_t dev_id, a_uint32_t phy_addr,
-                            a_uint32_t reg, a_uint16_t data);
-void
-qca_ar8327_mmd_write(a_uint32_t dev_id, a_uint32_t phy_addr,
-                              a_uint16_t addr, a_uint16_t data);
-void
-qca_ar8327_phy_dbg_write(a_uint32_t dev_id, a_uint32_t phy_addr,
-		                          a_uint16_t dbg_addr, a_uint16_t dbg_data);
-void
-qca_ar8327_phy_dbg_read(a_uint32_t dev_id, a_uint32_t phy_addr,
-		                          a_uint16_t dbg_addr, a_uint16_t *dbg_data);
+a_uint32_t __qca_mii_read(a_uint32_t dev_id, a_uint32_t reg);
+void __qca_mii_write(a_uint32_t dev_id, a_uint32_t reg, a_uint32_t val);
+int __qca_mii_update(a_uint32_t dev_id, a_uint32_t reg, a_uint32_t mask, a_uint32_t val);
 
-void
-qca_phy_mmd_write(u32 dev_id, u32 phy_id,
-                     u16 mmd_num, u16 reg_id, u16 reg_val);
-
-u16
-qca_phy_mmd_read(u32 dev_id, u32 phy_id,
-		u16 mmd_num, u16 reg_id);
-/*qca808x_end*/
 sw_error_t
 qca_switch_reg_read(a_uint32_t dev_id, a_uint32_t reg_addr,
 			a_uint8_t * reg_data, a_uint32_t len);
@@ -468,16 +499,23 @@ sw_error_t
 qca_uniphy_reg_read(a_uint32_t dev_id, a_uint32_t uniphy_index,
 				a_uint32_t reg_addr, a_uint8_t * reg_data, a_uint32_t len);
 /*qca808x_start*/
-struct mii_bus *ssdk_miibus_get_by_device(a_uint32_t dev_id);
+struct mii_bus *ssdk_miibus_get(a_uint32_t dev_id, a_uint32_t index);
+struct mii_bus *ssdk_port_miibus_get(a_uint32_t dev_id, a_uint32_t port_id);
+struct mii_bus *ssdk_phy_miibus_get(a_uint32_t dev_id, a_uint32_t phy_addr);
+sw_error_t ssdk_miibus_add(a_uint32_t dev_id, struct mii_bus *miibus, a_uint32_t *index);
+a_uint32_t ssdk_miibus_index_get(a_uint32_t dev_id, struct mii_bus *miibus);
 /*qca808x_end*/
-sw_error_t ssdk_miibus_freq_set(a_uint32_t dev_id, a_uint32_t freq);
-sw_error_t ssdk_miibus_freq_get(a_uint32_t dev_id, a_uint32_t *freq);
+sw_error_t ssdk_miibus_freq_set(a_uint32_t dev_id, a_uint32_t index, a_uint32_t freq);
+sw_error_t ssdk_miibus_freq_get(a_uint32_t dev_id, a_uint32_t index, a_uint32_t *freq);
 
 int ssdk_sysfs_init (void);
 void ssdk_sysfs_exit (void);
+int ssdk_uniphy_valid_check(a_uint32_t dev_id, a_uint32_t index, a_uint32_t mode);
 /*qca808x_start*/
 int ssdk_plat_init(ssdk_init_cfg *cfg, a_uint32_t dev_id);
 void ssdk_plat_exit(a_uint32_t dev_id);
-
+#define qca_mht_mii_read qca_mii_read
+#define qca_mht_mii_write qca_mii_write
+#define qca_mht_mii_update qca_mii_update
 #endif
 /*qca808x_end*/

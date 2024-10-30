@@ -1,6 +1,6 @@
 /*
  * Copyright (c) 2014, 2016-2019, 2021, The Linux Foundation. All rights reserved.
- * Copyright (c) 2021-2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2021-2023 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for any
  * purpose with or without fee is hereby granted, provided that the above
@@ -254,6 +254,8 @@ typedef enum {
 				/**<PORT_UQXGMII mode*/
 		PORT_UQXGMII_3CHANNELS,
 				/**<PORT_UQXGMII 3 port mode*/
+		PORT_INTERFACE_MODE_AUTO,
+				/**PORT AUTO INTERFACE MODE*/
 		PORT_INTERFACE_MODE_MAX = 0xFF
 	} fal_port_interface_mode_t;
 
@@ -465,6 +467,11 @@ enum
 		a_bool_t  copper_link_status; /*copper link status*/
 		a_bool_t  fiber_link_status; /*fiber link status*/
 	} fal_port_combo_link_status_t;
+
+	typedef enum {
+		FAL_ERP_ACTIVE = 0, /* erp active mode */
+		FAL_ERP_LOW_POWER = 1, /* erp low power mode */
+	} fal_port_erp_power_mode_t;
 
 	sw_error_t
 	fal_port_max_frame_size_set(a_uint32_t dev_id, fal_port_t port_id,
@@ -885,6 +892,11 @@ fal_port_cnt_flush(a_uint32_t dev_id, fal_port_t port_id);
 
 sw_error_t fal_port_combo_link_status_get(a_uint32_t dev_id,
 				fal_port_t port_id, fal_port_combo_link_status_t * status);
+
+sw_error_t
+fal_port_erp_power_mode_set(a_uint32_t dev_id,
+				fal_port_t port_id, fal_port_erp_power_mode_t power_mode);
+
 /*qca808x_start*/
 #ifdef __cplusplus
 }

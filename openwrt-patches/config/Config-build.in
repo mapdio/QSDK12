@@ -1,0 +1,31 @@
+config BUILD_SHORTENED_PATH
+	bool "Enable short build paths"
+	default n
+	help
+	  If enabled, build_dir and staging_dir paths will be shortened.
+
+config LOWMEM_FLASH
+	bool
+	prompt "Enable support for lowmem flash"
+	default n
+	help
+	  This enables support for lowmem flash based packages only
+	  before building the root filesystem.
+
+config LINUX_IS_FLATTENED_TREE
+	bool "build linux source as flattened tree"
+	default y
+
+config EXTERNAL_LINUX_CONFIG_NAME
+	string "Enter your config name"
+	default ""
+
+config PKG_MAP_SYMBOL
+	bool
+	prompt "Enable flag to enable packages with map symbol files"
+	default n
+	help
+	  Add -Map,$(PKG_NAME).map to CFLAGS. The map file provides valuable
+	  information that can help you understand and optimize memory. The map file
+	  provides symbol table for the whole source code. You can disable this per
+	  package by adding PKG_MAP_SYMBOL:=0 in the package Makefile.

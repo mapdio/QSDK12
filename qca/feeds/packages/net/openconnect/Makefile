@@ -8,12 +8,12 @@
 include $(TOPDIR)/rules.mk
 
 PKG_NAME:=openconnect
-PKG_VERSION:=8.10
+PKG_VERSION:=9.12
 PKG_RELEASE:=2
 
 PKG_SOURCE:=$(PKG_NAME)-$(PKG_VERSION).tar.gz
-PKG_SOURCE_URL:=ftp://ftp.infradead.org/pub/openconnect/
-PKG_HASH:=30e64c6eca4be47bbf1d61f53dc003c6621213738d4ea7a35e5cf1ac2de9bab1
+PKG_SOURCE_URL:=https://www.infradead.org/openconnect/download
+PKG_HASH:=a2bedce3aa4dfe75e36e407e48e8e8bc91d46def5335ac9564fbf91bd4b2413e
 
 PKG_LICENSE:=LGPL-2.1-or-later
 PKG_LICENSE_FILES:=COPYING.LGPL
@@ -23,9 +23,10 @@ PKG_CONFIG_DEPENDS:= \
 	CONFIG_OPENCONNECT_GNUTLS \
 	CONFIG_OPENCONNECT_OPENSSL \
 
-PKG_USE_MIPS16:=0
+PKG_BUILD_FLAGS:=no-mips16
 
 include $(INCLUDE_DIR)/package.mk
+include $(INCLUDE_DIR)/nls.mk
 
 define Package/openconnect/config
 	source "$(SOURCE)/Config.in"
@@ -34,7 +35,7 @@ endef
 define Package/openconnect
   SECTION:=net
   CATEGORY:=Network
-  DEPENDS:=+libxml2 +kmod-tun +resolveip +vpnc-scripts +OPENCONNECT_OPENSSL:libopenssl +OPENCONNECT_OPENSSL:p11-kit +OPENCONNECT_OPENSSL:libp11 +OPENCONNECT_GNUTLS:libgnutls +OPENCONNECT_GNUTLS:libtasn1 +OPENCONNECT_STOKEN:libstoken
+  DEPENDS:=+libxml2 +kmod-tun +resolveip +vpnc-scripts +OPENCONNECT_OPENSSL:libopenssl +OPENCONNECT_OPENSSL:p11-kit +OPENCONNECT_OPENSSL:libp11 +OPENCONNECT_GNUTLS:libgnutls +OPENCONNECT_GNUTLS:libtasn1 +OPENCONNECT_STOKEN:libstoken $(ICONV_DEPENDS) $(INTL_DEPENDS)
   TITLE:=OpenConnect VPN client (Cisco AnyConnect and Juniper/Pulse compatible)
   MAINTAINER:=Nikos Mavrogiannopoulos <n.mavrogiannopoulos@gmail.com>
   URL:=https://www.infradead.org/openconnect/
@@ -55,6 +56,8 @@ endef
 
 CONFIGURE_ARGS += \
 	--disable-shared \
+	--with-libiconv-prefix=$(ICONV_PREFIX) \
+	--with-libintl-prefix=$(INTL_PREFIX) \
 	--with-vpnc-script=/lib/netifd/vpnc-script \
 	--without-libpcsclite \
 	--without-stoken \

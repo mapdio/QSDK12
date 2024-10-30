@@ -451,7 +451,7 @@ Signed-off-by: Aditya Kumar Singh <quic_adisi@quicinc.com>
 +		    !radar_channel))
 +		return;
 +
- 	radar_info = kzalloc(sizeof(*radar_info), GFP_ATOMIC);
+ 	radar_info = kzalloc(sizeof(*radar_info), GFP_KERNEL);
  	if (!radar_info)
  		return;
  
@@ -537,7 +537,7 @@ Signed-off-by: Aditya Kumar Singh <quic_adisi@quicinc.com>
  		err = -EBUSY;
  		goto unlock;
  	}
-@@ -10455,14 +10457,21 @@ static int nl80211_start_radar_detection
+@@ -10455,14 +10457,17 @@ static int nl80211_start_radar_detection
  	if (WARN_ON(!cac_time_ms))
  		cac_time_ms = IEEE80211_DFS_MIN_CAC_TIME_MS;
  
@@ -549,11 +549,7 @@ Signed-off-by: Aditya Kumar Singh <quic_adisi@quicinc.com>
 -		wdev->cac_started = true;
 -		wdev->cac_start_time = jiffies;
 -		wdev->cac_time_ms = cac_time_ms;
-+		if (wdev->iftype == NL80211_IFTYPE_MESH_POINT)
-+			wdev->u.mesh.chandef = chandef;
-+		else if (wdev->iftype == NL80211_IFTYPE_AP)
-+			wdev->links[link_id].ap.chandef = chandef;
-+
++		wdev->links[link_id].ap.chandef = chandef;
 +		wdev->links[link_id].cac_started = true;
 +		wdev->links[link_id].cac_start_time = jiffies;
 +		wdev->links[link_id].cac_time_ms = cac_time_ms;
@@ -564,7 +560,7 @@ Signed-off-by: Aditya Kumar Singh <quic_adisi@quicinc.com>
  	wiphy_unlock(wiphy);
  
  	return err;
-@@ -16795,6 +16804,10 @@ nl80211_remove_link_station(struct sk_bu
+@@ -16795,6 +16800,10 @@ nl80211_remove_link_station(struct sk_bu
  	SELECTOR(__sel, NETDEV_UP_LINK,			\
  		 NL80211_FLAG_NEED_NETDEV_UP |		\
  		 NL80211_FLAG_MLO_VALID_LINK_ID)	\
@@ -575,7 +571,7 @@ Signed-off-by: Aditya Kumar Singh <quic_adisi@quicinc.com>
  	SELECTOR(__sel, NETDEV_UP_NO_MLO,		\
  		 NL80211_FLAG_NEED_NETDEV_UP |		\
  		 NL80211_FLAG_MLO_UNSUPPORTED)		\
-@@ -17698,7 +17711,7 @@ static const struct genl_small_ops nl802
+@@ -17698,7 +17707,7 @@ static const struct genl_small_ops nl802
  		.flags = GENL_UNS_ADMIN_PERM,
  		.internal_flags = IFLAGS(NL80211_FLAG_NEED_NETDEV_UP |
  					 NL80211_FLAG_NO_WIPHY_MTX |
@@ -770,7 +766,7 @@ Signed-off-by: Aditya Kumar Singh <quic_adisi@quicinc.com>
  /**
 --- a/net/mac80211/ieee80211_i.h
 +++ b/net/mac80211/ieee80211_i.h
-@@ -1296,6 +1296,7 @@ struct mac80211_memory_stats {
+@@ -1299,6 +1299,7 @@ struct mac80211_memory_stats {
  struct channel_radar_info {
  	struct list_head list;
  	u16 radar_bitmap;
@@ -780,7 +776,7 @@ Signed-off-by: Aditya Kumar Singh <quic_adisi@quicinc.com>
  struct ieee80211_local {
 --- a/drivers/net/wireless/ath/ath12k/wmi.c
 +++ b/drivers/net/wireless/ath/ath12k/wmi.c
-@@ -8447,7 +8447,8 @@ static void ath12k_dfs_calculate_subchan
+@@ -8445,7 +8445,8 @@ static void ath12k_dfs_calculate_subchan
  
  mark_radar:
  	if (!radar->detector_id) {

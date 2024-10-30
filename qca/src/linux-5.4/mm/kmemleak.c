@@ -1056,6 +1056,32 @@ void __ref kmemleak_not_leak(const void *ptr)
 EXPORT_SYMBOL(kmemleak_not_leak);
 
 /**
+ * kmemleak_restore - restore an allocated object ignored
+ * @ptr:	pointer to beginning of the object
+ * @min_count:	minimum number of references to this object.
+ *
+ * Calling this function on an object will cause the ignored memory block to be
+ * scanned and reported as a leak again.
+ */
+void __ref kmemleak_restore(const void *ptr, int min_count)
+{
+	pr_debug("%s(0x%p)\n", __func__, ptr);
+	if (kmemleak_enabled && ptr && !IS_ERR(ptr)) {
+		struct kmemleak_object *object;
+		object = find_and_get_object((unsigned long)ptr, 0);
+		if (!object) {
+			kmemleak_warn("Trying to restore unknown object at 0x%p\n",
+					ptr);
+			return;
+		}
+		paint_it(object, min_count);
+		object->flags &= ~OBJECT_NO_SCAN;
+		put_object(object);
+	}
+}
+EXPORT_SYMBOL(kmemleak_restore);
+
+/**
  * kmemleak_ignore - ignore an allocated object
  * @ptr:	pointer to beginning of the object
  *

@@ -1,6 +1,6 @@
 /*
  * Copyright (c) 2013, 2015-2017, 2019, 2021, The Linux Foundation. All rights reserved.
- * Copyright (c) 2022, Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2024, Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for any
  * purpose with or without fee is hereby granted, provided that the above
@@ -45,7 +45,7 @@ void  cmd_strtol(char *str, a_uint32_t * arg_val);
 sw_error_t cmd_data_check_portmap(char *cmdstr, fal_pbmp_t * val, a_uint32_t size);
 sw_error_t cmd_data_check_confirm(char *cmdstr, a_bool_t def, a_bool_t * val, a_uint32_t size);
 
-sw_error_t cmd_data_check_uint64(char *cmd_str, a_uint32_t * arg_val,
+sw_error_t cmd_data_check_uint64(char *cmd_str, a_uint64_t * arg_val,
                                  a_uint32_t size);
 sw_error_t cmd_data_check_uint32(char *cmd_str, a_uint32_t * arg_val,
                                  a_uint32_t size);
@@ -543,11 +543,6 @@ sw_error_t
 cmd_data_check_vport_type(char *cmd_str, a_uint32_t * arg_val, a_uint32_t size);
 #endif
 #endif
-sw_error_t
-cmd_data_check_module(char *cmd_str, a_uint32_t * arg_val, a_uint32_t size);
-sw_error_t
-cmd_data_check_func_ctrl(char *cmd_str, void * val, a_uint32_t size);
-
 #ifdef IN_TUNNEL
 sw_error_t
 cmd_data_check_tunnel_udp_entry(char *cmd_str, void * val, a_uint32_t size);
@@ -561,8 +556,10 @@ sw_error_t
 cmd_data_check_tunnel_encap_rule_entry(char *info, fal_tunnel_encap_rule_t *val, a_uint32_t size);
 sw_error_t
 cmd_data_check_tunnel_encap_tunnelid(char *info, fal_tunnel_id_t *val, a_uint32_t size);
+#ifndef IN_TUNNEL_MINI
 sw_error_t
 cmd_data_check_tunnel_vlan_intf(char *info, fal_tunnel_vlan_intf_t *val, a_uint32_t size);
+#endif
 sw_error_t
 cmd_data_check_tunnel_decap_entry(char *info, fal_tunnel_decap_entry_t *val, a_uint32_t size);
 sw_error_t
@@ -570,6 +567,7 @@ cmd_data_check_tunnel_encap_entry(char *info, fal_tunnel_encap_cfg_t *val, a_uin
 sw_error_t
 cmd_data_check_tunnel_encap_header_ctrl(char *info,
 		fal_tunnel_encap_header_ctrl_t *val, a_uint32_t size);
+#ifndef IN_TUNNEL_MINI
 sw_error_t
 cmd_data_check_decap_ecn_rule(char *info,
 		fal_tunnel_decap_ecn_rule_t *arg_val, a_uint32_t size);
@@ -580,6 +578,7 @@ sw_error_t
 cmd_data_check_encap_ecn_rule(char *cmd_str, fal_tunnel_encap_ecn_t *arg_val, a_uint32_t size);
 sw_error_t
 cmd_data_check_ecn_val(char *cmd_str, fal_tunnel_ecn_val_t *arg_val, a_uint32_t size);
+#endif
 sw_error_t
 cmd_data_check_tunnel_global_cfg(char *info, fal_tunnel_global_cfg_t *val, a_uint32_t size);
 sw_error_t
@@ -587,6 +586,7 @@ cmd_data_check_tunnel_type(char *cmd_str, fal_tunnel_type_t *arg_val, a_uint32_t
 sw_error_t
 cmd_data_check_tunnel_key(char *cmd_str, fal_tunnel_decap_key_t *arg_val, a_uint32_t size);
 #endif
+
 #if defined(IN_MAPT)
 sw_error_t
 cmd_data_check_mapt_decap_ctrl(char *info, void *val, a_uint32_t size);
@@ -606,8 +606,11 @@ cmd_data_check_vport_state(char *cmd_str, fal_vport_state_t *arg_val, a_uint32_t
 #ifdef IN_VXLAN
 sw_error_t
 cmd_data_check_vxlan_type(char *cmd_str, a_uint32_t * arg_val, a_uint32_t size);
+#ifndef IN_VXLAN_MINI
 sw_error_t
 cmd_data_check_vxlan_gpe_proto(char *cmd_str, void * val, a_uint32_t size);
+#endif
+
 #ifdef IN_TUNNEL_PROGRAM
 sw_error_t
 cmd_data_check_tunnel_program_type(char *cmd_str, a_uint32_t * arg_val, a_uint32_t size);

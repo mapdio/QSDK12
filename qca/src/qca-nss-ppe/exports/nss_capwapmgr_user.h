@@ -1,7 +1,7 @@
 /*
  **************************************************************************
  * Copyright (c) 2015-2018, The Linux Foundation. All rights reserved.
- * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022, 2024 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
@@ -37,6 +37,9 @@
 #define NSS_CAPWAP_MAX_REASSEMBLY_TIMEOUT	(10 * 1000)
 				/**< Maximum timeout for reassembly - 10 seconds. */
 
+#define NSS_CAPWAP_PADDING 14	/**< Padded packet length. */
+
+
 /*
  * CAPWAP Rule configure message flags
  */
@@ -59,6 +62,13 @@
 				/**< PPPoE configured for CAPWAP tunnel. */
 #define NSS_CAPWAP_ENCAP_UDPLITE_HDR_CSUM	0x4
 				/**< Generate only UDP-Lite header checksum. Otherwise whole UDP-Lite payload. */
+
+/*
+ * Flow rule add types. Mutually exclusive fields.
+ * This indicates whether SCS or SDWF ID is configured for inner packet lookup.
+ */
+#define NSS_CAPWAP_FLOW_ATTR_SCS_VALID 0x01		/**< SCS Identification valid in flow attributes. */
+#define NSS_CAPWAP_FLOW_ATTR_SDWF_VALID 0x02		/**< SDWF Identification valid in flow attributes. */
 
 /*
  * CAPWAP version
@@ -87,6 +97,12 @@
 				/**< T=1, then set wbid=1. */
 #define NSS_CAPWAP_PKT_TYPE_802_3		0x0020
 				/**< Data is in 802.3 format. */
+#define NSS_CAPWAP_PKT_TYPE_SCS_ID_VALID	0x0040
+				/**< Inner SCS ID valid. */
+#define NSS_CAPWAP_PKT_TYPE_SDWF_ID_VALID	0x0080
+				/**< Inner SDWF ID valid. */
+#define NSS_CAPWAP_PKT_TYPE_PADDED	0x4000
+				/**< Packet is padded to bypass EDMA length. */
 
 /**
  * nss_capwap_metaheader
@@ -104,9 +120,13 @@ struct nss_capwap_metaheader {
 	uint16_t outer_sgt;	/**< Security Group Tag value in the TrustSec header. */
 	uint16_t inner_sgt;	/**< Security Group Tag value in the TrustSec header. */
 	uint32_t flow_id;	/**< Flow identification. */
-	uint16_t vapid;		/**< VAP ID info. */
-
-	uint16_t magic;		/**< Magic for verification purpose. Use only for debugging. */
+	union {
+		struct {
+			uint16_t vapid;		/**< VAP ID info. */
+			uint16_t magic;		/**< Magic for verification purpose. Use only for debugging. */
+		};
+			uint32_t scs_sdwf_id;	/**< SCS or SDWF Identification. */
+	};
 
 	/*
 	 * Put the wl_info at last so we don't have to do copy if 802.11 to 802.3 conversion did not happen.

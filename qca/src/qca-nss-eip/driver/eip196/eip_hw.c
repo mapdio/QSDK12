@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2022, Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2023, Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for any
  * purpose with or without fee is hereby granted, provided that the above
@@ -375,6 +375,11 @@ int eip_hw_init(struct platform_device *pdev)
 	 */
 	data = ioread32(base_addr + EIP_HW_PE_PE_DEBUG);
 	iowrite32( (data | EIP_HW_ENB_MDATA), base_addr + EIP_HW_PE_PE_DEBUG);
+
+	/*
+	 * No inline support in EIP196
+	 */
+	pr_info("%px: EIP inline_support: no", pdev);
 
 	/*
 	 * Initialize all lookaside DMA.

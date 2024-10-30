@@ -1,13 +1,15 @@
 From 1194cfc2d5835f2cb64b94eaae4431f3995fdc60 Mon Sep 17 00:00:00 2001
-From: Muna Sinada <quic_msinada@quicinc.com>
-Date: Thu, 28 Apr 2022 02:09:05 -0700
-Subject: [PATCH] tests: Clean up EHT test script
+From: Aloka Dixit <quic_alokad@quicinc.com>
+Date: Mon, 28 Jun 2021 13:30:29 -0700
+Subject: [PATCH] eht: configuration options to enable/disable the support
 
-Remove test cases that are no longer valid and add functionality to
-enable compiler flag for disabling EHT mode. Also adds missing
-functionality in Hostapd and WPA Supplicant for disabling EHT mode.
+Add compilation for flag 802.11be along with options to enable
+EHT support per radio and disable_per interface.
 
-Signed-off-by: Muna Sinada <quic_msinada@quicinc.com>
+Enabling HE is mandatory to enable EHT mode.
+
+Tested-by: Pradeep Kumar Chitrapu <quic_pradeepc@quicinc.com>
+Signed-off-by: Aloka Dixit <quic_alokad@quicinc.com>
 ---
  src/drivers/driver.h              |  7 +++++++
  src/drivers/driver_nl80211.c      | 14 ++++++++++++--

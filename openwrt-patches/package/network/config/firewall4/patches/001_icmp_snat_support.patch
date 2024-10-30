@@ -1,0 +1,34 @@
+Author: Ken Zhu <quic_guigenz@quicinc.com>
+Date:   Mon Jul 3 10:02:45 2023 -0700
+
+    firewall4: fix icmp snat issue
+
+    It blocks the icmp snat with port setting which is supported
+    in the kernel.
+
+    Change-Id: Ie68ca7c72e16ecb55ac53679c91968574a0fbd24
+    Signed-off-by: Ken Zhu <quic_guigenz@quicinc.com>
+
+diff -Nur a/root/usr/share/ucode/fw4.uc b/root/usr/share/ucode/fw4.uc
+--- a/root/usr/share/ucode/fw4.uc	2023-03-23 14:01:13.000000000 -0700
++++ b/root/usr/share/ucode/fw4.uc	2023-07-11 14:33:09.409931931 -0700
+@@ -3068,11 +3068,6 @@
+ 			return;
+ 		}
+ 
+-		if ((snat.snat_port || snat.src_port || snat.dest_port) && !ensure_tcpudp(snat.proto)) {
+-			this.warn_section(data, "specifies ports but no UDP/TCP protocol, ignoring section");
+-			return;
+-		}
+-
+ 		if (snat.snat_ip && length(filter(snat.snat_ip.addrs, a => a.bits == -1 || a.invert))) {
+ 			this.warn_section(data, "must not use inversion or non-contiguous masks in 'snat_ip', ignoring section");
+ 			return;
+@@ -3126,6 +3121,7 @@
+ 			switch (proto.name) {
+ 			case "tcp":
+ 			case "udp":
++			case "icmp":
+ 				sport = snat.src_port;
+ 				dport = snat.dest_port;
+ 				rport = snat.snat_port;

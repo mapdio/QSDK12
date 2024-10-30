@@ -720,6 +720,14 @@ struct sk_buff {
 		ktime_t		tstamp;
 		u64		skb_mstamp_ns; /* earliest departure time */
 	};
+
+#ifdef CONFIG_SKB_TIMESTAMP
+	struct {
+		u64		delta_ts0;
+		u64		delta_ts1;
+	};
+#endif
+
 	/*
 	 * This is the control buffer. It is free to use for every
 	 * layer. Please put your private variables there. If you
@@ -1181,7 +1189,7 @@ static inline int skb_pad(struct sk_buff *skb, int pad)
 }
 #define dev_kfree_skb(a)	consume_skb(a)
 #define dev_kfree_skb_list_fast(a)	consume_skb_list_fast(a)
-#if defined(SKB_FAST_RECYCLABLE_DEBUG_ENABLE) && defined(CONFIG_SKB_RECYCLER)
+#if defined(CONFIG_SKB_FAST_RECYCLABLE_DEBUG_ENABLE)
 #define dev_check_skb_fast_recyclable(a)       check_skb_fast_recyclable(a)
 #else
 #define dev_check_skb_fast_recyclable(a)
@@ -2855,6 +2863,9 @@ void *netdev_alloc_frag(unsigned int fragsz);
 struct sk_buff *__netdev_alloc_skb(struct net_device *dev, unsigned int length,
 				   gfp_t gfp_mask);
 
+struct sk_buff *__netdev_alloc_skb_fast(struct net_device *dev, unsigned int length,
+				   gfp_t gfp_mask);
+
 struct sk_buff *__netdev_alloc_skb_no_skb_reset(struct net_device *dev, unsigned int length,
 				   gfp_t gfp_mask);
 
@@ -2875,6 +2886,23 @@ static inline struct sk_buff *netdev_alloc_skb(struct net_device *dev,
 					       unsigned int length)
 {
 	return __netdev_alloc_skb(dev, length, GFP_ATOMIC);
+}
+
+/**
+ *	netdev_alloc_skb_fast - allocate an skbuff for rx on a specific device
+ *	@dev: network device to receive on
+ *	@length: length to allocate
+ *
+ *      This API is same as netdev_alloc_skb except for the fact that it retains
+ *      the recycler fast flags.
+ *
+ *	%NULL is returned if there is no free memory. Although this function
+ *	allocates memory it can be called from an interrupt.
+ */
+static inline struct sk_buff *netdev_alloc_skb_fast(struct net_device *dev,
+						    unsigned int length)
+{
+	return __netdev_alloc_skb_fast(dev, length, GFP_ATOMIC);
 }
 
 /* legacy helper around __netdev_alloc_skb() */

@@ -247,12 +247,20 @@ ifeq (TRUE, $(IN_TUNNEL))
   MODULE_CFLAG += -DIN_TUNNEL
 endif
 
+ifeq (TRUE, $(IN_TUNNEL_MINI))
+  MODULE_CFLAG += -DIN_TUNNEL_MINI
+endif
+
 ifeq (TRUE, $(IN_MAPT))
   MODULE_CFLAG += -DIN_MAPT
 endif
 
 ifeq (TRUE, $(IN_VXLAN))
   MODULE_CFLAG += -DIN_VXLAN
+endif
+
+ifeq (TRUE, $(IN_VXLAN_MINI))
+  MODULE_CFLAG += -DIN_VXLAN_MINI
 endif
 
 ifeq (TRUE, $(IN_GENEVE))
@@ -265,6 +273,10 @@ endif
 
 ifeq (TRUE, $(IN_ATHTAG))
   MODULE_CFLAG += -DIN_ATHTAG
+endif
+
+ifeq (TRUE, $(IN_PKTEDIT))
+  MODULE_CFLAG += -DIN_PKTEDIT
 endif
 
 ifneq (TRUE, $(FAL))
@@ -442,7 +454,7 @@ ifeq (KSLIB, $(MODULE_TYPE))
       KASAN_SHADOW_SCALE_SHIFT := 3
   endif
 
-  ifeq ($(OS_VER),$(filter 5_4 6_1, $(OS_VER)))
+  ifeq ($(OS_VER),$(filter 5_4 6_1 6_6, $(OS_VER)))
       ifeq ($(ARCH), arm64)
           KASAN_OPTION += -DKASAN_SHADOW_SCALE_SHIFT=$(KASAN_SHADOW_SCALE_SHIFT)
        endif
@@ -473,7 +485,7 @@ ifeq (KSLIB, $(MODULE_TYPE))
 
   endif
 
-  ifeq ($(OS_VER),$(filter 4_4 5_4 6_1, $(OS_VER)))
+  ifeq ($(OS_VER),$(filter 4_4 5_4 6_1 6_6, $(OS_VER)))
                 MODULE_CFLAG += -DKVER34
                 MODULE_CFLAG += -DKVER32
             MODULE_CFLAG += -DLNX26_22
@@ -506,6 +518,7 @@ ifeq (KSLIB, $(MODULE_TYPE))
 	    GCC_VERSION ?= $(shell echo "$(CONFIG_GCC_VERSION)" | sed 's/\([0-9]\)\([0-9]\)\([0-9]\)\([0-9]\)\([0-9]\)/\1.\3.\5/')
 	    SYS_INC += -I$(SYS_PATH) \
               -I$(TOOL_PATH)/../lib/gcc/$(TARGET_NAME)/$(GCC_VERSION)/include/ \
+	      -I$(TOOL_PATH)/../lib/gcc/$(TARGET_NAME)/12.3.0/include/ \
 	      -I$(TOOL_PATH)/../lib/gcc/$(TARGET_NAME)/7.5.0/include/ \
               -I$(TOOL_PATH)/../../lib/armv7a-vfp-neon-rdk-linux-gnueabi/gcc/arm-rdk-linux-gnueabi/4.8.4/include/ \
 	      -I$(TOOL_PATH)/../../lib/arm-rdk-linux-musleabi/gcc/arm-rdk-linux-musleabi/6.4.0/include/ \
@@ -769,6 +782,6 @@ LOCAL_CFLAGS += $(CPU_CFLAG) -D"KBUILD_MODNAME=KBUILD_STR(qca-ssdk)"
 ####################################################################
 # 			cflags for LNX Modules-Style Makefile
 ####################################################################
-LNX_LOCAL_CFLAGS += $(MODULE_INC) $(MODULE_CFLAG) ${EXTRA_INC}
+LNX_LOCAL_CFLAGS += $(MODULE_INC) $(MODULE_CFLAG) ${EXTRA_INC} -DFALLTHROUGH
 export LNX_LOCAL_CFLAGS
 

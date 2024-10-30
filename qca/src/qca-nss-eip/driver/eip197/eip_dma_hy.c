@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2022, Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2023, Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for any
  * purpose with or without fee is hereby granted, provided that the above
@@ -115,7 +115,7 @@ static inline void eip_dma_hy_tx_cmd(struct eip_dma *dma, struct eip_sw_desc *sw
 
 		cmd->token[0] = sw->tk_addr;
 		cmd->token[1] = 0;
-		cmd->token[2] = sw->cmd_token_hdr;
+		cmd->token[2] = sw->tk_hdr;
 		cmd->token[3] = 0;
 		cmd->token[4] = sw->tr_addr_type;
 		cmd->token[5] = 0;
@@ -225,7 +225,7 @@ static inline void eip_dma_hy_tr_deliver(struct eip_tr *tr, struct sk_buff *skb,
 	/*
 	 * Call completion callback.
 	 */
-	tr->ipsec.op.cb(tr->ipsec.app_data, skb);
+	tr->ipsec.ops.cb(tr->ipsec.app_data, skb);
 }
 
 /*
@@ -246,7 +246,7 @@ static inline void eip_dma_hy_tr_deliver_err(struct eip_tr *tr, struct sk_buff *
 	/*
 	 * Call completion callback.
 	 */
-	tr->ipsec.op.err_cb(tr->ipsec.app_data, skb, -EBADE);
+	tr->ipsec.ops.err_cb(tr->ipsec.app_data, skb, -EBADE);
 }
 
 /*
@@ -320,6 +320,20 @@ static inline bool eip_dma_hy_classify_err(struct eip_dma *dma, struct sk_buff *
 	 * Other TR error should be processed by clients.
 	 */
 	return false;
+}
+
+/*
+ * eip_dma_hy_refill_all()
+ *	Refill new SKB(s) in all hybrid DMA output ring.
+ */
+void eip_dma_hy_refill_all(struct eip_ctx *ctx)
+{
+	struct eip_pdev *ep = ctx->ep;
+	int cpu;
+
+	for_each_online_cpu(cpu) {
+		eip_dma_hy_refill(&ep->hy[cpu]);
+	}
 }
 
 /*
@@ -480,8 +494,9 @@ deliver:
 
 		/*
 		 * Pull the fake mac added by PPE.
+                 * token[3] contains offset to start of network header.
 		 */
-		skb_pull(head_skb, sizeof(struct ethhdr));
+		skb_pull(head_skb, EIP_HW_RES_OFFST(res->token[3]));
 
 		/*
 		 * Send packet to the client's handler.
@@ -865,16 +880,26 @@ int eip_dma_hy_init(struct eip_dma *dma, struct platform_device *pdev, uint8_t t
 	 * Initialize NAPI for transmit completion for input ring.
 	 */
 	init_dummy_netdev(&dma->in.ndev);
+#if (LINUX_VERSION_CODE < KERNEL_VERSION(6, 1, 0))
 	netif_napi_add(&dma->in.ndev, &dma->in.napi, eip_dma_hy_napi_tx_poll, EIP_DMA_TX_COMPL_NAPI_WEIGHT);
+#else
+	netif_napi_add_weight(&dma->in.ndev, &dma->in.napi, eip_dma_hy_napi_tx_poll,
+			EIP_DMA_TX_COMPL_NAPI_WEIGHT);
+#endif
 	napi_enable(&dma->in.napi);
 
 	/*
 	 * Initialize NAPI for receiving packet for output ring.
 	 */
 	init_dummy_netdev(&dma->out.ndev);
+#if (LINUX_VERSION_CODE < KERNEL_VERSION(6, 1, 0))
 	netif_napi_add(&dma->out.ndev, &dma->out.napi, eip_dma_hy_napi_rx_poll, EIP_DMA_RX_HY_NAPI_WEIGHT);
+#else
+	netif_napi_add_weight(&dma->out.ndev, &dma->out.napi, eip_dma_hy_napi_rx_poll,
+			EIP_DMA_RX_HY_NAPI_WEIGHT);
+#endif
 	napi_enable(&dma->out.napi);
-	eip_dma_hy_refill(dma);
+	ep->dma_refill_req = true;
 
 	/*
 	 * Interrupt can only be handled by the specified CPU.

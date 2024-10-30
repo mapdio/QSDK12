@@ -1,6 +1,6 @@
 /*
  **************************************************************************
- * Copyright (c) 2023, Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2023-2024, Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for any
  * purpose with or without fee is hereby granted, provided that the above
@@ -21,36 +21,94 @@
 
 #include <linux/cdev.h>
 #include <linux/types.h>
+#include "fls_def_sensor.h"
 
 #define FLS_CHARDEV_NAME "fls"
 #define FLS_CHARDEV_SAMPLES_MAX 10
+#define FLS_CHARDEV_WINDOWS_MAX 3
+#define FLS_CHARDEV_EVENTS_LIMIT 5
+
+enum FLS_PROTOCOL_TYPE
+{
+    UDP,
+    TCP
+};
+
+enum FLS_CMD_TYPE {
+	FLS_CHARDEV_FLUSH,
+	FLS_CHARDEV_EVENT,
+	FLS_CHARDEV_RESULT
+};
+
+struct fls_cmdinfo {
+	uint8_t cmd;
+	uint8_t version;
+	uint32_t src_ip[4];
+	uint32_t dst_ip[4];
+	uint16_t src_port;
+	uint16_t dst_port;
+	uint8_t protocol;
+	union fls_data {
+		struct packetinfo{
+			uint32_t packet_size;
+			uint32_t timestamp_sec;
+			long timestamp_nsec;
+		} fls_packetinfo;
+		uint8_t classid;
+	} data;
+};
+
+struct fls_chardev {
+	struct cdev cdev;
+	struct class *cl;
+	dev_t devid;
+	wait_queue_head_t readq;
+};
 
 enum fls_chardev_event_types {
-	FLS_CHARDEV_EVENT_TYPE_DEF
+	FLS_CHARDEV_EVENT_TYPE_DEF,
+	FLS_CHARDEV_EVENT_TYPE_XL /* Extra large window event type */
+};
+
+struct fls_def_event_window {
+	uint32_t orig_packets;
+	uint32_t orig_bytes;
+	uint32_t orig_bytes_min;
+	uint32_t orig_bytes_max;
+	uint64_t orig_delta_sum;
+	uint64_t orig_delta_min;
+	uint64_t orig_delta_max;
+	uint32_t orig_bursts;
+	uint32_t orig_burst_sz_sum;
+	uint32_t orig_burst_sz_min;
+	uint32_t orig_burst_sz_max;
+	uint64_t orig_burst_dur_sum;
+	uint64_t orig_burst_dur_min;
+	uint64_t orig_burst_dur_max;
+
+	uint32_t ret_packets;
+	uint32_t ret_bytes;
+	uint32_t ret_bytes_min;
+	uint32_t ret_bytes_max;
+	uint64_t ret_delta_sum;
+	uint64_t ret_delta_min;
+	uint64_t ret_delta_max;
+	uint32_t ret_bursts;
+	uint32_t ret_burst_sz_sum;
+	uint32_t ret_burst_sz_min;
+	uint32_t ret_burst_sz_max;
+	uint64_t ret_burst_dur_sum;
+	uint64_t ret_burst_dur_min;
+	uint64_t ret_burst_dur_max;
 };
 
 struct fls_def_event_sample
 {
-	uint64_t orig_packets;
-	uint64_t orig_bytes;
-	uint64_t orig_bytes_min;
-	uint64_t orig_bytes_max;
-	uint64_t orig_delta_sum;
-	uint64_t orig_delta_min;
-	uint64_t orig_delta_max;
-
-	uint64_t ret_packets;
-	uint64_t ret_bytes;
-	uint64_t ret_bytes_min;
-	uint64_t ret_bytes_max;
-	uint64_t ret_delta_sum;
-	uint64_t ret_delta_min;
-	uint64_t ret_delta_max;
+	struct fls_def_event_window window[FLS_CHARDEV_WINDOWS_MAX];
 };
 
 struct fls_def_event {
-	uint32_t sample_length_ms;
-
+	uint32_t window_length[FLS_CHARDEV_WINDOWS_MAX];
 	uint32_t sample_count;
 	struct fls_def_event_sample samples[FLS_CHARDEV_SAMPLES_MAX];
 };

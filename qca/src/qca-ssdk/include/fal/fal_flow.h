@@ -1,6 +1,6 @@
 /*
  * Copyright (c) 2016-2019, 2021, The Linux Foundation. All rights reserved.
- * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2024 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
@@ -75,6 +75,7 @@ typedef enum {
 #define FAL_FLOW_QOS_TYPE_COOKIE	1
 typedef struct {
 	a_uint32_t tree_id; /*for qos for flow cookie */
+	a_uint32_t flow_cookie_ext; /* flow_cookie_ext, added for ipq54xx */
 	a_bool_t wifi_qos_en; /* enable wifi qos or not, added for ipq95xx */
 	a_uint32_t wifi_qos; /* wifi qos value, added for ipq95xx */
 	a_uint8_t qos_type; /* wifi qos value, added for ipq53xx */
@@ -173,29 +174,23 @@ typedef struct {
 	a_uint16_t unit; /*0:second 1:cycle 2:million cycle*/
 } fal_flow_age_timer_t;
 
-enum  {
-	FUNC_FLOW_HOST_ADD = 0,
-	FUNC_FLOW_ENTRY_GET,
-	FUNC_FLOW_ENTRY_DEL,
-	FUNC_FLOW_STATUS_GET,
-	FUNC_FLOW_CTRL_SET,
-	FUNC_FLOW_AGE_TIMER_GET,
-	FUNC_FLOW_STATUS_SET,
-	FUNC_FLOW_HOST_GET,
-	FUNC_FLOW_HOST_DEL,
-	FUNC_FLOW_CTRL_GET,
-	FUNC_FLOW_AGE_TIMER_SET,
-	FUNC_FLOW_ENTRY_ADD,
-	FUNC_FLOW_GLOBAL_CFG_GET,
-	FUNC_FLOW_GLOBAL_CFG_SET,
-	FUNC_FLOW_ENTRY_NEXT,
-	FUNC_FLOW_COUNTER_GET,
-	FUNC_FLOW_COUNTER_CLEANUP,
-	FUNC_FLOW_ENTRY_EN_SET,
-	FUNC_FLOW_ENTRY_EN_GET,
-	FUNC_FLOW_QOS_SET,
-	FUNC_FLOW_QOS_GET,
-};
+typedef struct {
+/*input of fal_flow_npt66_iid_cal to calculate*/
+	fal_ip6_addr_t 	sip; 		//source ip, used when is_dnat is false
+	fal_ip6_addr_t 	dip;	 	//destination ip, used when is_dnat is true
+	fal_ip6_addr_t 	tip; 		//translated ip
+	a_uint32_t 		prefix_len;	//ipv6 prefix length
+	a_uint32_t 		tip_prefix_len;	//ipv6 tip prefix length
+	a_bool_t 		is_dnat;	//is dnat or not
+} fal_flow_npt66_iid_calc_t;
+
+typedef struct {
+/*result of fal_flow_npt66_iid_cal*/
+	a_uint32_t iid_offset;
+	a_uint32_t iid;
+	a_bool_t   is_dnat;
+} fal_flow_npt66_iid_t;
+
 
 sw_error_t
 fal_flow_counter_get(a_uint32_t dev_id, a_uint32_t flow_index, fal_entry_counter_t *flow_counter);
@@ -294,6 +289,26 @@ sw_error_t
 fal_flow_global_cfg_set(
 		a_uint32_t dev_id,
 		fal_flow_global_cfg_t *cfg);
+
+sw_error_t
+fal_flow_npt66_prefix_add(a_uint32_t dev_id, a_uint32_t l3_if_index, fal_ip6_addr_t *ip6, a_uint32_t prefix_len);
+sw_error_t
+fal_flow_npt66_prefix_get(a_uint32_t dev_id, a_uint32_t l3_if_index, fal_ip6_addr_t *ip6, a_uint32_t *prefix_len);
+sw_error_t
+fal_flow_npt66_prefix_del(a_uint32_t dev_id, a_uint32_t l3_if_index);
+sw_error_t
+fal_flow_npt66_iid_cal(a_uint32_t dev_id, fal_flow_npt66_iid_calc_t *iid_cal, fal_flow_npt66_iid_t *iid_result);
+sw_error_t
+fal_flow_npt66_iid_add(a_uint32_t dev_id, a_uint32_t flow_index, fal_flow_npt66_iid_t *iid_entry);
+sw_error_t
+fal_flow_npt66_iid_get(a_uint32_t dev_id, a_uint32_t flow_index, fal_flow_npt66_iid_t *iid_entry);
+sw_error_t
+fal_flow_npt66_iid_del(a_uint32_t dev_id, a_uint32_t flow_index);
+sw_error_t
+fal_flow_npt66_status_get(a_uint32_t dev_id, a_bool_t *enable);
+sw_error_t
+fal_flow_npt66_status_set(a_uint32_t dev_id, a_bool_t enable);
+
 
 #ifdef __cplusplus
 }

@@ -1,14 +1,6 @@
-/* Copyright (c) 2008-2014, 2016-2017, 2019, 2021 The Linux Foundation. All rights reserved.
- *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License version 2 and
- * only version 2 as published by the Free Software Foundation.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
- *
+// SPDX-License-Identifier: GPL-2.0-only
+/* Copyright (c) 2008-2014, 2016-2019, 2021 The Linux Foundation. All rights reserved.
+ * Copyright (c) 2024 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #include <linux/init.h>
@@ -85,14 +77,6 @@ struct diag_mempool_t diag_mempools[NUM_MEMORY_POOLS] = {
 		.count = 0
 	},
 	{
-                .id = POOL_TYPE_MDM3,
-                .name = "POOL_MDM3",
-                .pool = NULL,
-                .itemsize = 0,
-                .poolsize = 0,
-                .count = 0
-        },
-	{
 		.id = POOL_TYPE_MDM_DCI,
 		.name = "POOL_MDM_DCI",
 		.pool = NULL,
@@ -108,14 +92,6 @@ struct diag_mempool_t diag_mempools[NUM_MEMORY_POOLS] = {
 		.poolsize = 0,
 		.count = 0
 	},
-	{
-                .id = POOL_TYPE_MDM3_DCI,
-                .name = "POOL_MDM3_DCI",
-                .pool = NULL,
-                .itemsize = 0,
-                .poolsize = 0,
-                .count = 0
-        },
 	{
 		.id = POOL_TYPE_MDM_MUX,
 		.name = "POOL_MDM_MUX",
@@ -133,14 +109,6 @@ struct diag_mempool_t diag_mempools[NUM_MEMORY_POOLS] = {
 		.count = 0
 	},
 	{
-                .id = POOL_TYPE_MDM3_MUX,
-                .name = "POOL_MDM3_MUX",
-                .pool = NULL,
-                .itemsize = 0,
-                .poolsize = 0,
-                .count = 0
-        },
-	{
 		.id = POOL_TYPE_MDM_DCI_WRITE,
 		.name = "POOL_MDM_DCI_WRITE",
 		.pool = NULL,
@@ -156,14 +124,6 @@ struct diag_mempool_t diag_mempools[NUM_MEMORY_POOLS] = {
 		.poolsize = 0,
 		.count = 0
 	},
-	{
-                .id = POOL_TYPE_MDM3_DCI_WRITE,
-                .name = "POOL_MDM3_DCI_WRITE",
-                .pool = NULL,
-                .itemsize = 0,
-                .poolsize = 0,
-                .count = 0
-        },
 	{
 		.id = POOL_TYPE_QSC_MUX,
 		.name = "POOL_QSC_MUX",
@@ -213,8 +173,7 @@ void *diagmem_alloc(struct diagchar_dev *driver, int size, int pool_type)
 			break;
 		}
 		if (size == 0 || size > mempool->itemsize ||
-			size > (uintptr_t) mempool->pool->pool_data
-			) {
+			size > (size_t)mempool->pool->pool_data) {
 			pr_err_ratelimited("diag: cannot alloc from mempool %s, invalid size: %d\n",
 					   mempool->name, size);
 			break;

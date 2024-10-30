@@ -1,0 +1,73 @@
+#!/bin/sh /etc/rc.common
+#
+# Copyright (c) 2022, Qualcomm Innovation Center, Inc. All rights reserved.
+#
+# Permission to use, copy, modify, and/or distribute this software for any
+# purpose with or without fee is hereby granted, provided that the above
+# copyright notice and this permission notice appear in all copies.
+#
+# THE SOFTWARE IS PROVIDED "AS IS" AND THE AUTHOR DISCLAIMS ALL WARRANTIES
+# WITH REGARD TO THIS SOFTWARE INCLUDING ALL IMPLIED WARRANTIES OF
+# MERCHANTABILITY AND FITNESS. IN NO EVENT SHALL THE AUTHOR BE LIABLE FOR
+# ANY SPECIAL, DIRECT, INDIRECT, OR CONSEQUENTIAL DAMAGES OR ANY DAMAGES
+# WHATSOEVER RESULTING FROM LOSS OF USE, DATA OR PROFITS, WHETHER IN AN
+# ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF
+# OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
+#
+#This script is used to update the age on bootconfig partition during trymode
+#Age is updated only on the following reboot of sysupgrade
+
+START=99
+
+. /lib/upgrade/platform.sh
+
+start() {
+	local trymode_inprogress="/proc/upgrade_info/trymode_inprogress"
+	local board=$(board_name)
+	local is_in_trymode=$(cat /proc/upgrade_info/trymode_inprogress)
+	local age0=$(cat /proc/boot_info/bootconfig0/age)
+	local age1=$(cat /proc/boot_info/bootconfig1/age)
+
+	case "$board" in
+		qcom,ipq9574-ap-al05 |\
+		qcom,ipq9574-ap-al06 |\
+		qcom,ipq5332-ap-mi01.2-c2)
+			if [ $is_in_trymode -eq 1 ]; then
+				if [ $age0 -le $age1 ]; then
+					eval $(fw_printenv sw_active0_ok 2>/dev/null)
+					[ "$sw_active0_ok" != "1" ] && fw_setenv sw_active0_ok 1
+					eval $(fw_printenv sw_active1_ok 2>/dev/null)
+					[ "$sw_active1_ok" != "0" ] && fw_setenv sw_active1_ok 0
+				else
+					eval $(fw_printenv sw_active1_ok 2>/dev/null)
+					[ "$sw_active1_ok" != "1" ] && fw_setenv sw_active1_ok 1
+					eval $(fw_printenv sw_active0_ok 2>/dev/null)
+					[ "$sw_active0_ok" != "0" ] && fw_setenv sw_active0_ok 0
+				fi
+			else
+				if [ $age0 -ge $age1 ]; then
+					eval $(fw_printenv sw_active0_ok 2>/dev/null)
+					[ "$sw_active0_ok" != "1" ] && fw_setenv sw_active0_ok 1
+					eval $(fw_printenv sw_active1_ok 2>/dev/null)
+					[ "$sw_active1_ok" != "0" ] && fw_setenv sw_active1_ok 0
+				else
+					eval $(fw_printenv sw_active1_ok 2>/dev/null)
+					[ "$sw_active1_ok" != "1" ] && fw_setenv sw_active1_ok 1
+					eval $(fw_printenv sw_active0_ok 2>/dev/null)
+					[ "$sw_active0_ok" != "0" ] && fw_setenv sw_active0_ok 0
+				fi
+			fi
+			return 1;
+			;;
+		*)
+			if [ -f "$trymode_inprogress" ]; then
+				if [ $is_in_trymode -eq 1 ]; then
+					echo "Bootconfig: updating age" > /dev/console
+					age_do_upgrade
+				fi
+			fi
+			echo "Bootconfig: Age is Updated" > /dev/console
+			;;
+	esac
+}
+

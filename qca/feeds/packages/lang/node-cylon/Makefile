@@ -11,7 +11,7 @@ PKG_NPM_NAME:=cylon
 PKG_NAME:=node-$(PKG_NPM_NAME)
 PKG_SRC_NAME:=$(PKG_NPM_NAME)-firmata
 PKG_VERSION:=0.24.0
-PKG_RELEASE:=3
+PKG_RELEASE:=4
 
 PKG_SOURCE:=$(PKG_SRC_NAME)-$(PKG_VERSION).tgz
 PKG_SOURCE_URL:=https://registry.npmjs.org/$(PKG_SRC_NAME)/-/
@@ -19,7 +19,7 @@ PKG_HASH:=06ac7a8e2e6012577d2f4b043af766bf28a1d3e2a0d50e46629dab4f0bb65104
 PKG_SOURCE_SUBDIR:=$(PKG_SRC_NAME)-$(PKG_VERSION)
 
 PKG_BUILD_DEPENDS:=node/host
-PKG_USE_MIPS16:=0
+PKG_BUILD_FLAGS:=no-mips16
 
 PKG_MAINTAINER:=Hirokazu MORIKAWA <morikw2@gmail.com>
 PKG_LICENSE:=Apache-2.0
@@ -60,8 +60,12 @@ TAR_OPTIONS+= --strip-components 1
 TAR_CMD=$(HOST_TAR) -C $(1) $(TAR_OPTIONS)
 
 NODEJS_CPU:=$(subst powerpc,ppc,$(subst aarch64,arm64,$(subst x86_64,x64,$(subst i386,ia32,$(ARCH)))))
+TMPNPM:=$(shell mktemp -u XXXXXXXXXX)
 
-define Build/Compile
+TARGET_CFLAGS+=$(FPIC)
+TARGET_CPPFLAGS+=$(FPIC)
+
+NPM_FLAGS:= \
 	$(MAKE_VARS) \
 	$(MAKE_FLAGS) \
 	npm_config_arch=$(NODEJS_CPU) \
@@ -69,11 +73,14 @@ define Build/Compile
 	npm_config_build_from_source=true \
 	npm_config_nodedir=$(STAGING_DIR)/usr/ \
 	npm_config_prefix=$(PKG_INSTALL_DIR)/usr/ \
-	npm_config_cache=$(TMP_DIR)/npm-cache \
-	npm_config_tmp=$(TMP_DIR)/npm-tmp \
-	npm install -g $(PKG_BUILD_DIR)
-	rm -rf $(TMP_DIR)/npm-tmp
-	rm -rf $(TMP_DIR)/npm-cache
+	npm_config_cache=$(TMP_DIR)/npm-cache-$(TMPNPM) \
+	npm_config_tmp=$(TMP_DIR)/npm-tmp-$(TMPNPM)
+
+define Build/Compile
+	$(NPM_FLAGS) npm i -g --production $(PKG_BUILD_DIR)
+	$(NPM_FLAGS) npm i --production --prefix=$(PKG_BUILD_DIR) --target_arch=$(NODEJS_CPU) --prefer-dedupe
+	rm -rf $(TMP_DIR)/npm-tmp-$(TMPNPM)
+	rm -rf $(TMP_DIR)/npm-cache-$(TMPNPM)
 endef
 
 define Package/node-cylon/install

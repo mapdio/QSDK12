@@ -217,7 +217,7 @@
 		/* Trips with CPUFreq cooling maps */
 		trips {
 			cpu-critical-hi {
-				temperature = <115000>;
+				temperature = <120000>;
 				hysteresis = <9000>;
 				type = "critical_high";
 			};

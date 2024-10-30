@@ -54,33 +54,25 @@ Signed-off-by: Aloka Dixit <quic_alokad@quicinc.com>
  static int ieee80211_assign_beacon(struct ieee80211_sub_if_data *sdata,
  				   struct ieee80211_link_data *link,
  				   struct cfg80211_beacon_data *params,
-@@ -1019,8 +1052,9 @@ static int ieee80211_assign_beacon(struc
- 				   const struct ieee80211_color_change_settings *cca)
+@@ -1020,7 +1053,7 @@ static int ieee80211_assign_beacon(struc
  {
  	struct cfg80211_mbssid_elems *mbssid = NULL;
-+	struct cfg80211_rnr_elems *rnr = NULL;
  	struct beacon_data *new, *old;
 -	int new_head_len, new_tail_len;
 +	int new_head_len, new_tail_len, new_rnr_len = 0;
  	int size, err;
  	u32 changed = BSS_CHANGED_BEACON;
  	struct ieee80211_bss_conf *link_conf = link->conf;
-@@ -1051,16 +1085,43 @@ static int ieee80211_assign_beacon(struc
+@@ -1051,16 +1084,35 @@ static int ieee80211_assign_beacon(struc
  		mbssid = params->mbssid_ies;
  		size += struct_size(new->mbssid_ies, elem, mbssid->cnt);
- 		size += ieee80211_get_mbssid_beacon_len(mbssid, IEEE80211_BCN_EMA_DISABLED);
-+		if (params->rnr_ies) {
-+			rnr = params->rnr_ies;
-+			new_rnr_len = ieee80211_get_rnr_beacon_len(rnr);
-+		}
+ 		size += ieee80211_get_mbssid_beacon_len(mbssid, 0);
++		new_rnr_len = ieee80211_get_rnr_beacon_len(params->rnr_ies);
  	} else if (old && old->mbssid_ies) {
  		mbssid = old->mbssid_ies;
  		size += struct_size(new->mbssid_ies, elem, mbssid->cnt);
- 		size += ieee80211_get_mbssid_beacon_len(mbssid, IEEE80211_BCN_EMA_DISABLED);
-+		if (old->rnr_ies) {
-+			rnr = old->rnr_ies;
-+			new_rnr_len = ieee80211_get_rnr_beacon_len(rnr);
-+		}
+ 		size += ieee80211_get_mbssid_beacon_len(mbssid, 0);
++		new_rnr_len = ieee80211_get_rnr_beacon_len(old->rnr_ies);
  	}
  
 +	size += new_rnr_len;
@@ -100,24 +92,23 @@ Signed-off-by: Aloka Dixit <quic_alokad@quicinc.com>
 +						elem,
 +						old->rnr_ies->cnt),
 +					GFP_KERNEL);
-+		if (!new->rnr_ies) {
-+			kfree(new);
++		if (!new->rnr_ies)
 +			return -ENOMEM;
-+		}
 +	}
 +
  	/* start filling the new info now */
  
  	/*
-@@ -1078,6 +1139,7 @@ static int ieee80211_assign_beacon(struc
+@@ -1078,6 +1130,8 @@ static int ieee80211_assign_beacon(struc
  		new->mbssid_ies = (void *)pos;
  		pos += struct_size(new->mbssid_ies, elem, mbssid->cnt);
- 		pos += ieee80211_copy_mbssid_beacon(pos, new->mbssid_ies, mbssid);
-+		pos = ieee80211_copy_rnr_beacon(pos, new->rnr_ies, rnr);
+ 		ieee80211_copy_mbssid_beacon(pos, new->mbssid_ies, mbssid);
++		pos = ieee80211_copy_rnr_beacon(pos, new->rnr_ies,
++						params->rnr_ies);
  		/* update bssid_indicator */
  		link_conf->bssid_indicator =
  			ilog2(__roundup_pow_of_two(mbssid->cnt + 1));
-@@ -1109,6 +1171,7 @@ static int ieee80211_assign_beacon(struc
+@@ -1109,6 +1163,7 @@ static int ieee80211_assign_beacon(struc
  	err = ieee80211_set_probe_resp(sdata, params->probe_resp,
  				       params->probe_resp_len, csa, cca, link);
  	if (err < 0) {
@@ -125,7 +116,7 @@ Signed-off-by: Aloka Dixit <quic_alokad@quicinc.com>
  		kfree(new);
  		return err;
  	}
-@@ -1125,6 +1188,7 @@ static int ieee80211_assign_beacon(struc
+@@ -1125,6 +1180,7 @@ static int ieee80211_assign_beacon(struc
  							 link_conf);
  
  		if (err < 0) {
@@ -133,7 +124,7 @@ Signed-off-by: Aloka Dixit <quic_alokad@quicinc.com>
  			kfree(new);
  			return err;
  		}
-@@ -1135,8 +1199,10 @@ static int ieee80211_assign_beacon(struc
+@@ -1135,8 +1191,10 @@ static int ieee80211_assign_beacon(struc
  	rcu_assign_pointer(link->u.ap.beacon, new);
  	sdata->u.ap.active = true;
  
@@ -145,7 +136,7 @@ Signed-off-by: Aloka Dixit <quic_alokad@quicinc.com>
  
  	return changed;
  }
-@@ -1379,6 +1445,7 @@ static void ieee80211_free_next_beacon(s
+@@ -1379,6 +1437,7 @@ static void ieee80211_free_next_beacon(s
  		return;
  
  	kfree(link->u.ap.next_beacon->mbssid_ies);
@@ -153,7 +144,7 @@ Signed-off-by: Aloka Dixit <quic_alokad@quicinc.com>
  	kfree(link->u.ap.next_beacon);
  	link->u.ap.next_beacon = NULL;
  }
-@@ -1435,6 +1502,7 @@ static int ieee80211_stop_ap(struct wiph
+@@ -1435,6 +1494,7 @@ static int ieee80211_stop_ap(struct wiph
  	RCU_INIT_POINTER(link->u.ap.probe_resp, NULL);
  	RCU_INIT_POINTER(link->u.ap.fils_discovery, NULL);
  	RCU_INIT_POINTER(link->u.ap.unsol_bcast_probe_resp, NULL);
@@ -161,7 +152,7 @@ Signed-off-by: Aloka Dixit <quic_alokad@quicinc.com>
  	kfree_rcu(old_beacon, rcu_head);
  	if (old_probe_resp)
  		kfree_rcu(old_probe_resp, rcu_head);
-@@ -3282,12 +3350,16 @@ cfg80211_beacon_dup(struct cfg80211_beac
+@@ -3282,12 +3342,16 @@ cfg80211_beacon_dup(struct cfg80211_beac
  {
  	struct cfg80211_beacon_data *new_beacon;
  	u8 *pos;
@@ -175,12 +166,12 @@ Signed-off-by: Aloka Dixit <quic_alokad@quicinc.com>
  	len = beacon->head_len + beacon->tail_len + beacon->beacon_ies_len +
  	      beacon->proberesp_ies_len + beacon->assocresp_ies_len +
  	      beacon->probe_resp_len + beacon->lci_len + beacon->civicloc_len +
--	      ieee80211_get_mbssid_beacon_len(beacon->mbssid_ies, IEEE80211_BCN_EMA_DISABLED);
+-	      ieee80211_get_mbssid_beacon_len(beacon->mbssid_ies, 0);
 +	      mbssid_len + rnr_len;
  
  	new_beacon = kzalloc(sizeof(*new_beacon) + len, GFP_KERNEL);
  	if (!new_beacon)
-@@ -3298,9 +3370,16 @@ cfg80211_beacon_dup(struct cfg80211_beac
+@@ -3298,9 +3362,16 @@ cfg80211_beacon_dup(struct cfg80211_beac
  			kzalloc(struct_size(new_beacon->mbssid_ies,
  					    elem, beacon->mbssid_ies->cnt),
  				GFP_KERNEL);
@@ -200,7 +191,7 @@ Signed-off-by: Aloka Dixit <quic_alokad@quicinc.com>
  		}
  	}
  
-@@ -3341,10 +3420,15 @@ cfg80211_beacon_dup(struct cfg80211_beac
+@@ -3341,10 +3412,15 @@ cfg80211_beacon_dup(struct cfg80211_beac
  		memcpy(pos, beacon->probe_resp, beacon->probe_resp_len);
  		pos += beacon->probe_resp_len;
  	}
@@ -217,7 +208,7 @@ Signed-off-by: Aloka Dixit <quic_alokad@quicinc.com>
  
  	/* might copy -1, meaning no changes requested */
  	new_beacon->ftm_responder = beacon->ftm_responder;
-@@ -3362,6 +3446,14 @@ cfg80211_beacon_dup(struct cfg80211_beac
+@@ -3362,6 +3438,14 @@ cfg80211_beacon_dup(struct cfg80211_beac
  	}
  
  	return new_beacon;

@@ -7,23 +7,22 @@
 
 include $(TOPDIR)/rules.mk
 
-PKG_LICENSE:=LGPL-2.1-or-later BSD-2-Clause
-PKG_MAINTAINER:=Mislav Novakovic <mislav.novakovic@sartura.hr>
-
 PKG_NAME:=libssh
-PKG_VERSION:=0.7.6
-PKG_RELEASE:=4
+PKG_VERSION:=0.10.4
+PKG_RELEASE:=1
 
 PKG_SOURCE:=$(PKG_NAME)-$(PKG_VERSION).tar.xz
-PKG_SOURCE_URL:=https://www.libssh.org/files/0.7/
-PKG_HASH:=1d607d3859274f755942324afb0f887ee22edd157f9596a2e69e3a28ec6d1092
+PKG_SOURCE_URL:=https://www.libssh.org/files/0.10/
+PKG_HASH:=07392c54ab61476288d1c1f0a7c557b50211797ad00c34c3af2bbc4dbc4bd97d
 
+PKG_MAINTAINER:=Mislav Novakovic <mislav.novakovic@sartura.hr>
+PKG_LICENSE:=LGPL-2.1-or-later BSD-2-Clause
+PKG_LICENSE_FILES:=COPYING
 PKG_CPE_ID:=cpe:/a:libssh:libssh
 
 CMAKE_INSTALL:=1
-
-PKG_BUILD_PARALLEL:=1
-PKG_USE_MIPS16:=0
+CMAKE_BINARY_SUBDIR:=build
+PKG_BUILD_FLAGS:=no-mips16
 
 include $(INCLUDE_DIR)/package.mk
 include $(INCLUDE_DIR)/cmake.mk
@@ -41,7 +40,7 @@ define Package/libssh/description
  for client and server implementations.
 endef
 
-CMAKE_OPTIONS = \
+CMAKE_OPTIONS += \
 	-DHAVE_STRTOULL=1 \
 	-DHAVE_GETADDRINFO=1 \
 	-DHAVE_TERMIOS_H=1 \
@@ -53,25 +52,13 @@ CMAKE_OPTIONS = \
 	-DWITH_PCAP:BOOL=OFF \
 	-DWITH_SERVER:BOOL=ON \
 	-DWITH_SFTP:BOOL=ON \
-	-DWITH_SSH1:BOOL=OFF \
-	-DWITH_TESTING:BOOL=OFF \
-
-ifeq ($(CONFIG_BIG_ENDIAN),y)
-CMAKE_OPTIONS += -DWITH_BIG_ENDIAN=ON
-else
-CMAKE_OPTIONS += -DWITH_BIG_ENDIAN=OFF
-endif
-
-define Build/InstallDev
-	$(INSTALL_DIR) $(1)/usr/include/libssh/
-	$(INSTALL_DATA) $(PKG_INSTALL_DIR)/usr/include/libssh/* $(1)/usr/include/libssh/
-
-	$(INSTALL_DIR) $(1)/usr/lib
-	$(CP) $(PKG_INSTALL_DIR)/usr/lib/libssh* $(1)/usr/lib/
-
-	$(INSTALL_DIR) $(1)/usr/lib/pkgconfig
-	$(INSTALL_DATA) $(PKG_INSTALL_DIR)/usr/lib/pkgconfig/* $(1)/usr/lib/pkgconfig/
-endef
+	-UWITH_STACK_CLASH_PROTECTION \
+	-DWITH_STACK_CLASH_PROTECTION=0 \
+	-UWITH_STACK_PROTECTOR \
+	-DWITH_STACK_PROTECTOR=0 \
+	-UWITH_STACK_PROTECTOR_STRONG \
+	-DWITH_STACK_PROTECTOR_STRONG=0 \
+	-DHAVE_WORDS_BIGENDIAN=$(if $(CONFIG_BIG_ENDIAN),1,0)
 
 define Package/libssh/install
 	$(INSTALL_DIR) $(1)/usr/lib

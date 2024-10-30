@@ -1,6 +1,5 @@
 /*
- * Copyright (c) 2021-2022 Qualcomm Innovation Center, Inc. All rights reserved.
- * Copyright (c) 2022-2023 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2021-2024 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for any
  * purpose with or without fee is hereby granted, provided that the above
@@ -54,6 +53,10 @@
 #include "ecm_sfe_common.h"
 #include "exports/ecm_sfe_common_public.h"
 
+#ifdef ECM_MHT_ENABLE
+#include "ppe_drv.h"
+#endif
+
 
 /*
  * Callback object to support SFE frontend interaction with external code
@@ -71,6 +74,13 @@ static int ecm_sfe_fast_xmit_enable = 1;
  * Flag to indicate FSE rule push from ECM SFE frontend.
  */
 unsigned int ecm_sfe_fse_enable = 1;
+
+#ifdef ECM_MHT_ENABLE
+/*
+ * Flag to indicate MHT is enabled.
+ */
+unsigned int ecm_sfe_mht_enable = 1;
+#endif
 
 /*
  * ecm_sfe_common_fast_xmit_check()
@@ -106,56 +116,6 @@ static bool ecm_sfe_common_fast_xmit_check(s32 interface_num) {
 #endif
 	dev_put(dev);
 	return true;
-}
-
-/*
- * ecm_sfe_common_qdisc_check()
- * 	Check whether the ifindex has a qdisc attached
- */
-static bool ecm_sfe_common_qdisc_check(s32 interface_num)
-{
-	struct net_device *dev;
-	struct netdev_queue *txq;
-	int i;
-	struct Qdisc *q;
-#if defined(CONFIG_NET_CLS_ACT) && defined(CONFIG_NET_EGRESS)
-	struct mini_Qdisc *miniq;
-#endif
-
-	dev = dev_get_by_index(&init_net, interface_num);
-	if (!dev) {
-		DEBUG_INFO("device-ifindex[%d] is not present\n", interface_num);
-		return false;
-	}
-
-	BUG_ON(!rcu_read_lock_bh_held());
-
-	/*
-	 * It assume that the qdisc attribute won't change after traffic
-	 * running, if the qdisc changed, we need flush all of the rule.
-	 */
-	for (i = 0; i < dev->real_num_tx_queues; i++) {
-		txq = netdev_get_tx_queue(dev, i);
-		q = rcu_dereference_bh(txq->qdisc);
-		if (q->enqueue) {
-			DEBUG_INFO("Qdisc is present for device[%s]\n", dev->name);
-			dev_put(dev);
-			return true;
-		}
-	}
-
-#if defined(CONFIG_NET_CLS_ACT) && defined(CONFIG_NET_EGRESS)
-	miniq = rcu_dereference_bh(dev->miniq_egress);
-	if (miniq) {
-		DEBUG_INFO("Egress needed\n");
-		dev_put(dev);
-		return true;
-	}
-#endif
-
-	dev_put(dev);
-
-	return false;
 }
 
 /*
@@ -229,11 +189,11 @@ fail:
  * Step 2.) Fast transmit setting is enabled on the destination interface only when no qdisc
  * 	is found in the hierarchy.
  */
-void ecm_sfe_common_fast_xmit_set(uint16_t *rule_flags, uint16_t *valid_flags, struct sfe_qdisc_rule *qdisc_rule, struct ecm_db_iface_instance *from_ifaces[ECM_DB_IFACE_HEIRARCHY_MAX], struct ecm_db_iface_instance *to_ifaces[ECM_DB_IFACE_HEIRARCHY_MAX], int32_t from_interfaces_first, int32_t to_interfaces_first)
+void ecm_sfe_common_fast_xmit_set(uint32_t *rule_flags, uint32_t *valid_flags, struct sfe_qdisc_rule *qdisc_rule, struct ecm_db_iface_instance *from_ifaces[ECM_DB_IFACE_HEIRARCHY_MAX], struct ecm_db_iface_instance *to_ifaces[ECM_DB_IFACE_HEIRARCHY_MAX], int32_t from_interfaces_first, int32_t to_interfaces_first)
 {
 	s32 interface_num;
 	bool qdisc_found = false;
-	bool status;
+	bool is_ppeq = false;
 	int list_index;
 
 	rcu_read_lock_bh();
@@ -244,30 +204,32 @@ void ecm_sfe_common_fast_xmit_set(uint16_t *rule_flags, uint16_t *valid_flags, s
 	qdisc_rule->flow_qdisc_interface = -1;
 	for (list_index = from_interfaces_first; list_index < ECM_DB_IFACE_HEIRARCHY_MAX; list_index++) {
 		interface_num = ecm_db_iface_interface_identifier_get(from_ifaces[list_index]);
-		status = ecm_sfe_common_qdisc_check(interface_num);
-		if (status) {
-			if (!qdisc_found) {
-				qdisc_found = true;
-				qdisc_rule->valid_flags |= SFE_QDISC_RULE_FLOW_VALID;
-				qdisc_rule->flow_qdisc_interface = interface_num;
-			} else {
+		if (ecm_front_end_common_intf_qdisc_check(interface_num, &is_ppeq)) {
+			if (qdisc_found) {
 				qdisc_rule->valid_flags &= ~SFE_QDISC_RULE_FLOW_VALID;
 				qdisc_rule->flow_qdisc_interface = -1;
+				qdisc_rule->valid_flags &= ~SFE_QDISC_RULE_FLOW_PPE_QDISC_FAST_XMIT;
+
+				/*
+				 * We have found more than one qdisc enabled in the interface heirarchy.
+				 * So strip the bottom interface flag for this case.
+				 */
+				*rule_flags &= ~SFE_RULE_CREATE_FLAG_USE_FLOW_BOTTOM_INTERFACE;
+				*rule_flags |= SFE_RULE_CREATE_FLAG_FLOW_L2_DISABLE;
 				break;
 			}
+
+			qdisc_found = true;
+			qdisc_rule->valid_flags |= SFE_QDISC_RULE_FLOW_VALID;
+			qdisc_rule->flow_qdisc_interface = interface_num;
+			if (is_ppeq) {
+				/*
+				 * Set SFE_QDISC_RULE_FLOW_PPE_QDISC_FAST_XMIT to identify PPE Qdisc is
+				 * configured for the flow direction and packets can be fast transmitted
+				 */
+				qdisc_rule->valid_flags |= SFE_QDISC_RULE_FLOW_PPE_QDISC_FAST_XMIT;
+			}
 		}
-	}
-
-	/*
-	 * We have found more than one qdisc enabled in the interface heirarchy.
-	 * So strip the bottom interface flag for this case.
-	 */
-	if (qdisc_found && qdisc_rule->flow_qdisc_interface == -1) {
-		*rule_flags &= ~SFE_RULE_CREATE_FLAG_USE_FLOW_BOTTOM_INTERFACE;
-
-		/*
-		 * TODO: Handle this case for clearing bridge_vlan_filter configuration.
-		 */
 	}
 
 	/*
@@ -278,11 +240,12 @@ void ecm_sfe_common_fast_xmit_set(uint16_t *rule_flags, uint16_t *valid_flags, s
 		interface_num = ecm_db_iface_interface_identifier_get(from_ifaces[from_interfaces_first]);
 	}
 
-	if (!qdisc_found && ecm_sfe_common_fast_xmit_check(interface_num)) {
+	if ((!qdisc_found || (qdisc_rule->valid_flags & SFE_QDISC_RULE_FLOW_PPE_QDISC_FAST_XMIT))
+		&& ecm_sfe_common_fast_xmit_check(interface_num)) {
 		*rule_flags |= SFE_RULE_CREATE_FLAG_RETURN_TRANSMIT_FAST;
 	}
-
 	qdisc_found = false;
+	is_ppeq = false;
 
 	/*
 	 * Check if a single qdisc is enabled in the interface heirarchy. If yes, configure qdisc rule
@@ -290,26 +253,32 @@ void ecm_sfe_common_fast_xmit_set(uint16_t *rule_flags, uint16_t *valid_flags, s
 	qdisc_rule->return_qdisc_interface = -1;
 	for (list_index = to_interfaces_first; list_index < ECM_DB_IFACE_HEIRARCHY_MAX; list_index++) {
 		interface_num = ecm_db_iface_interface_identifier_get(to_ifaces[list_index]);
-		status = ecm_sfe_common_qdisc_check(interface_num);
-		if (status) {
-			if (!qdisc_found) {
-				qdisc_found = true;
-				qdisc_rule->return_qdisc_interface = interface_num;
-				qdisc_rule->valid_flags |= SFE_QDISC_RULE_RETURN_VALID;
-			} else {
+		if (ecm_front_end_common_intf_qdisc_check(interface_num, &is_ppeq)) {
+			if (qdisc_found) {
 				qdisc_rule->valid_flags &= ~SFE_QDISC_RULE_RETURN_VALID;
 				qdisc_rule->return_qdisc_interface = -1;
+				qdisc_rule->valid_flags &= ~SFE_QDISC_RULE_RETURN_PPE_QDISC_FAST_XMIT;
+
+				/*
+				 * We have found more than one qdisc enabled in the interface heirarchy.
+				 * So strip the bottom interface flag for this case.
+				 */
+				*rule_flags &= ~SFE_RULE_CREATE_FLAG_USE_RETURN_BOTTOM_INTERFACE;
+				*rule_flags |= SFE_RULE_CREATE_FLAG_RETURN_L2_DISABLE;
 				break;
 			}
-		}
-	}
 
-	/*
-	 * We have found more than one qdisc enabled in the interface heirarchy.
-	 * So strip the bottom interface flag for this case.
-	 */
-	if (qdisc_found && qdisc_rule->return_qdisc_interface == -1) {
-		*rule_flags &= ~SFE_RULE_CREATE_FLAG_USE_RETURN_BOTTOM_INTERFACE;
+			qdisc_found = true;
+			qdisc_rule->return_qdisc_interface = interface_num;
+			qdisc_rule->valid_flags |= SFE_QDISC_RULE_RETURN_VALID;
+			if (is_ppeq) {
+				/*
+				 * Set SFE_QDISC_RULE_RETURN_PPE_QDISC_FAST_XMIT to identify PPE Qdisc is
+				 * configured for the return direction and packets can be fast transmitted
+				 */
+				qdisc_rule->valid_flags |= SFE_QDISC_RULE_RETURN_PPE_QDISC_FAST_XMIT;
+			}
+		}
 	}
 
 	/*
@@ -320,7 +289,8 @@ void ecm_sfe_common_fast_xmit_set(uint16_t *rule_flags, uint16_t *valid_flags, s
 		interface_num = ecm_db_iface_interface_identifier_get(to_ifaces[to_interfaces_first]);
 	}
 
-	if (!qdisc_found && ecm_sfe_common_fast_xmit_check(interface_num)) {
+	if ((!qdisc_found || (qdisc_rule->valid_flags & SFE_QDISC_RULE_RETURN_PPE_QDISC_FAST_XMIT))
+		&& ecm_sfe_common_fast_xmit_check(interface_num)) {
 		*rule_flags |= SFE_RULE_CREATE_FLAG_FLOW_TRANSMIT_FAST;
 	}
 
@@ -388,6 +358,38 @@ int ecm_sfe_fse_enable_handler(struct ctl_table *ctl, int write, void __user *bu
 	return ret;
 }
 
+#ifdef ECM_MHT_ENABLE
+/*
+ * ecm_sfe_mht_enable_handler()
+ *	Sysctl to enable/disable MHT feature through ECM SFE frontend.
+ */
+int ecm_sfe_mht_enable_handler(struct ctl_table *ctl, int write, void __user *buffer, size_t *lenp, loff_t *ppos)
+{
+	int ret;
+	int current_val;
+
+	/*
+	 * Write the variable with user input
+	 */
+	current_val = ecm_sfe_mht_enable;
+	ret = proc_dointvec(ctl, write, buffer, lenp, ppos);
+	if (ret || (!write)) {
+		/*
+		 * Return failure.
+		 */
+		return ret;
+	}
+
+	if ((ecm_sfe_mht_enable != 0) && (ecm_sfe_mht_enable != 1)) {
+		ecm_sfe_mht_enable = current_val;
+		DEBUG_WARN("Invalid input. Valid values 0/1\n");
+		return -EINVAL;
+	}
+
+	return ret;
+}
+#endif
+
 /*
  * ecm_sfe_ipv4_is_conn_limit_reached()
  *	Connection limit is reached or not ?
@@ -403,10 +405,10 @@ bool ecm_sfe_ipv4_is_conn_limit_reached(void)
 		return false;
 	}
 
-	if (ecm_sfe_ipv4_accelerated_count == sfe_ipv4_max_conn_count()) {
-		DEBUG_INFO("ECM DB connection limit %d reached, for SFE frontend \
-			   new flows cannot be accelerated.\n",
-			   ecm_sfe_ipv4_accelerated_count);
+	if ((ecm_sfe_ipv4_pending_accel_count + ecm_sfe_ipv4_accelerated_count) >= sfe_ipv4_max_conn_count()) {
+		DEBUG_INFO("ECM DB connection limit reached with accelerated count:%d, pending accel count:%d, for SFE frontend \
+				new flows cannot be accelerated.\n",
+				ecm_sfe_ipv4_accelerated_count, ecm_sfe_ipv4_pending_accel_count);
 		return true;
 	}
 
@@ -429,10 +431,10 @@ bool ecm_sfe_ipv6_is_conn_limit_reached(void)
 		return false;
 	}
 
-	if (ecm_sfe_ipv6_accelerated_count == sfe_ipv6_max_conn_count()) {
-		DEBUG_INFO("ECM DB connection limit %d reached, for SFE frontend \
-			   new flows cannot be accelerated.\n",
-			   ecm_sfe_ipv6_accelerated_count);
+	if ((ecm_sfe_ipv6_pending_accel_count + ecm_sfe_ipv6_accelerated_count) >= sfe_ipv6_max_conn_count()) {
+		DEBUG_INFO("ECM DB connection limit reached with accelerated count:%d, pending accel count:%d, for SFE frontend \
+				new flows cannot be accelerated.\n",
+				ecm_sfe_ipv6_accelerated_count, ecm_sfe_ipv6_pending_accel_count);
 		return true;
 	}
 
@@ -456,6 +458,15 @@ static struct ctl_table ecm_sfe_sysctl_tbl[] = {
 		.mode           = 0644,
 		.proc_handler   = &ecm_sfe_fse_enable_handler,
 	},
+#ifdef ECM_MHT_ENABLE
+	{
+		.procname       = "sfe_mht_enable",
+		.data           = &ecm_sfe_mht_enable,
+		.maxlen         = sizeof(int),
+		.mode           = 0644,
+		.proc_handler   = &ecm_sfe_mht_enable_handler,
+	},
+#endif
 	{}
 };
 
@@ -498,239 +509,100 @@ void ecm_sfe_common_init_fe_info(struct ecm_front_end_common_fe_info *info)
 
 #ifdef ECM_BRIDGE_VLAN_FILTERING_ENABLE
 /*
- * TODO: Add a common sub-function for v4 and v6 to set VLAN filter information in rule.
+ * ecm_sfe_common_vlan_filter_set()
+ * 	Initialize rule create structure with Bridge VLAN Filter information in connection instance.
  */
-#ifdef ECM_IPV6_ENABLE
-/*
- * ecm_sfe_common_ipv6_vlan_filter_set()
- * 	Initialize IPv6 rule create structure with Bridge VLAN Filter information in connection instance.
- */
-void ecm_sfe_common_ipv6_vlan_filter_set(struct ecm_db_connection_instance *ci, struct sfe_ipv6_rule_create_msg *nircm)
+bool ecm_sfe_common_vlan_filter_set(struct ecm_db_connection_instance *ci, struct sfe_vlan_filter_rule *vlan_filter_rule, bool is_flow_dir)
 {
 	uint16_t index;
-	DEBUG_INFO("%px: Bridge vlan filter is valid. Updating the create rule\n", ci);
 
 	/*
 	 * Bridge VLAN Filter offload can only be achieved when l2_feature is enabled in SFE.
 	 */
 	if (!sfe_is_l2_feature_enabled()) {
 		DEBUG_TRACE("%px: Bridge VLAN filter rule is not programmed as SFE L2 Feature Flag is disabled\n", ci);
+		goto no_rule;
 	}
 
 	/*
-	 * Bridge VLAN Filter Offload is valid for all bridged traffic and
-	 * selectively allowed for routed flows only when SFE_RULE_CREATE_FLAG_USE_RETURN_BOTTOM_INTERFACE is set.
+	 * Ingress
 	 */
-	if (ecm_db_connection_is_routed_get(ci) && !(nircm->rule_flags & SFE_RULE_CREATE_FLAG_USE_RETURN_BOTTOM_INTERFACE)) {
-		DEBUG_TRACE("%px: Bridge VLAN filter rule is routed and using bottom interface is NOT allowed\n", ci);
+	index = ECM_VLAN_FILTER_RULE_MAX;
+	if (is_flow_dir) {
+		if (ci->vlan_filter[ECM_VLAN_FILTER_RULE_FLOW_INGRESS1].is_valid) {
+			index = ECM_VLAN_FILTER_RULE_FLOW_INGRESS1;
+		} else if (ci->vlan_filter[ECM_VLAN_FILTER_RULE_FLOW_EGRESS1].is_valid) {
+			index = ECM_VLAN_FILTER_RULE_FLOW_EGRESS1;
+		} else {
+			DEBUG_TRACE("%px: Bridge VLAN filter rule: no valid index is valid at ingress for FLOW Dir\n", ci);
+			goto no_rule;
+		}
+	} else {
+		if (ci->vlan_filter[ECM_VLAN_FILTER_RULE_RET_INGRESS1].is_valid) {
+			index = ECM_VLAN_FILTER_RULE_RET_INGRESS1;
+		} else if (ci->vlan_filter[ECM_VLAN_FILTER_RULE_RET_EGRESS1].is_valid) {
+			index = ECM_VLAN_FILTER_RULE_RET_EGRESS1;
+		} else {
+			DEBUG_TRACE("%px: Bridge VLAN filter rule: no valid index is valid at ingress for RET Dir\n", ci);
+			goto no_rule;
+		}
 	}
 
-	/*
-	 * Fill the rule in FLOW direction
-	 */
-	if (ci->vlan_filter[ECM_VLAN_FILTER_RULE_FLOW_INGRESS1].is_valid) {
-		DEBUG_INFO("%px: Bridge vlan filter FLOW_INGRESS1 is valid.\n", ci);
-		/*
-		 * Fill ingress rule w.r.t last first seen bridge vlan filter rule in heirarchy
-		 * in FLOW direction.
-		 */
-		index = ECM_VLAN_FILTER_RULE_FLOW_INGRESS1;
-		nircm->flow_vlan_filter_rule.ingress_vlan_tag = (
+	if (index != ECM_VLAN_FILTER_RULE_MAX) {
+		DEBUG_TRACE("Ingress Rule selected: for index %d %s\n", index, ecm_db_connection_vlan_filter_type_strings[index]);
+		vlan_filter_rule->ingress_vlan_tag = (
 				((ci->vlan_filter[index].vlan_tpid) << 16) |
 				ci->vlan_filter[index].vlan_tag);
-		nircm->flow_vlan_filter_rule.ingress_flags = ci->vlan_filter[index].flags;
-	} else {
-		nircm->flow_vlan_filter_rule.ingress_vlan_tag = SFE_VLAN_ID_NOT_CONFIGURED;
+		vlan_filter_rule->ingress_flags = ci->vlan_filter[index].flags;
 	}
 
-	if (ci->vlan_filter[ECM_VLAN_FILTER_RULE_FLOW_EGRESS1].is_valid) {
-		DEBUG_INFO("%px: Bridge vlan filter FLOW_EGRESS1 is valid.\n", ci);
-		/*
-		 * Fill egress rule w.r.t last seen bridge vlan filter rule in heirarchy
-		 * in FLOW direction.
-		 */
-		index = ECM_VLAN_FILTER_RULE_FLOW_EGRESS1;
+	/*
+	 * Egress
+	 */
+	index = ECM_VLAN_FILTER_RULE_MAX;
+	if (is_flow_dir) {
 		if (ci->vlan_filter[ECM_VLAN_FILTER_RULE_FLOW_EGRESS2].is_valid) {
 			index = ECM_VLAN_FILTER_RULE_FLOW_EGRESS2;
-			DEBUG_INFO("%px: Bridge vlan filter FLOW_EGRESS2 is valid.\n", ci);
+		} else if (ci->vlan_filter[ECM_VLAN_FILTER_RULE_FLOW_EGRESS1].is_valid) {
+			index = ECM_VLAN_FILTER_RULE_FLOW_EGRESS1;
+		} else if (ci->vlan_filter[ECM_VLAN_FILTER_RULE_FLOW_INGRESS2].is_valid) {
+			index = ECM_VLAN_FILTER_RULE_FLOW_INGRESS2;
+		} else {
+			DEBUG_TRACE("%px: Bridge VLAN filter rule: no valid index is valid at egress for FLOW Dir\n", ci);
+			goto no_rule;
 		}
-
-		nircm->flow_vlan_filter_rule.egress_vlan_tag= (
-				((ci->vlan_filter[index].vlan_tpid) << 16) |
-				ci->vlan_filter[index].vlan_tag);
-		nircm->flow_vlan_filter_rule.egress_flags = ci->vlan_filter[index].flags;
 	} else {
-		nircm->flow_vlan_filter_rule.egress_vlan_tag = SFE_VLAN_ID_NOT_CONFIGURED;
-	}
-
-	/*
-	 * Fill the rule in RETURN direction:
-	 */
-	if (ci->vlan_filter[ECM_VLAN_FILTER_RULE_RET_INGRESS1].is_valid) {
-		DEBUG_INFO("%px: Bridge vlan filter RET_INGRESS1 is valid.\n", ci);
-		/*
-		 * Fill ingress rule w.r.t last first seen bridge vlan filter rule in heirarchy
-		 * in RETURN direction.
-		 */
-		index = ECM_VLAN_FILTER_RULE_RET_INGRESS1;
-		nircm->return_vlan_filter_rule.ingress_vlan_tag= (
-				((ci->vlan_filter[index].vlan_tpid) << 16) |
-				ci->vlan_filter[index].vlan_tag);
-		nircm->return_vlan_filter_rule.ingress_flags = ci->vlan_filter[index].flags;
-	} else {
-		nircm->return_vlan_filter_rule.ingress_vlan_tag = SFE_VLAN_ID_NOT_CONFIGURED;
-	}
-
-	if (ci->vlan_filter[ECM_VLAN_FILTER_RULE_RET_EGRESS1].is_valid) {
-		DEBUG_INFO("%px: Bridge vlan filter RET_EGRESS1 is valid.\n", ci);
-		/*
-		 * Fill egress rule w.r.t last seen bridge vlan filter rule in heirarchy
-		 * in RETURN direction.
-		 */
-		index = ECM_VLAN_FILTER_RULE_RET_EGRESS1;
 		if (ci->vlan_filter[ECM_VLAN_FILTER_RULE_RET_EGRESS2].is_valid) {
 			index = ECM_VLAN_FILTER_RULE_RET_EGRESS2;
-			DEBUG_INFO("%px: Bridge vlan filter RET_EGRESS2 is valid.\n", ci);
+		} else if (ci->vlan_filter[ECM_VLAN_FILTER_RULE_RET_EGRESS1].is_valid) {
+			index = ECM_VLAN_FILTER_RULE_RET_EGRESS1;
+		} else if (ci->vlan_filter[ECM_VLAN_FILTER_RULE_RET_INGRESS2].is_valid) {
+			index = ECM_VLAN_FILTER_RULE_RET_INGRESS2;
+		} else {
+			DEBUG_TRACE("%px: Bridge VLAN filter rule: no valid index is valid at egress for RET Dir\n", ci);
+			goto no_rule;
 		}
-
-		nircm->return_vlan_filter_rule.egress_vlan_tag= (
-				((ci->vlan_filter[index].vlan_tpid) << 16) |
-				ci->vlan_filter[index].vlan_tag);
-		nircm->return_vlan_filter_rule.egress_flags = ci->vlan_filter[index].flags;
-	} else {
-		nircm->return_vlan_filter_rule.egress_vlan_tag = SFE_VLAN_ID_NOT_CONFIGURED;
-	}
-
-	nircm->valid_flags |= SFE_RULE_CREATE_VLAN_FILTER_VALID;
-}
-#endif
-
-/*
- * ecm_sfe_common_ipv4_vlan_filter_set()
- * 	Initialize IPv4 rule create structure with Bridge VLAN Filter information in connection instance.
- */
-void ecm_sfe_common_ipv4_vlan_filter_set(struct ecm_db_connection_instance *ci, struct sfe_ipv4_rule_create_msg *nircm)
-{
-	uint16_t index;
-	DEBUG_INFO("%px: Bridge vlan filter is valid. Updating the create rule\n", ci);
-
-	/*
-	 * Bridge VLAN Filter offload can only be achieved when l2_feature is enabled in SFE.
-	 */
-	if (!sfe_is_l2_feature_enabled()) {
-		DEBUG_TRACE("%px: Bridge VLAN filter rule is not programmed as SFE L2 Feature Flag is disabled\n", ci);
-		goto no_rule;
-	}
-
-	/*
-	 * Bridge VLAN Filter Offload is valid for all bridged traffic and
-	 * selectively allowed for routed flows only when SFE_RULE_CREATE_FLAG_USE_RETURN_BOTTOM_INTERFACE is set.
-	 */
-	if (ecm_db_connection_is_routed_get(ci) && !(nircm->rule_flags & SFE_RULE_CREATE_FLAG_USE_RETURN_BOTTOM_INTERFACE)) {
-		DEBUG_TRACE("%px: Bridge VLAN filter rule is routed and using bottom interface is NOT allowed\n", ci);
-		goto no_rule;
-	}
-
-	/*
-	 * FLOW Direction: Ingress
-	 */
-	index = ECM_VLAN_FILTER_RULE_MAX;
-	if (ci->vlan_filter[ECM_VLAN_FILTER_RULE_FLOW_INGRESS1].is_valid) {
-		index = ECM_VLAN_FILTER_RULE_FLOW_INGRESS1;
-	} else if (ci->vlan_filter[ECM_VLAN_FILTER_RULE_FLOW_EGRESS1].is_valid) {
-		index = ECM_VLAN_FILTER_RULE_FLOW_EGRESS1;
-	} else {
-		goto no_rule;
 	}
 
 	if (index != ECM_VLAN_FILTER_RULE_MAX) {
-		DEBUG_TRACE("FLOW Ingress Rule selected: for index %d %s\n", index, ecm_db_connection_vlan_filter_type_strings[index]);
-		nircm->flow_vlan_filter_rule.ingress_vlan_tag = (
+		DEBUG_TRACE("Egress Rule selected: for index %d %s", index, ecm_db_connection_vlan_filter_type_strings[index]);
+		vlan_filter_rule->egress_vlan_tag = (
 				((ci->vlan_filter[index].vlan_tpid) << 16) |
 				ci->vlan_filter[index].vlan_tag);
-		nircm->flow_vlan_filter_rule.ingress_flags = ci->vlan_filter[index].flags;
+		vlan_filter_rule->egress_flags = ci->vlan_filter[index].flags;
 	}
 
-	/*
-	 * FLOW Direction: Egress
-	 */
-	index = ECM_VLAN_FILTER_RULE_MAX;
-	if (ci->vlan_filter[ECM_VLAN_FILTER_RULE_FLOW_EGRESS2].is_valid) {
-		index = ECM_VLAN_FILTER_RULE_FLOW_EGRESS2;
-	} else if (ci->vlan_filter[ECM_VLAN_FILTER_RULE_FLOW_EGRESS1].is_valid) {
-		index = ECM_VLAN_FILTER_RULE_FLOW_EGRESS1;
-	} else if (ci->vlan_filter[ECM_VLAN_FILTER_RULE_FLOW_INGRESS2].is_valid) {
-		index = ECM_VLAN_FILTER_RULE_FLOW_INGRESS2;
-	} else {
-		goto no_rule;
-	}
+	DEBUG_TRACE("Filling sfe rule (is_flow:%d): ingress_vlan_tag: 0x%x : ingress_vlan_flags: %d , egress_vlan_tag: 0x%x : egress_vlan_flags: %d",
+			is_flow_dir, vlan_filter_rule->ingress_vlan_tag, vlan_filter_rule->ingress_flags,
+			vlan_filter_rule->egress_vlan_tag, vlan_filter_rule->egress_flags);
 
-	if (index != ECM_VLAN_FILTER_RULE_MAX) {
-		DEBUG_TRACE("FLOW Egress Rule selected: for index %d %s", index, ecm_db_connection_vlan_filter_type_strings[index]);
-		nircm->flow_vlan_filter_rule.egress_vlan_tag = (
-				((ci->vlan_filter[index].vlan_tpid) << 16) |
-				ci->vlan_filter[index].vlan_tag);
-		nircm->flow_vlan_filter_rule.egress_flags = ci->vlan_filter[index].flags;
-	}
-
-	/*
-	 * RETURN direction: Ingress
-	 */
-	index = ECM_VLAN_FILTER_RULE_MAX;
-	if (ci->vlan_filter[ECM_VLAN_FILTER_RULE_RET_INGRESS1].is_valid) {
-		index = ECM_VLAN_FILTER_RULE_RET_INGRESS1;
-	} else if (ci->vlan_filter[ECM_VLAN_FILTER_RULE_RET_EGRESS1].is_valid) {
-		index = ECM_VLAN_FILTER_RULE_RET_EGRESS1;
-	} else {
-		goto no_rule;
-	}
-
-	if (index != ECM_VLAN_FILTER_RULE_MAX) {
-		DEBUG_TRACE("RETURN Ingress Rule selected: for index %d %s", index, ecm_db_connection_vlan_filter_type_strings[index]);
-		nircm->return_vlan_filter_rule.ingress_vlan_tag = (
-				((ci->vlan_filter[index].vlan_tpid) << 16) |
-				ci->vlan_filter[index].vlan_tag);
-		nircm->return_vlan_filter_rule.ingress_flags = ci->vlan_filter[index].flags;
-	}
-
-	/*
-	 * RETURN Direction: Egress
-	 */
-	index = ECM_VLAN_FILTER_RULE_MAX;
-	if (ci->vlan_filter[ECM_VLAN_FILTER_RULE_RET_EGRESS2].is_valid) {
-		index = ECM_VLAN_FILTER_RULE_RET_EGRESS2;
-	} else if (ci->vlan_filter[ECM_VLAN_FILTER_RULE_RET_EGRESS1].is_valid) {
-		index = ECM_VLAN_FILTER_RULE_RET_EGRESS1;
-	} else if (ci->vlan_filter[ECM_VLAN_FILTER_RULE_RET_INGRESS2].is_valid) {
-		index = ECM_VLAN_FILTER_RULE_RET_INGRESS2;
-	} else {
-		goto no_rule;
-	}
-
-	if (index != ECM_VLAN_FILTER_RULE_MAX) {
-		DEBUG_TRACE("RETURN Egress Rule selected: for index %d %s", index, ecm_db_connection_vlan_filter_type_strings[index]);
-		nircm->return_vlan_filter_rule.egress_vlan_tag = (
-				((ci->vlan_filter[index].vlan_tpid) << 16) |
-				ci->vlan_filter[index].vlan_tag);
-		nircm->return_vlan_filter_rule.egress_flags = ci->vlan_filter[index].flags;
-		nircm->valid_flags |= SFE_RULE_CREATE_VLAN_FILTER_VALID;
-	}
-
-	DEBUG_WARN("Filling sfe rule for FLOW: ingress_vlan_tag: 0x%x : ingress_vlan_flags: %d , egress_vlan_tag: 0x%x : egress_vlan_flags: %d",
-			nircm->flow_vlan_filter_rule.ingress_vlan_tag, nircm->flow_vlan_filter_rule.ingress_flags,
-			nircm->flow_vlan_filter_rule.egress_vlan_tag, nircm->flow_vlan_filter_rule.egress_flags);
-
-	DEBUG_WARN("Filling sfe rule for RETURN: ingress_vlan_tag: 0x%x : ingress_vlan_flags: %d , egress_vlan_tag: 0x%x : egress_vlan_flags: %d",
-			nircm->return_vlan_filter_rule.ingress_vlan_tag, nircm->return_vlan_filter_rule.ingress_flags,
-			nircm->return_vlan_filter_rule.egress_vlan_tag, nircm->return_vlan_filter_rule.egress_flags);
-	return;
+	return true;
 
 no_rule:
-	nircm->flow_vlan_filter_rule.ingress_vlan_tag = SFE_VLAN_ID_NOT_CONFIGURED;
-	nircm->flow_vlan_filter_rule.egress_vlan_tag = SFE_VLAN_ID_NOT_CONFIGURED;
-	nircm->return_vlan_filter_rule.ingress_vlan_tag = SFE_VLAN_ID_NOT_CONFIGURED;
-	nircm->return_vlan_filter_rule.egress_vlan_tag = SFE_VLAN_ID_NOT_CONFIGURED;
-	nircm->valid_flags &= ~SFE_RULE_CREATE_VLAN_FILTER_VALID;
+	vlan_filter_rule->ingress_vlan_tag = SFE_VLAN_ID_NOT_CONFIGURED;
+	vlan_filter_rule->egress_vlan_tag = SFE_VLAN_ID_NOT_CONFIGURED;
+	vlan_filter_rule->ingress_flags = 0;
+	return false;
 }
 #endif
 
@@ -771,13 +643,13 @@ void ecm_sfe_common_update_rule(struct ecm_front_end_connection_instance *feci, 
 		mark.flow_mark = ct->mark;
 		mark.return_mark = ct->mark;
 
-		DEBUG_TRACE("%px: Update the mark value for the SFE connection\n", feci);
+		DEBUG_INFO("%px: Update the mark value for the SFE connection\n", feci);
 
 		if (feci->ip_version == 4) {
 			ECM_IP_ADDR_TO_NIN4_ADDR(mark.src_ip[0], src_addr);
 			ECM_IP_ADDR_TO_NIN4_ADDR(mark.dest_ip[0], dest_addr);
 			sfe_ipv4_mark_rule_update(&mark);
-			DEBUG_TRACE("%px: src_ip: %pI4 dest_ip: %pI4 src_port: %d dest_port: %d protocol: %d\n",
+			DEBUG_INFO("%px: src_ip: %pI4 dest_ip: %pI4 src_port: %d dest_port: %d protocol: %d\n",
 				    feci, &mark.src_ip[0], &mark.dest_ip[0],
 				    ntohs(mark.src_port), ntohs(mark.dest_port), mark.protocol);
 		} else {
@@ -815,14 +687,17 @@ void ecm_sfe_common_update_rule(struct ecm_front_end_connection_instance *feci, 
 		int assignment_count;
 		struct ecm_classifier_instance *assignments[ECM_CLASSIFIER_TYPES];
 
+		DEBUG_INFO("control reached to deprio in update rule \n");
 		memset(&mark, 0, sizeof(mark));
 		mark.type = SFE_CONNECTION_MARK_TYPE_SAWFMARK;
 		mark.flow_mark = msg->flow_mark;
-		if (SFE_GET_SAWF_TAG(mark.flow_mark) == SFE_SAWF_VALID_TAG) {
+		mark.flow_svc_id = msg->flow_service_class_id;
+		if (SFE_GET_SAWF_TAG(mark.flow_mark) == SFE_SAWF_VALID_TAG || (msg->flags & ECM_FRONT_END_DEPRIO_FLOW)) {
 			mark.flags |= SFE_SAWF_MARK_FLOW_VALID;
 		}
 		mark.return_mark = msg->return_mark;
-		if (SFE_GET_SAWF_TAG(mark.return_mark) == SFE_SAWF_VALID_TAG) {
+		mark.return_svc_id = msg->return_service_class_id;
+		if (SFE_GET_SAWF_TAG(mark.return_mark) == SFE_SAWF_VALID_TAG || (msg->flags & ECM_FRONT_END_DEPRIO_RETURN)) {
 			mark.flags |= SFE_SAWF_MARK_RETURN_VALID;
 		}
 		mark.protocol = msg->protocol;
@@ -990,3 +865,109 @@ void ecm_sfe_common_callbacks_unregister(void)
 	synchronize_rcu();
 }
 EXPORT_SYMBOL(ecm_sfe_common_callbacks_unregister);
+
+#ifdef ECM_MHT_ENABLE
+/*
+ * ecm_sfe_common_get_mht_port_id()
+ *	Returns true if getting mht port is succesful.
+ */
+bool ecm_sfe_common_get_mht_port_id(struct ecm_front_end_connection_instance *feci,
+				    struct ecm_db_iface_instance *from_sfe_iface,
+				    struct ecm_db_iface_instance *to_sfe_iface,
+				    u32 *valid_flags, struct sfe_mark_rule *mark_rule)
+{
+	struct net_device *dev = NULL;
+	int32_t port_info = -1;
+	uint8_t mht_mac[ETH_ALEN];
+
+	dev  = dev_get_by_index(&init_net, ecm_db_iface_interface_identifier_get(from_sfe_iface));
+	if (!dev) {
+		DEBUG_WARN("%px: Failed to get net device for from sfe iface\n", feci);
+		return true;
+	}
+
+	/*
+	 * MHT port is found on the from interface
+	 */
+	if (ppe_drv_is_mht_dev(dev)) {
+		ecm_db_connection_node_address_get(feci->ci, ECM_DB_OBJ_DIR_FROM, mht_mac);
+		port_info = ppe_drv_mht_port_from_fdb(mht_mac, 0);
+
+		if (port_info != -1) {
+			spin_lock_bh(&feci->lock);
+			feci->mht_port_query_count = 0;
+			spin_unlock_bh(&feci->lock);
+			dev_put(dev);
+			mark_rule->return_mark = ((SFE_MHT_VALID_TAG << SFE_MHT_TAG_SHIFT) | port_info);
+			*valid_flags |= SFE_RULE_CREATE_MARK_VALID;
+			return true;
+		}
+
+		spin_lock_bh(&feci->lock);
+		/*
+		 * Check if we can re-try to find the port with subsequent packets.
+		 */
+		if (feci->mht_port_query_count < SFE_MHT_MAX_ACCELERATION_RETRY) {
+			feci->mht_port_query_count++;
+			spin_unlock_bh(&feci->lock);
+			dev_put(dev);
+			return false;
+		}
+
+		/*
+		 * We reached to max re-try count, return true without marking the rule.
+		 */
+		feci->mht_port_query_count = 0;
+		spin_unlock_bh(&feci->lock);
+		dev_put(dev);
+		return true;
+	}
+
+	dev_put(dev);
+	dev  = dev_get_by_index(&init_net, ecm_db_iface_interface_identifier_get(to_sfe_iface));
+	if (!dev) {
+		DEBUG_WARN("%px: Failed to get net device for to sfe iface\n", feci);
+		return true;
+	}
+
+	/*
+	 * MHT port is found on the To interface
+	 */
+	if (ppe_drv_is_mht_dev(dev)) {
+		ecm_db_connection_node_address_get(feci->ci, ECM_DB_OBJ_DIR_TO, mht_mac);
+		port_info = ppe_drv_mht_port_from_fdb(mht_mac, 0);
+
+		if (port_info != -1) {
+			spin_lock_bh(&feci->lock);
+			feci->mht_port_query_count = 0;
+			spin_unlock_bh(&feci->lock);
+			dev_put(dev);
+			mark_rule->flow_mark = ((SFE_MHT_VALID_TAG << SFE_MHT_TAG_SHIFT) | port_info);
+			*valid_flags |= SFE_RULE_CREATE_MARK_VALID;
+			return true;
+		}
+
+		spin_lock_bh(&feci->lock);
+		/*
+		 * Check if we can re-try to find the port with subsequent packets.
+		 */
+		if (feci->mht_port_query_count < SFE_MHT_MAX_ACCELERATION_RETRY) {
+			feci->mht_port_query_count++;
+			spin_unlock_bh(&feci->lock);
+			dev_put(dev);
+			return false;
+		}
+
+		/*
+		 * We reached to max re-try count, return true without marking the rule.
+		 */
+		feci->mht_port_query_count = 0;
+		spin_unlock_bh(&feci->lock);
+		dev_put(dev);
+		return true;
+	}
+
+	dev_put(dev);
+	return true;
+}
+#endif

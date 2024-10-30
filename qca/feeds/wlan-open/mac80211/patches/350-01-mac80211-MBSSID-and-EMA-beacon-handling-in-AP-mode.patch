@@ -137,7 +137,7 @@ Signed-off-by: Aloka Dixit <alokad@codeaurora.org>
   * @vif: &struct ieee80211_vif pointer from the add_interface callback.
 --- a/net/mac80211/ieee80211_i.h
 +++ b/net/mac80211/ieee80211_i.h
-@@ -1171,13 +1171,19 @@ ieee80211_vif_get_shift(struct ieee80211
+@@ -1171,10 +1171,19 @@ ieee80211_vif_get_shift(struct ieee80211
  }
  
  static inline int
@@ -146,22 +146,21 @@ Signed-off-by: Aloka Dixit <alokad@codeaurora.org>
  {
  	int i, len = 0;
  
--	if (!elems)
 +	if (!elems || !elems->cnt)
- 		return 0;
- 
-+	if (index >= elems->cnt)
 +		return 0;
++
++	if (index >= elems->cnt)
++		return -1;
 +
 +	if (index >= IEEE80211_BCN_EMA_BASE)
 +		return elems->elem[index].len;
 +
- 	for (i = 0; i < elems->cnt; i++)
- 		len += elems->elem[i].len;
+ 	if (!elems)
+ 		return 0;
  
 --- a/net/mac80211/tx.c
 +++ b/net/mac80211/tx.c
-@@ -5379,13 +5379,20 @@ ieee80211_beacon_get_finish(struct ieee8
+@@ -5362,13 +5362,20 @@ ieee80211_beacon_get_finish(struct ieee8
  }
  
  static void
@@ -184,7 +183,7 @@ Signed-off-by: Aloka Dixit <alokad@codeaurora.org>
  	for (i = 0; i < beacon->mbssid_ies->cnt; i++)
  		skb_put_data(skb, beacon->mbssid_ies->elem[i].data,
  			     beacon->mbssid_ies->elem[i].len);
-@@ -5398,7 +5405,8 @@ ieee80211_beacon_get_ap(struct ieee80211
+@@ -5381,7 +5388,8 @@ ieee80211_beacon_get_ap(struct ieee80211
  			struct ieee80211_mutable_offsets *offs,
  			bool is_template,
  			struct beacon_data *beacon,
@@ -194,7 +193,7 @@ Signed-off-by: Aloka Dixit <alokad@codeaurora.org>
  {
  	struct ieee80211_local *local = hw_to_local(hw);
  	struct ieee80211_sub_if_data *sdata = vif_to_sdata(vif);
-@@ -5417,7 +5425,7 @@ ieee80211_beacon_get_ap(struct ieee80211
+@@ -5400,7 +5408,7 @@ ieee80211_beacon_get_ap(struct ieee80211
  	/* headroom, head length,
  	 * tail length, maximum TIM length and multiple BSSID length
  	 */
@@ -203,7 +202,7 @@ Signed-off-by: Aloka Dixit <alokad@codeaurora.org>
  	skb = dev_alloc_skb(local->tx_headroom + beacon->head_len +
  			    beacon->tail_len + 256 +
  			    local->hw.extra_beacon_tailroom + mbssid_len);
-@@ -5435,7 +5443,7 @@ ieee80211_beacon_get_ap(struct ieee80211
+@@ -5418,7 +5426,7 @@ ieee80211_beacon_get_ap(struct ieee80211
  		offs->cntdwn_counter_offs[0] = beacon->cntdwn_counter_offsets[0];
  
  		if (mbssid_len) {
@@ -212,7 +211,7 @@ Signed-off-by: Aloka Dixit <alokad@codeaurora.org>
  			offs->mbssid_off = skb->len - mbssid_len;
  		}
  
-@@ -5454,12 +5462,49 @@ ieee80211_beacon_get_ap(struct ieee80211
+@@ -5437,12 +5445,49 @@ ieee80211_beacon_get_ap(struct ieee80211
  	return skb;
  }
  
@@ -263,12 +262,19 @@ Signed-off-by: Aloka Dixit <alokad@codeaurora.org>
  {
  	struct ieee80211_local *local = hw_to_local(hw);
  	struct beacon_data *beacon = NULL;
-@@ -5488,8 +5533,16 @@ __ieee80211_beacon_get(struct ieee80211_
+@@ -5471,8 +5516,23 @@ __ieee80211_beacon_get(struct ieee80211_
  		if (!beacon)
  			goto out;
  
 -		skb = ieee80211_beacon_get_ap(hw, vif, link, offs, is_template,
 -					      beacon, chanctx_conf);
++		if (beacon->cntdwn_counter_offsets[0]) {
++			if (!is_template)
++				ieee80211_beacon_update_cntdwn(vif);
++
++			ieee80211_set_beacon_cntdwn(sdata, beacon, link);
++		}
++
 +		if (ema_beacons)
 +			(void)ieee80211_beacon_get_ap_ema_list(hw, vif, link, offs,
 +							       is_template,
@@ -282,7 +288,7 @@ Signed-off-by: Aloka Dixit <alokad@codeaurora.org>
  	} else if (sdata->vif.type == NL80211_IFTYPE_ADHOC) {
  		struct ieee80211_if_ibss *ifibss = &sdata->u.ibss;
  		struct ieee80211_hdr *hdr;
-@@ -5577,10 +5630,45 @@ ieee80211_beacon_get_template(struct iee
+@@ -5560,10 +5620,45 @@ ieee80211_beacon_get_template(struct iee
  			      struct ieee80211_mutable_offsets *offs,
  			      unsigned int link_id)
  {
@@ -320,7 +326,7 @@ Signed-off-by: Aloka Dixit <alokad@codeaurora.org>
 +		       		   unsigned int link_id)
 +{
 +	struct ieee80211_ema_beacons *ema_beacons = NULL;
-+	(void)__ieee80211_beacon_get(hw, vif, NULL, true, link_id,
++	(void)__ieee80211_beacon_get(hw, vif, NULL, false, link_id,
 +				     IEEE80211_BCN_EMA_BASE, &ema_beacons);
 +	return ema_beacons;
 +}
@@ -329,7 +335,7 @@ Signed-off-by: Aloka Dixit <alokad@codeaurora.org>
  struct sk_buff *ieee80211_beacon_get_tim(struct ieee80211_hw *hw,
  					 struct ieee80211_vif *vif,
  					 u16 *tim_offset, u16 *tim_length,
-@@ -5588,7 +5676,7 @@ struct sk_buff *ieee80211_beacon_get_tim
+@@ -5571,7 +5666,7 @@ struct sk_buff *ieee80211_beacon_get_tim
  {
  	struct ieee80211_mutable_offsets offs = {};
  	struct sk_buff *bcn = __ieee80211_beacon_get(hw, vif, &offs, false,
@@ -340,35 +346,26 @@ Signed-off-by: Aloka Dixit <alokad@codeaurora.org>
  
 --- a/net/mac80211/cfg.c
 +++ b/net/mac80211/cfg.c
-@@ -1050,11 +1050,11 @@ static int ieee80211_assign_beacon(struc
+@@ -1052,11 +1052,11 @@ static int ieee80211_assign_beacon(struc
  	if (params->mbssid_ies) {
  		mbssid = params->mbssid_ies;
  		size += struct_size(new->mbssid_ies, elem, mbssid->cnt);
 -		size += ieee80211_get_mbssid_beacon_len(mbssid);
-+		size += ieee80211_get_mbssid_beacon_len(mbssid, IEEE80211_BCN_EMA_DISABLED);
++		size += ieee80211_get_mbssid_beacon_len(mbssid, 0);
  	} else if (old && old->mbssid_ies) {
  		mbssid = old->mbssid_ies;
  		size += struct_size(new->mbssid_ies, elem, mbssid->cnt);
 -		size += ieee80211_get_mbssid_beacon_len(mbssid);
-+		size += ieee80211_get_mbssid_beacon_len(mbssid, IEEE80211_BCN_EMA_DISABLED);
++		size += ieee80211_get_mbssid_beacon_len(mbssid, 0);
  	}
  
  	new = kzalloc(size, GFP_KERNEL);
-@@ -1077,7 +1077,7 @@ static int ieee80211_assign_beacon(struc
- 
- 		new->mbssid_ies = (void *)pos;
- 		pos += struct_size(new->mbssid_ies, elem, mbssid->cnt);
--		ieee80211_copy_mbssid_beacon(pos, new->mbssid_ies, mbssid);
-+		pos += ieee80211_copy_mbssid_beacon(pos, new->mbssid_ies, mbssid);
- 		/* update bssid_indicator */
- 		link_conf->bssid_indicator =
- 			ilog2(__roundup_pow_of_two(mbssid->cnt + 1));
-@@ -3287,7 +3287,7 @@ cfg80211_beacon_dup(struct cfg80211_beac
+@@ -3308,7 +3308,7 @@ cfg80211_beacon_dup(struct cfg80211_beac
  	len = beacon->head_len + beacon->tail_len + beacon->beacon_ies_len +
  	      beacon->proberesp_ies_len + beacon->assocresp_ies_len +
  	      beacon->probe_resp_len + beacon->lci_len + beacon->civicloc_len +
 -	      ieee80211_get_mbssid_beacon_len(beacon->mbssid_ies);
-+	      ieee80211_get_mbssid_beacon_len(beacon->mbssid_ies, IEEE80211_BCN_EMA_DISABLED);
++	      ieee80211_get_mbssid_beacon_len(beacon->mbssid_ies, 0);
  
  	new_beacon = kzalloc(sizeof(*new_beacon) + len, GFP_KERNEL);
  	if (!new_beacon)

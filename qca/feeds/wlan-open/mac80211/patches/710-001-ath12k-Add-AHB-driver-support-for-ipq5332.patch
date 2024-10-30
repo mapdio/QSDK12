@@ -17,7 +17,7 @@ Signed-off-by: Balamurugan S <quic_bselvara@quicinc.com>
 
 --- /dev/null
 +++ b/drivers/net/wireless/ath/ath12k/ahb.c
-@@ -0,0 +1,1115 @@
+@@ -0,0 +1,1103 @@
 +// SPDX-License-Identifier: BSD-3-Clause-Clear
 +/*
 + * Copyright (c) 2018-2019 The Linux Foundation. All rights reserved.
@@ -98,7 +98,6 @@ Signed-off-by: Balamurugan S <quic_bselvara@quicinc.com>
 +	"host2tcl-input-ring3",
 +	"host2tcl-input-ring2",
 +	"host2tcl-input-ring1",
-+	"wbm2host-tx-completions-ring4",
 +	"wbm2host-tx-completions-ring3",
 +	"wbm2host-tx-completions-ring2",
 +	"wbm2host-tx-completions-ring1",
@@ -141,7 +140,6 @@ Signed-off-by: Balamurugan S <quic_bselvara@quicinc.com>
 +	host2tcl_input_ring3,
 +	host2tcl_input_ring2,
 +	host2tcl_input_ring1,
-+	wbm2host_tx_completions_ring4,
 +	wbm2host_tx_completions_ring3,
 +	wbm2host_tx_completions_ring2,
 +	wbm2host_tx_completions_ring1,
@@ -540,9 +538,6 @@ Signed-off-by: Balamurugan S <quic_bselvara@quicinc.com>
 +			if (ab->hw_params->ring_mask->reo_status[i] & BIT(j))
 +				irq_grp->irqs[num_irq++] = reo2host_status;
 +
-+			if (ab->hw_params->ring_mask->rx_mon_dest[i] & BIT(j))
-+				irq_grp->irqs[num_irq++] = rxdma2host_monitor_destination_mac1;
-+
 +		}
 +
 +		irq_grp->num_irq = num_irq;
@@ -868,13 +863,6 @@ Signed-off-by: Balamurugan S <quic_bselvara@quicinc.com>
 +	struct ath12k_ahb *ab_ahb = ath12k_ahb_priv(ab);
 +	struct iommu_domain *iommu;
 +	size_t unmapped_size;
-+
-+	/* Chipsets not requiring MSA need not initialize
-+	 * MSA resources so, deinit of MSA resource is not required.
-+	 * return success in such cases.
-+	 */
-+	if (!ab->hw_params->fixed_fw_mem)
-+		return 0;
 +
 +	if (ab_ahb->fw.use_tz)
 +		return 0;

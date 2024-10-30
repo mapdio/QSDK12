@@ -78,7 +78,7 @@ Signed-off-by: Sriram R <quic_srirrama@quicinc.com>
  
 --- a/drivers/net/wireless/ath/ath12k/core.h
 +++ b/drivers/net/wireless/ath/ath12k/core.h
-@@ -311,12 +311,11 @@ struct ath12k_vif_cache {
+@@ -311,10 +311,8 @@ struct ath12k_vif_cache {
  	u64 bss_conf_changed;
  };
  
@@ -89,11 +89,8 @@ Signed-off-by: Sriram R <quic_srirrama@quicinc.com>
 -	enum wmi_vdev_subtype vdev_subtype;
  	u32 beacon_interval;
  	u32 dtim_period;
-+	u8 addr[ETH_ALEN];
  	u16 ast_hash;
- 	u16 ast_idx;
- 	u16 tcl_metadata;
-@@ -324,7 +323,6 @@ struct ath12k_vif {
+@@ -324,7 +322,6 @@ struct ath12k_vif {
  	u8 search_type;
  
  	struct ath12k *ar;
@@ -101,7 +98,7 @@ Signed-off-by: Sriram R <quic_srirrama@quicinc.com>
  
  	int bank_id;
  	u8 vdev_id_check_en;
-@@ -332,39 +330,18 @@ struct ath12k_vif {
+@@ -332,39 +329,18 @@ struct ath12k_vif {
  	u16 tx_seq_no;
  	struct wmi_wmm_params_all_arg wmm_params;
  	struct list_head list;
@@ -141,7 +138,7 @@ Signed-off-by: Sriram R <quic_srirrama@quicinc.com>
  	u8 vdev_stats_id;
  	struct ath12k_fw_vdev_ol_stats vdev_stats;
  	u8 nontransmitting_vif_count;
-@@ -378,13 +355,48 @@ struct ath12k_vif {
+@@ -378,13 +354,48 @@ struct ath12k_vif {
  	struct work_struct update_bcn_template_work;
  	u64 obss_color_bitmap;
  	struct work_struct update_obss_color_notify_work;
@@ -191,7 +188,7 @@ Signed-off-by: Sriram R <quic_srirrama@quicinc.com>
  };
  
  #define HAL_AST_IDX_INVALID	0xFFFF
-@@ -534,40 +546,50 @@ struct ath12k_driver_rx_pkts_flow {
+@@ -534,40 +545,50 @@ struct ath12k_driver_rx_pkts_flow {
  	atomic_t pkts_out;
  };
  
@@ -254,7 +251,7 @@ Signed-off-by: Sriram R <quic_srirrama@quicinc.com>
  #define ATH12K_HALF_20MHZ_BW 10
  #define ATH12K_5G_MIN_CENTER 4900
  #define ATH12K_5G_MAX_CENTER 5920
-@@ -1305,7 +1327,7 @@ static inline struct ath12k_skb_rxcb *AT
+@@ -1305,7 +1326,7 @@ static inline struct ath12k_skb_rxcb *AT
  	return (struct ath12k_skb_rxcb *)skb->cb;
  }
  
@@ -274,7 +271,7 @@ Signed-off-by: Sriram R <quic_srirrama@quicinc.com>
  	struct stats_request_params req_param;
  	void *buf = NULL;
  	int ret;
-@@ -2353,7 +2353,7 @@ static ssize_t ath12k_dump_mgmt_stats(st
+@@ -2343,7 +2343,7 @@ static ssize_t ath12k_dump_mgmt_stats(st
  					size_t count, loff_t *ppos)
  {
  	struct ath12k *ar = file->private_data;
@@ -283,7 +280,7 @@ Signed-off-by: Sriram R <quic_srirrama@quicinc.com>
  	struct ath12k_mgmt_frame_stats *mgmt_stats;
  	int len = 0, ret, i;
  	int size = (TARGET_NUM_VDEVS - 1) * 1500;
-@@ -2380,9 +2380,9 @@ static ssize_t ath12k_dump_mgmt_stats(st
+@@ -2370,9 +2370,9 @@ static ssize_t ath12k_dump_mgmt_stats(st
  		if (!arvif)
  			break;
  
@@ -295,7 +292,7 @@ Signed-off-by: Sriram R <quic_srirrama@quicinc.com>
  		len += scnprintf(buf + len, size - len, "MGMT frame stats for vdev %u :\n", arvif->vdev_id);
  		len += scnprintf(buf + len, size - len, "  TX stats :\n ");
  		len += scnprintf(buf + len, size - len, "  Success frames:\n");
-@@ -2524,7 +2524,7 @@ static ssize_t ath12k_write_twt_add_dial
+@@ -2523,7 +2523,7 @@ static ssize_t ath12k_write_twt_add_dial
  					   const char __user *ubuf,
  					   size_t count, loff_t *ppos)
  {
@@ -304,7 +301,7 @@ Signed-off-by: Sriram R <quic_srirrama@quicinc.com>
  	struct wmi_twt_add_dialog_params params = { 0 };
  	u8 buf[128] = {0};
  	int ret;
-@@ -2573,7 +2573,7 @@ static ssize_t ath12k_write_twt_del_dial
+@@ -2572,7 +2572,7 @@ static ssize_t ath12k_write_twt_del_dial
  					   const char __user *ubuf,
  					   size_t count, loff_t *ppos)
  {
@@ -313,7 +310,7 @@ Signed-off-by: Sriram R <quic_srirrama@quicinc.com>
  	struct wmi_twt_del_dialog_params params = { 0 };
  	u8 buf[64] = {0};
  	int ret;
-@@ -2612,7 +2612,7 @@ static ssize_t ath12k_write_twt_pause_di
+@@ -2611,7 +2611,7 @@ static ssize_t ath12k_write_twt_pause_di
  					     const char __user *ubuf,
  					     size_t count, loff_t *ppos)
  {
@@ -322,7 +319,7 @@ Signed-off-by: Sriram R <quic_srirrama@quicinc.com>
  	struct wmi_twt_pause_dialog_params params = { 0 };
  	u8 buf[64] = {0};
  	int ret;
-@@ -2651,7 +2651,7 @@ static ssize_t ath12k_write_twt_resume_d
+@@ -2650,7 +2650,7 @@ static ssize_t ath12k_write_twt_resume_d
  					      const char __user *ubuf,
  					      size_t count, loff_t *ppos)
  {
@@ -331,7 +328,7 @@ Signed-off-by: Sriram R <quic_srirrama@quicinc.com>
  	struct wmi_twt_resume_dialog_params params = { 0 };
  	u8 buf[64] = {0};
  	int ret;
-@@ -2708,11 +2708,13 @@ static const struct file_operations ath1
+@@ -2707,11 +2707,13 @@ static const struct file_operations ath1
  	.open = simple_open
  };
  
@@ -348,7 +345,7 @@ Signed-off-by: Sriram R <quic_srirrama@quicinc.com>
  		if (!arvif->debugfs_twt || IS_ERR(arvif->debugfs_twt)) {
  			ath12k_warn(arvif->ar->ab,
  				    "failed to create directory %p\n",
-@@ -2736,7 +2738,7 @@ int ath12k_debugfs_add_interface(struct
+@@ -2735,7 +2737,7 @@ int ath12k_debugfs_add_interface(struct
  	return 0;
  }
  
@@ -731,7 +728,7 @@ Signed-off-by: Sriram R <quic_srirrama@quicinc.com>
  struct hal_tcl_status_ring;
  struct ath12k_ext_irq_grp;
  
-@@ -2066,7 +2066,7 @@ int ath12k_dp_service_srng(struct ath12k
+@@ -2065,7 +2065,7 @@ int ath12k_dp_service_srng(struct ath12k
  			   struct ath12k_ext_irq_grp *irq_grp,
  			   int budget);
  int ath12k_dp_htt_connect(struct ath12k_dp *dp);
@@ -740,7 +737,7 @@ Signed-off-by: Sriram R <quic_srirrama@quicinc.com>
  void ath12k_dp_free(struct ath12k_base *ab);
  int ath12k_dp_alloc(struct ath12k_base *ab);
  void ath12k_dp_cc_config(struct ath12k_base *ab);
-@@ -2092,5 +2092,5 @@ struct ath12k_rx_desc_info *ath12k_dp_ge
+@@ -2091,5 +2091,5 @@ struct ath12k_rx_desc_info *ath12k_dp_ge
  						  u32 cookie);
  struct ath12k_tx_desc_info *ath12k_dp_get_tx_desc(struct ath12k_base *ab,
  						  u32 desc_id);
@@ -749,7 +746,7 @@ Signed-off-by: Sriram R <quic_srirrama@quicinc.com>
  #endif
 --- a/drivers/net/wireless/ath/ath12k/dp_mon.c
 +++ b/drivers/net/wireless/ath/ath12k/dp_mon.c
-@@ -3295,7 +3295,7 @@ ath12k_dp_mon_rx_update_peer_rate_table_
+@@ -3294,7 +3294,7 @@ ath12k_dp_mon_rx_update_peer_rate_table_
  }
  
  static void ath12k_dp_mon_rx_update_peer_su_stats(struct ath12k *ar,
@@ -758,7 +755,7 @@ Signed-off-by: Sriram R <quic_srirrama@quicinc.com>
  						  struct hal_rx_mon_ppdu_info *ppdu_info)
  {
  	struct ath12k_rx_peer_stats *rx_stats = arsta->rx_stats;
-@@ -3460,7 +3460,8 @@ ath12k_dp_mon_rx_update_user_stats(struc
+@@ -3459,7 +3459,8 @@ ath12k_dp_mon_rx_update_user_stats(struc
  				   struct hal_rx_mon_ppdu_info *ppdu_info,
  				   u32 uid)
  {
@@ -768,7 +765,7 @@ Signed-off-by: Sriram R <quic_srirrama@quicinc.com>
  	struct ath12k_rx_peer_stats *rx_stats = NULL;
  	struct hal_rx_user_status *user_stats = &ppdu_info->userstats[uid];
  	struct ath12k_peer *peer;
-@@ -3477,7 +3478,8 @@ ath12k_dp_mon_rx_update_user_stats(struc
+@@ -3476,7 +3477,8 @@ ath12k_dp_mon_rx_update_user_stats(struc
  		return;
  	}
  
@@ -778,7 +775,7 @@ Signed-off-by: Sriram R <quic_srirrama@quicinc.com>
  	rx_stats = arsta->rx_stats;
  
  	if (!rx_stats)
-@@ -3606,7 +3608,7 @@ int ath12k_dp_mon_srng_process(struct at
+@@ -3605,7 +3607,7 @@ int ath12k_dp_mon_srng_process(struct at
  	struct hal_rx_mon_ppdu_info *ppdu_info = &pmon->mon_ppdu_info;
  	struct sk_buff_head skb_list;
  	struct ath12k_peer *peer = NULL;
@@ -787,7 +784,7 @@ Signed-off-by: Sriram R <quic_srirrama@quicinc.com>
  	u64 cookie;
  	u32 hal_status, end_reason, ppdu_id;
  	int num_buffs_reaped = 0, srng_id, buf_id;
-@@ -3715,8 +3717,9 @@ move_next:
+@@ -3714,8 +3716,9 @@ move_next:
  		}
  
  		if (ppdu_info->reception_type == HAL_RX_RECEPTION_TYPE_SU) {
@@ -799,7 +796,7 @@ Signed-off-by: Sriram R <quic_srirrama@quicinc.com>
  		} else if ((ppdu_info->fc_valid) &&
  			   (ppdu_info->ast_index != HAL_AST_IDX_INVALID)) {
  			ath12k_dp_mon_rx_process_ulofdma(ppdu_info);
-@@ -3749,7 +3752,7 @@ int ath12k_dp_mon_rx_process_stats(struc
+@@ -3748,7 +3751,7 @@ int ath12k_dp_mon_rx_process_stats(struc
  	struct dp_srng *mon_dst_ring;
  	struct hal_srng *srng;
  	struct dp_rxdma_ring *buf_ring;
@@ -808,7 +805,7 @@ Signed-off-by: Sriram R <quic_srirrama@quicinc.com>
  	struct ath12k_peer *peer;
  	struct sk_buff_head skb_list;
  	u64 cookie;
-@@ -3860,8 +3863,9 @@ move_next:
+@@ -3859,8 +3862,9 @@ move_next:
  		}
  
  		if (ppdu_info->reception_type == HAL_RX_RECEPTION_TYPE_SU) {
@@ -859,7 +856,7 @@ Signed-off-by: Sriram R <quic_srirrama@quicinc.com>
  				       const u8 *peer_addr,
  				       enum set_key_cmd key_cmd,
  				       struct ieee80211_key_conf *key)
-@@ -1432,7 +1435,8 @@ ath12k_update_per_peer_tx_stats(struct a
+@@ -1428,7 +1431,8 @@ ath12k_update_per_peer_tx_stats(struct a
  	struct ath12k_base *ab = ar->ab;
  	struct ath12k_peer *peer;
  	struct ieee80211_sta *sta;
@@ -869,7 +866,7 @@ Signed-off-by: Sriram R <quic_srirrama@quicinc.com>
  	struct htt_ppdu_stats_user_rate *user_rate;
  	struct htt_ppdu_stats *ppdu_stats = &ppdu_info->ppdu_stats;
  	struct ath12k_per_peer_tx_stats *peer_stats = &ar->peer_tx_stats;
-@@ -1559,7 +1563,8 @@ ath12k_update_per_peer_tx_stats(struct a
+@@ -1555,7 +1559,8 @@ ath12k_update_per_peer_tx_stats(struct a
  	}
  
  	sta = peer->sta;
@@ -879,7 +876,7 @@ Signed-off-by: Sriram R <quic_srirrama@quicinc.com>
  
  	memset(&arsta->txrate, 0, sizeof(arsta->txrate));
  
-@@ -1900,7 +1905,7 @@ static void ath12k_htt_vdev_txrx_stats_h
+@@ -1896,7 +1901,7 @@ static void ath12k_htt_vdev_txrx_stats_h
  {
  	struct htt_t2h_vdev_txrx_stats_ind *vdev_tlv;
  	struct htt_t2h_vdev_common_stats_tlv *soc_tlv;
@@ -888,7 +885,7 @@ Signed-off-by: Sriram R <quic_srirrama@quicinc.com>
  	const struct htt_tlv *tlv;
  	u32 *data = (u32 *)skb->data;
  	u32 vdev_id;
-@@ -2829,7 +2834,8 @@ static void ath12k_dp_rx_deliver_msdu(st
+@@ -2825,7 +2830,8 @@ static void ath12k_dp_rx_deliver_msdu(st
  	u8 decap = DP_RX_DECAP_TYPE_RAW;
  	bool is_mcbc = rxcb->is_mcbc;
  	bool is_eapol = rxcb->is_eapol;
@@ -898,7 +895,7 @@ Signed-off-by: Sriram R <quic_srirrama@quicinc.com>
  
  	if (status->encoding == RX_ENC_HE && !(status->flag & RX_FLAG_RADIOTAP_HE) &&
  	    !(status->flag & RX_FLAG_SKIP_MONITOR)) {
-@@ -2895,9 +2901,10 @@ static void ath12k_dp_rx_deliver_msdu(st
+@@ -2891,9 +2897,10 @@ static void ath12k_dp_rx_deliver_msdu(st
  	if (ath12k_debugfs_is_extd_rx_stats_enabled(ar)) {
  		if (!(status->flag & RX_FLAG_ONLY_MONITOR)) {
  			spin_lock_bh(&ar->ab->base_lock);
@@ -912,7 +909,7 @@ Signed-off-by: Sriram R <quic_srirrama@quicinc.com>
  			spin_unlock_bh(&ar->ab->base_lock);
  			if (arsta)
  				atomic_inc(&arsta->drv_rx_pkts.pkts_out);
-@@ -3047,7 +3054,8 @@ int ath12k_dp_rx_process(struct ath12k_b
+@@ -3043,7 +3050,8 @@ int ath12k_dp_rx_process(struct ath12k_b
  	u32 *rx_desc;
  	int i;
  	u64 desc_va;
@@ -922,7 +919,7 @@ Signed-off-by: Sriram R <quic_srirrama@quicinc.com>
  	struct ath12k_peer *peer = NULL;
  	struct ath12k *ar;
  
-@@ -3122,9 +3130,10 @@ try_again:
+@@ -3118,9 +3126,10 @@ try_again:
  			rcu_read_lock();
  			spin_lock_bh(&ab->base_lock);
  			peer = ath12k_peer_find_by_id(ab, rxcb->peer_id);
@@ -936,7 +933,7 @@ Signed-off-by: Sriram R <quic_srirrama@quicinc.com>
  			spin_unlock_bh(&ab->base_lock);
  			if (arsta)
  				atomic_inc(&arsta->drv_rx_pkts.pkts_frm_hw);
-@@ -3970,7 +3979,8 @@ static int ath12k_dp_rx_h_null_q_desc(st
+@@ -3966,7 +3975,8 @@ static int ath12k_dp_rx_h_null_q_desc(st
  	struct ath12k_skb_rxcb *rxcb = ATH12K_SKB_RXCB(msdu);
  	u32 hal_rx_desc_sz = ar->ab->hw_params->hal_desc_sz;
  	bool fast_rx;
@@ -946,7 +943,7 @@ Signed-off-by: Sriram R <quic_srirrama@quicinc.com>
  	struct ath12k_peer *peer = NULL;
  
  	msdu_len = ath12k_dp_rx_h_msdu_len(ab, desc);
-@@ -4038,8 +4048,10 @@ static int ath12k_dp_rx_h_null_q_desc(st
+@@ -4034,8 +4044,10 @@ static int ath12k_dp_rx_h_null_q_desc(st
  		spin_lock_bh(&ar->ab->base_lock);
  		if (peer_id)
  			peer = ath12k_peer_find_by_id(ar->ab, rxcb->peer_id);
@@ -1142,10 +1139,7 @@ Signed-off-by: Sriram R <quic_srirrama@quicinc.com>
 +	struct ath12k_link_vif *arvif;
 +	u16 links_map;
 +	u8 link_id;
- 
--	if ((arvif->vdev_id == arvif_iter->vdev_id) &&
--	    (arvif->ar == arvif_iter->ar))
--		arvif_iter->arvif = arvif;
++
 +	/* TODO Revisit lock usage for ahvif->link. Currently this is
 +	 * used with vif protected by rcu lock and since the ahvif->links_map
 +	 * or link wont be modified it is safe to access below without its mutex
@@ -1157,7 +1151,10 @@ Signed-off-by: Sriram R <quic_srirrama@quicinc.com>
 +
 +		if (WARN_ON(arvif == NULL))
 +			continue;
-+
+ 
+-	if ((arvif->vdev_id == arvif_iter->vdev_id) &&
+-	    (arvif->ar == arvif_iter->ar))
+-		arvif_iter->arvif = arvif;
 +		if ((arvif->vdev_id == arvif_iter->vdev_id) &&
 +		    (arvif->ar == arvif_iter->ar)) {
 +			arvif_iter->arvif = arvif;
@@ -1171,15 +1168,7 @@ Signed-off-by: Sriram R <quic_srirrama@quicinc.com>
  {
  	struct ath12k_vif_iter arvif_iter;
  	u32 flags;
-@@ -597,20 +627,15 @@ struct ath12k_vif *ath12k_mac_get_arvif(
- 						   flags,
- 						   ath12k_get_arvif_iter,
- 						   &arvif_iter);
--	if (!arvif_iter.arvif) {
--		ath12k_warn(ar->ab, "No VIF found for vdev %d\n", vdev_id);
--		return NULL;
--	}
--
+@@ -605,12 +635,12 @@ struct ath12k_vif *ath12k_mac_get_arvif(
  	return arvif_iter.arvif;
  }
  
@@ -1194,7 +1183,7 @@ Signed-off-by: Sriram R <quic_srirrama@quicinc.com>
  
  	for (i = 0; i < ab->num_radios; i++) {
  		pdev = rcu_dereference(ab->pdevs_active[i]);
-@@ -652,9 +677,11 @@ static struct ath12k *ath12k_get_ar_by_c
+@@ -652,9 +682,11 @@ static struct ath12k *ath12k_get_ar_by_c
  	return ath12k_mac_get_ar_by_band(hw, ctx->def.chan->band);
  }
  
@@ -1208,7 +1197,7 @@ Signed-off-by: Sriram R <quic_srirrama@quicinc.com>
  	struct ath12k_hw *ah = hw->priv;
  	struct ath12k *ar = NULL;
  
-@@ -663,9 +690,14 @@ struct ath12k *ath12k_get_ar_by_vif(stru
+@@ -663,9 +695,14 @@ struct ath12k *ath12k_get_ar_by_vif(stru
  	if (!vif)
  		return NULL;
  
@@ -1225,7 +1214,7 @@ Signed-off-by: Sriram R <quic_srirrama@quicinc.com>
  		ar = arvif->ar;
  
  	return ar;
-@@ -734,7 +766,7 @@ static void ath12k_pdev_caps_update(stru
+@@ -734,7 +771,7 @@ static void ath12k_pdev_caps_update(stru
  static int ath12k_mac_txpower_recalc(struct ath12k *ar)
  {
  	struct ath12k_pdev *pdev = ar->pdev;
@@ -1234,7 +1223,7 @@ Signed-off-by: Sriram R <quic_srirrama@quicinc.com>
  	int ret, txpower = -1;
  	u32 param;
  
-@@ -788,7 +820,7 @@ fail:
+@@ -788,7 +825,7 @@ fail:
  	return ret;
  }
  
@@ -1243,7 +1232,7 @@ Signed-off-by: Sriram R <quic_srirrama@quicinc.com>
  {
  	struct ath12k *ar = arvif->ar;
  	u32 vdev_param, rts_cts = 0;
-@@ -827,7 +859,7 @@ static int ath12k_recalc_rtscts_prot(str
+@@ -827,7 +864,7 @@ static int ath12k_recalc_rtscts_prot(str
  	return ret;
  }
  
@@ -1252,7 +1241,7 @@ Signed-off-by: Sriram R <quic_srirrama@quicinc.com>
  {
  	struct ath12k *ar = arvif->ar;
  	u32 param;
-@@ -1257,10 +1289,11 @@ out:
+@@ -1257,10 +1294,11 @@ out:
  	return ret;
  }
  
@@ -1265,7 +1254,7 @@ Signed-off-by: Sriram R <quic_srirrama@quicinc.com>
  	struct ieee80211_vht_cap *vht_cap;
  	u8 *ies;
  	const u8 *vht_cap_ie;
-@@ -1269,25 +1302,31 @@ static void ath12k_mac_setup_bcn_tmpl_vi
+@@ -1269,25 +1307,31 @@ static void ath12k_mac_setup_bcn_tmpl_vi
  	mgmt = (struct ieee80211_mgmt *)bcn->data;
  	ies += sizeof(mgmt->u.beacon);
  
@@ -1303,7 +1292,7 @@ Signed-off-by: Sriram R <quic_srirrama@quicinc.com>
  	struct ieee80211_mgmt *mgmt;
  	const u8 *ies, *profile, *next_profile;
  	int ies_len;
-@@ -1295,7 +1334,7 @@ static bool ath12k_mac_setup_bcn_tmpl_no
+@@ -1295,7 +1339,7 @@ static bool ath12k_mac_setup_bcn_tmpl_no
  	if (arvif == tx_arvif)
  		return true;
  
@@ -1312,7 +1301,7 @@ Signed-off-by: Sriram R <quic_srirrama@quicinc.com>
  
  	ies = bcn->data + ieee80211_get_hdrlen_from_skb(bcn);
  	ies += sizeof(mgmt->u.beacon);
-@@ -1322,14 +1361,14 @@ static bool ath12k_mac_setup_bcn_tmpl_no
+@@ -1322,14 +1366,14 @@ static bool ath12k_mac_setup_bcn_tmpl_no
  			profile += (2 + profile[1]); /* nontx capabilities */
  			profile_len -= (2 + profile[1]);
  			profile += (2 + profile[1]); /* SSID */
@@ -1330,7 +1319,7 @@ Signed-off-by: Sriram R <quic_srirrama@quicinc.com>
  					nie = cfg80211_find_ext_ie(WLAN_EID_EXT_NON_INHERITANCE,
  								   profile,
  								   profile_len);
-@@ -1341,7 +1380,7 @@ static bool ath12k_mac_setup_bcn_tmpl_no
+@@ -1341,7 +1385,7 @@ static bool ath12k_mac_setup_bcn_tmpl_no
  						for (i = 0; i < nie_len; i++) {
  							if (nie[i] ==
  								WLAN_EID_RSN) {
@@ -1339,7 +1328,7 @@ Signed-off-by: Sriram R <quic_srirrama@quicinc.com>
  								break;
  							}
  						}
-@@ -1358,7 +1397,7 @@ static bool ath12k_mac_setup_bcn_tmpl_no
+@@ -1358,7 +1402,7 @@ static bool ath12k_mac_setup_bcn_tmpl_no
  	return false;
  }
  
@@ -1348,7 +1337,7 @@ Signed-off-by: Sriram R <quic_srirrama@quicinc.com>
  				       struct sk_buff *bcn,
  				       struct ieee80211_mutable_offsets offs,
  				       int ema_idx, int ema_cnt)
-@@ -1378,20 +1417,25 @@ static int __ath12k_mac_setup_bcn_tmpl(s
+@@ -1378,20 +1422,25 @@ static int __ath12k_mac_setup_bcn_tmpl(s
  	return ath12k_wmi_bcn_tmpl(ar, arvif->vdev_id, &offs, bcn, ema_param);
  }
  
@@ -1379,7 +1368,7 @@ Signed-off-by: Sriram R <quic_srirrama@quicinc.com>
  	if (!beacons || !beacons->cnt) {
  		ath12k_warn(arvif->ar->ab,
  			    "failed to get ema beacon templates from mac80211\n");
-@@ -1403,7 +1447,7 @@ static int ath12k_mac_setup_bcn_tmpl_ema
+@@ -1403,7 +1452,7 @@ static int ath12k_mac_setup_bcn_tmpl_ema
  						     beacons->bcn[0].skb);
  		found_vdev = true;
  	} else {
@@ -1388,7 +1377,7 @@ Signed-off-by: Sriram R <quic_srirrama@quicinc.com>
  	}
  
  	for (i = 0; i < beacons->cnt; i++) {
-@@ -1428,17 +1472,24 @@ static int ath12k_mac_setup_bcn_tmpl_ema
+@@ -1428,17 +1477,24 @@ static int ath12k_mac_setup_bcn_tmpl_ema
  	return ret;
  }
  
@@ -1418,7 +1407,7 @@ Signed-off-by: Sriram R <quic_srirrama@quicinc.com>
  					    &offs, 0);
  	if (!bcn) {
  		ath12k_warn(arvif->ar->ab,
-@@ -1463,15 +1514,19 @@ static int ath12k_mac_setup_bcn_tmpl_non
+@@ -1463,15 +1519,19 @@ static int ath12k_mac_setup_bcn_tmpl_non
  	return ret;
  }
  
@@ -1442,7 +1431,7 @@ Signed-off-by: Sriram R <quic_srirrama@quicinc.com>
  	    arvif->is_up)
  		return 0;
  
-@@ -1482,9 +1537,9 @@ static int ath12k_mac_setup_bcn_tmpl(str
+@@ -1482,9 +1542,9 @@ static int ath12k_mac_setup_bcn_tmpl(str
  }
  
  
@@ -1454,7 +1443,7 @@ Signed-off-by: Sriram R <quic_srirrama@quicinc.com>
  	struct ath12k *ar = arvif->ar;
  
  	if (!vif->bss_conf.color_change_active && !arvif->bcca_zero_sent)
-@@ -1503,16 +1558,23 @@ void ath12k_mac_bcn_tx_event(struct ath1
+@@ -1503,16 +1563,23 @@ void ath12k_mac_bcn_tx_event(struct ath1
  	ieee80211_queue_work(ar->ah->hw, &arvif->update_bcn_template_work);
  }
  
@@ -1482,7 +1471,7 @@ Signed-off-by: Sriram R <quic_srirrama@quicinc.com>
  
  	lockdep_assert_held(&arvif->ar->conf_mutex);
  
-@@ -1539,12 +1601,12 @@ static void ath12k_control_beaconing(str
+@@ -1539,12 +1606,12 @@ static void ath12k_control_beaconing(str
  
  	arvif->tx_seq_no = 0x1000;
  
@@ -1497,7 +1486,7 @@ Signed-off-by: Sriram R <quic_srirrama@quicinc.com>
  	params.bssid = arvif->bssid;
  	if (tx_arvif) {
  		params.tx_bssid = tx_arvif->bssid;
-@@ -1566,12 +1628,16 @@ static void ath12k_control_beaconing(str
+@@ -1566,12 +1633,16 @@ static void ath12k_control_beaconing(str
  }
  
  static void ath12k_peer_assoc_h_basic(struct ath12k *ar,
@@ -1517,7 +1506,7 @@ Signed-off-by: Sriram R <quic_srirrama@quicinc.com>
  
  	lockdep_assert_held(&ar->conf_mutex);
  
-@@ -1591,30 +1657,36 @@ static void ath12k_peer_assoc_h_basic(st
+@@ -1591,30 +1662,36 @@ static void ath12k_peer_assoc_h_basic(st
  }
  
  static void ath12k_peer_assoc_h_crypto(struct ath12k *ar,
@@ -1560,7 +1549,7 @@ Signed-off-by: Sriram R <quic_srirrama@quicinc.com>
  			arg->need_gtk_2_way = true;
  	} else if (bss) {
  		const struct cfg80211_bss_ies *ies;
-@@ -1654,11 +1726,11 @@ static void ath12k_peer_assoc_h_crypto(s
+@@ -1654,11 +1731,11 @@ static void ath12k_peer_assoc_h_crypto(s
  }
  
  static void ath12k_peer_assoc_h_rates(struct ath12k *ar,
@@ -1575,7 +1564,7 @@ Signed-off-by: Sriram R <quic_srirrama@quicinc.com>
  	struct wmi_rate_set_arg *rateset = &arg->peer_legacy_rates;
  	struct cfg80211_chan_def def;
  	const struct ieee80211_supported_band *sband;
-@@ -1667,10 +1739,15 @@ static void ath12k_peer_assoc_h_rates(st
+@@ -1667,10 +1744,15 @@ static void ath12k_peer_assoc_h_rates(st
  	u32 ratemask;
  	u8 rate;
  	int i;
@@ -1592,7 +1581,7 @@ Signed-off-by: Sriram R <quic_srirrama@quicinc.com>
  		return;
  
  	band = def.chan->band;
-@@ -1716,22 +1793,28 @@ ath12k_peer_assoc_h_vht_masked(const u16
+@@ -1716,22 +1798,28 @@ ath12k_peer_assoc_h_vht_masked(const u16
  }
  
  static void ath12k_peer_assoc_h_ht(struct ath12k *ar,
@@ -1626,7 +1615,7 @@ Signed-off-by: Sriram R <quic_srirrama@quicinc.com>
  		return;
  
  	if (!ht_cap->ht_supported)
-@@ -1912,12 +1995,12 @@ static u8 ath12k_get_nss_160mhz(struct a
+@@ -1912,12 +2000,12 @@ static u8 ath12k_get_nss_160mhz(struct a
  }
  
  static void ath12k_peer_assoc_h_vht(struct ath12k *ar,
@@ -1643,23 +1632,23 @@ Signed-off-by: Sriram R <quic_srirrama@quicinc.com>
  	struct cfg80211_chan_def def;
  	enum nl80211_band band;
  	u16 *vht_mcs_mask;
-@@ -1927,8 +2010,14 @@ static void ath12k_peer_assoc_h_vht(stru
+@@ -1927,8 +2015,14 @@ static void ath12k_peer_assoc_h_vht(stru
  	int i, vht_nss, nss_idx;
  	bool user_rate_valid = true;
  	u32 rx_nss, tx_nss, nss_160;
 +	u8 link_id = arvif->link_id;
 +	struct ath12k_sta *ahsta = arsta->ahsta;
 +	struct ieee80211_sta *sta;
++
++	sta = container_of((void *)ahsta, struct ieee80211_sta, drv_priv);
  
 -	if (WARN_ON(ath12k_mac_vif_chan(vif, &def)))
-+	sta = container_of((void *)ahsta, struct ieee80211_sta, drv_priv);
-+
 +	vht_cap = &sta->deflink.vht_cap;
 +	if (WARN_ON(ath12k_mac_vif_chan(vif, &def, link_id)))
  		return;
  
  	if (!vht_cap->vht_supported)
-@@ -2114,13 +2203,13 @@ ath12k_peer_assoc_h_he_masked(const u16
+@@ -2114,13 +2208,13 @@ ath12k_peer_assoc_h_he_masked(const u16
  
  
  static void ath12k_peer_assoc_h_he(struct ath12k *ar,
@@ -1677,7 +1666,7 @@ Signed-off-by: Sriram R <quic_srirrama@quicinc.com>
  	int i;
  	u8 ampdu_factor, rx_mcs_80, rx_mcs_160, max_nss;
  	u16 mcs_160_map, mcs_80_map;
-@@ -2132,8 +2221,14 @@ static void ath12k_peer_assoc_h_he(struc
+@@ -2132,8 +2226,14 @@ static void ath12k_peer_assoc_h_he(struc
  	int he_nss, nss_idx;
  	bool user_rate_valid = true;
  	u32 rx_nss, tx_nss, nss_160;
@@ -1693,7 +1682,7 @@ Signed-off-by: Sriram R <quic_srirrama@quicinc.com>
  		return;
  
  	if (!he_cap->has_he)
-@@ -2354,16 +2449,23 @@ static void ath12k_peer_assoc_h_he(struc
+@@ -2352,16 +2452,23 @@ static void ath12k_peer_assoc_h_he(struc
  }
  
  static void ath12k_peer_assoc_h_he_6ghz(struct ath12k *ar,
@@ -1721,7 +1710,7 @@ Signed-off-by: Sriram R <quic_srirrama@quicinc.com>
  		return;
  
  	band = def.chan->band;
-@@ -2532,25 +2634,32 @@ ath12k_peer_assoc_h_eht_masked(const u16
+@@ -2530,25 +2637,32 @@ ath12k_peer_assoc_h_eht_masked(const u16
  }
  
  static void ath12k_peer_assoc_h_eht(struct ath12k *ar,
@@ -1753,17 +1742,17 @@ Signed-off-by: Sriram R <quic_srirrama@quicinc.com>
 +	struct ieee80211_sta *sta;
 +
 +	sta = container_of((void *)ahsta, struct ieee80211_sta, drv_priv);
- 
--	if (WARN_ON(ath12k_mac_vif_chan(vif, &def)))
++
 +	eht_cap = &sta->deflink.eht_cap;
 +	mcs_nss = &eht_cap->eht_mcs_nss_supp;
 +	mcs_nss_supp_bw = &mcs_nss->bw._80;
-+
+ 
+-	if (WARN_ON(ath12k_mac_vif_chan(vif, &def)))
 +	if (WARN_ON(ath12k_mac_vif_chan(vif, &def, link_id)))
  		return;
  
  	band = def.chan->band;
-@@ -2671,11 +2780,16 @@ static void ath12k_peer_assoc_h_eht(stru
+@@ -2669,11 +2783,16 @@ static void ath12k_peer_assoc_h_eht(stru
  		   sta->deflink.addr, arg->peer_nss, arg->peer_he_mcs_count, arg->ru_punct_bitmap);
  }
  
@@ -1782,7 +1771,7 @@ Signed-off-by: Sriram R <quic_srirrama@quicinc.com>
  
  	if (!ht_cap->ht_supported && !sta->deflink.he_6ghz_capa.capa)
  		return;
-@@ -2704,13 +2818,17 @@ static void ath12k_peer_assoc_h_smps(str
+@@ -2702,13 +2821,17 @@ static void ath12k_peer_assoc_h_smps(str
  }
  
  static void ath12k_peer_assoc_h_qos(struct ath12k *ar,
@@ -1796,15 +1785,15 @@ Signed-off-by: Sriram R <quic_srirrama@quicinc.com>
 +	struct ath12k_vif *ahvif = arvif->ahvif;
 +	struct ath12k_sta *ahsta = arsta->ahsta;
 +	struct ieee80211_sta *sta;
-+
-+	sta = container_of((void *)ahsta, struct ieee80211_sta, drv_priv);
  
 -	switch (arvif->vdev_type) {
++	sta = container_of((void *)ahsta, struct ieee80211_sta, drv_priv);
++
 +	switch (ahvif->vdev_type) {
  	case WMI_VDEV_TYPE_AP:
  		if (sta->wme) {
  			/* TODO: Check WME vs QoS */
-@@ -2740,13 +2858,17 @@ static void ath12k_peer_assoc_h_qos(stru
+@@ -2738,13 +2861,17 @@ static void ath12k_peer_assoc_h_qos(stru
  }
  
  static int ath12k_peer_assoc_qos_ap(struct ath12k *ar,
@@ -1824,7 +1813,7 @@ Signed-off-by: Sriram R <quic_srirrama@quicinc.com>
  
  	lockdep_assert_held(&ar->conf_mutex);
  
-@@ -2806,15 +2928,23 @@ err:
+@@ -2804,15 +2931,23 @@ err:
  	return ret;
  }
  
@@ -1851,7 +1840,7 @@ Signed-off-by: Sriram R <quic_srirrama@quicinc.com>
  	if (sta->deflink.bandwidth == IEEE80211_STA_RX_BW_160) {
  		switch (sta->deflink.vht_cap.cap &
  			IEEE80211_VHT_CAP_SUPP_CHAN_WIDTH_MASK) {
-@@ -2841,8 +2971,12 @@ static enum wmi_phy_mode ath12k_mac_get_
+@@ -2839,8 +2974,12 @@ static enum wmi_phy_mode ath12k_mac_get_
  }
  
  static enum wmi_phy_mode ath12k_mac_get_phymode_he(struct ath12k *ar,
@@ -1865,7 +1854,7 @@ Signed-off-by: Sriram R <quic_srirrama@quicinc.com>
  	if (sta->deflink.bandwidth == IEEE80211_STA_RX_BW_160) {
  		if (sta->deflink.he_cap.he_cap_elem.phy_cap_info[0] &
  		     IEEE80211_HE_PHY_CAP0_CHANNEL_WIDTH_SET_160MHZ_IN_5G)
-@@ -2867,8 +3001,12 @@ static enum wmi_phy_mode ath12k_mac_get_
+@@ -2865,8 +3004,12 @@ static enum wmi_phy_mode ath12k_mac_get_
  }
  
  static enum wmi_phy_mode ath12k_mac_get_phymode_eht(struct ath12k *ar,
@@ -1879,7 +1868,7 @@ Signed-off-by: Sriram R <quic_srirrama@quicinc.com>
  	if (sta->deflink.bandwidth == IEEE80211_STA_RX_BW_320)
  		if (sta->deflink.eht_cap.eht_cap_elem.phy_cap_info[0] &
  		    IEEE80211_EHT_PHY_CAP0_320MHZ_IN_6GHZ)
-@@ -2897,11 +3035,11 @@ static enum wmi_phy_mode ath12k_mac_get_
+@@ -2895,11 +3038,11 @@ static enum wmi_phy_mode ath12k_mac_get_
  }
  
  static void ath12k_peer_assoc_h_phymode(struct ath12k *ar,
@@ -1894,22 +1883,22 @@ Signed-off-by: Sriram R <quic_srirrama@quicinc.com>
  	struct cfg80211_chan_def def;
  	enum nl80211_band band;
  	const u8 *ht_mcs_mask;
-@@ -2909,8 +3047,13 @@ static void ath12k_peer_assoc_h_phymode(
+@@ -2907,8 +3050,13 @@ static void ath12k_peer_assoc_h_phymode(
  	const u16 *he_mcs_mask;
  	const u16 *eht_mcs_mask;
  	enum wmi_phy_mode phymode = MODE_UNKNOWN;
 +	u8 link_id = arvif->link_id;
 +	struct ath12k_sta *ahsta = arsta->ahsta;
 +	struct ieee80211_sta *sta;
++
++	sta = container_of((void *)ahsta, struct ieee80211_sta, drv_priv);
  
 -	if (WARN_ON(ath12k_mac_vif_chan(vif, &def)))
-+	sta = container_of((void *)ahsta, struct ieee80211_sta, drv_priv);
-+
 +	if (WARN_ON(ath12k_mac_vif_chan(vif, &def, link_id)))
  		return;
  
  	band = def.chan->band;
-@@ -2947,7 +3090,7 @@ static void ath12k_peer_assoc_h_phymode(
+@@ -2945,7 +3093,7 @@ static void ath12k_peer_assoc_h_phymode(
  				phymode = MODE_11NG_HT40;
  			else
  				phymode = MODE_11NG_HT20;
@@ -1918,7 +1907,7 @@ Signed-off-by: Sriram R <quic_srirrama@quicinc.com>
  			phymode = MODE_11G;
  		} else {
  			phymode = MODE_11B;
-@@ -2958,13 +3101,13 @@ static void ath12k_peer_assoc_h_phymode(
+@@ -2956,13 +3104,13 @@ static void ath12k_peer_assoc_h_phymode(
  		/* Check EHT first */
  		if (sta->deflink.eht_cap.has_eht &&
  		    !ath12k_peer_assoc_h_eht_masked(eht_mcs_mask)) {
@@ -1935,7 +1924,7 @@ Signed-off-by: Sriram R <quic_srirrama@quicinc.com>
  		} else if (sta->deflink.ht_cap.ht_supported &&
  			   !ath12k_peer_assoc_h_ht_masked(ht_mcs_mask)) {
  			if (sta->deflink.bandwidth >= IEEE80211_STA_RX_BW_40)
-@@ -2987,40 +3130,37 @@ static void ath12k_peer_assoc_h_phymode(
+@@ -2985,40 +3133,37 @@ static void ath12k_peer_assoc_h_phymode(
  }
  
  static void ath12k_peer_assoc_prepare(struct ath12k *ar,
@@ -1991,7 +1980,7 @@ Signed-off-by: Sriram R <quic_srirrama@quicinc.com>
  				  const u8 *addr,
  				  const struct ieee80211_sta_ht_cap *ht_cap,
  				  u16 he_6ghz_capa)
-@@ -3045,31 +3185,32 @@ static int ath12k_setup_peer_smps(struct
+@@ -3043,31 +3188,32 @@ static int ath12k_setup_peer_smps(struct
  					 ath12k_smps_map[smps]);
  }
  
@@ -2032,7 +2021,7 @@ Signed-off-by: Sriram R <quic_srirrama@quicinc.com>
  			value |= FIELD_PREP(HE_MODE_SU_TX_BFEE, HE_SU_BFEE_ENABLE);
  	}
  
-@@ -3096,16 +3237,17 @@ static bool ath12k_mac_set_he_txbf_conf(
+@@ -3094,16 +3240,17 @@ static bool ath12k_mac_set_he_txbf_conf(
  }
  
  static bool ath12k_mac_vif_recalc_sta_he_txbf(struct ath12k *ar,
@@ -2052,7 +2041,7 @@ Signed-off-by: Sriram R <quic_srirrama@quicinc.com>
  
  	if (!vif->bss_conf.he_support)
  		return true;
-@@ -3113,7 +3255,7 @@ static bool ath12k_mac_vif_recalc_sta_he
+@@ -3111,7 +3258,7 @@ static bool ath12k_mac_vif_recalc_sta_he
  	if (vif->type != NL80211_IFTYPE_STATION)
  		return false;
  
@@ -2061,7 +2050,7 @@ Signed-off-by: Sriram R <quic_srirrama@quicinc.com>
  		return false;
  
  	if (def.chan->band == NL80211_BAND_2GHZ)
-@@ -3161,33 +3303,34 @@ static bool ath12k_mac_vif_recalc_sta_he
+@@ -3159,33 +3306,34 @@ static bool ath12k_mac_vif_recalc_sta_he
  	return true;
  }
  
@@ -2104,7 +2093,7 @@ Signed-off-by: Sriram R <quic_srirrama@quicinc.com>
  			value |= FIELD_PREP(EHT_MODE_SU_TX_BFEE, EHT_SU_BFEE_ENABLE);
  	}
  
-@@ -3202,12 +3345,15 @@ static bool ath12k_mac_set_eht_txbf_conf
+@@ -3200,12 +3348,15 @@ static bool ath12k_mac_set_eht_txbf_conf
  }
  
  static void ath12k_bss_assoc(struct ath12k *ar,
@@ -2122,7 +2111,7 @@ Signed-off-by: Sriram R <quic_srirrama@quicinc.com>
  	struct ath12k_peer *peer;
  	struct ieee80211_sta_he_cap he_cap;
  	bool is_auth = false;
-@@ -3216,8 +3362,11 @@ static void ath12k_bss_assoc(struct ath1
+@@ -3214,8 +3365,11 @@ static void ath12k_bss_assoc(struct ath1
  
  	lockdep_assert_held(&ar->conf_mutex);
  
@@ -2135,7 +2124,7 @@ Signed-off-by: Sriram R <quic_srirrama@quicinc.com>
  
  	rcu_read_lock();
  
-@@ -3228,10 +3377,14 @@ static void ath12k_bss_assoc(struct ath1
+@@ -3226,10 +3380,14 @@ static void ath12k_bss_assoc(struct ath1
  		rcu_read_unlock();
  		return;
  	}
@@ -2151,7 +2140,7 @@ Signed-off-by: Sriram R <quic_srirrama@quicinc.com>
  
  	rcu_read_unlock();
  
-@@ -3258,7 +3411,7 @@ static void ath12k_bss_assoc(struct ath1
+@@ -3256,7 +3414,7 @@ static void ath12k_bss_assoc(struct ath1
  		return;
  	}
  
@@ -2160,7 +2149,7 @@ Signed-off-by: Sriram R <quic_srirrama@quicinc.com>
  		ath12k_warn(ar->ab, "failed to recalc he txbf for vdev %i on bss %pM\n",
  			    arvif->vdev_id, bss_conf->bssid);
  		return;
-@@ -3266,11 +3419,11 @@ static void ath12k_bss_assoc(struct ath1
+@@ -3264,11 +3422,11 @@ static void ath12k_bss_assoc(struct ath1
  
  	WARN_ON(arvif->is_up);
  
@@ -2174,7 +2163,7 @@ Signed-off-by: Sriram R <quic_srirrama@quicinc.com>
  	params.bssid = arvif->bssid;
  	ret = ath12k_wmi_vdev_up(ar, &params);
  	if (ret) {
-@@ -3311,9 +3464,11 @@ static void ath12k_bss_assoc(struct ath1
+@@ -3309,9 +3467,11 @@ static void ath12k_bss_assoc(struct ath1
  }
  
  static void ath12k_bss_disassoc(struct ath12k *ar,
@@ -2188,7 +2177,7 @@ Signed-off-by: Sriram R <quic_srirrama@quicinc.com>
  	int ret;
  
  	lockdep_assert_held(&ar->conf_mutex);
-@@ -3327,8 +3482,11 @@ static void ath12k_bss_disassoc(struct a
+@@ -3325,8 +3485,11 @@ static void ath12k_bss_disassoc(struct a
  			    arvif->vdev_id, ret);
  
  	arvif->is_up = false;
@@ -2202,7 +2191,7 @@ Signed-off-by: Sriram R <quic_srirrama@quicinc.com>
  		if (tx_arvif != arvif)
  			tx_arvif->nontransmitting_vif_count--;
  	}
-@@ -3362,10 +3520,10 @@ static u32 ath12k_mac_get_rate_hw_value(
+@@ -3360,10 +3523,10 @@ static u32 ath12k_mac_get_rate_hw_value(
  }
  
  static void ath12k_recalculate_mgmt_rate(struct ath12k *ar,
@@ -2216,7 +2205,7 @@ Signed-off-by: Sriram R <quic_srirrama@quicinc.com>
  	const struct ieee80211_supported_band *sband;
  	u8 basic_rate_idx;
  	int hw_rate_code;
-@@ -3376,7 +3534,7 @@ static void ath12k_recalculate_mgmt_rate
+@@ -3374,7 +3537,7 @@ static void ath12k_recalculate_mgmt_rate
  	lockdep_assert_held(&ar->conf_mutex);
  
  	sband = ar->ah->hw->wiphy->bands[def->chan->band];
@@ -2225,7 +2214,7 @@ Signed-off-by: Sriram R <quic_srirrama@quicinc.com>
  	bitrate = sband->bitrates[basic_rate_idx].bitrate;
  
  	hw_rate_code = ath12k_mac_get_rate_hw_value(bitrate);
-@@ -3398,9 +3556,10 @@ static void ath12k_recalculate_mgmt_rate
+@@ -3396,9 +3559,10 @@ static void ath12k_recalculate_mgmt_rate
  		ath12k_warn(ar->ab, "failed to set beacon tx rate %d\n", ret);
  }
  
@@ -2237,7 +2226,7 @@ Signed-off-by: Sriram R <quic_srirrama@quicinc.com>
  	struct ath12k *ar = arvif->ar;
  	struct sk_buff *tmpl;
  	struct ath12k_hw *ah = ar->ah;
-@@ -3411,7 +3570,7 @@ static int ath12k_mac_fils_discovery(str
+@@ -3409,7 +3573,7 @@ static int ath12k_mac_fils_discovery(str
  	if (info->fils_discovery.max_interval) {
  		interval = info->fils_discovery.max_interval;
  
@@ -2246,7 +2235,7 @@ Signed-off-by: Sriram R <quic_srirrama@quicinc.com>
  		if (tmpl)
  			ret = ath12k_wmi_fils_discovery_tmpl(ar, arvif->vdev_id,
  							     tmpl);
-@@ -3420,7 +3579,7 @@ static int ath12k_mac_fils_discovery(str
+@@ -3418,7 +3582,7 @@ static int ath12k_mac_fils_discovery(str
  		interval = info->unsol_bcast_probe_resp_interval;
  
  		tmpl = ieee80211_get_unsol_bcast_probe_resp_tmpl(ah->hw,
@@ -2255,7 +2244,7 @@ Signed-off-by: Sriram R <quic_srirrama@quicinc.com>
  		if (tmpl)
  			ret = ath12k_wmi_probe_resp_tmpl(ar, arvif->vdev_id,
  							 tmpl);
-@@ -3622,11 +3781,12 @@ static int ath12k_mac_config_obss_pd(str
+@@ -3620,11 +3784,12 @@ static int ath12k_mac_config_obss_pd(str
  }
  
  static void ath12k_mac_bss_info_changed(struct ath12k *ar,
@@ -2270,7 +2259,7 @@ Signed-off-by: Sriram R <quic_srirrama@quicinc.com>
  	struct cfg80211_chan_def def;
  	u32 param_id, param_value;
  	enum nl80211_band band;
-@@ -3639,6 +3799,7 @@ static void ath12k_mac_bss_info_changed(
+@@ -3637,6 +3802,7 @@ static void ath12k_mac_bss_info_changed(
  	u8 rateidx;
  	u32 rate;
  	bool color_collision_detect;
@@ -2278,7 +2267,7 @@ Signed-off-by: Sriram R <quic_srirrama@quicinc.com>
  
  	lockdep_assert_held(&ar->conf_mutex);
  
-@@ -3719,10 +3880,10 @@ static void ath12k_mac_bss_info_changed(
+@@ -3717,10 +3883,10 @@ static void ath12k_mac_bss_info_changed(
  
  	if (changed & BSS_CHANGED_SSID &&
  	    vif->type == NL80211_IFTYPE_AP) {
@@ -2292,7 +2281,7 @@ Signed-off-by: Sriram R <quic_srirrama@quicinc.com>
  	}
  
  	if (changed & BSS_CHANGED_BSSID && !is_zero_ether_addr(info->bssid))
-@@ -3832,9 +3993,9 @@ static void ath12k_mac_bss_info_changed(
+@@ -3830,9 +3996,9 @@ static void ath12k_mac_bss_info_changed(
  
  	if (changed & BSS_CHANGED_ASSOC) {
  		if (vif->cfg.assoc)
@@ -2304,10 +2293,10 @@ Signed-off-by: Sriram R <quic_srirrama@quicinc.com>
  	}
  
  	if (changed & BSS_CHANGED_TXPOWER) {
-@@ -3843,8 +4004,8 @@ static void ath12k_mac_bss_info_changed(
- 
+@@ -3845,8 +4011,8 @@ static void ath12k_mac_bss_info_changed(
  		if (ar->supports_6ghz && info->chandef.chan &&
                      info->chandef.chan->band == NL80211_BAND_6GHZ &&
+ 		    info->chandef.width != NL80211_CHAN_WIDTH_320 &&
 -                    (arvif->vdev_type == WMI_VDEV_TYPE_STA ||
 -                     arvif->vdev_type == WMI_VDEV_TYPE_AP) &&
 +                    (ahvif->vdev_type == WMI_VDEV_TYPE_STA ||
@@ -2315,7 +2304,7 @@ Signed-off-by: Sriram R <quic_srirrama@quicinc.com>
                      test_bit(WMI_TLV_SERVICE_EXT_TPC_REG_SUPPORT,
                               ar->ab->wmi_ab.svc_map)) {
                          ath12k_dbg(ar->ab, ATH12K_DBG_MAC,
-@@ -3856,7 +4017,7 @@ static void ath12k_mac_bss_info_changed(
+@@ -3858,7 +4024,7 @@ static void ath12k_mac_bss_info_changed(
  	}
  
  	if (changed & BSS_CHANGED_MCAST_RATE &&
@@ -2324,7 +2313,7 @@ Signed-off-by: Sriram R <quic_srirrama@quicinc.com>
  		band = def.chan->band;
  		mcast_rate = vif->bss_conf.mcast_rate[band];
  
-@@ -3900,8 +4061,8 @@ static void ath12k_mac_bss_info_changed(
+@@ -3902,8 +4068,8 @@ static void ath12k_mac_bss_info_changed(
  	}
  
  	if (changed & BSS_CHANGED_BASIC_RATES &&
@@ -2335,7 +2324,7 @@ Signed-off-by: Sriram R <quic_srirrama@quicinc.com>
  
  	if (changed & BSS_CHANGED_TWT) {
  		if (info->twt_requester || info->twt_responder)
-@@ -3921,7 +4082,7 @@ static void ath12k_mac_bss_info_changed(
+@@ -3923,7 +4089,7 @@ static void ath12k_mac_bss_info_changed(
  							    arvif->vdev_id,
  							    info->he_bss_color.color,
  							    ATH12K_BSS_COLOR_AP_PERIODS,
@@ -2344,7 +2333,7 @@ Signed-off-by: Sriram R <quic_srirrama@quicinc.com>
  							    0 : color_collision_detect);
  			if (ret)
  				ath12k_warn(ar->ab, "failed to set bss color collision on vdev %i: %d\n",
-@@ -3972,16 +4133,52 @@ static void ath12k_mac_bss_info_changed(
+@@ -3974,16 +4140,52 @@ static void ath12k_mac_bss_info_changed(
  	}
  }
  
@@ -2398,7 +2387,7 @@ Signed-off-by: Sriram R <quic_srirrama@quicinc.com>
  	if (!arvif->is_created) {
  		ath12k_info(NULL,
  			    "bss info parameter changes %llx cached to apply after vdev create on channel assign\n",
-@@ -3995,15 +4192,14 @@ static void ath12k_mac_op_bss_info_chang
+@@ -3997,15 +4199,14 @@ static void ath12k_mac_op_bss_info_chang
  
  	mutex_lock(&ar->conf_mutex);
  
@@ -2416,7 +2405,7 @@ Signed-off-by: Sriram R <quic_srirrama@quicinc.com>
  	unsigned long time_left;
  	int ret = 0;
  
-@@ -4043,6 +4239,61 @@ clean_up:
+@@ -4042,6 +4243,61 @@ static int ath12k_mac_vdev_delete(struct
  	return ret;
  }
  
@@ -2478,7 +2467,7 @@ Signed-off-by: Sriram R <quic_srirrama@quicinc.com>
  static struct ath12k*
  ath12k_mac_select_scan_device(struct ieee80211_hw *hw,
  			      struct ieee80211_vif *vif,
-@@ -4246,7 +4497,7 @@ static int ath12k_mac_op_hw_scan(struct
+@@ -4245,7 +4501,7 @@ static int ath12k_mac_op_hw_scan(struct
  				 struct ieee80211_scan_request *hw_req)
  {
  	struct ath12k_hw *ah = hw->priv;
@@ -2487,7 +2476,7 @@ Signed-off-by: Sriram R <quic_srirrama@quicinc.com>
  	struct cfg80211_scan_request *req = &hw_req->req;
  	struct ath12k *ar;
  	struct scan_req_params arg;
-@@ -4266,6 +4517,8 @@ static int ath12k_mac_op_hw_scan(struct
+@@ -4265,6 +4521,8 @@ static int ath12k_mac_op_hw_scan(struct
  		return -EINVAL;
  	}
  
@@ -2496,7 +2485,7 @@ Signed-off-by: Sriram R <quic_srirrama@quicinc.com>
  	/* If the vif is already assigned to a specific vdev of an ar,
  	 * check whether its already started, vdev which is started
  	 * are not allowed to switch to a new radio.
-@@ -4280,7 +4533,7 @@ static int ath12k_mac_op_hw_scan(struct
+@@ -4279,7 +4537,7 @@ static int ath12k_mac_op_hw_scan(struct
  			mutex_unlock(&ah->conf_mutex);
  			return -EINVAL;
  		} else if (ar != arvif->ar) {
@@ -2505,7 +2494,7 @@ Signed-off-by: Sriram R <quic_srirrama@quicinc.com>
  			if (ret)
  				ath12k_warn(arvif->ar->ab, "unable to delete scan vdev %d\n", ret);
  		} else {
-@@ -4290,7 +4543,7 @@ static int ath12k_mac_op_hw_scan(struct
+@@ -4289,7 +4547,7 @@ static int ath12k_mac_op_hw_scan(struct
  
  	if (create) {
  		mutex_lock(&ar->conf_mutex);
@@ -2514,7 +2503,7 @@ Signed-off-by: Sriram R <quic_srirrama@quicinc.com>
  		if (ret) {
  			mutex_unlock(&ar->conf_mutex);
  			mutex_unlock(&ah->conf_mutex);
-@@ -4376,11 +4629,26 @@ exit:
+@@ -4375,11 +4633,26 @@ exit:
  static void ath12k_mac_op_cancel_hw_scan(struct ieee80211_hw *hw,
  					 struct ieee80211_vif *vif)
  {
@@ -2542,7 +2531,7 @@ Signed-off-by: Sriram R <quic_srirrama@quicinc.com>
  	if (!arvif->is_created) {
  		ath12k_err(NULL, "unable to select device to cancel scan\n");
  		mutex_unlock(&ah->conf_mutex);
-@@ -4397,12 +4665,13 @@ static void ath12k_mac_op_cancel_hw_scan
+@@ -4396,12 +4669,13 @@ static void ath12k_mac_op_cancel_hw_scan
  	cancel_delayed_work_sync(&ar->scan.timeout);
  }
  
@@ -2557,13 +2546,13 @@ Signed-off-by: Sriram R <quic_srirrama@quicinc.com>
  	struct ath12k *ar = arvif->ar;
  	struct wmi_vdev_install_key_arg arg = {
  		.vdev_id = arvif->vdev_id,
-@@ -4464,15 +4733,15 @@ install:
+@@ -4463,15 +4737,15 @@ install:
  	if (!wait_for_completion_timeout(&ar->install_key_done, 1 * HZ))
  		return -ETIMEDOUT;
  
 -	if (ether_addr_equal(macaddr, arvif->vif->addr)) {
 -		arvif->key_cipher = key->cipher;
-+	if (ether_addr_equal(macaddr, arvif->addr)) {
++	if (ether_addr_equal(macaddr, ahvif->vif->addr)) {
 +		ahvif->key_cipher = key->cipher;
  		ath12k_dp_tx_update_bank_profile(arvif);
  	}
@@ -2576,7 +2565,7 @@ Signed-off-by: Sriram R <quic_srirrama@quicinc.com>
  				  const u8 *addr)
  {
  	struct ath12k *ar = arvif->ar;
-@@ -4515,20 +4784,37 @@ static int ath12k_clear_peer_keys(struct
+@@ -4514,20 +4788,37 @@ static int ath12k_clear_peer_keys(struct
  }
  
  static int ath12k_mac_set_key(struct ath12k *ar, enum set_key_cmd cmd,
@@ -2618,7 +2607,7 @@ Signed-off-by: Sriram R <quic_srirrama@quicinc.com>
  	ab = ar->ab;
  
  	/* BIP needs to be done in software */
-@@ -4536,28 +4822,33 @@ static int ath12k_mac_set_key(struct ath
+@@ -4535,28 +4826,33 @@ static int ath12k_mac_set_key(struct ath
  	    key->cipher == WLAN_CIPHER_SUITE_BIP_GMAC_128 ||
  	    key->cipher == WLAN_CIPHER_SUITE_BIP_GMAC_256 ||
  	    key->cipher == WLAN_CIPHER_SUITE_BIP_CMAC_256) {
@@ -2657,7 +2646,7 @@ Signed-off-by: Sriram R <quic_srirrama@quicinc.com>
  
  	key->hw_key_idx = key->keyidx;
  
-@@ -4621,8 +4912,6 @@ static int ath12k_mac_set_key(struct ath
+@@ -4620,8 +4916,6 @@ static int ath12k_mac_set_key(struct ath
  		ath12k_warn(ab, "peer %pM disappeared!\n", peer_addr);
  
  	if (sta) {
@@ -2666,7 +2655,7 @@ Signed-off-by: Sriram R <quic_srirrama@quicinc.com>
  		switch (key->cipher) {
  		case WLAN_CIPHER_SUITE_TKIP:
  		case WLAN_CIPHER_SUITE_CCMP:
-@@ -4630,12 +4919,12 @@ static int ath12k_mac_set_key(struct ath
+@@ -4629,12 +4923,12 @@ static int ath12k_mac_set_key(struct ath
  		case WLAN_CIPHER_SUITE_GCMP:
  		case WLAN_CIPHER_SUITE_GCMP_256:
  			if (cmd == SET_KEY)
@@ -2682,7 +2671,7 @@ Signed-off-by: Sriram R <quic_srirrama@quicinc.com>
  			break;
  		}
  	}
-@@ -4654,11 +4943,17 @@ static int ath12k_mac_op_set_key(struct
+@@ -4653,11 +4947,17 @@ static int ath12k_mac_op_set_key(struct
  {
  	struct ath12k *ar;
  	struct ath12k_hw *ah = hw->priv;
@@ -2701,7 +2690,7 @@ Signed-off-by: Sriram R <quic_srirrama@quicinc.com>
  	if (!arvif->is_created) {
  		arvif->cache.key_conf.cmd = cmd;
  		arvif->cache.key_conf.sta = sta;
-@@ -4675,7 +4970,12 @@ static int ath12k_mac_op_set_key(struct
+@@ -4674,7 +4974,12 @@ static int ath12k_mac_op_set_key(struct
  	}
  
  	ar = arvif->ar;
@@ -2715,7 +2704,7 @@ Signed-off-by: Sriram R <quic_srirrama@quicinc.com>
  
  	mutex_unlock(&ah->conf_mutex);
  	return ret;
-@@ -4752,8 +5052,8 @@ ath12k_mac_bitrate_mask_num_eht_rates(st
+@@ -4751,8 +5056,8 @@ ath12k_mac_bitrate_mask_num_eht_rates(st
  }
  
  static int
@@ -2726,7 +2715,7 @@ Signed-off-by: Sriram R <quic_srirrama@quicinc.com>
  				   const struct cfg80211_bitrate_mask *mask,
  				   enum nl80211_band band)
  {
-@@ -4761,6 +5061,10 @@ ath12k_mac_set_peer_vht_fixed_rate(struc
+@@ -4760,6 +5065,10 @@ ath12k_mac_set_peer_vht_fixed_rate(struc
  	u8 vht_rate, nss;
  	u32 rate_code;
  	int ret, i;
@@ -2737,7 +2726,7 @@ Signed-off-by: Sriram R <quic_srirrama@quicinc.com>
  
  	lockdep_assert_held(&ar->conf_mutex);
  
-@@ -4798,8 +5102,8 @@ ath12k_mac_set_peer_vht_fixed_rate(struc
+@@ -4797,8 +5106,8 @@ ath12k_mac_set_peer_vht_fixed_rate(struc
  }
  
  static int
@@ -2748,7 +2737,7 @@ Signed-off-by: Sriram R <quic_srirrama@quicinc.com>
  				  const struct cfg80211_bitrate_mask *mask,
  				  enum nl80211_band band)
  {
-@@ -4807,6 +5111,10 @@ ath12k_mac_set_peer_he_fixed_rate(struct
+@@ -4806,6 +5115,10 @@ ath12k_mac_set_peer_he_fixed_rate(struct
  	u8 he_rate, nss;
  	u32 rate_code;
  	int ret, i;
@@ -2759,7 +2748,7 @@ Signed-off-by: Sriram R <quic_srirrama@quicinc.com>
  
  	lockdep_assert_held(&ar->conf_mutex);
  
-@@ -4849,8 +5157,8 @@ ath12k_mac_set_peer_he_fixed_rate(struct
+@@ -4848,8 +5161,8 @@ ath12k_mac_set_peer_he_fixed_rate(struct
  }
  
  static int
@@ -2770,7 +2759,7 @@ Signed-off-by: Sriram R <quic_srirrama@quicinc.com>
  				 const struct cfg80211_bitrate_mask *mask,
  				 enum nl80211_band band)
  {
-@@ -4858,6 +5166,10 @@ ath12k_mac_set_peer_ht_fixed_rate(struct
+@@ -4857,6 +5170,10 @@ ath12k_mac_set_peer_ht_fixed_rate(struct
  	u8 ht_rate, nss;
  	u32 rate_code;
  	int ret, i;
@@ -2781,7 +2770,7 @@ Signed-off-by: Sriram R <quic_srirrama@quicinc.com>
  
  	lockdep_assert_held(&ar->conf_mutex);
  
-@@ -4900,8 +5212,8 @@ ath12k_mac_set_peer_ht_fixed_rate(struct
+@@ -4899,8 +5216,8 @@ ath12k_mac_set_peer_ht_fixed_rate(struct
  }
  
  static int
@@ -2792,7 +2781,7 @@ Signed-off-by: Sriram R <quic_srirrama@quicinc.com>
  				   const struct cfg80211_bitrate_mask *mask,
  				   enum nl80211_band band)
  {
-@@ -4909,6 +5221,10 @@ ath12k_mac_set_peer_eht_fixed_rate(struc
+@@ -4908,6 +5225,10 @@ ath12k_mac_set_peer_eht_fixed_rate(struc
  	u8 eht_rate, nss;
  	u32 rate_code;
  	int ret, i;
@@ -2803,7 +2792,7 @@ Signed-off-by: Sriram R <quic_srirrama@quicinc.com>
  
  	lockdep_assert_held(&ar->conf_mutex);
  
-@@ -4953,9 +5269,12 @@ ath12k_mac_set_peer_eht_fixed_rate(struc
+@@ -4952,9 +5273,12 @@ ath12k_mac_set_peer_eht_fixed_rate(struc
  static int ath12k_station_assoc(struct ath12k *ar,
  				struct ieee80211_vif *vif,
  				struct ieee80211_sta *sta,
@@ -2818,7 +2807,7 @@ Signed-off-by: Sriram R <quic_srirrama@quicinc.com>
  	struct peer_assoc_params peer_arg;
  	int ret = 0;
  	struct cfg80211_chan_def def;
-@@ -4965,13 +5284,19 @@ static int ath12k_station_assoc(struct a
+@@ -4964,13 +5288,19 @@ static int ath12k_station_assoc(struct a
  
  	lockdep_assert_held(&ar->conf_mutex);
  
@@ -2840,7 +2829,7 @@ Signed-off-by: Sriram R <quic_srirrama@quicinc.com>
  
  	peer_arg.is_assoc = true;
  	ret = ath12k_wmi_send_peer_assoc_cmd(ar, &peer_arg);
-@@ -4998,22 +5323,22 @@ static int ath12k_station_assoc(struct a
+@@ -4997,22 +5327,22 @@ static int ath12k_station_assoc(struct a
  	 * Note that all other rates and NSS will be disabled for this peer.
  	 */
  	if (sta->deflink.vht_cap.vht_supported && num_vht_rates == 1) {
@@ -2867,7 +2856,7 @@ Signed-off-by: Sriram R <quic_srirrama@quicinc.com>
  							band);
  		if (ret)
  			return ret;
-@@ -5042,7 +5367,7 @@ static int ath12k_station_assoc(struct a
+@@ -5041,7 +5371,7 @@ static int ath12k_station_assoc(struct a
  	}
  
  	if (sta->wme && sta->uapsd_queues) {
@@ -2876,7 +2865,7 @@ Signed-off-by: Sriram R <quic_srirrama@quicinc.com>
  		if (ret) {
  			ath12k_warn(ar->ab, "failed to set qos params for STA %pM for vdev %i: %d\n",
  				    sta->addr, arvif->vdev_id, ret);
-@@ -5055,13 +5380,18 @@ static int ath12k_station_assoc(struct a
+@@ -5054,13 +5384,18 @@ static int ath12k_station_assoc(struct a
  
  static int ath12k_station_disassoc(struct ath12k *ar,
  				   struct ieee80211_vif *vif,
@@ -2897,7 +2886,7 @@ Signed-off-by: Sriram R <quic_srirrama@quicinc.com>
  	if (!sta->wme) {
  		arvif->num_legacy_stations--;
  		ret = ath12k_recalc_rtscts_prot(arvif);
-@@ -5075,8 +5405,9 @@ static int ath12k_station_disassoc(struc
+@@ -5074,8 +5409,9 @@ static int ath12k_station_disassoc(struc
  static void ath12k_sta_rc_update_wk(struct work_struct *wk)
  {
  	struct ath12k *ar;
@@ -2909,7 +2898,7 @@ Signed-off-by: Sriram R <quic_srirrama@quicinc.com>
  	struct ieee80211_sta *sta;
  	struct cfg80211_chan_def def;
  	enum nl80211_band band;
-@@ -5090,12 +5421,14 @@ static void ath12k_sta_rc_update_wk(stru
+@@ -5089,12 +5425,14 @@ static void ath12k_sta_rc_update_wk(stru
  	struct peer_assoc_params peer_arg;
  	enum wmi_phy_mode peer_phymode;
  
@@ -2926,7 +2915,7 @@ Signed-off-by: Sriram R <quic_srirrama@quicinc.com>
  		return;
  
  	band = def.chan->band;
-@@ -5126,7 +5459,7 @@ static void ath12k_sta_rc_update_wk(stru
+@@ -5125,7 +5463,7 @@ static void ath12k_sta_rc_update_wk(stru
  
  	if (changed & IEEE80211_RC_BW_CHANGED) {
  		/* Get the the peer phymode */
@@ -2935,7 +2924,7 @@ Signed-off-by: Sriram R <quic_srirrama@quicinc.com>
  		peer_phymode = peer_arg.peer_phymode;
  
  		if (bw > bw_prev) {
-@@ -5217,16 +5550,16 @@ static void ath12k_sta_rc_update_wk(stru
+@@ -5216,16 +5554,16 @@ static void ath12k_sta_rc_update_wk(stru
  		 * across HT/VHT and for multiple VHT MCS support.
  		 */
  		if (sta->deflink.vht_cap.vht_supported && num_vht_rates == 1) {
@@ -2956,7 +2945,7 @@ Signed-off-by: Sriram R <quic_srirrama@quicinc.com>
  							  band);
  		} else {
  			/* If the peer is non-VHT/HE/EHT or no fixed VHT/HE/EHT
-@@ -5244,7 +5577,7 @@ static void ath12k_sta_rc_update_wk(stru
+@@ -5243,7 +5581,7 @@ static void ath12k_sta_rc_update_wk(stru
  				ath12k_warn(ar->ab,
  					    "failed to disable peer fixed rate for STA %pM ret %d\n",
  					    sta->deflink.addr, err);
@@ -2965,7 +2954,7 @@ Signed-off-by: Sriram R <quic_srirrama@quicinc.com>
  						  &peer_arg, true);
  
  			peer_arg.is_assoc = false;
-@@ -5265,36 +5598,49 @@ err_rc_bw_changed:
+@@ -5264,36 +5602,49 @@ err_rc_bw_changed:
  static void ath12k_sta_set_4addr_wk(struct work_struct *wk)
  {
  	struct ath12k *ar;
@@ -3032,7 +3021,7 @@ Signed-off-by: Sriram R <quic_srirrama@quicinc.com>
  		return 0;
  
  	if (ar->num_stations >= ar->max_num_stations)
-@@ -5305,32 +5651,44 @@ static int ath12k_mac_inc_num_stations(s
+@@ -5304,32 +5655,44 @@ static int ath12k_mac_inc_num_stations(s
  	return 0;
  }
  
@@ -3085,7 +3074,7 @@ Signed-off-by: Sriram R <quic_srirrama@quicinc.com>
  	if (ret) {
  		ath12k_warn(ab, "refusing to associate station: too many connected already (%d)\n",
  			    ar->max_num_stations);
-@@ -5395,7 +5753,7 @@ static int ath12k_mac_station_add(struct
+@@ -5391,7 +5754,7 @@ static int ath12k_mac_station_add(struct
  
  	if (ab->hw_params->vdev_start_delay &&
  	    !arvif->is_started &&
@@ -3094,7 +3083,7 @@ Signed-off-by: Sriram R <quic_srirrama@quicinc.com>
  		ret = ath12k_start_vdev_delay(ar, vif);
  		if (ret) {
  			ath12k_warn(ab, "failed to delay vdev start: %d\n", ret);
-@@ -5416,7 +5774,7 @@ free_rx_stats:
+@@ -5412,7 +5775,7 @@ free_rx_stats:
  	kfree(arsta->rx_stats);
  	arsta->rx_stats = NULL;
  dec_num_station:
@@ -3103,7 +3092,7 @@ Signed-off-by: Sriram R <quic_srirrama@quicinc.com>
  exit:
  	return ret;
  }
-@@ -5429,14 +5787,22 @@ static int ath12k_mac_op_sta_state(struc
+@@ -5425,14 +5788,22 @@ static int ath12k_mac_op_sta_state(struc
  {
  	struct ath12k_hw *ah = hw->priv;
  	struct ath12k *ar;
@@ -3129,7 +3118,7 @@ Signed-off-by: Sriram R <quic_srirrama@quicinc.com>
  	if (!ar) {
  		ath12k_err(NULL, "unable to determine device to set sta state\n");
  		mutex_unlock(&ah->conf_mutex);
-@@ -5447,19 +5813,23 @@ static int ath12k_mac_op_sta_state(struc
+@@ -5443,19 +5814,23 @@ static int ath12k_mac_op_sta_state(struc
  	if ((old_state == IEEE80211_STA_NONE &&
  	     new_state == IEEE80211_STA_NOTEXIST)) {
  		cancel_work_sync(&arsta->update_wk);
@@ -3156,7 +3145,7 @@ Signed-off-by: Sriram R <quic_srirrama@quicinc.com>
  		if (ret)
  			ath12k_warn(ar->ab, "Failed to add station: %pM for VDEV: %d\n",
  				    sta->addr, arvif->vdev_id);
-@@ -5475,7 +5845,7 @@ static int ath12k_mac_op_sta_state(struc
+@@ -5471,7 +5846,7 @@ static int ath12k_mac_op_sta_state(struc
  			ath12k_dbg(ar->ab, ATH12K_DBG_MAC, "Removed peer: %pM for VDEV: %d num_peers : %d\n",
  				   sta->addr, arvif->vdev_id, ar->num_peers);
  
@@ -3165,7 +3154,7 @@ Signed-off-by: Sriram R <quic_srirrama@quicinc.com>
  		spin_lock_bh(&ar->ab->base_lock);
  		peer = ath12k_peer_find(ar->ab, arvif->vdev_id, sta->addr);
  		if (peer && peer->sta == sta) {
-@@ -5501,7 +5871,7 @@ static int ath12k_mac_op_sta_state(struc
+@@ -5497,7 +5872,7 @@ static int ath12k_mac_op_sta_state(struc
  		   (vif->type == NL80211_IFTYPE_AP ||
  		    vif->type == NL80211_IFTYPE_MESH_POINT ||
  		    vif->type == NL80211_IFTYPE_ADHOC)) {
@@ -3174,7 +3163,7 @@ Signed-off-by: Sriram R <quic_srirrama@quicinc.com>
  		if (ret)
  			ath12k_warn(ar->ab, "Failed to associate station: %pM\n",
  				    sta->addr);
-@@ -5585,7 +5955,7 @@ static int ath12k_mac_op_sta_state(struc
+@@ -5581,7 +5956,7 @@ static int ath12k_mac_op_sta_state(struc
  		   (vif->type == NL80211_IFTYPE_AP ||
  		    vif->type == NL80211_IFTYPE_MESH_POINT ||
  		    vif->type == NL80211_IFTYPE_ADHOC)) {
@@ -3183,7 +3172,7 @@ Signed-off-by: Sriram R <quic_srirrama@quicinc.com>
  		if (ret)
  			ath12k_warn(ar->ab, "Failed to disassociate station: %pM\n",
  				    sta->addr);
-@@ -5602,13 +5972,25 @@ static int ath12k_mac_op_sta_set_txpwr(s
+@@ -5598,13 +5973,25 @@ static int ath12k_mac_op_sta_set_txpwr(s
  {
  	struct ath12k_hw *ah = hw->priv;
  	struct ath12k *ar;
@@ -3211,7 +3200,7 @@ Signed-off-by: Sriram R <quic_srirrama@quicinc.com>
  	if (!ar) {
  		ath12k_err(NULL, "unable to determine device to set sta txpwr\n");
  		ret = -EINVAL;
-@@ -5652,11 +6034,11 @@ static void ath12k_mac_op_sta_set_4addr(
+@@ -5648,11 +6035,11 @@ static void ath12k_mac_op_sta_set_4addr(
  					struct ieee80211_sta *sta, bool enabled)
  {
  	struct ath12k_hw *ah = hw->priv;
@@ -3227,7 +3216,7 @@ Signed-off-by: Sriram R <quic_srirrama@quicinc.com>
  	}
  }
  
-@@ -5665,13 +6047,23 @@ static void ath12k_mac_op_sta_rc_update(
+@@ -5661,13 +6048,23 @@ static void ath12k_mac_op_sta_rc_update(
  					struct ieee80211_sta *sta,
  					u32 changed)
  {
@@ -3254,7 +3243,7 @@ Signed-off-by: Sriram R <quic_srirrama@quicinc.com>
  
  	if (arvif->is_created)
  		ar = arvif->ar;
-@@ -5686,7 +6078,6 @@ static void ath12k_mac_op_sta_rc_update(
+@@ -5682,7 +6079,6 @@ static void ath12k_mac_op_sta_rc_update(
  	peer = ath12k_peer_find(ar->ab, arvif->vdev_id, sta->addr);
  	if (!peer) {
  		spin_unlock_bh(&ar->ab->base_lock);
@@ -3262,7 +3251,7 @@ Signed-off-by: Sriram R <quic_srirrama@quicinc.com>
  		ath12k_warn(ar->ab, "mac sta rc update failed to find peer %pM on vdev %i\n",
  			    sta->addr, arvif->vdev_id);
  		return;
-@@ -5765,14 +6156,14 @@ static void ath12k_mac_op_sta_rc_update(
+@@ -5761,14 +6157,14 @@ static void ath12k_mac_op_sta_rc_update(
  	ieee80211_queue_work(hw, &arsta->update_wk);
  }
  
@@ -3280,7 +3269,7 @@ Signed-off-by: Sriram R <quic_srirrama@quicinc.com>
  		return 0;
  
  	switch (ac) {
-@@ -5794,20 +6185,21 @@ static int ath12k_conf_tx_uapsd(struct a
+@@ -5790,20 +6186,21 @@ static int ath12k_conf_tx_uapsd(struct a
  		break;
  	}
  
@@ -3306,7 +3295,7 @@ Signed-off-by: Sriram R <quic_srirrama@quicinc.com>
  		value = WMI_STA_PS_RX_WAKE_POLICY_POLL_UAPSD;
  	else
  		value = WMI_STA_PS_RX_WAKE_POLICY_WAKE;
-@@ -5823,10 +6215,9 @@ exit:
+@@ -5819,10 +6216,9 @@ exit:
  }
  
  static int ath12k_mac_conf_tx(struct ath12k *ar,
@@ -3318,7 +3307,7 @@ Signed-off-by: Sriram R <quic_srirrama@quicinc.com>
  	struct wmi_wmm_params_arg *p = NULL;
  	int ret;
  
-@@ -5867,7 +6258,7 @@ static int ath12k_mac_conf_tx(struct ath
+@@ -5863,7 +6259,7 @@ static int ath12k_mac_conf_tx(struct ath
  		goto exit;
  	}
  
@@ -3327,7 +3316,7 @@ Signed-off-by: Sriram R <quic_srirrama@quicinc.com>
  
  	if (ret)
  		ath12k_warn(ar->ab, "failed to set sta uapsd: %d\n", ret);
-@@ -5883,13 +6274,22 @@ static int ath12k_mac_op_conf_tx(struct
+@@ -5879,13 +6275,22 @@ static int ath12k_mac_op_conf_tx(struct
  {
  	struct ath12k_hw *ah = hw->priv;
  	struct ath12k *ar;
@@ -3351,8 +3340,8 @@ Signed-off-by: Sriram R <quic_srirrama@quicinc.com>
 -	mutex_lock(&ah->conf_mutex);
  	if (!arvif->is_created) {
  		ath12k_dbg(NULL, ATH12K_DBG_MAC,
- 			   "tx queue params cached since vif is not assigned to radio\n");
-@@ -5904,7 +6304,7 @@ static int ath12k_mac_op_conf_tx(struct
+ 			"tx queue params cached since vif is not assigned to radio\n");
+@@ -5900,7 +6305,7 @@ static int ath12k_mac_op_conf_tx(struct
  	ar = arvif->ar;
  
  	mutex_lock(&ar->conf_mutex);
@@ -3361,7 +3350,7 @@ Signed-off-by: Sriram R <quic_srirrama@quicinc.com>
  	mutex_unlock(&ar->conf_mutex);
  
  	return ret;
-@@ -5976,10 +6376,11 @@ ath12k_create_ht_cap(struct ath12k *ar,
+@@ -5972,10 +6377,11 @@ ath12k_create_ht_cap(struct ath12k *ar,
  	return ht_cap;
  }
  
@@ -3374,7 +3363,7 @@ Signed-off-by: Sriram R <quic_srirrama@quicinc.com>
  	int nsts;
  	int sound_dim;
  	u32 vht_cap = ar->pdev->cap.vht_cap;
-@@ -6007,7 +6408,7 @@ static int ath12k_mac_set_txbf_conf(stru
+@@ -6003,7 +6409,7 @@ static int ath12k_mac_set_txbf_conf(stru
  		value |= WMI_VDEV_PARAM_TXBF_SU_TX_BFER;
  
  		if ((vht_cap & IEEE80211_VHT_CAP_MU_BEAMFORMER_CAPABLE) &&
@@ -3383,7 +3372,7 @@ Signed-off-by: Sriram R <quic_srirrama@quicinc.com>
  			value |= WMI_VDEV_PARAM_TXBF_MU_TX_BFER;
  	}
  
-@@ -6017,7 +6418,7 @@ static int ath12k_mac_set_txbf_conf(stru
+@@ -6013,7 +6419,7 @@ static int ath12k_mac_set_txbf_conf(stru
  		value |= WMI_VDEV_PARAM_TXBF_SU_TX_BFEE;
  
  		if ((vht_cap & IEEE80211_VHT_CAP_MU_BEAMFORMEE_CAPABLE) &&
@@ -3392,7 +3381,7 @@ Signed-off-by: Sriram R <quic_srirrama@quicinc.com>
  			value |= WMI_VDEV_PARAM_TXBF_MU_TX_BFEE;
  	}
  
-@@ -6722,7 +7123,7 @@ static int ath12k_mac_vif_txmgmt_idr_rem
+@@ -6720,7 +7126,7 @@ static int ath12k_mac_vif_txmgmt_idr_rem
  	return 0;
  }
  
@@ -3401,7 +3390,7 @@ Signed-off-by: Sriram R <quic_srirrama@quicinc.com>
  				  struct sk_buff *skb)
  {
  	struct ath12k_base *ab = ar->ab;
-@@ -6791,7 +7192,8 @@ static void ath12k_mgmt_over_wmi_tx_work
+@@ -6790,7 +7196,8 @@ static void ath12k_mgmt_over_wmi_tx_work
  {
  	struct ath12k *ar = container_of(work, struct ath12k, wmi_mgmt_tx_work);
  	struct ath12k_skb_cb *skb_cb;
@@ -3411,7 +3400,7 @@ Signed-off-by: Sriram R <quic_srirrama@quicinc.com>
  	struct sk_buff *skb;
  	int ret;
  
-@@ -6803,7 +7205,9 @@ static void ath12k_mgmt_over_wmi_tx_work
+@@ -6802,7 +7209,9 @@ static void ath12k_mgmt_over_wmi_tx_work
  			continue;
  		}
  
@@ -3422,7 +3411,7 @@ Signed-off-by: Sriram R <quic_srirrama@quicinc.com>
  		mutex_lock(&ar->conf_mutex);
  		if (ar->allocated_vdev_map & (1LL << arvif->vdev_id) &&
  		    arvif->is_started) {
-@@ -6867,20 +7271,23 @@ static void ath12k_mac_op_tx(struct ieee
+@@ -6866,20 +7275,23 @@ static void ath12k_mac_op_tx(struct ieee
  	struct ath12k_skb_cb *skb_cb = ATH12K_SKB_CB(skb);
  	struct ieee80211_tx_info *info = IEEE80211_SKB_CB(skb);
  	struct ieee80211_vif *vif = info->control.vif;
@@ -3450,7 +3439,7 @@ Signed-off-by: Sriram R <quic_srirrama@quicinc.com>
  		ieee80211_free_txskb(ah->hw, skb);
  		return;
  	}
-@@ -6919,8 +7326,8 @@ static void ath12k_mac_op_tx(struct ieee
+@@ -6918,8 +7330,8 @@ static void ath12k_mac_op_tx(struct ieee
  		}
  		return;
  	}
@@ -3461,7 +3450,7 @@ Signed-off-by: Sriram R <quic_srirrama@quicinc.com>
  
  	/* Must call mac80211 tx status handler, else when stats is disabled we
  	 * free the skb from driver. Own tx packets on monitor will also be
-@@ -6932,7 +7339,7 @@ static void ath12k_mac_op_tx(struct ieee
+@@ -6931,7 +7343,7 @@ static void ath12k_mac_op_tx(struct ieee
  	    test_bit(MONITOR_VDEV_CREATED, &ar->monitor_flags))
  		skb_cb->flags |= ATH12K_SKB_TX_STATUS;
  
@@ -3470,7 +3459,7 @@ Signed-off-by: Sriram R <quic_srirrama@quicinc.com>
  	if (unlikely(ret)) {
  		if (ret == -ENOMEM)
  			ath12k_dbg(ar->ab, ATH12K_DBG_MAC, "failed to transmit frame %d\n",
-@@ -6943,13 +7350,11 @@ static void ath12k_mac_op_tx(struct ieee
+@@ -6942,13 +7354,11 @@ static void ath12k_mac_op_tx(struct ieee
  		ieee80211_free_txskb(ah->hw, skb);
  	}
  
@@ -3489,7 +3478,7 @@ Signed-off-by: Sriram R <quic_srirrama@quicinc.com>
  	}
  }
  
-@@ -7380,7 +7785,7 @@ static void ath12k_mac_op_stop(struct ie
+@@ -7378,7 +7788,7 @@ static void ath12k_mac_op_stop(struct ie
  }
  
  static u8
@@ -3498,7 +3487,7 @@ Signed-off-by: Sriram R <quic_srirrama@quicinc.com>
  {
  	struct ath12k_base *ab = arvif->ar->ab;
  	u8 vdev_stats_id = 0;
-@@ -7402,50 +7807,53 @@ ath12k_mac_get_vdev_stats_id(struct ath1
+@@ -7400,50 +7810,53 @@ ath12k_mac_get_vdev_stats_id(struct ath1
  	return vdev_stats_id;
  }
  
@@ -3562,7 +3551,7 @@ Signed-off-by: Sriram R <quic_srirrama@quicinc.com>
  	params->pdev_id = pdev->pdev_id;
  	params->mbssid_flags = 0;
  	params->mbssid_tx_vdev_id = 0;
-@@ -7479,10 +7887,11 @@ static int ath12k_mac_setup_vdev_create_
+@@ -7477,10 +7890,11 @@ static int ath12k_mac_setup_vdev_create_
  }
  
  static void ath12k_mac_update_vif_offload(struct ath12k *ar,
@@ -3576,7 +3565,7 @@ Signed-off-by: Sriram R <quic_srirrama@quicinc.com>
  	u32 param_id, param_value;
  	int ret;
  
-@@ -7494,14 +7903,14 @@ static void ath12k_mac_update_vif_offloa
+@@ -7492,14 +7906,14 @@ static void ath12k_mac_update_vif_offloa
  					IEEE80211_OFFLOAD_DECAP_ENABLED);
  
  	if (vif->offload_flags & IEEE80211_OFFLOAD_ENCAP_ENABLED)
@@ -3595,7 +3584,7 @@ Signed-off-by: Sriram R <quic_srirrama@quicinc.com>
  	if (ret) {
  		ath12k_warn(ab, "failed to set vdev %d tx encap mode: %d\n",
  			    arvif->vdev_id, ret);
-@@ -7529,24 +7938,25 @@ static void ath12k_mac_op_update_vif_off
+@@ -7527,24 +7941,25 @@ static void ath12k_mac_op_update_vif_off
  					     struct ieee80211_vif *vif)
  {
  	struct ath12k_hw *ah = hw->priv;
@@ -3626,7 +3615,7 @@ Signed-off-by: Sriram R <quic_srirrama@quicinc.com>
  	ath12k_dp_tx_update_bank_profile(arvif);
  
  	mutex_unlock(&ah->conf_mutex);
-@@ -7554,7 +7964,7 @@ static void ath12k_mac_op_update_vif_off
+@@ -7552,7 +7967,7 @@ static void ath12k_mac_op_update_vif_off
  
  static void ath12k_update_bcn_template_work(struct work_struct *work)
  {
@@ -3634,8 +3623,8 @@ Signed-off-by: Sriram R <quic_srirrama@quicinc.com>
 +	struct ath12k_link_vif *arvif = container_of(work, struct ath12k_link_vif,
  					update_bcn_template_work);
  	struct ath12k *ar = arvif->ar;
- 	int ret = -EINVAL;
-@@ -7573,7 +7983,7 @@ static void ath12k_update_bcn_template_w
+ 	int ret;
+@@ -7567,7 +7982,7 @@ static void ath12k_update_bcn_template_w
  
  static void ath12k_update_obss_color_notify_work(struct work_struct *work)
  {
@@ -3644,14 +3633,18 @@ Signed-off-by: Sriram R <quic_srirrama@quicinc.com>
  					update_obss_color_notify_work);
  	struct ath12k *ar;
  
-@@ -7584,27 +7994,45 @@ static void ath12k_update_obss_color_not
+@@ -7576,28 +7991,48 @@ static void ath12k_update_obss_color_not
  
+ 	ar = arvif->ar;
+ 
++	if(!ar)
++		return;
++
  	mutex_lock(&ar->conf_mutex);
- 	if (arvif->is_created)
--		ieeee80211_obss_color_collision_notify(arvif->vif,
-+		ieeee80211_obss_color_collision_notify(arvif->ahvif->vif,
- 						       arvif->obss_color_bitmap,
- 						       GFP_KERNEL);
+-	ieeee80211_obss_color_collision_notify(arvif->vif,
++	ieeee80211_obss_color_collision_notify(arvif->ahvif->vif,
+ 					       arvif->obss_color_bitmap,
+ 					       GFP_KERNEL);
  	arvif->obss_color_bitmap = 0;
  	mutex_unlock(&ar->conf_mutex);
  }
@@ -3686,14 +3679,13 @@ Signed-off-by: Sriram R <quic_srirrama@quicinc.com>
 +	}
 +
 +	memcpy(link_addr, link_conf->addr, ETH_ALEN);
-+	memcpy(arvif->addr, link_conf->addr, ETH_ALEN);
 +	txpower = link_conf->txpower;
 +	rcu_read_unlock();
 +
  	/* Send vdev stats offload commands to firmware before first vdev
  	 * creation. ie., when num_created_vdevs = 0
  	 */
-@@ -7625,22 +8053,22 @@ static int ath12k_mac_vdev_create(struct
+@@ -7612,22 +8047,22 @@ static int ath12k_mac_vdev_create(struct
  	vdev_id = __ffs64(ab->free_vdev_map);
  
  	arvif->vdev_id = vdev_id;
@@ -3721,7 +3713,7 @@ Signed-off-by: Sriram R <quic_srirrama@quicinc.com>
  		ar->monitor_vdev_id = vdev_id;
  		break;
  	default:
-@@ -7649,7 +8077,7 @@ static int ath12k_mac_vdev_create(struct
+@@ -7636,7 +8071,7 @@ static int ath12k_mac_vdev_create(struct
  	}
  
  	ath12k_dbg(ar->ab, ATH12K_DBG_MAC, "mac vdev create id %d type %d subtype %d map %llx\n",
@@ -3730,7 +3722,7 @@ Signed-off-by: Sriram R <quic_srirrama@quicinc.com>
  		   ab->free_vdev_map);
  
  	/* TODO Revisit this sharing of common queues across all ar's */
-@@ -7664,7 +8092,7 @@ static int ath12k_mac_vdev_create(struct
+@@ -7651,7 +8086,7 @@ static int ath12k_mac_vdev_create(struct
  		goto err;
  	}
  
@@ -3739,7 +3731,7 @@ Signed-off-by: Sriram R <quic_srirrama@quicinc.com>
  	if (ret) {
  		ath12k_warn(ab, "failed to create WMI vdev %d: %d\n",
  			    arvif->vdev_id, ret);
-@@ -7674,7 +8102,7 @@ static int ath12k_mac_vdev_create(struct
+@@ -7661,7 +8096,7 @@ static int ath12k_mac_vdev_create(struct
  	ar->num_created_vdevs++;
  	arvif->is_created = true;
  	ath12k_dbg(ab, ATH12K_DBG_MAC, "vdev %pM created, vdev_id %d\n",
@@ -3748,7 +3740,7 @@ Signed-off-by: Sriram R <quic_srirrama@quicinc.com>
  
  	ar->allocated_vdev_map |= 1LL << arvif->vdev_id;
  	ab->free_vdev_map &= ~(1LL << arvif->vdev_id);
-@@ -7683,7 +8111,7 @@ static int ath12k_mac_vdev_create(struct
+@@ -7670,7 +8105,7 @@ static int ath12k_mac_vdev_create(struct
  	list_add(&arvif->list, &ar->arvifs);
  	spin_unlock_bh(&ar->data_lock);
  
@@ -3757,7 +3749,7 @@ Signed-off-by: Sriram R <quic_srirrama@quicinc.com>
  
  	nss = get_num_chains(ar->cfg_tx_chainmask) ? : 1;
  	ret = ath12k_wmi_vdev_set_param_cmd(ar, arvif->vdev_id,
-@@ -7694,10 +8122,10 @@ static int ath12k_mac_vdev_create(struct
+@@ -7681,10 +8116,10 @@ static int ath12k_mac_vdev_create(struct
  		goto err_vdev_del;
  	}
  
@@ -3770,7 +3762,7 @@ Signed-off-by: Sriram R <quic_srirrama@quicinc.com>
  		peer_param.peer_type = WMI_PEER_TYPE_DEFAULT;
  		ret = ath12k_peer_create(ar, arvif, NULL, &peer_param);
  		if (ret) {
-@@ -7758,7 +8186,7 @@ static int ath12k_mac_vdev_create(struct
+@@ -7745,7 +8180,7 @@ static int ath12k_mac_vdev_create(struct
  		break;
  	}
  
@@ -3779,7 +3771,7 @@ Signed-off-by: Sriram R <quic_srirrama@quicinc.com>
  	ret = ath12k_mac_txpower_recalc(ar);
  	if (ret)
  		goto err_peer_del;
-@@ -7787,19 +8215,19 @@ static int ath12k_mac_vdev_create(struct
+@@ -7774,19 +8209,19 @@ static int ath12k_mac_vdev_create(struct
  	return ret;
  
  err_peer_del:
@@ -3803,7 +3795,7 @@ Signed-off-by: Sriram R <quic_srirrama@quicinc.com>
  		if (ret)
  			goto err;
  
-@@ -7825,13 +8253,17 @@ err:
+@@ -7812,13 +8247,17 @@ err:
  static void ath12k_mac_vif_cache_flush(struct ath12k *ar,  struct ieee80211_vif *vif)
  {
  	struct ath12k_hw *ah = ar->ah;
@@ -3823,7 +3815,7 @@ Signed-off-by: Sriram R <quic_srirrama@quicinc.com>
  					 &arvif->cache.tx_conf.tx_queue_params);
  		if (ret)
  			ath12k_warn(ar->ab,
-@@ -7839,13 +8271,13 @@ static void ath12k_mac_vif_cache_flush(s
+@@ -7826,13 +8265,13 @@ static void ath12k_mac_vif_cache_flush(s
  	}
  
  	if (arvif->cache.bss_conf_changed) {
@@ -3839,7 +3831,7 @@ Signed-off-by: Sriram R <quic_srirrama@quicinc.com>
  					 arvif->cache.key_conf.key);
  		if (ret)
  			ath12k_warn(ar->ab, "unable to apply set key param to vdev %d ret %d\n",
-@@ -7856,13 +8288,13 @@ static void ath12k_mac_vif_cache_flush(s
+@@ -7843,13 +8282,13 @@ static void ath12k_mac_vif_cache_flush(s
  }
  
  static struct ath12k *ath12k_mac_assign_vif_to_vdev(struct ieee80211_hw *hw,
@@ -3855,7 +3847,7 @@ Signed-off-by: Sriram R <quic_srirrama@quicinc.com>
  	u8 bit;
  	int ret;
  
-@@ -7897,7 +8329,7 @@ static struct ath12k *ath12k_mac_assign_
+@@ -7884,7 +8323,7 @@ static struct ath12k *ath12k_mac_assign_
  		goto unlock;
  	}
  
@@ -3864,7 +3856,7 @@ Signed-off-by: Sriram R <quic_srirrama@quicinc.com>
  	if (ret) {
  		ath12k_warn(ab, "failed to create vdev %d ret %d", bit, ret);
  		goto unlock;
-@@ -7917,7 +8349,7 @@ out:
+@@ -7904,7 +8343,7 @@ out:
  static int ath12k_mac_op_add_interface(struct ieee80211_hw *hw,
  				       struct ieee80211_vif *vif)
  {
@@ -3873,22 +3865,22 @@ Signed-off-by: Sriram R <quic_srirrama@quicinc.com>
  	struct ath12k_hw *ah = hw->priv;
  	int i;
  
-@@ -7930,29 +8362,16 @@ static int ath12k_mac_op_add_interface(s
+@@ -7917,29 +8356,16 @@ static int ath12k_mac_op_add_interface(s
  	 */
  
  	mutex_lock(&ah->conf_mutex);
 -	memset(arvif, 0, sizeof(*arvif));
--
--	arvif->vdev_type = vif->type;
--	arvif->vif = vif;
 +	memset(ahvif, 0, sizeof(*ahvif));
  
--	INIT_LIST_HEAD(&arvif->list);
--	arvif->key_cipher = INVALID_CIPHER;
+-	arvif->vdev_type = vif->type;
+-	arvif->vif = vif;
 +	ahvif->vdev_type = vif->type;
 +	ahvif->vif = vif;
 +	ahvif->ah = ah;
  
+-	INIT_LIST_HEAD(&arvif->list);
+-	arvif->key_cipher = INVALID_CIPHER;
+-
 -	INIT_WORK(&arvif->update_obss_color_notify_work, ath12k_update_obss_color_notify_work);
 -	INIT_WORK(&arvif->update_bcn_template_work, ath12k_update_bcn_template_work);
 +	ahvif->deflink.ahvif = ahvif;
@@ -3910,7 +3902,7 @@ Signed-off-by: Sriram R <quic_srirrama@quicinc.com>
  
  	/* Allocate Default Queue now and reassign during actual vdev create */
  	vif->cab_queue = ATH12K_HW_DEFAULT_QUEUE;
-@@ -7989,25 +8408,25 @@ static void ath12k_mac_vif_unref(struct
+@@ -7976,21 +8402,22 @@ static void ath12k_mac_vif_unref(struct
  	}
  }
  
@@ -3938,18 +3930,13 @@ Signed-off-by: Sriram R <quic_srirrama@quicinc.com>
  	if (!ar) {
  		ath12k_dbg(NULL, ATH12K_DBG_MAC,
  			   "unable to determine device to remove interface\n");
--		mutex_unlock(&ah->conf_mutex);
- 		return;
- 	}
- 
-@@ -8023,18 +8442,18 @@ static void ath12k_mac_op_remove_interfa
+@@ -8010,18 +8437,18 @@ static void ath12k_mac_op_remove_interfa
  		ath12k_warn(ab, "failed to stop spectral for vdev %i: %d\n",
  			    arvif->vdev_id, ret);
  
 -	if (arvif->vdev_type == WMI_VDEV_TYPE_AP) {
--		ret = ath12k_peer_delete(ar, arvif->vdev_id, vif->addr);
 +	if (ahvif->vdev_type == WMI_VDEV_TYPE_AP) {
-+		ret = ath12k_peer_delete(ar, arvif->vdev_id, arvif->addr);
+ 		ret = ath12k_peer_delete(ar, arvif->vdev_id, vif->addr);
  		if (ret)
  			ath12k_warn(ab, "failed to submit AP self-peer removal on vdev %d: %d"
  				    " num_peer : %d\n", arvif->vdev_id, ret, ar->num_peers);
@@ -3965,16 +3952,7 @@ Signed-off-by: Sriram R <quic_srirrama@quicinc.com>
  		ar->monitor_vdev_id = -1;
  		clear_bit(MONITOR_VDEV_CREATED, &ar->monitor_flags);
  	} else if (test_bit(MONITOR_VDEV_CREATED, &ar->monitor_flags) &&
-@@ -8043,7 +8462,7 @@ static void ath12k_mac_op_remove_interfa
- 	}
- 
- 	ath12k_dbg(ab, ATH12K_DBG_MAC, "vdev %pM deleted, vdev_id %d\n",
--		   vif->addr, arvif->vdev_id);
-+		   arvif->addr, arvif->vdev_id);
- 
- err_vdev_del:
- 	ath12k_peer_cleanup(ar, arvif->vdev_id);
-@@ -8055,7 +8474,7 @@ err_vdev_del:
+@@ -8042,7 +8469,7 @@ err_vdev_del:
  
  	ath12k_mac_vif_unref(&ab->dp, vif);
  	ath12k_dp_tx_put_bank_profile(&ab->dp, arvif->bank_id);
@@ -3983,7 +3961,7 @@ Signed-off-by: Sriram R <quic_srirrama@quicinc.com>
  
  	/* Recalc txpower for remaining vdev */
  	ath12k_mac_txpower_recalc(ar);
-@@ -8067,6 +8486,35 @@ err_vdev_del:
+@@ -8054,6 +8481,35 @@ err_vdev_del:
  	/* TODO: recal traffic pause state based on the available vdevs */
  
  	mutex_unlock(&ar->conf_mutex);
@@ -4019,7 +3997,7 @@ Signed-off-by: Sriram R <quic_srirrama@quicinc.com>
  	mutex_unlock(&ah->conf_mutex);
  }
  
-@@ -8162,9 +8610,13 @@ static int ath12k_mac_op_ampdu_action(st
+@@ -8149,9 +8605,13 @@ static int ath12k_mac_op_ampdu_action(st
  	struct ath12k *ar;
  	int ret = -EINVAL;
  
@@ -4034,7 +4012,7 @@ Signed-off-by: Sriram R <quic_srirrama@quicinc.com>
  	if (!ar) {
  		ath12k_err(NULL, "unable to determine device to set ampdu params\n");
  		mutex_unlock(&ah->conf_mutex);
-@@ -8258,17 +8710,32 @@ static void ath12k_mac_op_remove_chanctx
+@@ -8245,17 +8705,32 @@ static void ath12k_mac_op_remove_chanctx
  	mutex_unlock(&ar->conf_mutex);
  }
  
@@ -4053,16 +4031,16 @@ Signed-off-by: Sriram R <quic_srirrama@quicinc.com>
 +	u8 link_addr[ETH_ALEN];
 +
 +	rcu_read_lock();
-+
+ 
+-	if ((arvif->vdev_type == WMI_VDEV_TYPE_AP) &&
+-	    !arvif->vif->bss_conf.nontransmitted &&
 +	link_conf = rcu_dereference(ahvif->vif->link_conf[arvif->link_id]);
 +
 +	if (!link_conf) {
 +		rcu_read_unlock();
 +		return -EINVAL;
 +	}
- 
--	if ((arvif->vdev_type == WMI_VDEV_TYPE_AP) &&
--	    !arvif->vif->bss_conf.nontransmitted &&
++
 +	memcpy(link_addr, link_conf->addr, ETH_ALEN);
 +	rcu_read_unlock();
 +
@@ -4071,7 +4049,7 @@ Signed-off-by: Sriram R <quic_srirrama@quicinc.com>
  	    (chandef->chan->band == NL80211_BAND_6GHZ)) {
  		param_id = WMI_VDEV_PARAM_6GHZ_PARAMS;
  		if (mode > MODE_11AX_HE20 && !is_psc) {
-@@ -8278,17 +8745,18 @@ static int ath12k_mac_set_6g_nonht_dup_c
+@@ -8265,17 +8740,18 @@ static int ath12k_mac_set_6g_nonht_dup_c
  		}
  		ath12k_dbg(ar->ab, ATH12K_DBG_MAC,
  		           "Set 6GHz non-ht dup params for vdev %pM ,vdev_id %d param %d value %d\n",
@@ -4092,7 +4070,7 @@ Signed-off-by: Sriram R <quic_srirrama@quicinc.com>
  	struct ath12k *ar = arvif->ar;
  	struct ath12k_base *ab = ar->ab;
  	struct wmi_vdev_start_req_arg arg = {};
-@@ -8328,10 +8796,10 @@ ath12k_mac_vdev_start_restart(struct ath
+@@ -8315,10 +8791,10 @@ ath12k_mac_vdev_start_restart(struct ath
  			return ret;
  	}
  
@@ -4107,9 +4085,9 @@ Signed-off-by: Sriram R <quic_srirrama@quicinc.com>
  
  		/* For now allow DFS for AP mode */
  		arg.channel.chan_radar =
-@@ -8371,16 +8839,16 @@ ath12k_mac_vdev_start_restart(struct ath
- 
+@@ -8362,16 +8838,16 @@ ath12k_mac_vdev_start_restart(struct ath
  	if (ar->supports_6ghz &&
+ 	    chandef->width != NL80211_CHAN_WIDTH_320 &&
              chandef->chan->band == NL80211_BAND_6GHZ &&
 -            (arvif->vdev_type == WMI_VDEV_TYPE_STA || arvif->vdev_type == WMI_VDEV_TYPE_AP) &&
 +            (ahvif->vdev_type == WMI_VDEV_TYPE_STA || ahvif->vdev_type == WMI_VDEV_TYPE_AP) &&
@@ -4118,16 +4096,16 @@ Signed-off-by: Sriram R <quic_srirrama@quicinc.com>
 +                ath12k_mac_fill_reg_tpc_info(ar, arvif, &arvif->chanctx);
                  ath12k_wmi_send_vdev_set_tpc_power(ar, arvif->vdev_id,
                                                     &arvif->reg_tpc_info);
-        }
+ 	}
  
  	ar->num_started_vdevs++;
  	ath12k_dbg(ab, ATH12K_DBG_MAC,  "vdev %pM started, vdev_id %d\n",
 -		   arvif->vif->addr, arvif->vdev_id);
-+		   arvif->addr, arvif->vdev_id);
++		   ahvif->vif->addr, arvif->vdev_id);
  
  	/* Enable CAC Flag in the driver by checking the channel DFS cac time,
  	 * i.e dfs_cac_ms value which will be valid only for radar channels
-@@ -8389,7 +8857,7 @@ ath12k_mac_vdev_start_restart(struct ath
+@@ -8380,7 +8856,7 @@ ath12k_mac_vdev_start_restart(struct ath
  	 * during CAC.
  	 */
  	/* TODO Set the flag for other interface types as required */
@@ -4136,25 +4114,27 @@ Signed-off-by: Sriram R <quic_srirrama@quicinc.com>
  	    chandef->chan->dfs_cac_ms &&
  	    chandef->chan->dfs_state == NL80211_DFS_USABLE) {
  		set_bit(ATH12K_CAC_RUNNING, &ar->dev_flags);
-@@ -8411,7 +8879,7 @@ ath12k_mac_vdev_start_restart(struct ath
+@@ -8402,8 +8878,9 @@ ath12k_mac_vdev_start_restart(struct ath
  	return 0;
  }
  
 -static int ath12k_mac_vdev_stop(struct ath12k_vif *arvif)
 +static int ath12k_mac_vdev_stop(struct ath12k_link_vif *arvif)
  {
++	struct ath12k_vif *ahvif = arvif->ahvif;
  	struct ath12k *ar = arvif->ar;
  	int ret;
-@@ -8438,7 +8906,7 @@ static int ath12k_mac_vdev_stop(struct a
+ 
+@@ -8429,7 +8906,7 @@ static int ath12k_mac_vdev_stop(struct a
  
  	ar->num_started_vdevs--;
  	ath12k_dbg(ar->ab, ATH12K_DBG_MAC, "vdev %pM stopped, vdev_id %d\n",
 -		   arvif->vif->addr, arvif->vdev_id);
-+		   arvif->addr, arvif->vdev_id);
++		   ahvif->vif->addr, arvif->vdev_id);
  
  	if (test_bit(ATH12K_CAC_RUNNING, &ar->dev_flags)) {
  		clear_bit(ATH12K_CAC_RUNNING, &ar->dev_flags);
-@@ -8451,7 +8919,7 @@ err:
+@@ -8442,7 +8919,7 @@ err:
  	return ret;
  }
  
@@ -4163,7 +4143,7 @@ Signed-off-by: Sriram R <quic_srirrama@quicinc.com>
  				 const struct cfg80211_chan_def *chandef,
  				 bool radar_enabled)
  {
-@@ -8459,7 +8927,7 @@ static int ath12k_mac_vdev_start(struct
+@@ -8450,7 +8927,7 @@ static int ath12k_mac_vdev_start(struct
  			radar_enabled);
  }
  
@@ -4172,7 +4152,7 @@ Signed-off-by: Sriram R <quic_srirrama@quicinc.com>
  				   const struct cfg80211_chan_def *chandef,
  				   bool pseudo_restart, bool radar_enabled)
  {
-@@ -8487,17 +8955,18 @@ static int ath12k_mac_vdev_restart(struc
+@@ -8478,17 +8955,18 @@ static int ath12k_mac_vdev_restart(struc
  	return ret;
  }
  
@@ -4194,7 +4174,7 @@ Signed-off-by: Sriram R <quic_srirrama@quicinc.com>
  
  	spin_lock_bh(&ar->data_lock);
  	old_chanctx = arvif->chanctx;
-@@ -8530,13 +8999,14 @@ static int ath12k_vdev_restart_sequence(
+@@ -8521,13 +8999,14 @@ static int ath12k_vdev_restart_sequence(
  	}
  
  	params.vdev_id = arvif->vdev_id;
@@ -4214,7 +4194,7 @@ Signed-off-by: Sriram R <quic_srirrama@quicinc.com>
  		params.profile_count = tx_arvif->nontransmitting_vif_count;
  	}
  
-@@ -8562,36 +9032,79 @@ static void
+@@ -8553,36 +9032,79 @@ static void
  ath12k_mac_change_chanctx_cnt_iter(void *data, u8 *mac,
  				   struct ieee80211_vif *vif)
  {
@@ -4231,8 +4211,7 @@ Signed-off-by: Sriram R <quic_srirrama@quicinc.com>
 -	    (arvif->ar != arg->ar))
 -		return;
 +	lockdep_assert_held(&ah->conf_mutex);
- 
--	arg->n_vifs++;
++
 +	links_map = ahvif->links_map;
 +
 +	for_each_set_bit(link_id, &links_map, IEEE80211_MLD_MAX_NUM_LINKS) {
@@ -4245,7 +4224,8 @@ Signed-off-by: Sriram R <quic_srirrama@quicinc.com>
 +
 +		if (WARN_ON(link_conf == NULL))
 +			continue;
-+
+ 
+-	arg->n_vifs++;
 +		if ((rcu_access_pointer(link_conf->chanctx_conf) != arg->ctx) ||
 +		    (arvif->ar != arg->ar))
 +			continue;
@@ -4280,11 +4260,7 @@ Signed-off-by: Sriram R <quic_srirrama@quicinc.com>
 + 
 +	for_each_set_bit(link_id, &links_map, IEEE80211_MLD_MAX_NUM_LINKS) {
 +		arvif = ahvif->link[link_id];
- 
--	arg->vifs[arg->next_vif].vif = vif;
--	arg->vifs[arg->next_vif].old_ctx = ctx;
--	arg->vifs[arg->next_vif].new_ctx = ctx;
--	arg->next_vif++;
++
 +		if (WARN_ON(arvif == NULL))
 +			continue;
 +
@@ -4300,7 +4276,11 @@ Signed-off-by: Sriram R <quic_srirrama@quicinc.com>
 +
 +		if (WARN_ON(arg->next_vif == arg->n_vifs))
 +			return;
-+
+ 
+-	arg->vifs[arg->next_vif].vif = vif;
+-	arg->vifs[arg->next_vif].old_ctx = ctx;
+-	arg->vifs[arg->next_vif].new_ctx = ctx;
+-	arg->next_vif++;
 +		arg->vifs[arg->next_vif].vif = vif;
 +		arg->vifs[arg->next_vif].old_ctx = ctx;
 +		arg->vifs[arg->next_vif].new_ctx = ctx;
@@ -4310,7 +4290,7 @@ Signed-off-by: Sriram R <quic_srirrama@quicinc.com>
  }
  
  static void ath12k_mac_num_chanctxs_iter(struct ieee80211_hw *hw,
-@@ -8669,7 +9182,8 @@ ath12k_mac_update_vif_chan(struct ath12k
+@@ -8660,7 +9182,8 @@ ath12k_mac_update_vif_chan(struct ath12k
  			   int n_vifs)
  {
  	struct ath12k_base *ab = ar->ab;
@@ -4320,7 +4300,7 @@ Signed-off-by: Sriram R <quic_srirrama@quicinc.com>
  	struct cfg80211_chan_def *chandef = NULL;
  	int ret;
  	int i, trans_vdev_index;
-@@ -8689,7 +9203,11 @@ ath12k_mac_update_vif_chan(struct ath12k
+@@ -8680,7 +9203,11 @@ ath12k_mac_update_vif_chan(struct ath12k
  	tx_arvif = NULL;
  
  	for (i = 0; i < n_vifs; i++) {
@@ -4333,7 +4313,7 @@ Signed-off-by: Sriram R <quic_srirrama@quicinc.com>
  
  		if (vifs[i].vif->type == NL80211_IFTYPE_MONITOR)
  			monitor_vif = true;
-@@ -8708,10 +9226,11 @@ ath12k_mac_update_vif_chan(struct ath12k
+@@ -8699,10 +9226,11 @@ ath12k_mac_update_vif_chan(struct ath12k
  		if (!arvif->is_up)
  			continue;
  
@@ -4349,7 +4329,7 @@ Signed-off-by: Sriram R <quic_srirrama@quicinc.com>
  			trans_vdev_index = i;
  		}
  
-@@ -8740,12 +9259,16 @@ ath12k_mac_update_vif_chan(struct ath12k
+@@ -8731,12 +9259,16 @@ ath12k_mac_update_vif_chan(struct ath12k
  	}
  
  	for (i = 0; i < n_vifs; i++) {
@@ -4368,7 +4348,7 @@ Signed-off-by: Sriram R <quic_srirrama@quicinc.com>
  		    arvif == tx_arvif)
  			continue;
  
-@@ -8807,16 +9330,18 @@ ath12k_mac_update_active_vif_chan(struct
+@@ -8798,16 +9330,18 @@ ath12k_mac_update_active_vif_chan(struct
  
  	lockdep_assert_held(&ar->conf_mutex);
  
@@ -4389,7 +4369,7 @@ Signed-off-by: Sriram R <quic_srirrama@quicinc.com>
  
  	ieee80211_iterate_active_interfaces_atomic(ah->hw,
  						   IEEE80211_IFACE_ITER_NORMAL,
-@@ -8826,6 +9351,8 @@ ath12k_mac_update_active_vif_chan(struct
+@@ -8817,6 +9351,8 @@ ath12k_mac_update_active_vif_chan(struct
  	ath12k_mac_update_vif_chan(ar, arg.vifs, arg.n_vifs);
  
  	kfree(arg.vifs);
@@ -4398,7 +4378,7 @@ Signed-off-by: Sriram R <quic_srirrama@quicinc.com>
  }
  
  static void ath12k_mac_op_change_chanctx(struct ieee80211_hw *hw,
-@@ -8870,7 +9397,8 @@ static int ath12k_start_vdev_delay(struc
+@@ -8861,7 +9397,8 @@ static int ath12k_start_vdev_delay(struc
  				   struct ieee80211_vif *vif)
  {
  	struct ath12k_base *ab = ar->ab;
@@ -4408,13 +4388,7 @@ Signed-off-by: Sriram R <quic_srirrama@quicinc.com>
  	int ret;
  
  	if (WARN_ON(arvif->is_started))
-@@ -8880,12 +9408,12 @@ static int ath12k_start_vdev_delay(struc
- 			arvif->chanctx.radar_enabled);
- 	if (ret) {
- 		ath12k_warn(ab, "failed to start vdev %i addr %pM on freq %d: %d\n",
--			    arvif->vdev_id, vif->addr,
-+			    arvif->vdev_id, arvif->addr,
- 			    arvif->chanctx.def.chan->center_freq, ret);
+@@ -8876,7 +9413,7 @@ static int ath12k_start_vdev_delay(struc
  		return ret;
  	}
  
@@ -4423,7 +4397,7 @@ Signed-off-by: Sriram R <quic_srirrama@quicinc.com>
  		ret = ath12k_monitor_vdev_up(ar, arvif->vdev_id);
  		if (ret) {
  			ath12k_warn(ab, "failed put monitor up: %d\n", ret);
-@@ -9096,11 +9624,12 @@ static void ath12k_mac_get_eirp_power(st
+@@ -9078,11 +9615,12 @@ static void ath12k_mac_get_eirp_power(st
  }
  
  void ath12k_mac_fill_reg_tpc_info(struct ath12k *ar,
@@ -4438,7 +4412,7 @@ Signed-off-by: Sriram R <quic_srirrama@quicinc.com>
          struct ieee80211_bss_conf *bss_conf = &vif->bss_conf;
          struct ath12k_reg_tpc_power_info *reg_tpc_info = &arvif->reg_tpc_info;
          struct ieee80211_channel *chan, *temp_chan;
-@@ -9115,9 +9644,9 @@ void ath12k_mac_fill_reg_tpc_info(struct
+@@ -9097,9 +9635,9 @@ void ath12k_mac_fill_reg_tpc_info(struct
          * AP cant parse its own beacon. Hence, we get the 6g power mode
          * from the wdev corresponding to the struct ieee80211_vif
          */
@@ -4450,7 +4424,7 @@ Signed-off-by: Sriram R <quic_srirrama@quicinc.com>
                 struct wireless_dev *wdev = ieee80211_vif_to_wdev(vif);
                 /* With respect to ieee80211, the 6G AP power mode starts from index
                  * 1 while the power type stored in struct wireless_dev is based on
-@@ -9135,7 +9664,7 @@ void ath12k_mac_fill_reg_tpc_info(struct
+@@ -9117,7 +9655,7 @@ void ath12k_mac_fill_reg_tpc_info(struct
          start_freq = ath12k_mac_get_6g_start_frequency(&ctx->def);
          pwr_reduction = bss_conf->pwr_reduction;
  
@@ -4459,7 +4433,7 @@ Signed-off-by: Sriram R <quic_srirrama@quicinc.com>
  	    arvif->reg_tpc_info.num_pwr_levels) {
                  is_tpe_present = true;
                  num_pwr_levels = arvif->reg_tpc_info.num_pwr_levels;
-@@ -9289,11 +9818,12 @@ void ath12k_mac_fill_reg_tpc_info(struct
+@@ -9274,11 +9812,12 @@ void ath12k_mac_fill_reg_tpc_info(struct
  }
  
  static void ath12k_mac_parse_tx_pwr_env(struct ath12k *ar,
@@ -4474,9 +4448,9 @@ Signed-off-by: Sriram R <quic_srirrama@quicinc.com>
          struct ieee80211_bss_conf *bss_conf = &vif->bss_conf;
          struct ieee80211_tx_pwr_env *single_tpe;
          enum wmi_reg_6g_client_type client_type;
-@@ -9421,21 +9951,34 @@ ath12k_mac_op_assign_vif_chanctx(struct
+@@ -9406,21 +9945,34 @@ ath12k_mac_op_assign_vif_chanctx(struct
  	struct ath12k_hw *ah = hw->priv;
- 	struct ath12k *ar, *arvif_ar;
+ 	struct ath12k *ar;
  	struct ath12k_base *ab;
 -	struct ath12k_vif *arvif = (void *)vif->drv_priv;
 +	struct ath12k_vif *ahvif = (void *)vif->drv_priv;
@@ -4511,7 +4485,7 @@ Signed-off-by: Sriram R <quic_srirrama@quicinc.com>
  	} else {
  		ar = ath12k_get_ar_by_ctx(hw, ctx);
  		if (!ar) {
-@@ -9447,6 +9990,7 @@ ath12k_mac_op_assign_vif_chanctx(struct
+@@ -9432,6 +9984,7 @@ ath12k_mac_op_assign_vif_chanctx(struct
  
  		/* If vif is already assigned, but now the chan is different and belongs
  		 * to a different ar, then delete the old vdev in different ar and create new
@@ -4519,15 +4493,14 @@ Signed-off-by: Sriram R <quic_srirrama@quicinc.com>
  		 */
  		if (ar != arvif->ar) {
  			if (WARN_ON(arvif->is_started)) {
-@@ -9457,13 +10001,13 @@ ath12k_mac_op_assign_vif_chanctx(struct
- 			arvif_ar = arvif->ar;
+@@ -9439,12 +9992,12 @@ ath12k_mac_op_assign_vif_chanctx(struct
+ 				return -EBUSY;
+ 			}
  
- 			mutex_lock(&arvif_ar->conf_mutex);
--			ret = ath12k_mac_vdev_delete(arvif_ar, vif);
-+			ret = ath12k_mac_vdev_delete(arvif_ar, arvif);
- 			mutex_unlock(&arvif_ar->conf_mutex);
+-			ret = ath12k_mac_vdev_delete(arvif->ar, vif);
++			ret = ath12k_mac_vdev_delete(arvif->ar, arvif);
  			if (ret)
- 				ath12k_warn(arvif_ar->ab, "unable to delete vdev %d\n", ret);
+ 				ath12k_warn(arvif->ar->ab, "unable to delete vdev %d\n", ret);
  
  			mutex_lock(&ar->conf_mutex);
 -			ret = ath12k_mac_vdev_create(ar, vif);
@@ -4535,7 +4508,7 @@ Signed-off-by: Sriram R <quic_srirrama@quicinc.com>
  			if (ret) {
  				mutex_unlock(&ar->conf_mutex);
  				mutex_unlock(&ah->conf_mutex);
-@@ -9483,8 +10027,8 @@ ath12k_mac_op_assign_vif_chanctx(struct
+@@ -9464,8 +10017,8 @@ ath12k_mac_op_assign_vif_chanctx(struct
  		   ctx, arvif->vdev_id);
  
  	if (ar->supports_6ghz && ctx->def.chan->band == NL80211_BAND_6GHZ &&
@@ -4546,7 +4519,7 @@ Signed-off-by: Sriram R <quic_srirrama@quicinc.com>
                  power_type = vif->bss_conf.power_type;
                  ath12k_dbg(ab, ATH12K_DBG_MAC, "mac chanctx power type %d\n",
                             power_type);
-@@ -9495,16 +10039,16 @@ ath12k_mac_op_assign_vif_chanctx(struct
+@@ -9476,16 +10029,16 @@ ath12k_mac_op_assign_vif_chanctx(struct
  		/* TODO: Transmit Power Envelope specification for 320 is not
                   * available yet. Need to add TPE 320 support when spec is ready
                   */
@@ -4567,7 +4540,7 @@ Signed-off-by: Sriram R <quic_srirrama@quicinc.com>
  	    !ath12k_peer_find_by_vdev_id(ab, arvif->vdev_id)) {
  		memcpy(&arvif->chanctx, ctx, sizeof(*ctx));
  		ret = 0;
-@@ -9517,8 +10061,8 @@ ath12k_mac_op_assign_vif_chanctx(struct
+@@ -9498,8 +10051,8 @@ ath12k_mac_op_assign_vif_chanctx(struct
  	}
  
  	if (ab->hw_params->vdev_start_delay &&
@@ -4578,7 +4551,7 @@ Signed-off-by: Sriram R <quic_srirrama@quicinc.com>
  		param.vdev_id = arvif->vdev_id;
  		param.peer_type = WMI_PEER_TYPE_DEFAULT;
  		param.peer_addr = ar->mac_addr;
-@@ -9531,7 +10075,7 @@ ath12k_mac_op_assign_vif_chanctx(struct
+@@ -9512,7 +10065,7 @@ ath12k_mac_op_assign_vif_chanctx(struct
  		}
  	}
  
@@ -4587,13 +4560,7 @@ Signed-off-by: Sriram R <quic_srirrama@quicinc.com>
  		ret = ath12k_mac_monitor_start(ar);
  		if (ret)
  			goto out;
-@@ -9542,12 +10086,12 @@ ath12k_mac_op_assign_vif_chanctx(struct
- 	ret = ath12k_mac_vdev_start(arvif, &ctx->def, ctx->radar_enabled);
- 	if (ret) {
- 		ath12k_warn(ab, "failed to start vdev %i addr %pM on freq %d: %d\n",
--			    arvif->vdev_id, vif->addr,
-+			    arvif->vdev_id, arvif->addr,
- 			    ctx->def.chan->center_freq, ret);
+@@ -9528,7 +10081,7 @@ ath12k_mac_op_assign_vif_chanctx(struct
  		goto out;
  	}
  
@@ -4602,7 +4569,7 @@ Signed-off-by: Sriram R <quic_srirrama@quicinc.com>
  	    test_bit(MONITOR_VDEV_CREATED, &ar->monitor_flags))
  		ath12k_mac_monitor_start(ar);
  
-@@ -9570,11 +10114,14 @@ ath12k_mac_op_unassign_vif_chanctx(struc
+@@ -9551,11 +10104,14 @@ ath12k_mac_op_unassign_vif_chanctx(struc
  				   struct ieee80211_bss_conf *link_conf,
  				   struct ieee80211_chanctx_conf *ctx)
  {
@@ -4618,26 +4585,17 @@ Signed-off-by: Sriram R <quic_srirrama@quicinc.com>
  
  	mutex_lock(&ah->conf_mutex);
  	/* The vif is expected to be attached to an ar's VDEV.
-@@ -9584,7 +10131,17 @@ ath12k_mac_op_unassign_vif_chanctx(struc
+@@ -9565,7 +10121,8 @@ ath12k_mac_op_unassign_vif_chanctx(struc
  	 * remove_interface() or when there is a change in channel
  	 * that moves the vif to a new ar
  	 */
 -	ar = ath12k_get_ar_by_vif(hw, vif);
 +	arvif = ahvif->link[link_id];
-+
-+	if (!arvif) {
-+		ath12k_err(NULL,
-+			   "unable to determine the assigned link vif on link id %d\n",
-+			   link_id);
-+		mutex_unlock(&ah->conf_mutex);
-+		return;
-+	}
-+
 +	ar = arvif->ar;
  	if (!ar) {
  		ath12k_err(NULL,
  			   "unable to determine device to stop vdev during channel unassign\n");
-@@ -9603,11 +10160,11 @@ ath12k_mac_op_unassign_vif_chanctx(struc
+@@ -9584,11 +10141,11 @@ ath12k_mac_op_unassign_vif_chanctx(struc
  	WARN_ON(!arvif->is_started);
  
  	if (ab->hw_params->vdev_start_delay &&
@@ -4651,7 +4609,7 @@ Signed-off-by: Sriram R <quic_srirrama@quicinc.com>
  		ret = ath12k_mac_monitor_stop(ar);
  		if (ret)
  			goto out;
-@@ -9624,10 +10181,10 @@ ath12k_mac_op_unassign_vif_chanctx(struc
+@@ -9605,10 +10162,10 @@ ath12k_mac_op_unassign_vif_chanctx(struc
  	arvif->is_started = false;
  
  	if (ab->hw_params->vdev_start_delay &&
@@ -4664,7 +4622,7 @@ Signed-off-by: Sriram R <quic_srirrama@quicinc.com>
  	    ar->num_started_vdevs == 1 &&
  	    test_bit(MONITOR_VDEV_CREATED, &ar->monitor_flags))
  		ath12k_mac_monitor_stop(ar);
-@@ -9678,7 +10235,7 @@ ath12k_mac_op_switch_vif_chanctx(struct
+@@ -9659,7 +10216,7 @@ ath12k_mac_op_switch_vif_chanctx(struct
  static int
  ath12k_set_vdev_param_to_all_vifs(struct ath12k *ar, int param, u32 value)
  {
@@ -4673,7 +4631,7 @@ Signed-off-by: Sriram R <quic_srirrama@quicinc.com>
  	int ret = 0;
  
  	mutex_lock(&ar->conf_mutex);
-@@ -9786,7 +10343,8 @@ static void ath12k_mac_op_flush(struct i
+@@ -9767,7 +10324,8 @@ static void ath12k_mac_op_flush(struct i
  			ar++;
  		}
  	} else {
@@ -4683,7 +4641,7 @@ Signed-off-by: Sriram R <quic_srirrama@quicinc.com>
  		if (!ar) {
  			ath12k_err(NULL,
  				   "unable to determine device for tx flush\n");
-@@ -9988,15 +10546,31 @@ ath12k_mac_get_single_legacy_rate(struct
+@@ -9969,15 +10527,31 @@ ath12k_mac_get_single_legacy_rate(struct
  }
  
  static int
@@ -4716,7 +4674,7 @@ Signed-off-by: Sriram R <quic_srirrama@quicinc.com>
  	ret = ath12k_wmi_vdev_set_param_cmd(ar, arvif->vdev_id,
  					    WMI_VDEV_PARAM_SGI, gi);
  	if (ret) {
-@@ -10008,7 +10582,7 @@ ath12k_mac_set_fixed_rate_GI_LTF(struct
+@@ -9989,7 +10563,7 @@ ath12k_mac_set_fixed_rate_GI_LTF(struct
  	if (ltf != 0xFF)
  		ltf += 1;
  
@@ -4725,7 +4683,7 @@ Signed-off-by: Sriram R <quic_srirrama@quicinc.com>
  		param = WMI_VDEV_PARAM_EHT_LTF;
  	else
  		param = WMI_VDEV_PARAM_HE_LTF;
-@@ -10025,7 +10599,7 @@ ath12k_mac_set_fixed_rate_GI_LTF(struct
+@@ -10006,7 +10580,7 @@ ath12k_mac_set_fixed_rate_GI_LTF(struct
  }
  
  static int
@@ -4734,7 +4692,7 @@ Signed-off-by: Sriram R <quic_srirrama@quicinc.com>
  {
  	struct ath12k *ar = arvif->ar;
  	int ret;
-@@ -10081,19 +10655,36 @@ ath12k_mac_set_auto_rate_GI_LTF(struct a
+@@ -10062,19 +10636,36 @@ ath12k_mac_set_auto_rate_GI_LTF(struct a
  	return 0;
  }
  
@@ -4772,7 +4730,7 @@ Signed-off-by: Sriram R <quic_srirrama@quicinc.com>
  	ath12k_dbg(ar->ab, ATH12K_DBG_MAC,
  		   "mac set rate params vdev %i, rate:0x%02x, nss:0x%02x, sgi:0x%02x, ldpc:0x%02x\n",
  		   arvif->vdev_id, rate, nss, sgi, ldpc);
-@@ -10106,7 +10697,7 @@ static int ath12k_mac_set_rate_params(st
+@@ -10087,7 +10678,7 @@ static int ath12k_mac_set_rate_params(st
  		   "eht_gi:0x%02x, eht_ltf:0x%02x, eht_fixed_rate:%d\n", eht_gi,
  		   eht_ltf, eht_fixed_rate);
  
@@ -4781,7 +4739,7 @@ Signed-off-by: Sriram R <quic_srirrama@quicinc.com>
  		vdev_param = WMI_VDEV_PARAM_FIXED_RATE;
  		ret = ath12k_wmi_vdev_set_param_cmd(ar, arvif->vdev_id,
  						    vdev_param, rate);
-@@ -10135,7 +10726,7 @@ static int ath12k_mac_set_rate_params(st
+@@ -10116,7 +10707,7 @@ static int ath12k_mac_set_rate_params(st
  		return ret;
  	}
  
@@ -4790,7 +4748,7 @@ Signed-off-by: Sriram R <quic_srirrama@quicinc.com>
  		if (eht_fixed_rate) {
  			ret = ath12k_mac_set_fixed_rate_GI_LTF(arvif, eht_gi,
  							       eht_ltf);
-@@ -10145,7 +10736,7 @@ static int ath12k_mac_set_rate_params(st
+@@ -10126,7 +10717,7 @@ static int ath12k_mac_set_rate_params(st
  		}
  		if (ret)
  			return ret;
@@ -4799,7 +4757,7 @@ Signed-off-by: Sriram R <quic_srirrama@quicinc.com>
  		if (he_fixed_rate) {
  			ret = ath12k_mac_set_fixed_rate_GI_LTF(arvif, he_gi,
  							       he_ltf);
-@@ -10283,13 +10874,21 @@ ath12k_mac_eht_mcs_range_present(struct
+@@ -10264,13 +10855,21 @@ ath12k_mac_eht_mcs_range_present(struct
  static void ath12k_mac_set_bitrate_mask_iter(void *data,
  					     struct ieee80211_sta *sta)
  {
@@ -4824,7 +4782,7 @@ Signed-off-by: Sriram R <quic_srirrama@quicinc.com>
  	spin_lock_bh(&ar->data_lock);
  	arsta->changed |= IEEE80211_RC_SUPP_RATES_CHANGED;
  	spin_unlock_bh(&ar->data_lock);
-@@ -10300,14 +10899,22 @@ static void ath12k_mac_set_bitrate_mask_
+@@ -10281,14 +10880,22 @@ static void ath12k_mac_set_bitrate_mask_
  static void ath12k_mac_disable_peer_fixed_rate(void *data,
  					       struct ieee80211_sta *sta)
  {
@@ -4851,7 +4809,7 @@ Signed-off-by: Sriram R <quic_srirrama@quicinc.com>
  	ret = ath12k_wmi_set_peer_param(ar, sta->addr,
  					arvif->vdev_id,
  					WMI_PEER_PARAM_FIXED_RATE,
-@@ -10390,13 +10997,25 @@ exit:
+@@ -10371,13 +10978,25 @@ exit:
  }
  
  static bool
@@ -4878,7 +4836,7 @@ Signed-off-by: Sriram R <quic_srirrama@quicinc.com>
  
  	vht_nss =  ath12k_mac_max_vht_nss(vht_mcs_mask);
  
-@@ -10406,21 +11025,26 @@ ath12k_mac_check_fixed_rate_settings_for
+@@ -10387,21 +11006,26 @@ ath12k_mac_check_fixed_rate_settings_for
  				continue;
  
  			if (arvif->vht_cap & IEEE80211_VHT_CAP_MU_BEAMFORMER_CAPABLE) {
@@ -4909,7 +4867,7 @@ Signed-off-by: Sriram R <quic_srirrama@quicinc.com>
  
  	 for (nss_idx = he_nss-1; nss_idx >= 0; nss_idx--) {
  		 if (he_mcs_mask[nss_idx])
-@@ -10428,11 +11052,13 @@ ath12k_mac_check_fixed_rate_settings_for
+@@ -10409,11 +11033,13 @@ ath12k_mac_check_fixed_rate_settings_for
  
  		 if ((he_cap_elem.phy_cap_info[2] & IEEE80211_HE_PHY_CAP2_UL_MU_FULL_MU_MIMO) ||
  		      (he_cap_elem.phy_cap_info[4] & IEEE80211_HE_PHY_CAP4_MU_BEAMFORMER)) {
@@ -4925,7 +4883,7 @@ Signed-off-by: Sriram R <quic_srirrama@quicinc.com>
  	 return true;
  }
  
-@@ -10442,7 +11068,7 @@ ath12k_mac_op_set_bitrate_mask(struct ie
+@@ -10423,7 +11049,7 @@ ath12k_mac_op_set_bitrate_mask(struct ie
  			       const struct cfg80211_bitrate_mask *mask)
  {
  	struct ath12k_hw *ah = hw->priv;
@@ -4934,7 +4892,7 @@ Signed-off-by: Sriram R <quic_srirrama@quicinc.com>
  	struct cfg80211_chan_def def;
  	struct ath12k *ar;
  	enum nl80211_band band;
-@@ -10465,13 +11091,23 @@ ath12k_mac_op_set_bitrate_mask(struct ie
+@@ -10446,13 +11072,23 @@ ath12k_mac_op_set_bitrate_mask(struct ie
  	int he_ul_rate = -1;
  	bool he_fixed_rate = false;
  	bool eht_fixed_rate = false;
@@ -4960,7 +4918,7 @@ Signed-off-by: Sriram R <quic_srirrama@quicinc.com>
  	if (!ar) {
  		ath12k_err(NULL,
  			   "unable to determine device to set bitrates, configs can be applied after device bringup\n");
-@@ -10787,14 +11423,14 @@ exit:
+@@ -10768,14 +11404,14 @@ exit:
  }
  
  void ath12k_mac_ap_ps_recalc(struct ath12k *ar) {
@@ -4977,7 +4935,7 @@ Signed-off-by: Sriram R <quic_srirrama@quicinc.com>
  			allow_ap_ps = false;
  			break;
  		}
-@@ -10824,7 +11460,10 @@ static void ath12k_mac_op_sta_statistics
+@@ -10805,7 +11441,10 @@ static void ath12k_mac_op_sta_statistics
  					 struct ieee80211_sta *sta,
  					 struct station_info *sinfo)
  {
@@ -4989,7 +4947,7 @@ Signed-off-by: Sriram R <quic_srirrama@quicinc.com>
  
  	sinfo->rx_duration = arsta->rx_duration;
  	sinfo->filled |= BIT_ULL(NL80211_STA_INFO_RX_DURATION);
-@@ -10862,7 +11501,8 @@ static const struct ieee80211_ops ath12k
+@@ -10843,7 +11482,8 @@ static const struct ieee80211_ops ath12k
  	.remove_interface		= ath12k_mac_op_remove_interface,
  	.update_vif_offload		= ath12k_mac_op_update_vif_offload,
  	.config                         = ath12k_mac_op_config,
@@ -4999,16 +4957,14 @@ Signed-off-by: Sriram R <quic_srirrama@quicinc.com>
  	.configure_filter		= ath12k_mac_op_configure_filter,
  	.hw_scan                        = ath12k_mac_op_hw_scan,
  	.cancel_hw_scan                 = ath12k_mac_op_cancel_hw_scan,
-@@ -11553,6 +12193,9 @@ static int ath12k_mac_hw_register(struct
+@@ -11533,6 +12173,7 @@ static int ath12k_mac_hw_register(struct
+ 	hw->wiphy->flags |= WIPHY_FLAG_AP_UAPSD;
  	hw->wiphy->features |= NL80211_FEATURE_AP_MODE_CHAN_WIDTH_CHANGE |
  			       NL80211_FEATURE_AP_SCAN;
++	hw->wiphy->flags |= WIPHY_FLAG_SUPPORTS_MLO;
  
-+	if (ag->mlo_capable)
-+		hw->wiphy->flags |= WIPHY_FLAG_SUPPORTS_MLO;
-+
  	/* TODO Split queues per chip */
  	hw->queues = ATH12K_HW_MAX_QUEUES;
- 	hw->wiphy->tx_queue_len = ATH12K_QUEUE_LEN;
 --- a/drivers/net/wireless/ath/ath12k/mac.h
 +++ b/drivers/net/wireless/ath/ath12k/mac.h
 @@ -145,14 +145,14 @@ u8 ath12k_mac_hw_rate_to_idx(const struc
@@ -5143,7 +5099,7 @@ Signed-off-by: Sriram R <quic_srirrama@quicinc.com>
  }
 --- a/drivers/net/wireless/ath/ath12k/testmode.c
 +++ b/drivers/net/wireless/ath/ath12k/testmode.c
-@@ -442,7 +442,8 @@ int ath12k_tm_cmd(struct ieee80211_hw *h
+@@ -439,7 +439,8 @@ int ath12k_tm_cmd(struct ieee80211_hw *h
  
  	mutex_lock(&ah->conf_mutex);
  
@@ -5175,7 +5131,7 @@ Signed-off-by: Sriram R <quic_srirrama@quicinc.com>
  
  		if (!status)
  			mgmt_stats->tx_compl_succ[frm_type]++;
-@@ -6595,7 +6595,7 @@ ath12k_wmi_fw_vdev_stats_fill(struct ath
+@@ -6598,7 +6598,7 @@ ath12k_wmi_fw_vdev_stats_fill(struct ath
  {
  	u32 len = *length;
  	u32 buf_len = ATH12K_FW_STATS_BUF_SIZE;
@@ -5184,16 +5140,16 @@ Signed-off-by: Sriram R <quic_srirrama@quicinc.com>
  	u8 *vif_macaddr;
  	int i;
  
-@@ -6605,7 +6605,7 @@ ath12k_wmi_fw_vdev_stats_fill(struct ath
+@@ -6608,7 +6608,7 @@ ath12k_wmi_fw_vdev_stats_fill(struct ath
  	if (!arvif)
  		return;
  
 -	vif_macaddr = arvif->vif->addr;
-+	vif_macaddr = arvif->addr;
++	vif_macaddr = arvif->ahvif->vif->addr;
  
  	len += scnprintf(buf + len, buf_len - len, "%30s %u\n",
  			 "VDEV ID", vdev->vdev_id);
-@@ -6691,7 +6691,7 @@ ath12k_wmi_fw_bcn_stats_fill(struct ath1
+@@ -6694,7 +6694,7 @@ ath12k_wmi_fw_bcn_stats_fill(struct ath1
  {
  	u32 len = *length;
  	u32 buf_len = ATH12K_FW_STATS_BUF_SIZE;
@@ -5202,16 +5158,16 @@ Signed-off-by: Sriram R <quic_srirrama@quicinc.com>
  	u8 *vdev_macaddr;
  
  	if (!arvif) {
-@@ -6700,7 +6700,7 @@ ath12k_wmi_fw_bcn_stats_fill(struct ath1
+@@ -6703,7 +6703,7 @@ ath12k_wmi_fw_bcn_stats_fill(struct ath1
  		return;
  	}
  
 -	vdev_macaddr = arvif->vif->addr;
-+	vdev_macaddr = arvif->addr;
++	vdev_macaddr = arvif->ahvif->vif->addr;
  
  	len += scnprintf(buf + len, buf_len - len, "%30s %u\n",
  			 "VDEV ID", bcn->vdev_id);
-@@ -7111,7 +7111,7 @@ static void ath12k_vdev_start_resp_event
+@@ -7114,7 +7114,7 @@ static void ath12k_vdev_start_resp_event
  
  static void ath12k_bcn_tx_status_event(struct ath12k_base *ab, struct sk_buff *skb)
  {
@@ -5220,7 +5176,7 @@ Signed-off-by: Sriram R <quic_srirrama@quicinc.com>
  	u32 vdev_id, tx_status;
  
  	if (ath12k_pull_bcn_tx_status_ev(ab, skb->data, skb->len,
-@@ -7168,7 +7168,7 @@ static void ath12k_mgmt_rx_event(struct
+@@ -7171,7 +7171,7 @@ static void ath12k_mgmt_rx_event(struct
  	struct ieee80211_supported_band *sband;
  	struct ath12k_peer *peer;
  	struct ieee80211_vif *vif;
@@ -5229,7 +5185,7 @@ Signed-off-by: Sriram R <quic_srirrama@quicinc.com>
  	struct ath12k_mgmt_frame_stats *mgmt_stats;
  	u16 frm_type = 0;
  
-@@ -7257,8 +7257,8 @@ static void ath12k_mgmt_rx_event(struct
+@@ -7260,8 +7260,8 @@ static void ath12k_mgmt_rx_event(struct
  
  	spin_lock_bh(&ar->data_lock);
  
@@ -5240,7 +5196,7 @@ Signed-off-by: Sriram R <quic_srirrama@quicinc.com>
  	mgmt_stats->rx_cnt[frm_type]++;
  
  	spin_unlock_bh(&ar->data_lock);
-@@ -7840,7 +7840,8 @@ ath12k_wmi_process_csa_switch_count_even
+@@ -7843,7 +7843,8 @@ ath12k_wmi_process_csa_switch_count_even
  					  const u32 *vdev_ids)
  {
  	int i;
@@ -5250,7 +5206,7 @@ Signed-off-by: Sriram R <quic_srirrama@quicinc.com>
  
  	/* Finish CSA once the switch count becomes NULL */
  	if (ev->current_switch_count)
-@@ -7855,9 +7856,14 @@ ath12k_wmi_process_csa_switch_count_even
+@@ -7858,9 +7859,14 @@ ath12k_wmi_process_csa_switch_count_even
  				    vdev_ids[i]);
  			continue;
  		}
@@ -5267,7 +5223,7 @@ Signed-off-by: Sriram R <quic_srirrama@quicinc.com>
  	}
  	rcu_read_unlock();
  }
-@@ -9072,7 +9078,7 @@ ath12k_wmi_obss_color_collision_event(st
+@@ -9075,7 +9081,7 @@ ath12k_wmi_obss_color_collision_event(st
  {
  	const void **tb;
  	const struct wmi_obss_color_collision_event *ev;
@@ -5276,7 +5232,7 @@ Signed-off-by: Sriram R <quic_srirrama@quicinc.com>
  	struct ath12k *ar;
  	int ret;
  
-@@ -9461,13 +9467,15 @@ ath12k_wmi_send_unit_test_cmd(struct ath
+@@ -9464,13 +9470,15 @@ ath12k_wmi_send_unit_test_cmd(struct ath
  
  int ath12k_wmi_simulate_radar(struct ath12k *ar)
  {
@@ -5294,7 +5250,7 @@ Signed-off-by: Sriram R <quic_srirrama@quicinc.com>
  			arvif_found = true;
  			break;
  		}
-@@ -9496,7 +9504,8 @@ int ath12k_wmi_simulate_radar(struct ath
+@@ -9499,7 +9507,8 @@ int ath12k_wmi_simulate_radar(struct ath
  
  int ath12k_wmi_simulate_awgn(struct ath12k *ar, u32 chan_bw_interference_bitmap)
  {
@@ -5304,7 +5260,7 @@ Signed-off-by: Sriram R <quic_srirrama@quicinc.com>
          u32 awgn_args[WMI_AWGN_MAX_TEST_ARGS];
          struct wmi_unit_test_cmd wmi_ut;
          bool arvif_found = false;
-@@ -9507,7 +9516,8 @@ int ath12k_wmi_simulate_awgn(struct ath1
+@@ -9510,7 +9519,8 @@ int ath12k_wmi_simulate_awgn(struct ath1
          }
  
          list_for_each_entry(arvif, &ar->arvifs, list) {
@@ -5314,7 +5270,7 @@ Signed-off-by: Sriram R <quic_srirrama@quicinc.com>
                          arvif_found = true;
                          break;
                  }
-@@ -9533,7 +9543,7 @@ int ath12k_wmi_simulate_awgn(struct ath1
+@@ -9536,7 +9546,7 @@ int ath12k_wmi_simulate_awgn(struct ath1
  
  int ath12k_wmi_pdev_m3_dump_enable(struct ath12k *ar, u32 enable)
  {

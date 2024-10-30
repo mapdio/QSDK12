@@ -17,9 +17,11 @@ Signed-off-by: Maharaja Kennadyrajan <quic_mkenna@quicinc.com>
  drivers/net/wireless/ath/ath12k/mac.c  | 29 ++++++++++++--------------
  2 files changed, 14 insertions(+), 16 deletions(-)
 
+diff --git a/drivers/net/wireless/ath/ath12k/core.h b/drivers/net/wireless/ath/ath12k/core.h
+index 0700b1e..6d09fdc 100644
 --- a/drivers/net/wireless/ath/ath12k/core.h
 +++ b/drivers/net/wireless/ath/ath12k/core.h
-@@ -771,6 +771,7 @@ struct ath12k {
+@@ -760,6 +760,7 @@ struct ath12k {
  	u32 max_tx_power;
  	u32 txpower_limit_2g;
  	u32 txpower_limit_5g;
@@ -27,9 +29,11 @@ Signed-off-by: Maharaja Kennadyrajan <quic_mkenna@quicinc.com>
  	u32 txpower_scale;
  	u32 power_scale;
  	u32 chan_tx_pwr;
+diff --git a/drivers/net/wireless/ath/ath12k/mac.c b/drivers/net/wireless/ath/ath12k/mac.c
+index d99cd06..9a592a6 100644
 --- a/drivers/net/wireless/ath/ath12k/mac.c
 +++ b/drivers/net/wireless/ath/ath12k/mac.c
-@@ -853,6 +853,7 @@ static void ath12k_pdev_caps_update(stru
+@@ -816,6 +816,7 @@ static void ath12k_pdev_caps_update(struct ath12k *ar)
  
  	ar->txpower_limit_2g = ar->max_tx_power;
  	ar->txpower_limit_5g = ar->max_tx_power;
@@ -37,7 +41,7 @@ Signed-off-by: Maharaja Kennadyrajan <quic_mkenna@quicinc.com>
  	ar->txpower_scale = WMI_HOST_TP_SCALE_MAX;
  }
  
-@@ -905,6 +906,16 @@ static int ath12k_mac_txpower_recalc(str
+@@ -868,6 +869,16 @@ static int ath12k_mac_txpower_recalc(struct ath12k *ar)
  		ar->txpower_limit_5g = txpower;
  	}
  
@@ -54,13 +58,16 @@ Signed-off-by: Maharaja Kennadyrajan <quic_mkenna@quicinc.com>
  	return 0;
  
  fail:
-@@ -4311,19 +4322,8 @@ static void ath12k_mac_bss_info_changed(
- 	if (changed & BSS_CHANGED_TXPOWER) {
+@@ -4262,22 +4273,8 @@ static void ath12k_mac_bss_info_changed(struct ath12k *ar,
  		ath12k_dbg(ar->ab, ATH12K_DBG_MAC, "mac vdev_id %i txpower %d\n",
  			   arvif->vdev_id, info->txpower);
--
+ 
+-		/* TODO: Transmit Power Envelope specification for 320 is not
+-		 * available yet. Need to add TPE 320 support when spec is ready
+-		 */
 -		if (ar->supports_6ghz && info->chandef.chan &&
 -                    info->chandef.chan->band == NL80211_BAND_6GHZ &&
+-		    info->chandef.width != NL80211_CHAN_WIDTH_320 &&
 -                    (ahvif->vdev_type == WMI_VDEV_TYPE_STA ||
 -                     ahvif->vdev_type == WMI_VDEV_TYPE_AP) &&
 -                    test_bit(WMI_TLV_SERVICE_EXT_TPC_REG_SUPPORT,
@@ -71,8 +78,11 @@ Signed-off-by: Maharaja Kennadyrajan <quic_mkenna@quicinc.com>
 -                        arvif->txpower = info->txpower;
 -                        ath12k_mac_txpower_recalc(ar);
 -                }
-+                arvif->txpower = info->txpower;
-+                ath12k_mac_txpower_recalc(ar);
++		arvif->txpower = info->txpower;
++		ath12k_mac_txpower_recalc(ar);
  	}
  
  	if (changed & BSS_CHANGED_MCAST_RATE &&
+-- 
+2.17.1
+

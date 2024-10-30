@@ -1,9 +1,6 @@
+# SPDX-License-Identifier: GPL-2.0-only
 #
-# Copyright (C) 2006 OpenWrt.org
-#
-# This is free software, licensed under the GNU General Public License v2.
-# See /LICENSE for more information.
-#
+# Copyright (C) 2006-2020 OpenWrt.org
 
 ifndef OPENWRT_VERBOSE
   OPENWRT_VERBOSE:=
@@ -32,6 +29,10 @@ ifeq ($(IS_TTY),1)
     _N:=\\033[m
   endif
 endif
+
+define ERROR_MESSAGE
+  printf "$(_R)%s$(_N)\n" "$(1)" >&8
+endef
 
 ifeq ($(findstring s,$(OPENWRT_VERBOSE)),)
   define MESSAGE

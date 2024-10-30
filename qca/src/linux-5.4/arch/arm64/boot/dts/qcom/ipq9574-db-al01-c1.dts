@@ -193,11 +193,6 @@
 			phy-mode = "sgmii";
 		};
 
-		license_manager {
-			compatible = "qti,license-manager-service";
-			device-license-termination;
-		};
-
 		qpic_bam: dma@7984000 {
 			status = "ok";
 		};
@@ -467,7 +462,7 @@
 				   <0 352 4>,			/* Rx desc ring id #21 IRQ info */
 				   <0 353 4>,			/* Rx desc ring id #22 IRQ info */
 				   <0 354 4>,			/* Rx desc ring id #23 IRQ info */
-				   <0 261 4>;			/* Misc error IRQ info */
+				   <0 499 4>;			/* Misc error IRQ info */
 		};
 	};
 };

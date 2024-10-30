@@ -31,8 +31,7 @@ endef
 
 
 define Build/Compile
-	$(MAKE) -C "$(LINUX_DIR)" \
-		CROSS_COMPILE="$(TARGET_CROSS)" \
+	$(KERNEL_MAKE) CROSS_COMPILE="$(TARGET_CROSS)" \
 		ARCH="$(LINUX_KARCH)" \
 		M="$(PKG_BUILD_DIR)" \
 		EXTRA_CFLAGS="-I$(STAGING_DIR)/usr/include/qca-nss-drv \

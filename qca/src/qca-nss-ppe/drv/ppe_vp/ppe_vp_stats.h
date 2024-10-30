@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022, 2024 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for any
  * purpose with or without fee is hereby granted, provided that the above
@@ -13,6 +13,7 @@
  * ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  */
+#include <linux/version.h>
 
 struct ppe_vp;
 struct ppe_vp_base;
@@ -32,6 +33,7 @@ struct ppe_vp_base_stats {
 	atomic64_t rx_svp_invalid;		/* Packet received from PPE without valid SVP */
 	atomic64_t tx_vp_inactive;		/* VP of Packet forwarded by VP user is inactive */
 	atomic64_t rx_fastxmit_fails;		/* Rx packet fast transmit failed */
+	atomic64_t rx_dvp_no_listcb;		/* list handler not registered for list destination VP */
 };
 
 /*
@@ -54,6 +56,7 @@ struct ppe_vp_rx_stats {
 	uint64_t rx_excp_bytes;		/* Total exceptioned VP bytes */
 	uint64_t rx_errors;			/* Total rx errors */
 	uint64_t rx_drops;			/* Total rx drops */
+	uint64_t rx_dev_not_up;			/* Received packets before dev IFF_UP */
 	struct u64_stats_sync syncp;		/* Stats sync status */
 };
 
@@ -81,6 +84,33 @@ struct ppe_vp_stats {
 	struct ppe_vp_tx_stats __percpu *tx_stats;
 						/* VP Tx statistics */
 };
+
+/*
+ * ppe_vp_stats_fetch_begin()
+ *	Fetch vp stats
+ */
+static inline unsigned int ppe_vp_stats_fetch_begin(const struct u64_stats_sync *syncp)
+{
+#if (LINUX_VERSION_CODE < KERNEL_VERSION(6, 1, 0))
+	return u64_stats_fetch_begin_irq(syncp);
+#else
+	return u64_stats_fetch_begin(syncp);
+#endif
+}
+
+/*
+ * ppe_vp_stats_fetch_retry()
+ *	Retry fetching vp stats
+ */
+static inline bool ppe_vp_stats_fetch_retry(const struct u64_stats_sync *syncp, unsigned int start)
+{
+#if (LINUX_VERSION_CODE < KERNEL_VERSION(6, 1, 0))
+	return u64_stats_fetch_retry_irq(syncp, start);
+#else
+	return u64_stats_fetch_retry(syncp, start);
+#endif
+
+}
 
 extern void ppe_vp_stats_reset_vp_stats(struct ppe_vp_stats *vp_stats);
 extern ppe_vp_status_t ppe_vp_stats_deinit(struct ppe_vp *vp);

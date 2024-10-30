@@ -1,0 +1,56 @@
+From 46c322980e51ca4c9a27875b71f5cefe0dfc4d51 Mon Sep 17 00:00:00 2001
+From: Hariprasad Sampatirao <quic_hsampati@quicinc.com>
+Date: Tue, 30 May 2023 14:36:05 -0700
+Subject: [PATCH] add qti arm cortex soc
+
+Signed-off-by: Hariprasad Sampatirao <quic_hsampati@quicinc.com>
+---
+ config/arm/meson.build | 18 +++++++++++++++++-
+ 1 file changed, 17 insertions(+), 1 deletion(-)
+
+diff --git a/config/arm/meson.build b/config/arm/meson.build
+index 213324d262..aea7a1ff9a 100644
+--- a/config/arm/meson.build
++++ b/config/arm/meson.build
+@@ -271,6 +271,20 @@ soc_centriq2400 = {
+     'numa': false
+ }
+ 
++soc_alder = {
++    'description': 'QTI Alder',
++    'implementer': '0x41',
++    'part_number': '0xd09',
++    'compiler_options': ['-mfpu=neon'],
++    'flags': [
++        ['RTE_MAX_LCORE', 4],
++        ['RTE_MAX_NUMA_NODES', 1] ,
++	['RTE_MEMPOOL_ALIGN', 128],
++        ['RTE_CACHE_LINE_SIZE', 64]
++    ],
++    'extra_march_features': ['crypto', 'crc'],
++    'numa': false
++}
+ soc_cn10k = {
+     'description' : 'Marvell OCTEON 10',
+     'implementer' : '0x41',
+@@ -389,6 +403,7 @@ octeontx2:       Marvell OCTEON TX2
+ stingray:        Broadcom Stingray
+ thunderx2:       Marvell ThunderX2 T99
+ thunderxt88:     Marvell ThunderX T88
++alder:           QTI Alder 
+ End of SoCs list
+ '''
+ # The string above is included in the documentation, keep it in sync with the
+@@ -410,7 +425,8 @@ socs = {
+     'octeontx2': soc_octeontx2,
+     'stingray': soc_stingray,
+     'thunderx2': soc_thunderx2,
+-    'thunderxt88': soc_thunderxt88
++    'thunderxt88': soc_thunderxt88,
++    'alder': soc_alder 
+ }
+ 
+ dpdk_conf.set('RTE_ARCH_ARM', 1)
+-- 
+2.17.1
+

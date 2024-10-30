@@ -166,7 +166,7 @@
 
 /* MLO GLOBAL MEM REGION size is 12MB for RDP with 2 QCN224 radios */
 &mlo_global_mem0 {
-	size = <0x0 0xC00000>;
+	size = <0x0 0xD00000>;
 	status = "ok";
 };
 
@@ -185,11 +185,13 @@
 &wifi6 {
 	hremote_node = <&qcn9224_pcie2>;
 	board_id = <0x04>;
+	hw_link_id = <0 0>;
 	status = "ok";
 };
 
 &wifi7 {
 	hremote_node = <&qcn9224_pcie3>;
 	board_id = <0x02>;
+	hw_link_id = <1 0>;
 	status = "ok";
 };

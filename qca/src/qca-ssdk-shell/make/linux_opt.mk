@@ -174,6 +174,10 @@ ifeq (TRUE, $(IN_ATHTAG))
   MODULE_CFLAG += -DIN_ATHTAG
 endif
 
+ifeq (TRUE, $(IN_PKTEDIT))
+  MODULE_CFLAG += -DIN_PKTEDIT
+endif
+
 #auto_insert_flag
 
 #ifdef UK_NL_PROT

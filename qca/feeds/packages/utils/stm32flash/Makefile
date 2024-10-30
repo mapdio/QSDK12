@@ -8,16 +8,20 @@
 include $(TOPDIR)/rules.mk
 
 PKG_NAME:=stm32flash
-PKG_VERSION:=0.5
-PKG_RELEASE:=2
+PKG_VERSION:=0.7
+PKG_RELEASE:=1
 
 PKG_SOURCE:=$(PKG_NAME)-$(PKG_VERSION).tar.gz
 PKG_SOURCE_URL:=@SF/$(PKG_NAME)
-PKG_HASH:=97aa9422ef02e82f7da9039329e21a437decf972cb3919ad817f70ac9a49e306
-PKG_BUILD_DIR:=$(BUILD_DIR)/$(PKG_NAME)
+PKG_HASH:=c4c9cd8bec79da63b111d15713ef5cc2cd947deca411d35d6e3065e227dc414a
+
 PKG_MAINTAINER:=Christian Pointner <equinox@spreadspace.org>
 PKG_LICENSE:=GPL-2.0-or-later
 PKG_LICENSE_FILES:=gpl-2.0.txt
+
+PKG_INSTALL:=1
+PKG_BUILD_PARALLEL:=1
+
 include $(INCLUDE_DIR)/package.mk
 
 define Package/stm32flash
@@ -35,7 +39,7 @@ endef
 
 define Package/stm32flash/install
 	$(INSTALL_DIR) $(1)/usr/bin
-	$(INSTALL_BIN) $(PKG_BUILD_DIR)/stm32flash $(1)/usr/bin/
+	$(INSTALL_BIN) $(PKG_INSTALL_DIR)/usr/bin/stm32flash $(1)/usr/bin/
 endef
 
 $(eval $(call BuildPackage,stm32flash))

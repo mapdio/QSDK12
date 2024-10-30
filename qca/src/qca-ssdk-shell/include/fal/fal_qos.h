@@ -1,6 +1,6 @@
 /*
  * Copyright (c) 2014, 2017, The Linux Foundation. All rights reserved.
- * Copyright (c) 2022, Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2023, Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for any
  * purpose with or without fee is hereby granted, provided that the above
@@ -29,30 +29,28 @@ extern "C" {
 #include "common/sw.h"
 #include "fal/fal_type.h"
 
-    /**
-    @brief This enum defines traffic scheduling mode.
-    */
-    typedef enum {
-        FAL_SCH_SP_MODE = 0,    /**<  strict priority scheduling mode */
-        FAL_SCH_WRR_MODE,       /**<   weight round robin scheduling mode*/
-        FAL_SCH_MIX_MODE,       /**<  sp and wrr mixed scheduling mode */
-        FAL_SCH_MIX_PLUS_MODE,  /**<  sp and wrr mixed plus scheduling mode */
-        FAL_SCH_MODE_BUTT
-    }
-    fal_sch_mode_t;
+/**
+  @brief This enum defines traffic scheduling mode.
+  */
+typedef enum {
+	FAL_SCH_SP_MODE = 0,    /**<  strict priority scheduling mode */
+	FAL_SCH_WRR_MODE,       /**<   weight round robin scheduling mode*/
+	FAL_SCH_MIX_MODE,       /**<  sp and wrr mixed scheduling mode */
+	FAL_SCH_MIX_PLUS_MODE,  /**<  sp and wrr mixed plus scheduling mode */
+	FAL_SCH_MODE_BUTT
+} fal_sch_mode_t;
 
-    /**
-    @brief This enum defines qos assignment mode.
-    */
-    typedef enum
-    {
-        FAL_QOS_DA_MODE = 0,    /**<   qos assignment based on destination mac address*/
-        FAL_QOS_UP_MODE,        /**<   qos assignment based on 802.1p field in vlan tag*/
-        FAL_QOS_DSCP_MODE,      /**<  qos assignment based on dscp field in ip header */
-        FAL_QOS_PORT_MODE,      /**<  qos assignment based on port */
-        FAL_QOS_FLOW_MODE,      /**<  qos assignment based on flow */
-        FAL_QOS_MODE_BUTT
-    } fal_qos_mode_t;
+/**
+  @brief This enum defines qos assignment mode.
+  */
+typedef enum {
+	FAL_QOS_DA_MODE = 0,    /**<   qos assignment based on destination mac address*/
+	FAL_QOS_UP_MODE,        /**<   qos assignment based on 802.1p field in vlan tag*/
+	FAL_QOS_DSCP_MODE,      /**<  qos assignment based on dscp field in ip header */
+	FAL_QOS_PORT_MODE,      /**<  qos assignment based on port */
+	FAL_QOS_FLOW_MODE,      /**<  qos assignment based on flow */
+	FAL_QOS_MODE_BUTT
+} fal_qos_mode_t;
 
 typedef struct {
 	a_uint8_t pcp_group; /* 0: group 0 1: group 1*/

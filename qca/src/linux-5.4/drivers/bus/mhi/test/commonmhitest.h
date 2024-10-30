@@ -156,6 +156,7 @@ struct mhitest_ramdump_info {
 	struct mhitest_dump_data dump_data;
 };
 struct mhitest_platform {
+	struct list_head node;
 	struct platform_device *plat_dev;
 	struct pci_dev *pci_dev;
 	unsigned long device_id;
@@ -215,7 +216,6 @@ int mhitest_subsystem_register(struct mhitest_platform *);
 void mhitest_pci_unregister(void);
 void mhitest_subsystem_unregister(struct mhitest_platform *);
 int mhitest_pci_enable_bus(struct mhitest_platform *);
-struct mhitest_platform *get_mhitest_mplat(int);
 struct mhitest_platform *get_mhitest_mplat_by_pcidev(struct pci_dev *pci_dev);
 int mhitest_pci_en_msi(struct mhitest_platform *);
 int mhitest_pci_register_mhi(struct mhitest_platform *);
@@ -228,7 +228,7 @@ int mhitest_dev_ramdump(struct mhitest_platform *mplat);
 int mhitest_post_event(struct mhitest_platform *,
 	struct mhitest_recovery_data *, enum mhitest_event_type, u32 flags);
 struct platform_device *get_plat_device(void);
-int mhitest_store_mplat(struct mhitest_platform *);
+void mhitest_store_mplat(struct mhitest_platform *);
 void mhitest_remove_mplat(struct mhitest_platform *);
 void mhitest_free_mplat(struct mhitest_platform *);
 int mhitest_event_work_init(struct mhitest_platform *);

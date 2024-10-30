@@ -1,6 +1,6 @@
 /*
  * Copyright (c) 2013, 2015-2019, 2021, The Linux Foundation. All rights reserved.
- * Copyright (c) 2022-2023, Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2024, Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for any
  * purpose with or without fee is hereby granted, provided that the above
@@ -1192,7 +1192,6 @@ struct sub_cmd_des_t g_trunk_des[] =
 struct sub_cmd_des_t g_interfacecontrol_des[] =
 {
 	{"macmode", "set",   SW_API_MAC_MODE_SET, NULL},
-	{"pt3azstatus", "set",   SW_API_PORT_3AZ_STATUS_SET, NULL},
 	{"phymode", "set",   SW_API_PHY_MODE_SET, NULL},
 	{"fx100ctrl", "set",   SW_API_FX100_CTRL_SET, NULL},
 	{"mac06exch", "set",   SW_API_MAC06_EXCH_SET, NULL},
@@ -1333,18 +1332,14 @@ struct sub_cmd_des_t g_ctrlpkt_des[] =
 };
 #endif
 
-struct sub_cmd_des_t g_debug_des[] =
-{
-	{"module_func", "set", SW_API_MODULE_FUNC_CTRL_SET, NULL},
-	{NULL, NULL, 0, NULL},/*end of desc*/
-};
-
 /*VxLAN*/
 #ifdef IN_VXLAN
 struct sub_cmd_des_t g_vxlan_des[] =
 {
     {"entry", "set", SW_API_VXLAN_ENTRY_ADD, NULL},
+#ifndef IN_VXLAN_MINI
     {"gpeprotocfg", "set", SW_API_VXLAN_GPE_PROTO_CFG_SET, NULL},
+#endif
     {NULL, NULL, 0, NULL},/*end of desc*/
 };
 #endif
@@ -1378,15 +1373,19 @@ struct sub_cmd_des_t g_tunnel_des[] =
     {"Globalcfg", "set", SW_API_TUNNEL_GLOBAL_CFG_SET, NULL},
     {"Portintf", "set", SW_API_TUNNEL_PORT_INTF_SET, NULL},
     {"Intf", "set", SW_API_TUNNEL_INTF_SET, NULL},
+#ifndef IN_TUNNEL_MINI
     {"Vlanintf", "set", SW_API_TUNNEL_VLAN_INTF_ADD, NULL},
+#endif
     {"Encaprule", "set", SW_API_TUNNEL_ENCAP_RULE_ENTRY_SET, NULL},
     {"Encapintftunnelid", "set", SW_API_TUNNEL_ENCAP_INTF_TUNNELID_SET, NULL},
     {"Encapporttunnelid", "set", SW_API_TUNNEL_ENCAP_PORT_TUNNELID_SET, NULL},
     {"Decapentry", "set", SW_API_TUNNEL_DECAP_ENTRY_ADD, NULL},
     {"Encapentry", "set", SW_API_TUNNEL_ENCAP_ENTRY_ADD, NULL},
     {"Encapheaderctrl", "set", SW_API_TUNNEL_ENCAP_HEADER_CTRL_SET, NULL},
+#ifndef IN_TUNNEL_MINI
     {"Encapecn", "set", SW_API_TUNNEL_ENCAP_ECN_MODE_SET, NULL},
     {"Decapecn", "set", SW_API_TUNNEL_DECAP_ECN_MODE_SET, NULL},
+#endif
     {"Decapexpfmtctrl", "set", SW_API_TUNNEL_EXP_DECAP_SET, NULL},
     {"Decapkey", "set", SW_API_TUNNEL_DECAP_KEY_SET, NULL},
     {NULL, NULL, 0, NULL},/*end of desc*/
@@ -1622,9 +1621,6 @@ struct cmd_des_t gcmd_des[] =
         "ctrlpkt", g_ctrlpkt_des,
     },
 #endif
-    {
-        "debug", g_debug_des,
-    },
 #ifdef IN_VXLAN
     {
         "vxlan", g_vxlan_des,

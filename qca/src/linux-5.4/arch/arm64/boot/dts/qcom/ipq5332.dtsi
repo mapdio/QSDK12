@@ -3,7 +3,7 @@
  * IPQ5332 device tree source
  *
  * Copyright (c) 2020-2021 The Linux Foundation. All rights reserved.
- * Copyright (c) 2022-2023 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2024 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #include <dt-bindings/interrupt-controller/arm-gic.h>
@@ -87,6 +87,7 @@
 			enable-method = "psci";
 			next-level-cache = <&L2_0>;
 			clocks = <&apcs_glb APCS_ALIAS0_CORE_CLK>;
+			clock-names = "cpu";
 			operating-points-v2 = <&cpu_opp_table>;
 		};
 
@@ -97,6 +98,7 @@
 			reg = <0x1>;
 			next-level-cache = <&L2_0>;
 			clocks = <&apcs_glb APCS_ALIAS0_CORE_CLK>;
+			clock-names = "cpu";
 			operating-points-v2 = <&cpu_opp_table>;
 		};
 
@@ -107,6 +109,7 @@
 			reg = <0x2>;
 			next-level-cache = <&L2_0>;
 			clocks = <&apcs_glb APCS_ALIAS0_CORE_CLK>;
+			clock-names = "cpu";
 			operating-points-v2 = <&cpu_opp_table>;
 		};
 
@@ -117,6 +120,7 @@
 			reg = <0x3>;
 			next-level-cache = <&L2_0>;
 			clocks = <&apcs_glb APCS_ALIAS0_CORE_CLK>;
+			clock-names = "cpu";
 			operating-points-v2 = <&cpu_opp_table>;
 		};
 
@@ -161,7 +165,7 @@
 
 	firmware {
 		qfprom {
-			compatible = "qcom,qfprom-sec";
+			compatible = "qcom,qfprom-ipq5332-sec";
 			img-addr = <0x4A100000>;
 			img-size = <0x00500000>;
 			scm-cmd-id = <0x1F>;
@@ -249,6 +253,13 @@
 			qcom,no-qrng-config;
 		};
 
+		reg_update: reg-update@400000 {
+			compatible = "ipq,53xx-reg-update";
+			reg = <0x00400000 0x6200>, <0x01d80000 0x4000>;
+			reg-names = "memnoc_53xx", "nssnoc";
+			status = "okay";
+		};
+
 		pcie0_phy: phy@4b0000{
 			compatible = "qca,uni-pcie-phy-gen3";
 			reg = <0x4b0000 0x800>;
@@ -263,6 +274,13 @@
 					"lane_m_clk",
 					"lane_s_clk",
 					"phy_ahb_clk";
+
+			assigned-clocks = <&gcc GCC_SNOC_PCIE3_1LANE_M_CLK>,
+					  <&gcc GCC_SNOC_PCIE3_1LANE_S_CLK>,
+					  <&gcc GCC_PCIE3X1_PHY_AHB_CLK>;
+			assigned-clock-rates = <240000000>,
+					       <240000000>,
+					       <100000000>;
 
 			resets = <&gcc GCC_PCIE3X1_0_PHY_BCR>,
 				<&gcc GCC_PCIE3X1_0_PHY_PHY_BCR>,
@@ -293,6 +311,13 @@
 					"lane_s_clk",
 					"phy_ahb_clk";
 
+			assigned-clocks = <&gcc GCC_SNOC_PCIE3_2LANE_M_CLK>,
+					  <&gcc GCC_SNOC_PCIE3_2LANE_S_CLK>,
+					  <&gcc GCC_PCIE3X2_PHY_AHB_CLK>;
+			assigned-clock-rates = <266666666>,
+					       <240000000>,
+					       <100000000>;
+
 			resets = <&gcc GCC_PCIE3X2_PHY_BCR>,
 				<&gcc GCC_PCIE3X2_PHY_AHB_CLK_ARES>;
 			reset-names = "phy",
@@ -322,6 +347,13 @@
 					"lane_s_clk",
 					"phy_ahb_clk";
 
+			assigned-clocks = <&gcc GCC_SNOC_PCIE3_1LANE_1_M_CLK>,
+					  <&gcc GCC_SNOC_PCIE3_1LANE_1_S_CLK>,
+					  <&gcc GCC_PCIE3X2_PHY_AHB_CLK>;
+			assigned-clock-rates = <240000000>,
+					       <240000000>,
+					       <100000000>;
+
 			resets = <&gcc GCC_PCIE3X1_1_PHY_BCR>,
 				<&gcc GCC_PCIE3X2_PHY_AHB_CLK_ARES>;
 			reset-names = "phy",
@@ -337,6 +369,9 @@
 			reg = <0x4b1000 0x1000>;
 			phy-type = "gen3";
 			#phy-cells = <0>;
+
+			qti,phy-mux-regs = <&tcsr_q6_block 0x2544>;
+
 			clocks = <&gcc GCC_PCIE3X2_PIPE_CLK>,
 				<&gcc GCC_SNOC_PCIE3_2LANE_M_CLK>,
 				<&gcc GCC_SNOC_PCIE3_2LANE_S_CLK>,
@@ -346,6 +381,13 @@
 					"lane_m_clk",
 					"lane_s_clk",
 					"phy_ahb_clk";
+
+			assigned-clocks = <&gcc GCC_SNOC_PCIE3_2LANE_M_CLK>,
+					  <&gcc GCC_SNOC_PCIE3_2LANE_S_CLK>,
+					  <&gcc GCC_PCIE3X2_PHY_AHB_CLK>;
+			assigned-clock-rates = <266666666>,
+					       <240000000>,
+					       <100000000>;
 
 			resets = <&gcc GCC_PCIE3X2_PHY_BCR>,
 				<&gcc GCC_PCIE3X2_PHY_AHB_CLK_ARES>;
@@ -440,7 +482,7 @@
 			#address-cells = <1>;
 			#size-cells = <1>;
 			compatible = "qcom,qca-mdio", "qcom,ipq40xx-mdio";
-			reg = <0x90000 0x64>, <0x9B780 8>;
+			reg = <0x90000 0x64>, <0x9B000 0x800>;
 			clocks = <&gcc GCC_MDIO_AHB_CLK>,
 			       <&gcc GCC_UNIPHY0_AHB_CLK>,
 			       <&gcc GCC_UNIPHY0_SYS_CLK>,
@@ -720,13 +762,17 @@
 			compatible = "qcom,edma";
 			reg = <0x3ab00000 0xed000>;
 			reg-names = "edma-reg-base";
-			reset-names = "edma_rst";
+			resets = <&nsscc NSS_CC_PPE_EDMA_CLK_ARES>,
+				<&nsscc NSS_CC_PPE_EDMA_CFG_CLK_ARES>;
+			reset-names = "edma_rst",
+				"edma_cfg_rst";
 			clocks = <&nsscc NSS_CC_NSS_CSR_CLK>,
 			       <&nsscc NSS_CC_NSSNOC_NSS_CSR_CLK>,
 			       <&nsscc NSS_CC_CE_APB_CLK>,
 			       <&nsscc NSS_CC_CE_AXI_CLK>,
 			       <&nsscc NSS_CC_NSSNOC_CE_APB_CLK>,
 			       <&nsscc NSS_CC_NSSNOC_CE_AXI_CLK>,
+			       <&nsscc NSS_CC_PPE_EDMA_CLK>,
 			       <&gcc GCC_NSS_TS_CLK>,
 			       <&gcc GCC_NSSCC_CLK>,
 			       <&gcc GCC_NSSCFG_CLK>,
@@ -739,20 +785,13 @@
 			       <&gcc GCC_NSSNOC_TIMEOUT_REF_CLK>,
 			       <&gcc GCC_NSSNOC_XO_DCD_CLK>,
 			       <&gcc GCC_SNOC_NSSNOC_CLK>,
-			       <&gcc GCC_SNOC_NSSNOC_1_CLK>,
-			       <&gcc GCC_MEM_NOC_AHB_CLK>,
-			       <&gcc GCC_MEM_NOC_SNOC_AXI_CLK>,
-			       <&gcc GCC_MEM_NOC_APSS_AXI_CLK>,
-			       <&gcc GCC_MEM_NOC_QOSGEN_EXTREF_CLK>,
-			       <&gcc GCC_MEM_NOC_TS_CLK>;
+			       <&gcc GCC_SNOC_NSSNOC_1_CLK>;
 			clock-names = "nss-csr-clk", "nss-nssnoc-csr-clk", "nss-ce-ahb-clk",
-				"nss-ce-axi-clk", "nss-nssnoc-ce-ahb-clk", "nss-nssnoc-ce-axi-clk",
+				"nss-ce-axi-clk", "nss-nssnoc-ce-ahb-clk", "nss-nssnoc-ce-axi-clk", "nss-edma-clk",
 				"nss-ts-clk", "nss-nsscc-clk", "nss-nsscfg-clk", "nss-nssnoc-atb-clk",
 				"nss-nssnoc-nsscc-clk", "nss-nssnoc-pcnoc-1-clk", "nss-nssnoc-qosgen-ref-clk",
 				"nss-nssnoc-snoc-1-clk", "nss-nssnoc-snoc-clk", "nss-nssnoc-timeout-ref-clk",
-				"nss-nssnoc-xo-dcd-clk", "nss-snoc-nssnoc-clk", "nss-snoc-nssnoc-1-clk",
-				"nss-mem-noc-ahb-clk", "nss-mem-noc-snoc-axi-clk", "nss-mem-noc-apss-axi-clk",
-				"nss-mem-noc-qosgen-extref-clk","nss-mem-noc-ts-clk";
+				"nss-nssnoc-xo-dcd-clk", "nss-snoc-nssnoc-clk", "nss-snoc-nssnoc-1-clk";
 		};
 
 		ess-uniphy@7a00000 {
@@ -1028,6 +1067,7 @@
 				 <&gcc GCC_BLSP1_AHB_CLK>;
 			clock-names = "core", "iface";
 			status = "disabled";
+			tx-watermark = <0>;
 		};
 
 		blsp1_uart1: serial@78b0000 {
@@ -1172,19 +1212,19 @@
 
 		tcsr_mutex_regs: syscon@1905000 {
 			compatible = "syscon";
-			reg = <0x01905000 0x8000>;
+			reg = <0x01905000 0x20000>;
 		};
 
 		tcsr_mutex: hwlock {
 			compatible = "qcom,tcsr-mutex";
-			syscon = <&tcsr_mutex_regs 0 0x80>;
+			syscon = <&tcsr_mutex_regs 0 0x1000>;
 			#hwlock-cells = <1>;
 		};
 
 		smem {
 			compatible = "qcom,smem";
 			memory-region = <&smem_region>;
-			hwlocks = <&tcsr_mutex 0>;
+			hwlocks = <&tcsr_mutex 3>;
 		};
 
 		scm {
@@ -1317,8 +1357,9 @@
 				0x10000F20 0xa8
 				0x10001000 0x1000
 				0xf0000 0x3000
-				0x10100000 0x1000>;
-			reg-names = "dbi", "elbi", "atu", "parf", "config";
+				0x10100000 0x1000
+				0x59C188 0x4>;
+			reg-names = "dbi", "elbi", "atu", "parf", "config", "system_noc";
 			device_type = "pci";
 			linux,pci-domain = <2>;
 			bus-range = <0x00 0xff>;
@@ -1367,6 +1408,11 @@
 			axi-s-clk-rate = <240000000>;
 			aux-clk-rate = <2000000>;
 
+			assigned-clocks = <&gcc GCC_PCIE3X1_1_AHB_CLK>,
+					  <&gcc GCC_PCIE3X1_1_AXI_S_BRIDGE_CLK>;
+			assigned-clock-rates = <100000000>,
+					       <240000000>;
+
 			resets = <&gcc GCC_PCIE3X1_1_PIPE_ARES>,
 				 <&gcc GCC_PCIE3X1_1_CORE_STICKY_ARES>,
 				 <&gcc GCC_PCIE3X1_1_AXI_M_CLK_ARES>,
@@ -1407,8 +1453,9 @@
 				0x18000F20 0xa8
 				0x18001000 0x1000
 				0x88000 0x3000
-				0x18100000 0x1000>;
-			reg-names = "dbi", "elbi", "atu", "parf", "config";
+				0x18100000 0x1000
+				0x59C210 0x4>;
+			reg-names = "dbi", "elbi", "atu", "parf", "config", "system_noc";
 			device_type = "pci";
 			linux,pci-domain = <1>;
 			bus-range = <0x00 0xff>;
@@ -1458,6 +1505,11 @@
 			axi-s-clk-rate = <240000000>;
 			aux-clk-rate = <2000000>;
 
+			assigned-clocks = <&gcc GCC_PCIE3X2_AHB_CLK>,
+					  <&gcc GCC_PCIE3X2_AXI_S_BRIDGE_CLK>;
+			assigned-clock-rates = <100000000>,
+					       <240000000>;
+
 			resets = <&gcc GCC_PCIE3X2_PIPE_ARES>,
 				 <&gcc GCC_PCIE3X2_CORE_STICKY_ARES>,
 				 <&gcc GCC_PCIE3X2_AXI_M_CLK_ARES>,
@@ -1496,8 +1548,9 @@
 				0x20000F20 0xa8
 				0x20001000 0x1000
 				0x80000 0x3000
-				0x20100000 0x1000>;
-			reg-names = "dbi", "elbi", "atu", "parf", "config";
+				0x20100000 0x1000
+				0x59C108 0x4>;
+			reg-names = "dbi", "elbi", "atu", "parf", "config", "system_noc";
 			device_type = "pci";
 			linux,pci-domain = <0>;
 			bus-range = <0x00 0xff>;
@@ -1545,6 +1598,11 @@
 			axi-m-clk-rate = <240000000>;
 			axi-s-clk-rate = <240000000>;
 			aux-clk-rate = <2000000>;
+
+			assigned-clocks = <&gcc GCC_PCIE3X1_0_AHB_CLK>,
+					  <&gcc GCC_PCIE3X1_0_AXI_S_BRIDGE_CLK>;
+			assigned-clock-rates = <100000000>,
+					       <240000000>;
 
 			resets = <&gcc GCC_PCIE3X1_0_PIPE_ARES>,
 				 <&gcc GCC_PCIE3X1_0_CORE_STICKY_ARES>,
@@ -1738,22 +1796,22 @@
 			 * +=========+==============+=========+
 			 * |  Region | Start Offset |   Size  |
 			 * +---------+--------------+---------+
-			 * | HREMOTE |  0x4EC00000  |   20MB  |
+			 * | HREMOTE |  0x4ED00000  |   20MB  |
 			 * +---------+--------------+---------+
-			 * | M3 Dump |  0x50000000  |   1MB   |
+			 * | M3 Dump |  0x50100000  |   1MB   |
 			 * +---------+--------------+---------+
-			 * |   ETR   |  0x50100000  |   1MB   |
+			 * |   ETR   |  0x50200000  |   1MB   |
 			 * +---------+--------------+---------+
-			 * |  Caldb  |  0x50200000  |   8MB   |
+			 * |  Caldb  |  0x50300000  |   8MB   |
 			 * +---------+--------------+---------+
-			 * |Pageable |  0x50A00000  |   7MB   |
+			 * |Pageable |  0x50B00000  |   7MB   |
 			 * +==================================+
 			 */
-			base-addr = <0x4EC00000>;
-			m3-dump-addr = <0x50000000>;
-			etr-addr = <0x50100000>;
-			caldb-addr = <0x50200000>;
-			pageable-addr = <0x50A00000>;
+			base-addr = <0x4ED00000>;
+			m3-dump-addr = <0x50100000>;
+			etr-addr = <0x50200000>;
+			caldb-addr = <0x50300000>;
+			pageable-addr = <0x50B00000>;
 			hremote-size = <0x1400000>;
 			pageable-size = <0x700000>;
 			tgt-mem-mode = <0x1>;
@@ -1762,22 +1820,22 @@
 			 * +=========+==============+=========+
 			 * |  Region | Start Offset |   Size  |
 			 * +---------+--------------+---------+
-			 * | HREMOTE |  0x4EC00000  |   28MB  |
+			 * | HREMOTE |  0x4ED00000  |   28MB  |
 			 * +---------+--------------+---------+
-			 * | M3 Dump |  0x50800000  |   1MB   |
+			 * | M3 Dump |  0x50900000  |   1MB   |
 			 * +---------+--------------+---------+
-			 * |   ETR   |  0x50900000  |   1MB   |
+			 * |   ETR   |  0x50A00000  |   1MB   |
 			 * +---------+--------------+---------+
-			 * |  Caldb  |  0x50A00000  |   8MB   |
+			 * |  Caldb  |  0x50B00000  |   8MB   |
 			 * +---------+--------------+---------+
-			 * |Pageable |  0x51200000  |  12MB   |
+			 * |Pageable |  0x51300000  |  12MB   |
 			 * +==================================+
 			 */
-			base-addr = <0x4EC00000>;
-			m3-dump-addr = <0x50800000>;
-			etr-addr = <0x50900000>;
-			caldb-addr = <0x50A00000>;
-			pageable-addr = <0x51200000>;
+			base-addr = <0x4ED00000>;
+			m3-dump-addr = <0x50900000>;
+			etr-addr = <0x50A00000>;
+			caldb-addr = <0x50B00000>;
+			pageable-addr = <0x51300000>;
 			hremote-size = <0x1C00000>;
 			pageable-size = <0xC00000>;
 			tgt-mem-mode = <0x0>;
@@ -2009,22 +2067,22 @@
 			 * +=========+==============+=========+
 			 * |  Region | Start Offset |   Size  |
 			 * +---------+--------------+---------+
-			 * | HREMOTE |  0x51100000  |   20MB  |
+			 * | HREMOTE |  0x51200000  |   20MB  |
 			 * +---------+--------------+---------+
-			 * | M3 Dump |  0x52500000  |   1MB   |
+			 * | M3 Dump |  0x52600000  |   1MB   |
 			 * +---------+--------------+---------+
-			 * |   ETR   |  0x52600000  |   1MB   |
+			 * |   ETR   |  0x52700000  |   1MB   |
 			 * +---------+--------------+---------+
-			 * |  Caldb  |  0x52700000  |   8MB   |
+			 * |  Caldb  |  0x52800000  |   8MB   |
 			 * +---------+--------------+---------+
-			 * |Pageable |  0x52F00000  |   7MB   |
+			 * |Pageable |  0x53000000  |   7MB   |
 			 * +==================================+
 			 */
-			base-addr = <0x51100000>;
-			m3-dump-addr = <0x52500000>;
-			etr-addr = <0x52600000>;
-			caldb-addr = <0x52700000>;
-			pageable-addr = <0x52F00000>;
+			base-addr = <0x51200000>;
+			m3-dump-addr = <0x52600000>;
+			etr-addr = <0x52700000>;
+			caldb-addr = <0x52800000>;
+			pageable-addr = <0x53000000>;
 			hremote-size = <0x1400000>;
 			pageable-size = <0x700000>;
 			tgt-mem-mode = <0x1>;
@@ -2033,22 +2091,22 @@
 			 * +=========+==============+=========+
 			 * |  Region | Start Offset |   Size  |
 			 * +---------+--------------+---------+
-			 * | HREMOTE |  0x51E00000  |   28MB  |
+			 * | HREMOTE |  0x51F00000  |   28MB  |
 			 * +---------+--------------+---------+
-			 * | M3 Dump |  0x53A00000  |   1MB   |
+			 * | M3 Dump |  0x53B00000  |   1MB   |
 			 * +---------+--------------+---------+
-			 * |   ETR   |  0x53B00000  |   1MB   |
+			 * |   ETR   |  0x53C00000  |   1MB   |
 			 * +---------+--------------+---------+
-			 * |  Caldb  |  0x53C00000  |   8MB   |
+			 * |  Caldb  |  0x53D00000  |   8MB   |
 			 * +---------+--------------+---------+
-			 * |Pageable |  0x54400000  |  12MB   |
+			 * |Pageable |  0x54500000  |  12MB   |
 			 * +==================================+
 			 */
-			base-addr = <0x51E00000>;
-			m3-dump-addr = <0x53A00000>;
-			etr-addr = <0x53B00000>;
-			caldb-addr = <0x53C00000>;
-			pageable-addr = <0x54400000>;
+			base-addr = <0x51F00000>;
+			m3-dump-addr = <0x53B00000>;
+			etr-addr = <0x53C00000>;
+			caldb-addr = <0x53D00000>;
+			pageable-addr = <0x54500000>;
 			hremote-size = <0x1C00000>;
 			pageable-size = <0xC00000>;
 			tgt-mem-mode = <0x0>;
@@ -2273,6 +2331,22 @@
 			status = "disabled";
 		};
 
+		wifi4: wifi4@f00000 {
+			compatible = "qcom,cnss-qcn6432" , "qcom,qcn6432-wifi";
+			interrupt-bmap = <0x100510>;
+			interrupt-names = "umac_reset";
+			msi-parent = <&v2m0>;
+			status = "disabled";
+		};
+
+		wifi5: wifi5@f00000 {
+			compatible = "qcom,cnss-qcn6432" , "qcom,qcn6432-wifi";
+			interrupt-bmap = <0x100510>;
+			interrupt-names = "umac_reset";
+			msi-parent = <&v2m0>;
+			status = "disabled";
+		};
+
 		wcss: wcss-smp2p {
 			compatible = "qcom,smp2p";
 			qcom,smem = <435>, <428>;
@@ -2310,19 +2384,8 @@
 			#size-cells = <1>;
 			ranges;
 			firmware = "IPQ5332/q6_fw0.mdt";
-			reg = <0x0d100000 0x4040>,
-				<0x193d21c 0x8>,
-				<0x193d204 0x4>,
-				<0x1825000 0x90b8>,
-				<0x4a1000 0x4>,
-				<0xD190488 0x4>;
-			reg-names = "qdsp6",
-					"tcsr-msip",
-					"tcsr-q6",
-					"ce_ahb",
-					"qtimer",
-					"l2vic_int";
-
+			reg = <0x0d100000 0x4040>;
+			reg-names = "qdsp6";
 			interrupts-extended = <&intc GIC_SPI 421 IRQ_TYPE_EDGE_RISING>,
 					      <&wcss_smp2p_in 0 0>,
 					      <&wcss_smp2p_in 1 0>,
@@ -2334,58 +2397,6 @@
 					  "handover",
 					  "stop-ack";
 
-			resets = <&gcc GCC_WCSS_BCR>,
-					<&gcc GCC_WCSS_Q6_BCR>;
-
-			reset-names = "wcss_reset",
-					"wcss_q6_reset";
-
-			clocks =  <&gcc GCC_Q6_TSCTR_1TO2_CLK>,
-					<&gcc GCC_Q6SS_TRIG_CLK>,
-					<&gcc GCC_Q6_AXIS_CLK>,
-					<&gcc GCC_Q6_AHB_S_CLK>,
-					<&gcc GCC_Q6SS_ATBM_CLK>,
-					<&gcc GCC_Q6_AHB_CLK>,
-					<&gcc GCC_Q6_AXIM_CLK>,
-					<&gcc GCC_Q6SS_PCLKDBG_CLK>,
-					<&gcc GCC_WCSS_ECAHB_CLK>,
-					<&gcc GCC_SYS_NOC_WCSS_AHB_CLK>,
-					<&gcc GCC_MEM_NOC_Q6_AXI_CLK>;
-
-			clock-names = "q6_tsctr_1to2",
-					"q6ss_trig",
-					"q6_axis",
-					"q6_ahb_s",
-					"q6ss_atbm",
-					"q6_ahb",
-					"q6_axim",
-					"q6ss_pclkdbg",
-					"wcss_ecahb",
-					"sys_noc_wcss_ahb",
-					"mem_noc_q6_axi";
-
-			assigned-clocks =  <&gcc GCC_Q6_TSCTR_1TO2_CLK>,
-					<&gcc GCC_Q6SS_TRIG_CLK>,
-					<&gcc GCC_Q6_AXIS_CLK>,
-					<&gcc GCC_Q6_AHB_S_CLK>,
-					<&gcc GCC_Q6SS_ATBM_CLK>,
-					<&gcc GCC_Q6_AHB_CLK>,
-					<&gcc GCC_Q6SS_PCLKDBG_CLK>,
-					<&gcc GCC_WCSS_ECAHB_CLK>,
-					<&gcc GCC_SYS_NOC_WCSS_AHB_CLK>;
-
-			assigned-clock-rates = <300000000>,
-						<120000000>,
-						<266666667>,
-						<133333333>,
-						<240000000>,
-						<133333333>,
-						<120000000>,
-						<133333333>,
-						<133333333>;
-
-			qcom,halt-regs = <&tcsr_q6_block 0xa000 0xd000 0x0>;
-
 			qcom,smem-states = <&wcss_smp2p_out 0>,
 					   <&wcss_smp2p_out 1>;
 			qcom,smem-state-names = "shutdown",
@@ -2393,7 +2404,8 @@
 			memory-region = <&q6_region>,
 					<&m3_dump>,
 					<&q6_etr_region>,
-					<&q6_caldb_region>;
+					<&q6_caldb_region>,
+					<&mlo_global_mem0>;
 			qcom,rproc = <&q6v5_wcss>;
 			qcom,bootargs_smem = <507>;
 			qcom,bootargs_version = <2>;
@@ -2413,11 +2425,8 @@
 
 			q6_wcss_pd1: remoteproc_pd1 {
 				compatible = "qcom,ipq5332-wcss-ahb-mpd";
-				reg = <0x004ab000 0x20>;
-				reg-names = "rmb";
 				firmware = "IPQ5332/q6_fw1.mdt";
 				iu_firmware = "IPQ5332/iu_fw.mdt";
-				qcom,halt-regs = <&tcsr_q6_block 0xa000 0x18 0x0>;
 				interrupts-extended = <&wcss_smp2p_in 8 0>,
 							<&wcss_smp2p_in 9 0>,
 							<&wcss_smp2p_in 12 0>,
@@ -2427,36 +2436,6 @@
 							"spawn-ack",
 							"stop-ack";
 
-				resets = <&gcc GCC_WCSSAON_ARES>,
-						<&gcc GCC_WCSS_BCR>,
-						<&gcc GCC_CE_BCR>;
-				reset-names = "wcss_aon_reset",
-						"wcss_reset",
-						"ce_reset";
-
-				clocks = <&gcc GCC_WCSS_DBG_IFC_APB_BDG_CLK>,
-					<&gcc GCC_WCSS_DBG_IFC_NTS_CLK>,
-					<&gcc GCC_WCSS_AXIS_CLK>,
-					<&gcc GCC_WCSS_DBG_IFC_ATB_CLK>,
-					<&gcc GCC_WCSS_DBG_IFC_ATB_BDG_CLK>,
-					<&gcc GCC_WCSS_DBG_IFC_APB_CLK>,
-					<&gcc GCC_WCSS_AXIM_CLK>,
-					<&gcc GCC_WCSS_DBG_IFC_NTS_BDG_CLK>,
-					<&gcc GCC_CE_AXI_CLK>,
-					<&gcc GCC_CE_PCNOC_AHB_CLK>,
-					<&gcc GCC_CE_AHB_CLK>;
-
-				clock-names = "dbg-apb-bdg",
-						"dbg-nts",
-						"wcss_axi_s_clk",
-						"dbg-atb",
-						"dbg-atb-bdg",
-						"dbg-apb",
-						"wcss_axi_m_clk",
-						"dbg-nts-bdg",
-						"ce-axi",
-						"ce-pcnoc-ahb",
-						"ce-ahb";
 				qcom,smem-states = <&wcss_smp2p_out 8>,
 							<&wcss_smp2p_out 9>,
 							<&wcss_smp2p_out 10>;
@@ -2469,7 +2448,6 @@
 			q6_wcss_pd2: remoteproc_pd2 {
 				compatible = "qcom,ipq5332-wcss-pcie-mpd";
 				firmware = "IPQ5332/q6_fw2.mdt";
-				qcom,halt-regs = <&tcsr_q6_block 0xa000 0x18 0x0>;
 				interrupts-extended = <&wcss_smp2p_in 16 0>,
 							<&wcss_smp2p_in 17 0>,
 							<&wcss_smp2p_in 20 0>,
@@ -2491,7 +2469,6 @@
 			q6_wcss_pd3: remoteproc_pd3 {
 				compatible = "qcom,ipq5332-wcss-pcie-mpd";
 				firmware = "IPQ5332/q6_fw3.mdt";
-				qcom,halt-regs = <&tcsr_q6_block 0xa000 0x18 0x0>;
 				interrupts-extended = <&wcss_smp2p_in 24 0>,
 							<&wcss_smp2p_in 25 0>,
 							<&wcss_smp2p_in 28 0>,
@@ -2572,9 +2549,9 @@
 		};
 	};
 
-	license_manager {
+	license_manager:license-manager {
 		compatible = "qti,license-manager-service";
-		device-license-termination;
+		license-file = "";
 	};
 
 	gpio_keys {
@@ -2637,6 +2614,7 @@
 
 	ctx_save: ctx-save {
 		compatible = "qti,ctxt-save-ipq5332";
+		memory-region = <&minidump_mem>;
 	};
 
 	qseecom: qseecom {
@@ -2646,5 +2624,9 @@
 	};
 };
 
+#ifndef __IPQ_MEM_PROFILE_16_MB__
 #include "ipq5332-coresight.dtsi"
+#endif
+
 #include "ipq5332-thermal.dtsi"
+#include "ipq5332-noc.dtsi"

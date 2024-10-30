@@ -392,6 +392,80 @@ static int nss_dp_set_priv_flags(struct net_device *dev, u32 flags)
 }
 
 /*
+ * nss_dp_get_ethtool_link_ksetting()
+ *	get link settings
+ */
+static int nss_dp_get_ethtool_link_ksetting(struct net_device *dev, struct ethtool_link_ksettings *cmd)
+{
+	struct nss_dp_dev *dp_priv = (struct nss_dp_dev *)netdev_priv(dev);
+	uint32_t port_id;
+	sw_error_t ret;
+	fal_port_duplex_t duplex = FAL_FULL_DUPLEX;
+	a_bool_t autoneg;
+
+        __ETHTOOL_DECLARE_LINK_MODE_MASK(supported) = { 0, };
+
+	if (dp_priv->phydev) {
+		return phy_ethtool_get_link_ksettings(dev, cmd);
+	}
+
+	port_id = dp_priv->macid;
+	/*
+	 * No phydev attached implies a fixed speed link. Read the fixed link speed and duplex from SSDK
+	 */
+	ret = fal_port_speed_get(NSS_DP_ACL_DEV_ID, port_id, &dp_priv->fixed_link_speed);
+	if (ret != SW_OK) {
+		netdev_warn(dev, "Failed to get link speed for ethernet device\n");
+		return -ENODEV;
+	}
+
+	ret = fal_port_duplex_get(NSS_DP_ACL_DEV_ID, port_id, &duplex);
+	if (ret != SW_OK) {
+		netdev_warn(dev, "Failed to get duplex for ethernet device\n");
+		return -ENODEV;
+	}
+
+	ret = fal_port_autoneg_status_get(NSS_DP_ACL_DEV_ID, port_id, &autoneg);
+	if (ret != SW_OK) {
+		netdev_warn(dev, "Failed to get autoneg for ethernet device\n");
+		return -ENODEV;
+	}
+
+	switch (dp_priv->fixed_link_speed) {
+		case 10000:
+			linkmode_set_bit(ETHTOOL_LINK_MODE_10000baseT_Full_BIT, supported);
+			break;
+		case 5000:
+			linkmode_set_bit(ETHTOOL_LINK_MODE_5000baseT_Full_BIT, supported);
+			break;
+		case 2500:
+			linkmode_set_bit(ETHTOOL_LINK_MODE_2500baseT_Full_BIT, supported);
+			break;
+		case 1000:
+			linkmode_set_bit(ETHTOOL_LINK_MODE_1000baseT_Full_BIT, supported);
+			break;
+		case 100:
+			linkmode_set_bit(ETHTOOL_LINK_MODE_100baseT_Full_BIT, supported);
+			break;
+		case 10:
+			linkmode_set_bit(ETHTOOL_LINK_MODE_10baseT_Full_BIT, supported);
+			break;
+		default:
+			break;
+		}
+
+	linkmode_copy(cmd->link_modes.supported,supported);
+	linkmode_copy(cmd->link_modes.advertising, supported);
+
+	cmd->base.port = PORT_MII;
+	cmd->base.speed = dp_priv->fixed_link_speed;
+	cmd->base.duplex = duplex;
+	cmd->base.autoneg = autoneg;
+
+	return 0;
+}
+
+/*
  * Ethtool operations
  */
 struct ethtool_ops nss_dp_ethtool_ops = {
@@ -403,7 +477,7 @@ struct ethtool_ops nss_dp_ethtool_ops = {
 	.get_settings = &nss_dp_get_settings,
 	.set_settings = &nss_dp_set_settings,
 #else
-	.get_link_ksettings = phy_ethtool_get_link_ksettings,
+	.get_link_ksettings = nss_dp_get_ethtool_link_ksetting,
 	.set_link_ksettings = phy_ethtool_set_link_ksettings,
 #endif
 	.get_pauseparam = &nss_dp_get_pauseparam,

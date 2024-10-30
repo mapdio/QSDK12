@@ -1,7 +1,7 @@
 /*
  * Copyright (c) 2012, 2015-2021, The Linux Foundation. All rights reserved.
  *
- * Copyright (c) 2022-2023 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2024 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for any
  * purpose with or without fee is hereby granted, provided that the above
@@ -50,6 +50,16 @@ extern "C" {
 
 #define PORT_GMAC_TYPE                  1
 #define PORT_XGMAC_TYPE                 2
+#define IOCTL_COMPAT
+#if defined(MPPE)
+#define PPE_STR "MPPE"
+#elif defined(APPE)
+#define PPE_STR "APPE"
+#elif defined(CPPE)
+#define PPE_STR "CPPE"
+#elif defined(HPPE)
+#define PPE_STR "HPPE"
+#endif
 
 /*qca808x_start*/
     typedef enum {
@@ -196,13 +206,6 @@ enum ssdk_port_wrapper_cfg {
 		a_uint32_t inner_bmp;
 	} ssdk_port_cfg;
 
-	typedef struct
-	{
-		a_uint32_t led_num;
-		a_uint32_t led_source_id;
-		led_ctrl_pattern_t led_pattern;
-
-	} led_source_cfg_t;
 /*qca808x_start*/
 enum {
 	QCA_PHY_F_CLAUSE45_BIT,
@@ -214,6 +217,8 @@ enum {
 	QCA_PHY_F_FORCE_BIT,
 	QCA_PHY_F_SFP_BIT,
 	QCA_PHY_F_SFP_SGMII_BIT,
+	QCA_PHY_F_FORCE_INTERFACE_MODE_BIT,
+	QCA_PHY_F_ERP_LOW_POWER_BIT,
 	QCA_PHY_FEATURE_MAX
 };
 
@@ -221,15 +226,17 @@ enum {
 #define __PHY_F_BIT(bit)    ((phy_features_t)1 << (bit))
 #define _PHY_F(name)       __PHY_F_BIT(QCA_PHY_F_##name##_BIT)
 
-#define PHY_F_CLAUSE45     _PHY_F(CLAUSE45)
-#define PHY_F_COMBO        _PHY_F(COMBO)
-#define PHY_F_QGMAC        _PHY_F(QGMAC)
-#define PHY_F_XGMAC        _PHY_F(XGMAC)
-#define PHY_F_I2C          _PHY_F(I2C)
-#define PHY_F_INIT         _PHY_F(INIT)
-#define PHY_F_FORCE        _PHY_F(FORCE)
-#define PHY_F_SFP          _PHY_F(SFP)
-#define PHY_F_SFP_SGMII    _PHY_F(SFP_SGMII)
+#define PHY_F_CLAUSE45                _PHY_F(CLAUSE45)
+#define PHY_F_COMBO                   _PHY_F(COMBO)
+#define PHY_F_QGMAC                   _PHY_F(QGMAC)
+#define PHY_F_XGMAC                   _PHY_F(XGMAC)
+#define PHY_F_I2C                     _PHY_F(I2C)
+#define PHY_F_INIT                    _PHY_F(INIT)
+#define PHY_F_FORCE                   _PHY_F(FORCE)
+#define PHY_F_SFP                     _PHY_F(SFP)
+#define PHY_F_SFP_SGMII               _PHY_F(SFP_SGMII)
+#define PHY_F_FORCE_INTERFACE_MODE    _PHY_F(FORCE_INTERFACE_MODE)
+#define PHY_F_ERP_LOW_POWER           _PHY_F(ERP_LOW_POWER)
 
 typedef struct
 {
@@ -252,8 +259,6 @@ typedef struct
 	/* port cfg */
 	ssdk_port_cfg   port_cfg;
 	a_uint32_t      mac_mode;
-	a_uint32_t led_source_num;
-	led_source_cfg_t led_source_cfg[15];
 /*qca808x_start*/
 	a_uint32_t      phy_id;
 	a_uint32_t      mac_mode1;
@@ -344,6 +349,17 @@ typedef struct
         a_bool_t in_interfacectrl;
     } ssdk_features;
 /*qca808x_start*/
+#ifdef IOCTL_COMPAT
+	typedef struct
+	{		
+		hsl_init_mode	cpu_mode;
+		hsl_access_mode reg_mode;
+		ssdk_chip_type	chip_type;
+		a_uint32_t		chip_revision;
+		a_uint32_t		nl_prot;
+	} ssdk_init_cfg_us;
+#endif
+
 #define CFG_STR_SIZE 20
     typedef struct
     {
@@ -360,7 +376,11 @@ typedef struct
 /*qca808x_end*/
         ssdk_features features;
 /*qca808x_start*/
+#ifdef IOCTL_COMPAT
+        ssdk_init_cfg_us init_cfg;
+#else
         ssdk_init_cfg init_cfg;
+#endif
     } ssdk_cfg_t;
 
 #define SSDK_RFS_INTF_MAX	8
@@ -395,8 +415,6 @@ sw_error_t ssdk_dess_trunk_init(a_uint32_t dev_id, a_uint32_t wan_bitmap);
 
 void
 qca_mac_port_status_init(a_uint32_t dev_id, a_uint32_t port_id);
-void
-qca_mac_sw_sync_port_status_init(a_uint32_t dev_id);
 /*qca808x_start*/
 struct qca_phy_priv* ssdk_phy_priv_data_get(a_uint32_t dev_id);
 /*qca808x_end*/
@@ -406,6 +424,10 @@ sw_error_t ssdk_mac_sw_sync_work_start(a_uint32_t dev_id);
 int qca_mac_sw_sync_work_init(struct qca_phy_priv *priv);
 int qca_fdb_sw_sync_work_start(struct qca_phy_priv *priv, fal_pbmp_t port_map);
 void qca_fdb_sw_sync_work_stop(struct qca_phy_priv *priv, fal_pbmp_t port_map);
+void qca_phy_mib_work_pause(struct qca_phy_priv *priv);
+int qca_phy_mib_work_resume(struct qca_phy_priv *priv);
+sw_error_t ssdk_ppe_hw_recover(a_uint32_t dev_id);
+
 /*qca808x_start*/
 #ifdef __cplusplus
 }

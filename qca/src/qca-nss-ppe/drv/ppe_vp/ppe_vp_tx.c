@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2022, Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022, 2024 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for any
  * purpose with or without fee is hereby granted, provided that the above
@@ -59,7 +59,7 @@ bool ppe_vp_tx_to_ppe(int32_t vp_num, struct sk_buff *skb)
 
 	if (svp->vp_type == PPE_VP_TYPE_SW_L3) {
 		dptxi.fake_mac = true;
-		skb_put(skb, ETH_HLEN);
+		skb_push(skb, ETH_HLEN);
 	}
 
 	rcu_read_unlock();
@@ -99,3 +99,29 @@ bool ppe_vp_tx_to_ppe(int32_t vp_num, struct sk_buff *skb)
 	return true;
 }
 EXPORT_SYMBOL(ppe_vp_tx_to_ppe);
+
+/*
+ * ppe_vp_tx_to_ppe_by_dev()
+ *	Wrapper API to transmit the packet via PPE-VP when VP client
+ *	has the context of netdevice but not the actual VP number.
+ *	This API gets the VP from dev and calls the actual VP TX API.
+ *	Ex: ATH driver VP TX
+ */
+bool ppe_vp_tx_to_ppe_by_dev(struct net_device *dev, struct sk_buff *skb)
+{
+	int32_t vp_num;
+
+	if (unlikely(!dev)) {
+		ppe_vp_warn(" Netdev is NULL in VP TX !");
+		return false;
+	}
+
+	vp_num = ppe_drv_port_num_from_dev(dev);
+	if (unlikely((vp_num < PPE_DRV_VIRTUAL_START) || (vp_num >= PPE_DRV_VIRTUAL_END))) {
+		ppe_vp_warn("Not a valid Virtual Port number %d dev %s", vp_num, dev->name);
+		return false;
+	}
+
+	return ppe_vp_tx_to_ppe(vp_num, skb);
+}
+EXPORT_SYMBOL(ppe_vp_tx_to_ppe_by_dev);

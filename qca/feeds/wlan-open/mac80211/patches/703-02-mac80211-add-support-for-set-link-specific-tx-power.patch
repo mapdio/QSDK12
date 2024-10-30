@@ -90,7 +90,7 @@ Signed-off-by: Aaradhana Sahu <quic_aarasahu@quicinc.com>
  		if (sdata->vif.type == NL80211_IFTYPE_MONITOR)
  			continue;
 -		ieee80211_recalc_txpower(sdata, update_txp_type);
-+		ieee80211_recalc_txpower(sdata, update_txp_type, link_id);
++		ieee80211_recalc_txpower(sdata, update_txp_type, 0);
  	}
  	mutex_unlock(&local->iflist_mtx);
  
@@ -110,7 +110,7 @@ Signed-off-by: Aaradhana Sahu <quic_aarasahu@quicinc.com>
  
  	if (new_ctx && ieee80211_chanctx_num_assigned(local, new_ctx) > 0) {
 -		ieee80211_recalc_txpower(sdata, false);
-+		ieee80211_recalc_txpower(sdata, false, link->link_id);
++		ieee80211_recalc_txpower(sdata, false, 0);
  		ieee80211_recalc_chanctx_min_def(local, new_ctx);
  	}
  
@@ -119,7 +119,7 @@ Signed-off-by: Aaradhana Sahu <quic_aarasahu@quicinc.com>
  								  changed);
  
 -			ieee80211_recalc_txpower(sdata, false);
-+			ieee80211_recalc_txpower(sdata, false, link->link_id);
++			ieee80211_recalc_txpower(sdata, false, 0);
  		}
  
  		ieee80211_recalc_chanctx_chantype(local, ctx);

@@ -77,7 +77,7 @@
          * | QCN9160|              |                         |
          * | caldb  |  0x4F400000  |           5MB           |
          * +--------+--------------+-------------------------+
-         * |  MLO   |  0x4F900000  |          17MB           |
+         * |  MLO   |  0x4F900000  |          18MB           |
          * +--------+--------------+-------------------------+
          * |        |              |                         |
          * |  Wkk0  |  0x50A00000  |          50MB           |
@@ -184,12 +184,12 @@
 
 		mlo_global_mem0: mlo_global_mem_0@4f900000 {
 			no-map;
-			reg = <0x0 0x4f900000 0x0 0x1100000>;
+			reg = <0x0 0x4f900000 0x0 0x1200000>;
 		};
 
-		qcn9224_pcie1: qcn9224_pcie1@50A00000 {
+		qcn9224_pcie1: qcn9224_pcie1@50b00000 {
 			no-map;
-			reg = <0x0 0x50A00000 0x0 0x03200000>;
+			reg = <0x0 0x50B00000 0x0 0x03200000>;
 		};
 
 		mhi_region1: dma_pool1@1 {
@@ -198,6 +198,9 @@
 			size = <0x0 0x00900000>;
                 };
 
+		minidump_mem: minidump_mem@0 {
+			no-map;
+		};
 	};
 
 	soc {
@@ -210,18 +213,21 @@
 		};
 
 		q6v5_wcss: remoteproc@d100000 {
-			boot-args = <0x1 0x4 0x3 0x0 0x26 0x0>;
-			memory-region = <&q6_mem_regions>;
+			boot-args = <0x1 0x5 0x3 0x0 0x26 0x0 0x0>;
+			memory-region = <&q6_mem_regions>,
+					<&mlo_global_mem0>;
 			status = "ok";
 		q6_wcss_pd1: remoteproc_pd1 {
 			memory-region = <&q6_qca5332_data>, <&m3_dump>,
-					<&q6_etr_region>, <&q6_qca5332_caldb>;
+					<&q6_etr_region>, <&q6_qca5332_caldb>,
+					<&mlo_global_mem0>;
 			status = "ok";
 			};
 		q6_wcss_pd2: remoteproc_pd2 {
 			m3_firmware = "qcn9160/m3_fw.mdt";
 			memory-region = <&q6_qcn9160_data_1>, <&m3_dump_qcn9160_1>,
-					<&q6_qcn9160_etr_1>, <&q6_qcn9160_caldb_1>;
+					<&q6_qcn9160_etr_1>, <&q6_qcn9160_caldb_1>,
+					<&mlo_global_mem0>;
 			status = "ok";
 			};
 		};

@@ -23,6 +23,36 @@
 
 	soc {
 		pinctrl@1000000 {
+			spi_0_pins: spi0-pinmux {
+				spi_clock {
+					pins = "gpio14";
+					function = "blsp0_spi";
+					drive-strength = <2>;
+					bias-pull-down;
+				};
+
+				spi_mosi {
+					pins = "gpio15";
+					function = "blsp0_spi";
+					drive-strength = <2>;
+					bias-pull-down;
+				};
+
+				spi_miso {
+					pins = "gpio16";
+					function = "blsp0_spi";
+					drive-strength = <2>;
+					bias-pull-down;
+				};
+
+				spi_cs {
+					pins = "gpio17";
+					function = "blsp0_spi";
+					drive-strength = <2>;
+					bias-pull-up;
+				};
+			};
+
 			serial_0_pins: serial0-pinmux {
 				pins = "gpio18", "gpio19";
 				function = "blsp0_uart0";
@@ -98,33 +128,6 @@
 				};
 			};
 
-			bt_pins: bt_pins {
-				PTA_0 {
-					pins = "gpio49";
-					function = "PTA_0";
-					drive-strength = <8>;
-					bias-disable;
-				};
-				PTA_1 {
-					pins = "gpio50";
-					function = "PTA_1";
-					drive-strength = <8>;
-					bias-disable;
-				};
-				PTA_2 {
-					pins = "gpio51";
-					function = "PTA_2";
-					drive-strength = <8>;
-					bias-disable;
-				};
-				bt_reset {
-					pins = "gpio32";
-					function = "gpio";
-					drive-strength = <8>;
-					bias-pull-down;
-				};
-
-			};
 
 		};
 
@@ -141,7 +144,7 @@
 			phy-mode = "sgmii";
 		};
 
-		dp2 {
+		gmac2:dp2 {
 			device_type = "network";
 			compatible = "qcom,nss-dp";
 			qcom,id = <1>;
@@ -149,6 +152,9 @@
 			qcom,mactype = <1>;
 			local-mac-address = [000000000000];
 			phy-mode = "sgmii";
+			qcom,ppe-offload-disabled = <1>;
+			qcom,mht-dev = <1>;
+			qcom,is_switch_connected = <1>;
 		};
 
 		mdio:mdio@90000 {
@@ -177,6 +183,49 @@
 				reg = <4>;
 				fixup;
 			};
+
+			switch0@10 {
+				compatible = "qca,qca8386";
+				#address-cells = <1>;
+				#size-cells = <0>;
+				reg = <0x10>;
+
+				ports {
+					#address-cells = <1>;
+					#size-cells = <0>;
+
+					port@0 {
+						reg = <0>;
+						label = "cpu";
+						ethernet = <&gmac2>;
+						phy-mode = "sgmii";
+					};
+
+					port@1 {
+						reg = <1>;
+						label = "lan1";
+						phy-handle = <&phy0>;
+					};
+
+					port@2 {
+						reg = <2>;
+						label = "lan2";
+						phy-handle = <&phy1>;
+					};
+
+					port@3 {
+						reg = <3>;
+						label = "lan3";
+						phy-handle = <&phy2>;
+					};
+
+					port@4 {
+						reg = <4>;
+						label = "lan4";
+						phy-handle = <&phy3>;
+					};
+				};
+			};
 		};
 
 		ess-instance {
@@ -200,8 +249,6 @@
 						port_id = <2>;
 						phy_address = <30>;
 						media-type = "sfp"; /* fiber mode */
-						sfp_rx_los_pin = <&tlmm 45 0>;
-						sfp_tx_dis_pin = <&tlmm 24 0>;
 					};
 				};
 			};
@@ -217,6 +264,7 @@
 				switch_lan_bmp = <0x1e>; /* lan port bitmap */
 				switch_wan_bmp = <0x0>;  /* wan port bitmap */
 				link-polling-required = <0>;
+				fdb_sync = "interrupt";
 				link-intr-gpio = <&tlmm 23 0>;
 				qcom,port_phyinfo {
 					port@0 {
@@ -281,8 +329,10 @@
 		edma@3ab00000 {
 			qcom,txdesc-ring-start = <4>;		/* Tx desc ring start ID */
 			qcom,txdesc-rings = <12>;		/* Total number of Tx desc rings to be provisioned */
+			qcom,mht-txdesc-rings = <8>;		/* Extra Tx desc rings to be provisioned for MHT SW ports */
 			qcom,txcmpl-ring-start = <4>;		/* Tx complete ring start ID */
 			qcom,txcmpl-rings = <12>;		/* Total number of Tx complete rings to be provisioned */
+			qcom,mht-txcmpl-rings = <8>;            /* Extra Tx complete rings to be provisioned for mht sw ports. */
 			qcom,rxfill-ring-start = <4>;		/* Rx fill ring start ID */
 			qcom,rxfill-rings = <4>;		/* Total number of Rx fill rings to be provisioned */
 			qcom,rxdesc-ring-start = <12>;		/* Rx desc ring start ID */
@@ -295,9 +345,11 @@
 			qcom,ppeds-map = <1 1 1 1 32 8>,	/* PPEDS Node #1 ring and queue map */
 					<2 2 2 2 40 8>;		/* PPEDS Node #2 ring and queue map */
 			qcom,txdesc-map = <8 9 10 11>,		/* Port0 per-core Tx ring map */
-					  <12 13 14 15>,	/* Port1 per-core Tx ring map */
-					  <4 5 6 7>;		/* used only for packets from  vp*/
-			qcom,txdesc-fc-grp-map = <1 2>;		/* Per GMAC flow control group map */
+					  <12 13 14 15>,	/* MHT-Port1 per-core Tx ring map */
+					  <4 5 6 7>,            /* MHT-Port2 per-core Tx ring map/packets from  vp*/
+					  <16 17 18 19>,        /* MHT-Port3 per-core Tx ring map */
+					  <20 21 22 23>;        /* MHT-Port4 per-core Tx ring map */
+			qcom,txdesc-fc-grp-map = <1 2 3 4 5>;	/* Per GMAC flow control group map */
 			qcom,rxfill-map = <4 5 6 7>;		/* Per-core Rx fill ring map */
 			qcom,rxdesc-map = <12 13 14 15>;	/* Per-core Rx desc ring map */
 			qcom,rx-queue-start = <0>;		/* Rx queue start */
@@ -331,7 +383,15 @@
 				<0 152 4>,			/* PPEDS Node #1(RxFill Desc ring id #1) Rx Fill IRQ info */
 				<0 161 4>,			/* PPEDS Node #2(TxComp ring id #2) TxComplete IRQ info */
 				<0 129 4>,			/* PPEDS Node #2(Rx Desc ring id #2) Rx Desc IRQ info */
-				<0 153 4>;			/* PPEDS Node #2(RxFill Desc ring id #2) Rx Fill IRQ info */
+				<0 153 4>,			/* PPEDS Node #2(RxFill Desc ring id #2) Rx Fill IRQ info */
+				   <0 175 4>,			/* MHT port Tx complete ring id #16 IRQ info */
+				   <0 176 4>,			/* MHT port Tx complete ring id #17 IRQ info */
+				   <0 177 4>,			/* MHT port Tx complete ring id #18 IRQ info */
+				   <0 178 4>,			/* MHT port Tx complete ring id #19 IRQ info */
+				   <0 179 4>,			/* MHT port Tx complete ring id #20 IRQ info */
+				   <0 180 4>,			/* MHT port Tx complete ring id #21 IRQ info */
+				   <0 181 4>,			/* MHT port Tx complete ring id #22 IRQ info */
+				   <0 182 4>;			/* MHT port Tx complete ring id #23 IRQ info */
 		};
 
 		serial@78af000 {
@@ -344,6 +404,21 @@
 			pinctrl-0 = <&serial_1_pins>;
 			pinctrl-names = "default";
 			status = "disabled";
+		};
+
+		spi@78b5000 {
+			pinctrl-0 = <&spi_0_pins>;
+			pinctrl-names = "default";
+			cs-select = <0>;
+			status = "ok";
+
+			m25p80@0 {
+				compatible = "n25q128a11";
+				#address-cells = <1>;
+				#size-cells = <1>;
+				reg = <0>;
+				spi-max-frequency = <50000000>;
+			};
 		};
 
 		i2c_1: i2c@78b6000 {
@@ -406,6 +481,9 @@
 					reg = <0 0 0 0 0>;
 					qti,disable-rddm-prealloc;
 					qti,rddm-seg-len = <0x1000>;
+					boot-args = <0x2 0x4 0x34 0x3 0x0 0x0     /* MX Rail, GPIO52, Drive strength 0x3 */
+							0x4 0x4 0x18 0x3 0x0 0x0  /* RFA1p2 Rail, GPIO24, Drive strength 0x3 */
+							0x0 0x4 0x0 0x0 0x0 0x0>; /* End of arguments */
 #if defined(__CNSS2__)
 					qrtr_node_id = <0x31>;
 					memory-region = <0>, <&mhi_region1>;

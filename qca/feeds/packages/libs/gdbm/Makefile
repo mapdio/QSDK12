@@ -8,22 +8,19 @@
 include $(TOPDIR)/rules.mk
 
 PKG_NAME:=gdbm
-PKG_VERSION:=1.11
-PKG_RELEASE:=1
+PKG_VERSION:=1.21
+PKG_RELEASE:=2
 
 PKG_SOURCE:=$(PKG_NAME)-$(PKG_VERSION).tar.gz
 PKG_SOURCE_URL:=@GNU/gdbm
-PKG_HASH:=8d912f44f05d0b15a4a5d96a76f852e905d051bb88022fcdfd98b43be093e3c3
+PKG_HASH:=b0b7dbdefd798de7ddccdd8edf6693a30494f7789777838042991ef107339cc2
 
-PKG_LICENSE:=GPL-3.0+
-PKG_LICENSE_FILES:=COPYING
 PKG_MAINTAINER:=Marcel Denia <naoir@gmx.net>
+PKG_LICENSE:=GPL-3.0-or-later
+PKG_LICENSE_FILES:=COPYING
 
-PKG_FIXUP:=autoreconf gettext-version
-PKG_REMOVE_FILES:=Makefile compat/Makefile doc/Makefile export/Makefile src/Makefile tests/Makefile
+PKG_INSTALL:=2
 PKG_BUILD_PARALLEL:=0
-
-PKG_BUILD_DEPENDS:=gettext-full/host
 
 include $(INCLUDE_DIR)/package.mk
 
@@ -31,7 +28,7 @@ define Package/libgdbm
   SECTION:=libs
   CATEGORY:=Libraries
   TITLE:=GNU database manager
-  URL:=http://www.gnu.org/software/gdbm/
+  URL:=https://www.gnu.org/software/gdbm/
 endef
 
 define Package/libgdbm/description
@@ -40,11 +37,10 @@ define Package/libgdbm/description
   works similar to the standard UNIX dbm routines.
 endef
 
-TARGET_CFLAGS += $(FPIC)
-
 CONFIGURE_ARGS += \
+	--enable-libgdbm-compat \
 	--enable-shared \
-	--enable-static \
+	--without-readline
 
 define Build/Compile
 	+$(MAKE) $(PKG_JOBS) -C $(PKG_BUILD_DIR) \
@@ -56,14 +52,16 @@ endef
 
 define Build/InstallDev
 	$(INSTALL_DIR) $(1)/usr/include
-	$(CP) $(PKG_INSTALL_DIR)/usr/include/gdbm.h $(1)/usr/include/
+	$(CP) $(PKG_INSTALL_DIR)/usr/include/{gdbm,ndbm}.h $(1)/usr/include/
 	$(INSTALL_DIR) $(1)/usr/lib
-	$(CP) $(PKG_INSTALL_DIR)/usr/lib/libgdbm.{a,so*} $(1)/usr/lib/
+	$(CP) $(PKG_INSTALL_DIR)/usr/lib/libgdbm.so* $(1)/usr/lib/
+	$(CP) $(PKG_INSTALL_DIR)/usr/lib/libgdbm_compat.so* $(1)/usr/lib/
 endef
 
 define Package/libgdbm/install
 	$(INSTALL_DIR) $(1)/usr/lib
 	$(CP) $(PKG_INSTALL_DIR)/usr/lib/libgdbm.so.* $(1)/usr/lib/
+	$(CP) $(PKG_INSTALL_DIR)/usr/lib/libgdbm_compat.so* $(1)/usr/lib/
 endef
 
 $(eval $(call BuildPackage,libgdbm))

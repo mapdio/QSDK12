@@ -8,68 +8,48 @@
 include $(TOPDIR)/rules.mk
 
 PKG_NAME:=python-pycparser
-PKG_VERSION:=2.20
-PKG_RELEASE:=1
+PKG_VERSION:=2.21
+PKG_RELEASE:=2
 
-PKG_SOURCE:=pycparser-$(PKG_VERSION).tar.gz
-PKG_SOURCE_URL:=https://files.pythonhosted.org/packages/source/p/pycparser
-PKG_HASH:=2d475327684562c3a96cc71adf7dc8c4f0565175cf86b6d7a404ff4c771f15f0
-
-PKG_BUILD_DIR:=$(BUILD_DIR)/$(BUILD_VARIANT)-pycparser-$(PKG_VERSION)
+PYPI_NAME:=pycparser
+PKG_HASH:=e644fdec12f7872f86c58ff790da456218b10f863970249516d60a5eaca77206
 
 PKG_LICENSE:=BSD-3-Clause
 PKG_LICENSE_FILES:=LICENSE
 PKG_MAINTAINER:=Jeffery To <jeffery.to@gmail.com>
 
-HOST_PYTHON_PACKAGE_BUILD_DEPENDS:="ply==3.10"
-HOST_PYTHON3_PACKAGE_BUILD_DEPENDS:="ply==3.10"
+PKG_BUILD_DEPENDS:=python-ply/host  # ply==3.10
+HOST_BUILD_DEPENDS:= \
+	python3/host \
+	python-build/host \
+	python-installer/host \
+	python-wheel/host \
+	python-ply/host
 
+include ../pypi.mk
 include $(INCLUDE_DIR)/package.mk
-include ../python-package.mk
+include $(INCLUDE_DIR)/host-build.mk
 include ../python3-package.mk
+include ../python3-host-build.mk
 
-PKG_UNPACK:=$(HOST_TAR) -C $(PKG_BUILD_DIR) --strip-components=1 -xzf $(DL_DIR)/$(PKG_SOURCE)
-
-define Package/python-pycparser/Default
+define Package/python3-pycparser
   SECTION:=lang
   CATEGORY:=Languages
   SUBMENU:=Python
   TITLE:=C parser in Python
   URL:=https://github.com/eliben/pycparser
-endef
-
-define Package/python-pycparser
-$(call Package/python-pycparser/Default)
   DEPENDS:= \
-      +PACKAGE_python-pycparser:python-light \
-      +PACKAGE_python-pycparser:python-ply
-  VARIANT:=python
+      +python3-light \
+      +python3-ply
 endef
 
-define Package/python3-pycparser
-$(call Package/python-pycparser/Default)
-  DEPENDS:= \
-      +PACKAGE_python3-pycparser:python3-light \
-      +PACKAGE_python3-pycparser:python3-ply
-  VARIANT:=python3
-endef
-
-define Package/python-pycparser/description
+define Package/python3-pycparser/description
 pycparser is a parser for the C language, written in pure Python. It is a
 module designed to be easily integrated into applications that need to parse
 C source code.
 endef
 
-define Package/python3-pycparser/description
-$(call Package/python-pycparser/description)
-.
-(Variant for Python3)
-endef
-
-$(eval $(call PyPackage,python-pycparser))
-$(eval $(call BuildPackage,python-pycparser))
-$(eval $(call BuildPackage,python-pycparser-src))
-
 $(eval $(call Py3Package,python3-pycparser))
 $(eval $(call BuildPackage,python3-pycparser))
 $(eval $(call BuildPackage,python3-pycparser-src))
+$(eval $(call HostBuild))

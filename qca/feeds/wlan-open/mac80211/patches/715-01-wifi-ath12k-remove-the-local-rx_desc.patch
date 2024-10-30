@@ -71,7 +71,7 @@ Signed-off-by: Karthikeyan Periyasamy <quic_periyasa@quicinc.com>
 +	mesh_ctrl = ath12k_dp_rx_h_mesh_ctl_present(ab, rx_desc);
 +
 +	skb_push(msdu, hdr_len);
-+	memcpy(msdu->data, &hdr, min(hdr_len, sizeof(hdr)));
++	memcpy(msdu->data, &hdr, hdr_len);
  
  	if (rxcb->is_mcbc)
  		status->flag &= ~RX_FLAG_PN_VALIDATED;
@@ -392,7 +392,7 @@ Signed-off-by: Karthikeyan Periyasamy <quic_periyasa@quicinc.com>
 @@ -4392,13 +4400,15 @@ static bool ath12k_dp_rx_h_rxdma_err(str
  
  	switch (rxcb->err_code) {
- 	case HAL_REO_ENTR_RING_RXDMA_ECODE_UNAUTH_WDS_ERR:
+ 	case HAL_REO_ENTR_RING_RXDMA_ECODE_ARXDMA_UNAUTH_WDS_ERR:
 -		drop = ath12k_dp_rx_h_4addr_null_frame_handler(ar, msdu, status);
 +		ath12k_dp_rx_h_fetch_info(ab, rx_desc, rx_info);
 +

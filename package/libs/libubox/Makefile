@@ -5,9 +5,10 @@ PKG_RELEASE=1
 
 PKG_SOURCE_PROTO:=git
 PKG_SOURCE_URL=$(PROJECT_GIT)/project/libubox.git
-PKG_MIRROR_HASH:=3d58def8e415ceda8aacfd8453813d8bf2a05991c0df0c074744639ab04321ba
-PKG_SOURCE_DATE:=2020-05-25
-PKG_SOURCE_VERSION:=66195aee50424cbda0c2d858014e4cc58a2dc029
+PKG_MIRROR_HASH:=f22de22a784a0135cc2869fe81ff30e52136dca36863ee713503b4be5be01869
+PKG_SOURCE_DATE:=2023-05-23
+PKG_SOURCE_VERSION:=75a3b870cace1171faf57bd55e5a9a2f1564f757
+PKG_ABI_VERSION:=$(call abi_version_str,$(PKG_SOURCE_DATE))
 CMAKE_INSTALL:=1
 
 PKG_LICENSE:=ISC
@@ -27,7 +28,7 @@ define Package/libubox
   SECTION:=libs
   CATEGORY:=Libraries
   TITLE:=Basic utility library
-  ABI_VERSION:=20191228
+  ABI_VERSION:=$(PKG_ABI_VERSION)
   DEPENDS:=
 endef
 
@@ -35,6 +36,7 @@ define Package/libblobmsg-json
   SECTION:=libs
   CATEGORY:=Libraries
   TITLE:=blobmsg <-> json conversion library
+  ABI_VERSION:=$(PKG_ABI_VERSION)
   DEPENDS:=+libjson-c +libubox
 endef
 
@@ -53,6 +55,7 @@ define Package/libjson-script
   SECTION:=utils
   CATEGORY:=Utilities
   DEPENDS:=+libubox
+  ABI_VERSION:=$(PKG_ABI_VERSION)
   TITLE:=Minimalistic JSON based scripting engine
 endef
 
@@ -64,17 +67,18 @@ define Package/libubox-lua
 endef
 
 TARGET_CFLAGS += -I$(STAGING_DIR)/usr/include
-CMAKE_OPTIONS = \
-	-DLUAPATH=/usr/lib/lua
+CMAKE_OPTIONS += \
+	-DLUAPATH=/usr/lib/lua \
+	-DABIVERSION="$(PKG_ABI_VERSION)"
 
 define Package/libubox/install
 	$(INSTALL_DIR) $(1)/lib/
-	$(INSTALL_DATA) $(PKG_INSTALL_DIR)/usr/lib/libubox.so $(1)/lib/
+	$(INSTALL_DATA) $(PKG_INSTALL_DIR)/usr/lib/libubox.so.* $(1)/lib/
 endef
 
 define Package/libblobmsg-json/install
 	$(INSTALL_DIR) $(1)/lib/
-	$(INSTALL_DATA) $(PKG_INSTALL_DIR)/usr/lib/libblobmsg_json.so $(1)/lib/
+	$(INSTALL_DATA) $(PKG_INSTALL_DIR)/usr/lib/libblobmsg_json.so.* $(1)/lib/
 endef
 
 define Package/jshn/install
@@ -85,7 +89,7 @@ endef
 
 define Package/libjson-script/install
 	$(INSTALL_DIR) $(1)/lib/
-	$(INSTALL_DATA) $(PKG_INSTALL_DIR)/usr/lib/libjson_script.so $(1)/lib/
+	$(INSTALL_DATA) $(PKG_INSTALL_DIR)/usr/lib/libjson_script.so.* $(1)/lib/
 endef
 
 define Package/libubox-lua/install

@@ -21,6 +21,13 @@
 #
 ##############################################################################
 
+# while useful (sh)ellcheck is pedantic and noisy
+# shellcheck disable=1091,2002,2004,2034,2039,2086,2094,2140,2154,2155
+
+UB_IPTOOLS_BLANK=
+
+##############################################################################
+
 domain_ptr_ip6() {
   # Get the nibble rounded /CIDR ...ip6.arpa.
   echo "$1" | awk -F: \
@@ -157,7 +164,7 @@ local_subnet() {
   # local subnet 2nd place is limited to one digit to improve the filter
   case "$1" in
     127"."[0-9]"."[0-9]*) echo "ok" ;;
-    ::1) echo "ok" ;;
+    ::1|::1@*|::1#*) echo "ok" ;;
     *) echo "not" ;;
   esac
 }

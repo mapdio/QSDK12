@@ -474,7 +474,7 @@ ppe_port_vsi_get(a_uint32_t dev_id, fal_port_t port_id, a_uint32_t *vsi_id)
 			}
 		}
 	}
-	SSDK_INFO("VSI is not configured on port 0x%x\n", port_id);
+	SSDK_DEBUG("VSI is not configured on port 0x%x\n", port_id);
 	return SW_NOT_FOUND;
 }
 

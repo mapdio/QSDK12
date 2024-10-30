@@ -36,7 +36,7 @@ define KernelPackage/qca-nss-ppe-ds
   CATEGORY:=Kernel modules
   SUBMENU:=Network Devices
   TITLE:=Kernel driver for PPE Direct Switch (core driver)
-  DEPENDS:=@TARGET_ipq95xx||TARGET_ipq95xx_32||TARGET_ipq53xx||TARGET_ipq53xx_32\
+  DEPENDS:=@TARGET_ipq95xx||TARGET_ipq95xx_32||TARGET_ipq53xx||TARGET_ipq53xx_32 \
 	+kmod-qca-nss-ppe-vp \
 	+kmod-qca-nss-dp
   FILES:=$(PKG_BUILD_DIR)/drv/ppe_ds/qca-nss-ppe-ds.ko
@@ -70,9 +70,7 @@ EXTRA_CFLAGS+= \
 MAKE_OPTS+=ppe-ds=y
 
 define Build/Compile
-	$(MAKE) -C "$(LINUX_DIR)" $(strip $(MAKE_OPTS)) \
-		CROSS_COMPILE="$(TARGET_CROSS)" \
-		ARCH="$(LINUX_KARCH)" \
+	$(KERNEL_MAKE) $(strip $(MAKE_OPTS)) \
 		M="$(PKG_BUILD_DIR)" \
 		EXTRA_CFLAGS="$(EXTRA_CFLAGS)" \
 		SoC="$(subtarget)" \

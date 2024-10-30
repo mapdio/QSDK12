@@ -104,7 +104,7 @@ struct in_l2_service_tbl {
 };
 
 union in_l2_service_tbl_u {
-	a_uint32_t val;
+	a_uint32_t val[1];
 	struct in_l2_service_tbl bf;
 };
 

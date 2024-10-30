@@ -17,20 +17,19 @@
 include $(TOPDIR)/rules.mk
 
 PKG_NAME:=cjdns
-PKG_VERSION:=20.2
-PKG_RELEASE:=1
+PKG_VERSION:=v21.1
+PKG_RELEASE:=4
 
-PKG_SOURCE_URL:=https://github.com/cjdelisle/cjdns.git
-PKG_MIRROR_HASH:=2bcf168b48faab8352db95f85a664adf733554ccc8ea788f1689385b1e7acecb
-PKG_SOURCE_PROTO:=git
-PKG_SOURCE_VERSION:=77259a49e5bc7ca7bc6dca5bd423e02be563bdc5
-PKG_LICENSE:=GPL-3.0
-PKG_SOURCE:=$(PKG_NAME)-$(PKG_SOURCE_VERSION).tar.bz2
-PKG_SOURCE_SUBDIR:=$(PKG_NAME)-$(PKG_SOURCE_VERSION)
-PKG_BUILD_DIR:=$(BUILD_DIR)/$(PKG_NAME)-$(PKG_SOURCE_VERSION)
+PKG_SOURCE:=$(PKG_NAME)-$(PKG_VERSION).tar.gz
+PKG_SOURCE_URL:=https://codeload.github.com/cjdelisle/cjdns/tar.gz/$(PKG_NAME)-$(PKG_VERSION)?
+PKG_HASH:=a6158ce7847159aa44e86f74ccc7b6ded6910a230ed8f3830db53cda5838f0b0
+PKG_BUILD_DIR:=$(BUILD_DIR)/$(PKG_NAME)-$(PKG_NAME)-$(PKG_VERSION)
+
+PKG_MAINTAINER:=William Fleurant <meshnet@protonmail.com>
+PKG_LICENSE:=GPL-3.0-or-later
+PKG_LICENSE_FILES:=LICENSE
 
 include $(INCLUDE_DIR)/package.mk
-
 
 define Package/cjdns
 	SECTION:=net
@@ -38,7 +37,6 @@ define Package/cjdns
 	SUBMENU:=Routing and Redirection
 	TITLE:=Encrypted near-zero-conf mesh routing protocol
 	URL:=https://github.com/cjdelisle/cjdns
-	MAINTAINER:=Lars Gierth <larsg@systemli.org>
 	DEPENDS:=@!arc @IPV6 +kmod-tun +libnl-tiny +libpthread +librt \
 		+libuci-lua +lua-bencode +dkjson +luasocket +lua-sha2
 endef
@@ -56,12 +54,11 @@ define Package/cjdns-tests
 	SUBMENU:=Routing and Redirection
 	TITLE:=cjdns test cases
 	URL:=https://github.com/cjdelisle/cjdns
-	MAINTAINER:=Lars Gierth <larsg@systemli.org>
 	DEPENDS:=+libpthread +librt @!arc
 endef
 
 define Package/cjdns-test/description
-	cjdns test cases
+	Builds cjdns test cases binary test_testcjdroute_c
 endef
 
 define Build/Configure
@@ -84,7 +81,7 @@ define Build/Compile
 	CC="$(TARGET_CC)" \
 	AR="$(TARGET_AR)" \
 	RANLIB="$(TARGET_RANLIB)" \
-	CFLAGS="$(TARGET_CFLAGS) -U_FORTIFY_SOURCE" \
+	CFLAGS="$(TARGET_CFLAGS) -U_FORTIFY_SOURCE -Wno-error=array-bounds -Wno-error=stringop-overflow -Wno-error=stringop-overread" \
 	LDFLAGS="$(TARGET_LDFLAGS)" \
 	SYSTEM="linux" \
 	TARGET_ARCH="$(CONFIG_ARCH)" \
@@ -133,7 +130,6 @@ define Package/cjdns/postinst
 #!/bin/sh
 if [ -z $${IPKG_INSTROOT} ] ; then
 	( . /etc/uci-defaults/cjdns ) && rm -f /etc/uci-defaults/cjdns
-	# TODO: we should have an 'Enable' button instead
 	/etc/init.d/cjdns enabled || /etc/init.d/cjdns enable
 	exit 0
 fi

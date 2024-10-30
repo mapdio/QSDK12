@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2022-2023 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2024 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for any
  * purpose with or without fee is hereby granted, provided that the above
@@ -51,7 +51,11 @@ typedef enum ppe_drv_port_flag {
 	PPE_DRV_PORT_FLAG_DS = 0x4,
 	PPE_DRV_PORT_FLAG_MAX = 0x8,
 	PPE_DRV_PORT_RFS_ENABLED = 0x10,
-	PPE_DRV_PORT_FLAG_WIFI_DEV = 0x20
+	PPE_DRV_PORT_FLAG_WIFI_DEV = 0x20,
+	PPE_DRV_PORT_POLICER_ENABLED = 0x40,
+	PPE_DRV_PORT_FLAG_OFFLOAD_ENABLED = 0x80,
+	PPE_DRV_PORT_FLAG_REDIR_ENABLED = 0x100,
+	PPE_DRV_PORT_FLAG_TUN_ENDPOINT_DS = 0x200,
 } ppe_drv_port_flag_t;
 
 /*
@@ -83,11 +87,13 @@ struct ppe_drv_port {
 	uint8_t ucast_queue;			/* Base queue ID for the port */
 	uint8_t tunnel_vp_cfg;			/* Port is of type tunnel VP */
 	uint8_t active_vlan;			/* Number active VLAN configured on the port */
-	struct ppe_drv_port_hw_stats stats;		/* PPE HW port statistics */
-        uint8_t core_mask;			/* Core mask for VP flow */
-        uint8_t shadow_core_mask;		/* Shadow Core mask for VP flow */
+	struct ppe_drv_port_hw_stats stats;	/* PPE HW port statistics */
+	uint8_t core_mask;			/* Core mask for VP flow */
+	uint8_t shadow_core_mask;		/* Shadow Core mask for VP flow */
 	uint8_t user_type;			/* PPE VP user type */
 	uint8_t next_core;			/* Next core to pick for RFS */
+	uint8_t xmit_port;			/* Physical port attached to virtual port */
+	uint8_t profile_id;			/* Profile id */
 };
 
 void ppe_drv_port_ucast_queue_update(struct ppe_drv_port *pp, uint8_t queue_id);
@@ -99,7 +105,7 @@ struct net_device *ppe_drv_port_to_dev(struct ppe_drv_port *pp);
 struct ppe_drv_port *ppe_drv_port_from_dev(struct net_device *dev);
 struct ppe_drv_port *ppe_drv_port_from_tl_l3_if(struct ppe_drv_tun_l3_if *tl_l3_if);
 
-void ppe_drv_port_mac_addr_set(struct ppe_drv_port *pp, uint8_t *mac_addr);
+void ppe_drv_port_mac_addr_set(struct ppe_drv_port *pp, const uint8_t *mac_addr);
 void ppe_drv_port_mac_addr_clear(struct ppe_drv_port *pp);
 
 bool ppe_drv_port_pp_mtu_cfg(struct ppe_drv_port *pp, bool enable);
@@ -107,6 +113,7 @@ bool ppe_drv_port_mtu_mru_set(struct ppe_drv_port *pp, uint16_t mtu, uint16_t mr
 void ppe_drv_port_mtu_mru_clear(struct ppe_drv_port *pp);
 bool ppe_drv_port_mtu_cfg_update(struct ppe_drv_port *pp, uint16_t extra_hdr_len);
 bool ppe_drv_port_mtu_mru_disable(struct ppe_drv_port *pp);
+bool ppe_drv_port_mtu_disable(struct ppe_drv_port *pp);
 
 struct ppe_drv_vsi *ppe_drv_port_find_vlan_vsi(struct ppe_drv_port *pp, uint32_t in_vlan, uint32_t out_vlan);
 struct ppe_drv_vsi *ppe_drv_port_find_bridge_vsi(struct ppe_drv_port *pp);
@@ -137,6 +144,11 @@ void ppe_drv_port_tl_l3_if_attach(struct ppe_drv_port *pp, struct ppe_drv_tun_l3
 
 void  ppe_drv_port_tun_set(struct ppe_drv_port *pp, struct ppe_drv_tun *ptun);
 struct ppe_drv_tun *ppe_drv_port_tun_get(struct ppe_drv_port *pp);
+bool ppe_drv_port_check_flow_offload_enabled(struct ppe_drv_port *drv_port);
+bool ppe_drv_is_wlan_vp_port_type(uint8_t user_type);
+
+int ppe_drv_port_src_profile_get_byidx(uint8_t port_idx);
+bool ppe_drv_port_l2_vp_sc_config(struct ppe_drv_port *pp, ppe_drv_sc_t sc);
 
 /*
  * ppe_drv_port_flags_check()

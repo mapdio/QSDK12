@@ -1,9 +1,7 @@
+# SPDX-License-Identifier: GPL-2.0-only
 #
-# Copyright (C) 2006-2007 OpenWrt.org
-#
-# This is free software, licensed under the GNU General Public License v2.
-# See /LICENSE for more information.
-#
+# Copyright (C) 2006-2020 OpenWrt.org
+
 include $(INCLUDE_DIR)/prereq.mk
 include $(INCLUDE_DIR)/depends.mk
 
@@ -12,7 +10,7 @@ ifneq ($(DUMP),1)
 endif
 
 KERNEL_FILE_DEPENDS=$(GENERIC_BACKPORT_DIR) $(GENERIC_PATCH_DIR) $(GENERIC_HACK_DIR) $(PATCH_DIR) $(GENERIC_FILES_DIR) $(FILES_DIR)
-STAMP_PREPARED=$(LINUX_DIR)/.prepared$(if $(QUILT)$(DUMP),,_$(shell $(call find_md5,$(KERNEL_FILE_DEPENDS),)))
+STAMP_PREPARED=$(LINUX_DIR)/.prepared$(if $(QUILT)$(DUMP),,_$(shell $(call $(if $(CONFIG_AUTOREMOVE),find_md5_reproducible,find_md5),$(KERNEL_FILE_DEPENDS),)))
 STAMP_CONFIGURED:=$(LINUX_DIR)/.configured
 include $(INCLUDE_DIR)/download.mk
 include $(INCLUDE_DIR)/quilt.mk
@@ -67,7 +65,10 @@ ifdef CONFIG_COLLECT_KERNEL_DEBUG
 	-$(CP) \
 		$(STAGING_DIR_ROOT)/lib/modules/$(LINUX_VERSION)/* \
 		$(KERNEL_BUILD_DIR)/debug/modules/
-	$(CP) $(KERNEL_BUILD_DIR)/debug $(BIN_DIR)/
+	$(FIND) $(KERNEL_BUILD_DIR)/debug -type f | $(XARGS) $(KERNEL_CROSS)strip --only-keep-debug
+	$(TAR) c -C $(KERNEL_BUILD_DIR) debug \
+		$(if $(SOURCE_DATE_EPOCH),--mtime="@$(SOURCE_DATE_EPOCH)") \
+		| zstd -T0 -f -o $(BIN_DIR)/kernel-debug.tar.zst
   endef
 endif
 
@@ -102,7 +103,7 @@ define BuildKernel
 		xargs $(TARGET_CROSS)nm | \
 		awk '$$$$1 == "U" { print $$$$2 } ' | \
 		sort -u > $(KERNEL_BUILD_DIR)/mod_symtab.txt
-	$(TARGET_CROSS)nm -n $(LINUX_DIR)/vmlinux.o | grep ' [rR] __ksymtab' | sed -e 's,........ [rR] __ksymtab_,,' > $(KERNEL_BUILD_DIR)/kernel_symtab.txt
+	$(TARGET_CROSS)nm -n $(LINUX_DIR)/vmlinux.o | awk '/^[0-9a-f]+ [rR] __ksymtab_/ {print substr($$$$3,11)}' > $(KERNEL_BUILD_DIR)/kernel_symtab.txt
 	grep -Ff $(KERNEL_BUILD_DIR)/mod_symtab.txt $(KERNEL_BUILD_DIR)/kernel_symtab.txt > $(KERNEL_BUILD_DIR)/sym_include.txt
 	grep -Fvf $(KERNEL_BUILD_DIR)/mod_symtab.txt $(KERNEL_BUILD_DIR)/kernel_symtab.txt > $(KERNEL_BUILD_DIR)/sym_exclude.txt
 	( \
@@ -137,6 +138,7 @@ define BuildKernel
   $(LINUX_DIR)/.modules: export STAGING_PREFIX=$$(STAGING_DIR_HOST)
   $(LINUX_DIR)/.modules: export PKG_CONFIG_PATH=$$(STAGING_DIR_HOST)/lib/pkgconfig
   $(LINUX_DIR)/.modules: export PKG_CONFIG_LIBDIR=$$(STAGING_DIR_HOST)/lib/pkgconfig
+  $(LINUX_DIR)/.modules: export FAIL_ON_UNCONFIGURED=1
   $(LINUX_DIR)/.modules: $(STAMP_CONFIGURED) $(LINUX_DIR)/.config FORCE
 	$(Kernel/CompileModules)
 	touch $$@
@@ -160,25 +162,33 @@ define BuildKernel
   compile: $(LINUX_DIR)/.modules
 	$(MAKE) -C image compile TARGET_BUILD=
 
-  oldconfig menuconfig nconfig: $(STAMP_PREPARED) $(STAMP_CHECKED) FORCE
+  dtb: $(STAMP_CONFIGURED)
+	$(_SINGLE)$(KERNEL_MAKE) scripts_dtc
+	$(MAKE) -C image compile-dtb TARGET_BUILD=
+
+  oldconfig menuconfig nconfig xconfig: $(STAMP_PREPARED) $(STAMP_CHECKED) FORCE
 	rm -f $(LINUX_DIR)/.config.prev
 	rm -f $(STAMP_CONFIGURED)
 	$(LINUX_RECONF_CMD) > $(LINUX_DIR)/.config
 	$(_SINGLE)$(KERNEL_MAKE) \
-		$(if $(findstring Darwin,$(HOST_OS)),HOST_LOADLIBES="-L$(STAGING_DIR_HOST)/lib -lncurses") \
+		$(if $(findstring Darwin,$(HOST_OS)), \
+			HOSTLDLIBS_mconf="-L$(STAGING_DIR_HOST)/lib -lncurses" \
+			filechk_conf_cfg="	:" \
+		) \
+		YACC=$(STAGING_DIR_HOST)/bin/bison \
 		$$@
-	$(LINUX_RECONF_DIFF) $(LINUX_DIR)/.config > $(LINUX_RECONFIG_TARGET)
+	$(call LINUX_RECONF_DIFF,$(LINUX_DIR)/.config) > $(LINUX_RECONFIG_TARGET)
 
   install: $(LINUX_DIR)/.image
 	+$(MAKE) -C image compile install TARGET_BUILD=
 
   clean: FORCE
-ifdef CONFIG_EXTERNAL_KERNEL_TREE
+  ifdef CONFIG_EXTERNAL_KERNEL_TREE
 	$(if $(wildcard $(LINUX_DIR)), \
-	make -C $(LINUX_DIR) clean)
-else
+	$(MAKE) -C $(LINUX_DIR) clean)
+  else
 	rm -rf $(KERNEL_BUILD_DIR)
-endif
+  endif
 
   image-prereq:
 	@+$(NO_TRACE_MAKE) -s -C image prereq TARGET_BUILD=

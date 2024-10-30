@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2022-2023 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2024 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for any
  * purpose with or without fee is hereby granted, provided that the above
@@ -57,16 +57,47 @@ static void ppe_drv_sc_dump(ppe_drv_sc_t sc)
 #endif
 
 /*
+ * ppe_drv_sc_in_service_tbl_dest_port()
+ *	Configure service table for upstream port
+ */
+sw_error_t ppe_drv_sc_in_service_tbl_dest_port(ppe_drv_sc_t sc, uint8_t redir_port)
+{
+	struct ppe_drv *p = &ppe_drv_gbl;
+	fal_servcode_config_t sc_cfg = {0};
+	sw_error_t err;
+
+	err = fal_servcode_config_get(PPE_DRV_SWITCH_ID, sc, &sc_cfg);
+	if (err != SW_OK) {
+		ppe_drv_warn("%p: service code configuration get failed for sc: %u", p, sc);
+		return err;
+	}
+
+	sc_cfg.dest_port_id = redir_port;
+	sc_cfg.dest_port_valid = A_TRUE;
+
+	/*
+	 * Program the service code tables through SSDK.
+	 */
+	err = fal_servcode_config_set(PPE_DRV_SWITCH_ID, sc, &sc_cfg);
+	if (err != SW_OK) {
+		ppe_drv_warn("%p: service code configuration failed for sc: %u", p, sc);
+		return err;
+	}
+
+	return err;
+}
+
+/*
  * ppe_drv_sc_ucast_queue_set()
  *	Set queue ID of a given port in PPE for RFS.
  */
-void ppe_drv_sc_ucast_queue_set(ppe_drv_sc_t sc, uint8_t queue_id, uint8_t profile_id)
+void ppe_drv_sc_ucast_queue_set(ppe_drv_sc_t sc, uint8_t queue_id, uint8_t src_profile, uint8_t profile_id)
 {
 	sw_error_t err;
 	fal_ucast_queue_dest_t q_dst = {0};
 
-	q_dst.src_profile = PPE_DRV_PORT_SRC_PROFILE;
-	q_dst.service_code_en = true;
+	q_dst.src_profile = src_profile;
+	q_dst.service_code_en = A_TRUE;
 	q_dst.service_code = sc;
 
 	err = fal_ucast_queue_base_profile_set(PPE_DRV_SWITCH_ID, &q_dst, queue_id, profile_id);
@@ -91,21 +122,26 @@ static void ppe_drv_sc_config(ppe_drv_sc_t sc, ppe_drv_sc_t next_sc, uint8_t red
 	sc_cfg.direction = PPE_DRV_SC_IN_L2_DIR_DST;
 	sc_cfg.dest_port_id = redir_port;
 	sc_cfg.next_service_code = next_sc;
-	sc_cfg.dest_port_valid = true;
+	sc_cfg.dest_port_valid = A_TRUE;
 
 	switch (sc) {
 	case PPE_DRV_SC_BYPASS_ALL:
 		sc_cfg.bypass_bitmap[0] = ~((1 << FAKE_MAC_HEADER_BYP)
 					| (1 << SERVICE_CODE_BYP)
-					| (1 << FAKE_L2_PROTO_BYP));
+					| (1 << FAKE_L2_PROTO_BYP)
+					| (1 << MY_MAC_CHECK_BYP));
 
 		sc_cfg.bypass_bitmap[1] = ~(1 << ACL_POST_ROUTING_CHECK_BYP);
-		sc_cfg.dest_port_valid = false;
+		sc_cfg.dest_port_valid = A_FALSE;
 		break;
 
 	case PPE_DRV_SC_ADV_QOS_BRIDGED:
 	case PPE_DRV_SC_ADV_QOS_ROUTED:
 	case PPE_DRV_SC_PTP:
+	case PPE_DRV_SC_DS_MLO_LINK_RO_NODE0:
+	case PPE_DRV_SC_DS_MLO_LINK_RO_NODE1:
+	case PPE_DRV_SC_DS_MLO_LINK_RO_NODE2:
+	case PPE_DRV_SC_DS_MLO_LINK_RO_NODE3:
 		break;
 
 	case PPE_DRV_SC_LOOPBACK_QOS:
@@ -127,7 +163,7 @@ static void ppe_drv_sc_config(ppe_drv_sc_t sc, ppe_drv_sc_t next_sc, uint8_t red
 		 * This is used as a tag while handling exception from PPE post EIP processing.
 		 */
 		sc_cfg.bypass_bitmap[0] = (1 << FLOW_SERVICE_CODE_BYP);
-		sc_cfg.dest_port_valid = false;
+		sc_cfg.dest_port_valid = A_FALSE;
 		break;
 
 	case PPE_DRV_SC_VLAN_FILTER_BYPASS:
@@ -147,7 +183,17 @@ static void ppe_drv_sc_config(ppe_drv_sc_t sc, ppe_drv_sc_t next_sc, uint8_t red
 						| (1 << SOURCE_FLTR_BYP)
 						| (1 << L2_SOURCE_SEC_BYP));
 		sc_cfg.field_update_bitmap = (1 << FLD_UPDATE_SERVICE_CODE);
-		sc_cfg.dest_port_valid = false;
+		sc_cfg.dest_port_valid = A_FALSE;
+		break;
+
+	case PPE_DRV_SC_DS_MLO_LINK_BR_NODE0:
+	case PPE_DRV_SC_DS_MLO_LINK_BR_NODE1:
+	case PPE_DRV_SC_DS_MLO_LINK_BR_NODE2:
+	case PPE_DRV_SC_DS_MLO_LINK_BR_NODE3:
+		sc_cfg.bypass_bitmap[1] = ((1 << EG_VLAN_MEMBER_CHECK_BYP)
+						| (1 << SOURCE_FLTR_BYP)
+						| (1 << L2_SOURCE_SEC_BYP));
+		sc_cfg.field_update_bitmap = (1 << FLD_UPDATE_SERVICE_CODE);
 		break;
 
 	case PPE_DRV_SC_L3_EXCEPT:
@@ -160,7 +206,7 @@ static void ppe_drv_sc_config(ppe_drv_sc_t sc, ppe_drv_sc_t next_sc, uint8_t red
 		 * is typically 0 for non-QoS flows).
 		 */
 		sc_cfg.bypass_bitmap[0] = (1 << FLOW_SERVICE_CODE_BYP);
-		sc_cfg.dest_port_valid = false;
+		sc_cfg.dest_port_valid = A_FALSE;
 		break;
 
 	case PPE_DRV_SC_SPF_BYPASS:
@@ -168,12 +214,11 @@ static void ppe_drv_sc_config(ppe_drv_sc_t sc, ppe_drv_sc_t next_sc, uint8_t red
 		 * Avoid packet drop due to source port filtering and avoid FDB based forwarding for
 		 * packets sent to PPE, with SPF bypass service code.
 		 */
-		sc_cfg.bypass_bitmap[0] = (1 << FLOW_SERVICE_CODE_BYP);
 		sc_cfg.bypass_bitmap[1] = ((1 << EG_VLAN_MEMBER_CHECK_BYP)
 						| (1 << SOURCE_FLTR_BYP)
 						| (1 << BRIDGING_FWD_BYP)
 						| (1 << L2_SOURCE_SEC_BYP));
-		sc_cfg.dest_port_valid = false;
+		sc_cfg.dest_port_valid = A_FALSE;
 		break;
 
 	case PPE_DRV_SC_NOEDIT_REDIR_CORE0:
@@ -186,11 +231,11 @@ static void ppe_drv_sc_config(ppe_drv_sc_t sc, ppe_drv_sc_t next_sc, uint8_t red
 		sc_cfg.field_update_bitmap = ((1 << FLD_UPDATE_DEST_INFO) | (1 << FLD_UPDATE_SERVICE_CODE));
 
 		/*
-		 * Avoid packet drop due to source port filtering and avoid FDB based forwarding for
-		 * packets sent to PPE, with SPF bypass service code.
+		 * Avoid packet drop due to source port filtering for no edit service codes, in this
+		 * case when FDB entry is found, the destination generated by service code overwrites
+		 * the FDB based destination, this is needed to overcome ACL match counter problem in PPE.
 		 */
 		sc_cfg.bypass_bitmap[1] = ((1 << SOURCE_FLTR_BYP)
-						| (1 << BRIDGING_FWD_BYP)
 						| (1 << L2_SOURCE_SEC_BYP));
 
 		/*
@@ -219,6 +264,29 @@ static void ppe_drv_sc_config(ppe_drv_sc_t sc, ppe_drv_sc_t next_sc, uint8_t red
 
 		break;
 
+	case PPE_DRV_SC_LOOPBACK_RING:
+		sc_cfg.dest_port_valid = A_FALSE;
+		break;
+
+	case PPE_DRV_SC_LOOPBACK_RING_NEXT:
+		/*
+		 * Set BYPASS_ALL parameters here to bypass the flow lookup again for
+		 * routing case
+		 */
+		sc_cfg.direction = PPE_DRV_SC_IN_L2_DIR_DST;
+		sc_cfg.dest_port_id = redir_port;
+		sc_cfg.next_service_code = next_sc;
+		sc_cfg.dest_port_valid = A_FALSE;
+
+        	sc_cfg.bypass_bitmap[0] = ~((1 << FAKE_MAC_HEADER_BYP)
+                                        | (1 << SERVICE_CODE_BYP)
+                                        | (1 << FAKE_L2_PROTO_BYP)
+                                        | (1 << MY_MAC_CHECK_BYP));
+       		sc_cfg.bypass_bitmap[0] |= (1 << FLOW_SERVICE_CODE_BYP);
+
+       		sc_cfg.bypass_bitmap[1] = ~(1 << ACL_POST_ROUTING_CHECK_BYP);
+		break;
+
 	case PPE_DRV_SC_VP_RPS:
 		/*
 		 * Avoid packet drop due to source port filtering and avoid FDB based forwarding for
@@ -232,6 +300,74 @@ static void ppe_drv_sc_config(ppe_drv_sc_t sc, ppe_drv_sc_t next_sc, uint8_t red
 		 * Don't update service code in EDMA
 		 */
 		sc_cfg.field_update_bitmap = (1 << FLD_UPDATE_SERVICE_CODE);
+		break;
+
+	case PPE_DRV_SC_NOEDIT_ACL_POLICER:
+		/*
+		 * Don't update destination information and service code in EDMA
+		 */
+		sc_cfg.field_update_bitmap = ((1 << FLD_UPDATE_DEST_INFO) | (1 << FLD_UPDATE_SERVICE_CODE));
+
+		/*
+		 * Avoid packet drop due to source port filtering and avoid FDB based forwarding for
+		 * packets sent to PPE, with SPF bypass service code.
+		 */
+		sc_cfg.bypass_bitmap[1] = ((1 << SOURCE_FLTR_BYP)
+						| (1 << BRIDGING_FWD_BYP)
+						| (1 << L2_SOURCE_SEC_BYP));
+
+		/*
+		 * Avoid any packet editing
+		 */
+		sc_cfg.bypass_bitmap[1] |= ((1 << L2_PKT_EDIT_BYP) | (1 << L3_PKT_EDIT_BYP));
+
+		break;
+
+	case PPE_DRV_SC_L2_TUNNEL_EXCEPTION:
+		sc_cfg.field_update_bitmap = (1 << FLD_UPDATE_SERVICE_CODE);
+		sc_cfg.bypass_bitmap[1] = (1 << BRIDGING_FWD_BYP);
+		sc_cfg.dest_port_valid = A_FALSE;
+		break;
+
+	case  PPE_DRV_SC_NOEDIT_PRIORITY_SET:
+		/*
+		 * Don't update destination information and service code in EDMA
+		 */
+		sc_cfg.field_update_bitmap = ((1 << FLD_UPDATE_DEST_INFO) | (1 << FLD_UPDATE_SERVICE_CODE));
+
+		/*
+		 * Avoid packet drop due to source port filtering and avoid FDB based forwarding for
+		 * packets sent to PPE, with SPF bypass service code.
+		 */
+		sc_cfg.bypass_bitmap[1] = ((1 << SOURCE_FLTR_BYP)
+						| (1 << BRIDGING_FWD_BYP)
+						| (1 << L2_SOURCE_SEC_BYP));
+		/*
+		 * Avoid any packet editing
+		 */
+		sc_cfg.bypass_bitmap[1] |= ((1 << L2_PKT_EDIT_BYP) | (1 << L3_PKT_EDIT_BYP));
+
+		/*
+		 * Enable ring selection based on int_pri value
+		 */
+		sc_cfg.dest_port_valid = A_FALSE;
+		break;
+
+	case  PPE_DRV_SC_NOEDIT_RULE:
+		/*
+		 * Avoid any packet editing
+		 */
+		sc_cfg.bypass_bitmap[1] |= ((1 << L2_PKT_EDIT_BYP) | (1 << L3_PKT_EDIT_BYP));
+		sc_cfg.dest_port_valid = A_FALSE;
+		break;
+
+	case PPE_DRV_SC_FLOW_ACL_FIRST ... PPE_DRV_SC_FLOW_ACL_LAST:
+		/*
+		 * These are primarily used for N-tuple lookup or flow+policer combintation.
+		 * Don't update service code in EDMA and there is no redirection needed with these SCs.
+		 */
+		sc_cfg.field_update_bitmap = (1 << FLD_UPDATE_SERVICE_CODE);
+		sc_cfg.dest_port_valid = A_FALSE;
 		break;
 
 	default:
@@ -389,7 +525,6 @@ void ppe_drv_sc_unregister_vp_cb(ppe_drv_sc_t sc, uint16_t vp_num)
 		return;
 	}
 
-	ppe_drv_assert(cb, "%p: cannot register null cb for sc %u vp %u", p, sc, vp_num);
 	spin_lock_bh(&p->lock);
 	psc = &p->sc[sc];
 	vp_info = rcu_dereference_protected(psc->vp_info[vp_num - PPE_DRV_VIRTUAL_START], 1);
@@ -476,6 +611,7 @@ struct ppe_drv_sc *ppe_drv_sc_entries_alloc(void)
 {
 	struct ppe_drv *p = &ppe_drv_gbl;
 	struct ppe_drv_sc *sc;
+	ppe_drv_sc_t acl_sc;
 
 	sc = vzalloc(sizeof(struct ppe_drv_sc) * p->sc_num);
 	if (!sc) {
@@ -504,6 +640,30 @@ struct ppe_drv_sc *ppe_drv_sc_entries_alloc(void)
 	ppe_drv_sc_config(PPE_DRV_SC_EDIT_REDIR_CORE2, PPE_DRV_SC_EDIT_REDIR_CORE2, PPE_DRV_PORT_CPU);
 	ppe_drv_sc_config(PPE_DRV_SC_EDIT_REDIR_CORE3, PPE_DRV_SC_EDIT_REDIR_CORE3, PPE_DRV_PORT_CPU);
 	ppe_drv_sc_config(PPE_DRV_SC_VP_RPS, PPE_DRV_SC_VP_RPS, PPE_DRV_PORT_CPU);
+	ppe_drv_sc_config(PPE_DRV_SC_NOEDIT_ACL_POLICER, PPE_DRV_SC_NOEDIT_ACL_POLICER, PPE_DRV_PORT_CPU);
+	ppe_drv_sc_config(PPE_DRV_SC_L2_TUNNEL_EXCEPTION, PPE_DRV_SC_L2_TUNNEL_EXCEPTION, PPE_DRV_PORT_CPU);
+	ppe_drv_sc_config(PPE_DRV_SC_NOEDIT_PRIORITY_SET, PPE_DRV_SC_NOEDIT_PRIORITY_SET, PPE_DRV_PORT_CPU);
+	ppe_drv_sc_config(PPE_DRV_SC_NOEDIT_RULE, PPE_DRV_SC_NOEDIT_RULE, PPE_DRV_PORT_CPU);
 
+	/*
+	 * Initialize FLOW ACL service code
+	 */
+	for (acl_sc = PPE_DRV_SC_FLOW_ACL_FIRST; acl_sc <= PPE_DRV_SC_FLOW_ACL_LAST; acl_sc++) {
+		ppe_drv_sc_config(acl_sc, acl_sc, PPE_DRV_PORT_CPU);
+	}
+
+	/*
+	 * Initialize MLO service codes
+	 */
+	ppe_drv_sc_config(PPE_DRV_SC_DS_MLO_LINK_RO_NODE0, PPE_DRV_SC_DS_MLO_LINK_RO_NODE0, PPE_DRV_PORT_CPU);
+	ppe_drv_sc_config(PPE_DRV_SC_DS_MLO_LINK_RO_NODE1, PPE_DRV_SC_DS_MLO_LINK_RO_NODE1, PPE_DRV_PORT_CPU);
+	ppe_drv_sc_config(PPE_DRV_SC_DS_MLO_LINK_RO_NODE2, PPE_DRV_SC_DS_MLO_LINK_RO_NODE2, PPE_DRV_PORT_CPU);
+	ppe_drv_sc_config(PPE_DRV_SC_DS_MLO_LINK_RO_NODE3, PPE_DRV_SC_DS_MLO_LINK_RO_NODE3, PPE_DRV_PORT_CPU);
+	ppe_drv_sc_config(PPE_DRV_SC_DS_MLO_LINK_BR_NODE0, PPE_DRV_SC_DS_MLO_LINK_BR_NODE0, PPE_DRV_PORT_CPU);
+	ppe_drv_sc_config(PPE_DRV_SC_DS_MLO_LINK_BR_NODE1, PPE_DRV_SC_DS_MLO_LINK_BR_NODE1, PPE_DRV_PORT_CPU);
+	ppe_drv_sc_config(PPE_DRV_SC_DS_MLO_LINK_BR_NODE2, PPE_DRV_SC_DS_MLO_LINK_BR_NODE2, PPE_DRV_PORT_CPU);
+	ppe_drv_sc_config(PPE_DRV_SC_DS_MLO_LINK_BR_NODE3, PPE_DRV_SC_DS_MLO_LINK_BR_NODE3, PPE_DRV_PORT_CPU);
+	ppe_drv_sc_config(PPE_DRV_SC_LOOPBACK_RING, PPE_DRV_SC_LOOPBACK_RING_NEXT, PPE_DRV_PORT_CPU);
+	ppe_drv_sc_config(PPE_DRV_SC_LOOPBACK_RING_NEXT, PPE_DRV_SC_BYPASS_ALL, PPE_DRV_PORT_CPU);
 	return sc;
 }

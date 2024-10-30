@@ -7,12 +7,12 @@
 include $(TOPDIR)/rules.mk
 
 PKG_NAME:=libreswan
-PKG_VERSION:=3.32
+PKG_VERSION:=4.12
 PKG_RELEASE:=1
 
 PKG_SOURCE:=$(PKG_NAME)-$(PKG_VERSION).tar.gz
 PKG_SOURCE_URL:=https://download.libreswan.org/
-PKG_HASH:=236b57fee8f562302c54f2b16d8a839a9039fcb5893668e61b398ec6b179432e
+PKG_HASH:=ae85abe415f7becf4b6a2b9897e1712f27e5aac9c35dfbdddbcce0ad7dfd99f7
 
 PKG_MAINTAINER:=Lucian Cristian <lucian.cristian@gmail.com>
 PKG_LICENSE:=GPL-2.0-or-later
@@ -21,6 +21,7 @@ PKG_CPE_ID:=cpe:/a:libreswan:libreswan
 
 PKG_BUILD_PARALLEL:=1
 PKG_INSTALL:=1
+PKG_BUILD_FLAGS:=lto
 
 include $(INCLUDE_DIR)/package.mk
 
@@ -44,8 +45,8 @@ $(call Package/libreswan/Default)
   DEPENDS:= +IPV6:kmod-ip6-vti +IPV6:kmod-ipsec6 +ip-full +iptables-mod-ipsec \
 	+kmod-crypto-aead +kmod-crypto-authenc +kmod-crypto-gcm \
 	+kmod-crypto-hash +kmod-crypto-rng +kmod-ip-vti +kmod-ipsec \
-	+kmod-ipsec4 +kmod-ipt-ipsec +libevent2 +libevent2-pthreads \
-	+libldns +librt +libunbound +nss-utils +nspr
+	+kmod-ipsec4 +kmod-ipt-ipsec +kmod-xfrm-interface +libevent2 +libevent2-pthreads \
+	+libldns +librt +libunbound +nss-utils +nspr +libcap-ng
   PROVIDES:=openswan
   CONFLICTS:=strongswan
   TITLE+= IPsec Server
@@ -65,27 +66,29 @@ define Package/libreswan/conffiles
 /etc/ipsec.secrets
 endef
 TARGET_LDFLAGS += -Wl,--gc-sections,--as-needed
-TARGET_CFLAGS += -flto
 
 MAKE_FLAGS+= \
     WERROR_CFLAGS=" " \
     NSS_REQ_AVA_COPY=false \
     USE_LINUX_AUDIT=false \
     USE_LABELED_IPSEC=false \
-    USE_XFRM_INTERFACE_IFLA_HEADER=true \
-    USE_XFRM_HEADER_COPY=true \
     USE_NM=false \
     USE_NSS_KDF=true \
-    USE_NSS_PRF=true \
     USE_LIBCURL=false \
     USE_GLIBC_KERN_FLIP_HEADERS=true \
-    USE_XAUTHPAM=false \
-    USE_LIBCAP_NG=false \
+    USE_AUTHPAM=false \
+    USE_LIBCAP_NG=true \
     USE_SYSTEMD_WATCHDOG=false \
     USE_SECCOMP=false\
-    INC_USRLOCAL="/usr" \
+    USE_XFRM_INTERFACE_IFLA_HEADER=false \
+    PREFIX="/usr" \
     FINALRUNDIR="/var/run/pluto" \
+    FINALNSSDIR="/etc/ipsec.d" \
+    DEFAULT_DNSSEC_ROOTKEY_FILE=/etc/unbound/root.key \
     MODPROBEARGS="-q" \
+    OSDEP=linux \
+    BUILDENV=linux \
+    LINUX_VARIANT="openwrt" \
     ARCH="$(LINUX_KARCH)" \
 
 define Build/Prepare

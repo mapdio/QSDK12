@@ -11,12 +11,12 @@ PKG_NAME:=mmc-utils
 PKG_RELEASE:=1
 
 PKG_SOURCE_PROTO:=git
-PKG_SOURCE_URL:=https://git.kernel.org/pub/scm/linux/kernel/git/cjb/mmc-utils.git
-PKG_SOURCE_DATE:=2018-12-09
-PKG_SOURCE_VERSION:=aef913e31b659462fe6b9320d241676cba97f67b
-PKG_MIRROR_HASH:=8c3d872be1392b7a140a36ce75ed48ef300ee6b6f1ce1b37dad1ad263d338dc3
+PKG_SOURCE_URL:=https://git.kernel.org/pub/scm/utils/mmc/mmc-utils.git
+PKG_SOURCE_DATE:=2023-01-16
+PKG_SOURCE_VERSION:=d4c2910981ff99b983734426dfa99632fb81ac6b
+PKG_MIRROR_HASH:=b124409d3482db1e63822a7860b7e4a0dfe6c3545da967283979fe805a287893
 
-PKG_LICENSE:=GPL-2.0
+PKG_LICENSE:=GPL-2.0-only
 PKG_LICENSE_FILES:=
 
 PKG_MAINTAINER:=Michael Heimpold <mhei@heimpold.de>
@@ -27,7 +27,7 @@ define Package/mmc-utils
   SECTION:=utils
   CATEGORY:=Utilities
   TITLE:=Userspace tools for MMC/SD devices
-  URL:=http://git.kernel.org/cgit/linux/kernel/git/cjb/mmc-utils.git
+  URL:=https://git.kernel.org/pub/scm/utils/mmc/mmc-utils.git
 endef
 
 define Package/mmc-utils/description

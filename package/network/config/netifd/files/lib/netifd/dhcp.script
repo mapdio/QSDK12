@@ -46,14 +46,21 @@ setup_interface () {
 		proto_add_dns_search "$i"
 	done
 
+	# TODO: Deprecate timesvr in favor of timesrv
+	if [ -n "$timesvr" -a -z "$timesrv" ]; then
+		timesrv="$timesvr"
+		echo "Environment variable 'timesvr' will be deprecated; use 'timesrv' instead."
+	fi
+
 	proto_add_data
 	[ -n "$ZONE" ]     && json_add_string zone "$ZONE"
 	[ -n "$ntpsrv" ]   && json_add_string ntpserver "$ntpsrv"
-	[ -n "$timesvr" ]  && json_add_string timeserver "$timesvr"
+	[ -n "$timesrv" ]  && json_add_string timeserver "$timesrv"
 	[ -n "$hostname" ] && json_add_string hostname "$hostname"
 	[ -n "$message" ]  && json_add_string message "$message"
 	[ -n "$timezone" ] && json_add_int timezone "$timezone"
 	[ -n "$lease" ]    && json_add_int leasetime "$lease"
+	[ -n "$serverid" ] && json_add_string dhcpserver "$serverid"
 	proto_close_data
 
 	proto_send_update "$INTERFACE"
@@ -106,5 +113,8 @@ esac
 
 # user rules
 [ -f /etc/udhcpc.user ] && . /etc/udhcpc.user "$@"
+for f in /etc/udhcpc.user.d/*; do
+	[ -f "$f" ] && (. "$f" "$@")
+done
 
 exit 0

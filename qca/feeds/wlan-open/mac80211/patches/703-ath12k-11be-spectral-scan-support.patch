@@ -20,9 +20,11 @@ Signed-off-by: Rajat Soni <quic_rajson@quicinc.com>
  drivers/net/wireless/ath/spectral_common.h |   3 +-
  10 files changed, 544 insertions(+), 30 deletions(-)
 
---- a/drivers/net/wireless/ath/ath12k/dbring.c
-+++ b/drivers/net/wireless/ath/ath12k/dbring.c
-@@ -7,6 +7,34 @@
+Index: backports-20220822-5.4.213-ef7197996efe/drivers/net/wireless/ath/ath12k/dbring.c
+===================================================================
+--- backports-20220822-5.4.213-ef7197996efe.orig/drivers/net/wireless/ath/ath12k/dbring.c	2023-03-07 11:19:38.669974698 +0530
++++ backports-20220822-5.4.213-ef7197996efe/drivers/net/wireless/ath/ath12k/dbring.c	2023-03-07 11:21:18.705197245 +0530
+@@ -7,6 +7,33 @@
  #include "core.h"
  #include "debug.h"
  
@@ -45,19 +47,18 @@ Signed-off-by: Rajat Soni <quic_rajson@quicinc.com>
 +static void ath12k_dbring_fill_magic_value(struct ath12k *ar,
 +					  void *buffer, u32 size)
 +{
-+	/* memset32 function fills buffer payload with the ATH12K_DB_MAGIC_VALUE
-+	 * and the variable size is expected to be the number of u32 values
-+	 * to be stored, not the number of bytes.
-+	 */
-+	size = size / sizeof(u32);
++	u32 *temp;
++	int idx;
++	size = size >> 2;
 +
-+	memset32(buffer, ATH12K_DB_MAGIC_VALUE, size);
++	for (idx = 0, temp = buffer; idx < size; idx++, temp++)
++		*temp = ATH12K_DB_MAGIC_VALUE;
 +}
 +
  static int ath12k_dbring_bufs_replenish(struct ath12k *ar,
  					struct ath12k_dbring *ring,
  					struct ath12k_dbring_element *buff,
-@@ -28,6 +56,7 @@ static int ath12k_dbring_bufs_replenish(
+@@ -28,6 +55,7 @@ static int ath12k_dbring_bufs_replenish(
  
  	ptr_unaligned = buff->payload;
  	ptr_aligned = PTR_ALIGN(ptr_unaligned, ring->buf_align);
@@ -65,7 +66,7 @@ Signed-off-by: Rajat Soni <quic_rajson@quicinc.com>
  	paddr = dma_map_single(ab->dev, ptr_aligned, ring->buf_sz,
  			       DMA_FROM_DEVICE);
  
-@@ -51,6 +80,7 @@ static int ath12k_dbring_bufs_replenish(
+@@ -51,6 +79,7 @@ static int ath12k_dbring_bufs_replenish(
  
  	buff->paddr = paddr;
  
@@ -73,7 +74,7 @@ Signed-off-by: Rajat Soni <quic_rajson@quicinc.com>
  	cookie = u32_encode_bits(ar->pdev_idx, DP_DIR_BUF_COOKIE_PDEV_ID) |
  		 u32_encode_bits(buf_id, DP_DIR_BUF_COOKIE_BUF_ID);
  
-@@ -177,7 +207,7 @@ int ath12k_dbring_buf_setup(struct ath12
+@@ -177,7 +206,7 @@ int ath12k_dbring_buf_setup(struct ath12
  	ring->hp_addr = ath12k_hal_srng_get_hp_addr(ar->ab, srng);
  	ring->tp_addr = ath12k_hal_srng_get_tp_addr(ar->ab, srng);
  
@@ -82,7 +83,7 @@ Signed-off-by: Rajat Soni <quic_rajson@quicinc.com>
  
  	return ret;
  }
-@@ -299,7 +329,7 @@ int ath12k_dbring_buffer_release_event(s
+@@ -299,7 +328,7 @@ int ath12k_dbring_buffer_release_event(s
  
  		ath12k_hal_rx_buf_addr_info_get(&desc, &paddr, &cookie, &rbm);
  
@@ -91,8 +92,18 @@ Signed-off-by: Rajat Soni <quic_rajson@quicinc.com>
  
  		spin_lock_bh(&ring->idr_lock);
  		buff = idr_find(&ring->bufs_idr, buf_id);
---- a/drivers/net/wireless/ath/ath12k/dbring.h
-+++ b/drivers/net/wireless/ath/ath12k/dbring.h
+@@ -349,7 +378,6 @@ void ath12k_dbring_buf_cleanup(struct at
+ 		idr_remove(&ring->bufs_idr, buf_id);
+ 		dma_unmap_single(ar->ab->dev, buff->paddr,
+ 				 ring->buf_sz, DMA_FROM_DEVICE);
+-		kfree(buff->payload);
+ 		kfree(buff);
+ 	}
+ 
+Index: backports-20220822-5.4.213-ef7197996efe/drivers/net/wireless/ath/ath12k/dbring.h
+===================================================================
+--- backports-20220822-5.4.213-ef7197996efe.orig/drivers/net/wireless/ath/ath12k/dbring.h	2023-03-07 11:19:38.669974698 +0530
++++ backports-20220822-5.4.213-ef7197996efe/drivers/net/wireless/ath/ath12k/dbring.h	2023-03-07 11:19:38.661974761 +0530
 @@ -31,6 +31,20 @@ struct ath12k_dbring_buf_release_event {
  	u32 num_meta;
  };
@@ -120,8 +131,10 @@ Signed-off-by: Rajat Soni <quic_rajson@quicinc.com>
  void ath12k_dbring_buf_cleanup(struct ath12k *ar, struct ath12k_dbring *ring);
 +int ath12k_dbring_validate_buffer(struct ath12k *ar, void *data, u32 size);
  #endif /* ATH12K_DBRING_H */
---- a/drivers/net/wireless/ath/ath12k/hw.c
-+++ b/drivers/net/wireless/ath/ath12k/hw.c
+Index: backports-20220822-5.4.213-ef7197996efe/drivers/net/wireless/ath/ath12k/hw.c
+===================================================================
+--- backports-20220822-5.4.213-ef7197996efe.orig/drivers/net/wireless/ath/ath12k/hw.c	2023-03-07 11:19:38.669974698 +0530
++++ backports-20220822-5.4.213-ef7197996efe/drivers/net/wireless/ath/ath12k/hw.c	2023-03-07 11:19:38.661974761 +0530
 @@ -1016,6 +1016,14 @@ static const struct ath12k_hw_params ath
  		.credit_flow = false,
  		.wakeup_mhi = false,
@@ -152,8 +165,10 @@ Signed-off-by: Rajat Soni <quic_rajson@quicinc.com>
  		.max_mlo_peer = ATH12K_MAX_MLO_PEER,
  		.num_local_link = 0,
  	},
---- a/drivers/net/wireless/ath/ath12k/hw.h
-+++ b/drivers/net/wireless/ath/ath12k/hw.h
+Index: backports-20220822-5.4.213-ef7197996efe/drivers/net/wireless/ath/ath12k/hw.h
+===================================================================
+--- backports-20220822-5.4.213-ef7197996efe.orig/drivers/net/wireless/ath/ath12k/hw.h	2023-03-07 11:19:38.669974698 +0530
++++ backports-20220822-5.4.213-ef7197996efe/drivers/net/wireless/ath/ath12k/hw.h	2023-03-07 11:19:38.661974761 +0530
 @@ -170,7 +170,15 @@ struct ath12k_hw_params {
  	int num_rxdma_dst_ring;
  	bool rx_mac_buf_ring;
@@ -171,8 +186,26 @@ Signed-off-by: Rajat Soni <quic_rajson@quicinc.com>
  
  	u16 interface_modes;
  	bool supports_monitor;
---- a/drivers/net/wireless/ath/ath12k/spectral.c
-+++ b/drivers/net/wireless/ath/ath12k/spectral.c
+Index: backports-20220822-5.4.213-ef7197996efe/drivers/net/wireless/ath/ath12k/mac.c
+===================================================================
+--- backports-20220822-5.4.213-ef7197996efe.orig/drivers/net/wireless/ath/ath12k/mac.c	2023-03-07 11:19:38.669974698 +0530
++++ backports-20220822-5.4.213-ef7197996efe/drivers/net/wireless/ath/ath12k/mac.c	2023-03-07 11:19:38.665974730 +0530
+@@ -780,7 +780,11 @@ struct ath12k *ath12k_mac_get_ar_by_pdev
+ 			pdev = &ab->pdevs[i];
+ 		else
+ 			pdev = rcu_dereference(ab->pdevs_active[i]);
++		if (pdev && pdev->pdev_id == pdev_id)
++			return pdev->ar ? pdev->ar : NULL;
+ 
++		/*before mac start ab->pdevs_active will be NULL*/
++		pdev = &ab->pdevs[i];
+ 		if (pdev && pdev->pdev_id == pdev_id)
+ 			return (pdev->ar ? pdev->ar : NULL);
+ 	}
+Index: backports-20220822-5.4.213-ef7197996efe/drivers/net/wireless/ath/ath12k/spectral.c
+===================================================================
+--- backports-20220822-5.4.213-ef7197996efe.orig/drivers/net/wireless/ath/ath12k/spectral.c	2023-03-07 11:19:38.669974698 +0530
++++ backports-20220822-5.4.213-ef7197996efe/drivers/net/wireless/ath/ath12k/spectral.c	2023-03-07 11:19:38.665974730 +0530
 @@ -12,27 +12,28 @@
  #define ATH12K_SPECTRAL_EVENT_TIMEOUT_MS	1
  
@@ -470,28 +503,16 @@ Signed-off-by: Rajat Soni <quic_rajson@quicinc.com>
  {
  	if (!arvif->spectral_enabled)
  		return 0;
-@@ -881,10 +1000,18 @@ void ath12k_spectral_deinit(struct ath12
- 		ar = ab->pdevs[i].ar;
- 		sp = &ar->spectral;
- 
--		if (!sp->enabled)
-+		mutex_lock(&ar->conf_mutex);
-+
-+		if (sp->spectral_cap.fft_size_caps) {
-+			kfree(sp->spectral_cap.fft_size_caps);
-+			sp->spectral_cap.fft_size_caps = NULL;
-+		}
-+
-+		if (!sp->enabled) {
-+			mutex_unlock(&ar->conf_mutex);
+@@ -885,6 +1004,8 @@ void ath12k_spectral_deinit(struct ath12
  			continue;
-+		}
  
--		mutex_lock(&ar->conf_mutex);
+ 		mutex_lock(&ar->conf_mutex);
++		if (ar->spectral.spectral_cap.fft_size_caps)
++			kfree(ar->spectral.spectral_cap.fft_size_caps);
  		ath12k_spectral_scan_config(ar, ATH12K_SPECTRAL_DISABLED);
  		mutex_unlock(&ar->conf_mutex);
  
-@@ -903,7 +1030,7 @@ static inline int ath12k_spectral_debug_
+@@ -903,7 +1024,7 @@ static inline int ath12k_spectral_debug_
  
  	ar->spectral.rfs_scan = relay_open("spectral_scan",
  					   ar->debug.debugfs_pdev,
@@ -500,7 +521,7 @@ Signed-off-by: Rajat Soni <quic_rajson@quicinc.com>
  					   ATH12K_SPECTRAL_NUM_SUB_BUF,
  					   &rfs_scan_cb, NULL);
  	if (!ar->spectral.rfs_scan) {
-@@ -964,7 +1091,7 @@ int ath12k_spectral_init(struct ath12k_b
+@@ -964,7 +1085,7 @@ int ath12k_spectral_init(struct ath12k_b
  		      ab->wmi_ab.svc_map))
  		return 0;
  
@@ -509,8 +530,10 @@ Signed-off-by: Rajat Soni <quic_rajson@quicinc.com>
  		return 0;
  
  	for (i = 0; i < ab->num_radios; i++) {
---- a/drivers/net/wireless/ath/ath12k/spectral.h
-+++ b/drivers/net/wireless/ath/ath12k/spectral.h
+Index: backports-20220822-5.4.213-ef7197996efe/drivers/net/wireless/ath/ath12k/spectral.h
+===================================================================
+--- backports-20220822-5.4.213-ef7197996efe.orig/drivers/net/wireless/ath/ath12k/spectral.h	2023-03-07 11:19:38.669974698 +0530
++++ backports-20220822-5.4.213-ef7197996efe/drivers/net/wireless/ath/ath12k/spectral.h	2023-03-07 11:19:38.665974730 +0530
 @@ -36,6 +36,9 @@ struct ath12k_spectral {
  	u16 count;
  	u8 fft_size;
@@ -521,8 +544,10 @@ Signed-off-by: Rajat Soni <quic_rajson@quicinc.com>
  };
  
  #ifdef CPTCFG_ATH12K_SPECTRAL
---- a/drivers/net/wireless/ath/ath12k/wmi.c
-+++ b/drivers/net/wireless/ath/ath12k/wmi.c
+Index: backports-20220822-5.4.213-ef7197996efe/drivers/net/wireless/ath/ath12k/wmi.c
+===================================================================
+--- backports-20220822-5.4.213-ef7197996efe.orig/drivers/net/wireless/ath/ath12k/wmi.c	2023-03-07 11:19:38.669974698 +0530
++++ backports-20220822-5.4.213-ef7197996efe/drivers/net/wireless/ath/ath12k/wmi.c	2023-03-07 11:19:38.665974730 +0530
 @@ -79,6 +79,25 @@ struct wmi_tlv_dma_buf_release_parse {
  	bool meta_data_done;
  };
@@ -565,7 +590,7 @@ Signed-off-by: Rajat Soni <quic_rajson@quicinc.com>
  	ret = ath12k_wmi_tlv_iter(ab, skb->data, skb->len,
  				  ath12k_wmi_tlv_dma_buf_parse,
  				  &parse);
-@@ -9928,6 +9949,227 @@ exit:
+@@ -9926,6 +9947,220 @@ exit:
  }
  
  
@@ -742,11 +767,9 @@ Signed-off-by: Rajat Soni <quic_rajson@quicinc.com>
 +{
 +	struct wmi_spectral_capabilities_parse parse = { };
 +	struct wmi_spectral_capabilities_event param;
-+	struct ath12k *ar = NULL;
++	struct ath12k *ar;
 +	int ret, size;
-+	u8 pdev_id, i;
-+	struct ath12k_pdev *pdev;
-+
++	u8 pdev_id;
 +	ret = ath12k_wmi_tlv_iter(ab, skb->data, skb->len,
 +				  ath12k_wmi_tlv_spectral_cap_parse,
 +				  &parse);
@@ -761,21 +784,16 @@ Signed-off-by: Rajat Soni <quic_rajson@quicinc.com>
 +	param.num_fft_size_caps_entry = parse.num_fft_size_caps_entry;
 +
 +	pdev_id = param.sscan_bw_caps->pdev_id;
-+
-+	for (i = 0; i < ab->num_radios; i++) {
-+		pdev = &ab->pdevs[i];
-+		if (pdev && pdev->pdev_id == pdev_id) {
-+			ar = pdev->ar;
-+			break;
-+		}
-+	}
-+
++	rcu_read_lock();
++	ar = ath12k_mac_get_ar_by_pdev_id(ab, pdev_id);
 +	if (!ar) {
 +		ath12k_dbg(ab, ATH12K_DBG_WMI,
 +			   "ar is NULL for pdev_id %d use default spectral fft size 7",
 +			   pdev_id);
++		rcu_read_unlock();
 +		return;
 +	}
++	rcu_read_unlock();
 +	size = sizeof(struct ath12k_wmi_spectral_fft_size_capabilities)*
 +					param.num_fft_size_caps_entry;
 +
@@ -793,7 +811,7 @@ Signed-off-by: Rajat Soni <quic_rajson@quicinc.com>
  static void ath12k_wmi_tlv_op_rx(struct ath12k_base *ab, struct sk_buff *skb)
  {
  	struct wmi_cmd_hdr *cmd_hdr;
-@@ -10023,6 +10265,12 @@ static void ath12k_wmi_tlv_op_rx(struct
+@@ -10021,6 +10256,12 @@ static void ath12k_wmi_tlv_op_rx(struct
  	case WMI_TWT_ADD_DIALOG_EVENTID:
  		ath12k_wmi_twt_add_dialog_event(ab, skb);
  		break;
@@ -806,8 +824,10 @@ Signed-off-by: Rajat Soni <quic_rajson@quicinc.com>
  	/* add Unsupported events here */
  	case WMI_TBTTOFFSET_EXT_UPDATE_EVENTID:
  	case WMI_PEER_OPER_MODE_CHANGE_EVENTID:
---- a/drivers/net/wireless/ath/ath12k/wmi.h
-+++ b/drivers/net/wireless/ath/ath12k/wmi.h
+Index: backports-20220822-5.4.213-ef7197996efe/drivers/net/wireless/ath/ath12k/wmi.h
+===================================================================
+--- backports-20220822-5.4.213-ef7197996efe.orig/drivers/net/wireless/ath/ath12k/wmi.h	2023-03-07 11:19:38.669974698 +0530
++++ backports-20220822-5.4.213-ef7197996efe/drivers/net/wireless/ath/ath12k/wmi.h	2023-03-07 11:19:38.665974730 +0530
 @@ -639,6 +639,9 @@ enum wmi_tlv_event_id {
  	WMI_READY_EVENTID,
  	WMI_SERVICE_AVAILABLE_EVENTID,
@@ -846,15 +866,7 @@ Signed-off-by: Rajat Soni <quic_rajson@quicinc.com>
  };
  
  enum wmi_beacon_gen_mode {
-@@ -2270,6 +2280,7 @@ enum wmi_beacon_gen_mode {
- enum wmi_direct_buffer_module {
- 	WMI_DIRECT_BUF_SPECTRAL = 0,
- 	WMI_DIRECT_BUF_CFR = 1,
-+	WMI_CONFIG_MODULE_CV_UPLOAD = 2,
- 
- 	/* keep it last */
- 	WMI_DIRECT_BUF_MAX
-@@ -5828,6 +5839,78 @@ struct wmi_dma_buf_release_entry {
+@@ -5828,6 +5838,78 @@ struct wmi_dma_buf_release_entry {
  	u32 paddr_hi;
  } __packed;
  
@@ -933,8 +945,10 @@ Signed-off-by: Rajat Soni <quic_rajson@quicinc.com>
  #define WMI_SPECTRAL_META_INFO1_FREQ1		GENMASK(15, 0)
  #define WMI_SPECTRAL_META_INFO1_FREQ2		GENMASK(31, 16)
  
---- a/drivers/net/wireless/ath/spectral_common.h
-+++ b/drivers/net/wireless/ath/spectral_common.h
+Index: backports-20220822-5.4.213-ef7197996efe/drivers/net/wireless/ath/spectral_common.h
+===================================================================
+--- backports-20220822-5.4.213-ef7197996efe.orig/drivers/net/wireless/ath/spectral_common.h	2023-03-07 11:19:38.669974698 +0530
++++ backports-20220822-5.4.213-ef7197996efe/drivers/net/wireless/ath/spectral_common.h	2023-03-07 11:19:38.665974730 +0530
 @@ -132,9 +132,10 @@ struct fft_sample_ath11k {
  
  struct fft_sample_ath12k {

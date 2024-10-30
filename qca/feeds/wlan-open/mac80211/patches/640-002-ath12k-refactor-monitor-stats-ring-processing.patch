@@ -243,7 +243,7 @@ Signed-off-by: P Praneesh <quic_ppranees@quicinc.com>
 +		spin_unlock_bh(&buf_ring->idr_lock);
 +
 +		if (unlikely(!skb)) {
-+			ath12k_warn(ab, "mon: dest desc with inval buf_id %d\n",
++			ath12k_warn(ab, "montior destination with invalid buf_id %d\n",
 +				    buf_id);
 +			goto move_next;
 +		}
@@ -359,15 +359,6 @@ Signed-off-by: P Praneesh <quic_ppranees@quicinc.com>
  		cookie = mon_dst_desc->cookie;
  		buf_id = u32_get_bits(cookie, DP_RXDMA_BUF_COOKIE_BUF_ID);
  
-@@ -2528,7 +2569,7 @@ int ath12k_dp_mon_rx_process_stats(struc
- 		spin_unlock_bh(&buf_ring->idr_lock);
- 
- 		if (unlikely(!skb)) {
--			ath12k_warn(ab, "montior destination with invalid buf_id %d\n",
-+			ath12k_warn(ab, "mon stats: dest ring with inval buf_id %d\n",
- 				    buf_id);
- 			goto move_next;
- 		}
 @@ -2542,11 +2583,15 @@ int ath12k_dp_mon_rx_process_stats(struc
  					  HAL_MON_DEST_INFO0_END_REASON);
  		if ((end_reason == HAL_MON_FLUSH_DETECTED) ||

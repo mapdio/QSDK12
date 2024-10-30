@@ -8,23 +8,23 @@
 include $(TOPDIR)/rules.mk
 
 PKG_NAME:=davfs2
-PKG_VERSION:=1.5.5
-PKG_RELEASE:=1
+PKG_VERSION:=1.6.1
+PKG_RELEASE:=2
 
 PKG_SOURCE:=$(PKG_NAME)-$(PKG_VERSION).tar.gz
 PKG_SOURCE_URL:=@SAVANNAH/davfs2
-PKG_HASH:=587c6a25ad78109995a7ccb8e60aa1c491b149f2c99d47033f3d5e648430ad2f
+PKG_HASH:=ce3eb948ece582a51c934ccb0cc70e659839172717caff173f69a5e2af90c5c0
 
 PKG_MAINTAINER:=Federico Di Marco <fededim@gmail.com>
-PKG_LICENSE:=GPL-3
+PKG_LICENSE:=GPL-3.0-or-later
 PKG_LICENSE_FILES:=COPYING
 PKG_CPE_ID:=cpe:/a:davfs2:davfs2
 
-PKG_FIXUP:=gettext-version autoreconf
+PKG_FIXUP:=gettext-version
+PKG_INSTALL:=1
 PKG_BUILD_PARALLEL:=1
 
 include $(INCLUDE_DIR)/package.mk
-include $(INCLUDE_DIR)/nls.mk
 
 define Package/davfs2
   SECTION:=net
@@ -54,16 +54,12 @@ endef
 
 define Package/davfs2/conffiles
 /etc/davfs2/davfs2.conf
+/etc/davfs2/secrets
 endef
 
-TARGET_CFLAGS += -I$(STAGING_DIR)/usr/include # $(ICONV_CFLAGS) $(INTL_CFLAGS)
-
-TARGET_CPPFLAGS += -D_GNU_SOURCE  # $(ICONV_CPFLAGS) $(INTL_CPPFLAGS)
-
-CONFIGURE_VARS += \
-       LDFLAGS="$(TARGET_LDFLAGS) -L$(TOOLCHAIN_DIR)/usr/lib -L$(TOOLCHAIN_DIR)/lib $(if $(INTL_FULL),-lintl) $(if $(ICONV_FULL),-liconv)" #$(INTL_LDFLAGS) $(ICONV_LDFLAGS) 
-
-CONFIGURE_ARGS += --with-neon="$(STAGING_DIR)/usr" --enable-largefile #--with-libintl-prefix=$(INTL_PREFIX) --with-libiconv-prefix=$(ICONV_PREFIX)
+CONFIGURE_ARGS += \
+	--with-neon="$(STAGING_DIR)/usr" \
+	--disable-rpath
 
 define Package/davfs2/install
 	$(INSTALL_DIR) $(1)/usr/sbin

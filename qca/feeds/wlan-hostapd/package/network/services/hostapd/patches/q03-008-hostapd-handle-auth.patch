@@ -53,7 +53,7 @@ Index: hostapd-2022-09-19/src/ap/ieee802_11.c
 +	u8 mle_len = 0;
  
 -	rlen = IEEE80211_HDRLEN + sizeof(reply->u.auth) + ies_len;
-+	if (sta && sta->ml_sta)
++	if (sta->ml_sta)
 +		mle_len = hostapd_eid_basic_mle_len(hapd, WLAN_FC_STYPE_AUTH, NULL);
 +
 +	rlen = IEEE80211_HDRLEN + sizeof(reply->u.auth) + ies_len + mle_len;

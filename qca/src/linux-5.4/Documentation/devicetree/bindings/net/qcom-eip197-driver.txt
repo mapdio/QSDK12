@@ -45,28 +45,28 @@ example:
 
 		dma0 {
 		     tx_cpu = /bits/ 8 <0>;
-		     rx_cpu = /bits/ 8 <3>;
+		     rx_cpu = /bits/ 8 <0>;
 		     ring-name = "lookaside";
 		     ring-id = /bits/ 8 <0>;
 		};
 
 		dma1 {
 		     tx_cpu = /bits/ 8 <1>;
-		     rx_cpu = /bits/ 8 <2>;
+		     rx_cpu = /bits/ 8 <1>;
 		     ring-name = "lookaside";
 		     ring-id = /bits/ 8 <1>;
 		};
 
 		dma2 {
 		     tx_cpu = /bits/ 8 <2>;
-		     rx_cpu = /bits/ 8 <1>;
+		     rx_cpu = /bits/ 8 <2>;
 		     ring-name = "lookaside";
 		     ring-id = /bits/ 8 <2>;
 		};
 
 		dma3 {
 		     tx_cpu = /bits/ 8 <3>;
-		     rx_cpu = /bits/ 8 <0>;
+		     rx_cpu = /bits/ 8 <3>;
 		     ring-name = "lookaside";
 		     ring-id = /bits/ 8 <3>;
 		};

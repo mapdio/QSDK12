@@ -19,7 +19,7 @@ PKG_LICENSE_FILES:=COPYING
 PKG_SOURCE:=$(PKG_NAME)-$(PKG_VERSION).tar.gz
 PKG_SOURCE_URL:=https://www.flyn.org/projects/lcdringer
 PKG_HASH:=72f34473a62f997516e0a73827b4400150966e1d1d98ece4d7b92075e26913e0
-PKG_BUILD_DEPENDS:=vala
+PKG_BUILD_DEPENDS:=vala/host
 
 PKG_BUILD_PARALLEL:=1
 PKG_INSTALL:=1
@@ -31,7 +31,7 @@ include $(INCLUDE_DIR)/nls.mk
 define Package/lcdringer
   SECTION:=network
   CATEGORY:=Network
-  DEPENDS:=+libgee +libgstreamer1 +loudmouth @TARGET_brcm2708
+  DEPENDS:=+libgee +libgstreamer1 +loudmouth @TARGET_bcm27xx
   TITLE:=lcdringer
   URL:=https://www.flyn.org/projects/lcdringer/
 endef

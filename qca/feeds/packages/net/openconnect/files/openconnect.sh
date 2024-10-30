@@ -1,7 +1,10 @@
 #!/bin/sh
-. /lib/functions.sh
-. ../netifd-proto.sh
-init_proto "$@"
+
+[ -n "$INCLUDE_ONLY" ] || {
+	. /lib/functions.sh
+	. ../netifd-proto.sh
+	init_proto "$@"
+}
 
 append_args() {
 	while [ $# -gt 0 ]; do
@@ -15,7 +18,9 @@ proto_openconnect_init_config() {
 	proto_config_add_int "port"
 	proto_config_add_int "mtu"
 	proto_config_add_int "juniper"
+	proto_config_add_int "reconnect_timeout"
 	proto_config_add_string "vpn_protocol"
+	proto_config_add_boolean "pfs"
 	proto_config_add_boolean "no_dtls"
 	proto_config_add_string "interface"
 	proto_config_add_string "username"
@@ -29,6 +34,7 @@ proto_openconnect_init_config() {
 	proto_config_add_string "token_script"
 	proto_config_add_string "os"
 	proto_config_add_string "csd_wrapper"
+	proto_config_add_string "proxy"
 	proto_config_add_array 'form_entry:regex("[^:]+:[^=]+=.*")'
 	no_device=1
 	available=1
@@ -40,6 +46,7 @@ proto_openconnect_add_form_entry() {
 
 proto_openconnect_setup() {
 	local config="$1"
+	local tmpfile="/tmp/openconnect-server.$$.tmp"
 
 	json_get_vars \
 		authgroup \
@@ -53,7 +60,10 @@ proto_openconnect_setup() {
 		os \
 		password \
 		password2 \
+		pfs \
 		port \
+		proxy \
+		reconnect_timeout \
 		server \
 		serverhash \
 		token_mode \
@@ -62,20 +72,32 @@ proto_openconnect_setup() {
 		usergroup \
 		username \
 
-	grep -q tun /proc/modules || insmod tun
 	ifname="vpn-$config"
 
 	logger -t openconnect "initializing..."
 
-	logger -t "openconnect" "adding host dependency for $server at $config"
-	for ip in $(resolveip -t 10 "$server"); do
-		logger -t "openconnect" "adding host dependency for $ip at $config"
-		proto_add_host_dependency "$config" "$ip" "$interface"
-	done
+	[ -n "$interface" ] && {
+		local trials=5
+
+		logger -t "openconnect" "adding host dependency for $server at $config"
+		while resolveip -t 10 "$server" > "$tmpfile" && [ "$trials" -gt 0 ]; do
+			sleep 5
+			trials=$((trials - 1))
+		done
+
+		if [ -s "$tmpfile" ]; then
+			for ip in $(cat "$tmpfile"); do
+				logger -t "openconnect" "adding host dependency for $ip at $config"
+				proto_add_host_dependency "$config" "$ip" "$interface"
+			done
+		fi
+		rm -f "$tmpfile"
+	}
 
 	[ -n "$port" ] && port=":$port"
 
 	append_args "$server$port" -i "$ifname" --non-inter --syslog --script /lib/netifd/vpnc-script
+	[ "$pfs" = 1 ] && append_args --pfs
 	[ "$no_dtls" = 1 ] && append_args --no-dtls
 	[ -n "$mtu" ] && append_args --mtu "$mtu"
 
@@ -91,9 +113,9 @@ proto_openconnect_setup() {
 		append_args --no-system-trust
 	}
 
-	if [ "${juniper:-0}" -gt 0 ]; then
-		append_args --juniper
-	fi
+	[ "${juniper:-0}" -gt 0 ] && [ -z "$vpn_protocol" ] && {
+		vpn_protocol="nc"
+	}
 
 	[ -n "$vpn_protocol" ] && {
 		append_args --protocol "$vpn_protocol"
@@ -115,7 +137,7 @@ proto_openconnect_setup() {
 			[ -n "$password2" ] && echo "$password2" >> "$pwfile"
 		}
 		[ "$token_mode" = "script" ] && {
-			$token_script > "$pwfile" 2> /dev/null || {
+			$token_script >> "$pwfile" 2> /dev/null || {
 				logger -t openconenct "Cannot get password from script '$token_script'"
 				proto_setup_failed "$config"
 			}
@@ -127,6 +149,8 @@ proto_openconnect_setup() {
 	[ -n "$token_secret" ] && append_args "--token-secret=$token_secret"
 	[ -n "$os" ] && append_args "--os=$os"
 	[ -n "$csd_wrapper" ] && [ -x "$csd_wrapper" ] && append_args "--csd-wrapper=$csd_wrapper"
+	[ -n "$proxy" ] && append_args "--proxy=$proxy"
+	[ -n "$reconnect_timeout" ] && append_args "--reconnect-timeout=$reconnect_timeout"
 
 	json_for_each_item proto_openconnect_add_form_entry form_entry
 
@@ -150,4 +174,6 @@ proto_openconnect_teardown() {
 	proto_kill_command "$config" 2
 }
 
-add_protocol openconnect
+[ -n "$INCLUDE_ONLY" ] || {
+	add_protocol openconnect
+}

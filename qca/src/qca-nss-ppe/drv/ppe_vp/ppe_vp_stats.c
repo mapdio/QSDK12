@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022, 2024 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for any
  * purpose with or without fee is hereby granted, provided that the above
@@ -20,7 +20,7 @@
 #include <ppe_drv_iface.h>
 #include "ppe_vp_base.h"
 
-#define RX_STATS_COUNT		6
+#define RX_STATS_COUNT		7
 #define TX_STATS_COUNT		4
 
 extern struct ppe_vp_base vp_base;
@@ -35,7 +35,8 @@ static const char *ppe_vp_stats_base_str[] = {
 	"Rx Destination VP Invalid",		/* Packet received from PPE without valid SVP */
 	"Rx Source VP Invalid",			/* Packet received from PPE without valid DVP */
 	"Tx VP Inactive",			/* VP of Packet forwarded by VP user is inactive */
-	"Rx Fast tramist failed"		/* Rx packet fast transmit failed */
+	"Rx Fast tramist failed",		/* Rx packet fast transmit failed */
+	"Rx Destination VP no listcb"		/* Packet received from PPE with inactive destinaton VP */
 };
 
 static const char *ppe_vp_stats_rx_str[] = {
@@ -44,7 +45,8 @@ static const char *ppe_vp_stats_rx_str[] = {
 	"Rx exceptioned packets",		/* Total exceptioned VP packets */
 	"Rx exceptioned bytes",			/* Total exceptioned VP bytes */
 	"Rx errors",				/* Total rx errors */
-	"Rx drops"				/* Total rx drops */
+	"Rx drops",				/* Total rx drops */
+	"Rx dev not up"				/* Received packets before dev IFF_UP */
 };
 
 static const char *ppe_vp_stats_tx_str[] = {
@@ -153,16 +155,18 @@ static void ppe_vp_stats_reset_per_cpu_stats(struct ppe_vp_stats *vp_stats)
 		unsigned int start;
 
 		rx_pcpu_stats = per_cpu_ptr(vp_stats->rx_stats, i);
+
 		do {
-			start = u64_stats_fetch_begin_irq(&rx_pcpu_stats->syncp);
+			start = ppe_vp_stats_fetch_begin(&rx_pcpu_stats->syncp);
 			memset(rx_pcpu_stats, 0, sizeof(*rx_pcpu_stats));
-		} while (u64_stats_fetch_retry_irq(&rx_pcpu_stats->syncp, start));
+		} while (ppe_vp_stats_fetch_retry(&rx_pcpu_stats->syncp, start));
 
 		tx_pcpu_stats = per_cpu_ptr(vp_stats->tx_stats, i);
+
 		do {
-			start = u64_stats_fetch_begin_irq(&tx_pcpu_stats->syncp);
+			start = ppe_vp_stats_fetch_begin(&tx_pcpu_stats->syncp);
 			memset(tx_pcpu_stats, 0, sizeof(*tx_pcpu_stats));
-		} while (u64_stats_fetch_retry_irq(&tx_pcpu_stats->syncp, start));
+		} while (ppe_vp_stats_fetch_retry(&tx_pcpu_stats->syncp, start));
 	}
 }
 
@@ -232,9 +236,9 @@ static int ppe_vp_stats_show(struct seq_file *m, void __attribute__((unused))*p)
 				rx_pcpu_stats = per_cpu_ptr(vp_stats->rx_stats, i);
 
 				do {
-					start = u64_stats_fetch_begin_irq(&rx_pcpu_stats->syncp);
+					start = ppe_vp_stats_fetch_begin(&rx_pcpu_stats->syncp);
 					memcpy(&rx_stats, rx_pcpu_stats, sizeof(*rx_pcpu_stats));
-				} while (u64_stats_fetch_retry_irq(&rx_pcpu_stats->syncp, start));
+				} while (ppe_vp_stats_fetch_retry(&rx_pcpu_stats->syncp, start));
 
 				rx_aggr[0] += rx_stats.rx_pkts;
 				rx_aggr[1] += rx_stats.rx_bytes;
@@ -242,13 +246,14 @@ static int ppe_vp_stats_show(struct seq_file *m, void __attribute__((unused))*p)
 				rx_aggr[3] += rx_stats.rx_excp_bytes;
 				rx_aggr[4] += rx_stats.rx_errors;
 				rx_aggr[5] += rx_stats.rx_drops;
+				rx_aggr[6] += rx_stats.rx_dev_not_up;
 
 				tx_pcpu_stats = per_cpu_ptr(vp_stats->tx_stats, i);
 
 				do {
-					start = u64_stats_fetch_begin_irq(&tx_pcpu_stats->syncp);
+					start = ppe_vp_stats_fetch_begin(&tx_pcpu_stats->syncp);
 					memcpy(&tx_stats, tx_pcpu_stats, sizeof(*tx_pcpu_stats));
-				} while (u64_stats_fetch_retry_irq(&tx_pcpu_stats->syncp, start));
+				} while (ppe_vp_stats_fetch_retry(&tx_pcpu_stats->syncp, start));
 
 				tx_aggr[0] += tx_stats.tx_pkts;
 				tx_aggr[1] += tx_stats.tx_bytes;

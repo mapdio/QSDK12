@@ -26,6 +26,11 @@
 #include <linux/version.h>
 
 /*
+ * Size of single sfe_dump msg buffer
+ */
+#define SFE_IPV4_DEBUG_MSG_SIZE 2048
+
+/*
  * Specifies the lower bound on ACK numbers carried in the TCP header
  */
 #define SFE_IPV4_TCP_MAX_ACK_WINDOW 65520
@@ -104,6 +109,10 @@ struct sfe_ipv4_vlan_filter_connection_match {
 					/* TSO enabled for dest dev */
 #define SFE_IPV4_CONNECTION_MATCH_FLAG_PACKET_HOST (1<<24)
 					/* Packet Host Type Set */
+#define SFE_IPV4_CONNECTION_MATCH_FLAG_FLS_DISABLED (1<<25)
+					/* Don't send packets to FLS */
+#define SFE_IPV4_CONNECTION_MATCH_FLAG_BRIDGE_VLAN_PASSTHROUGH (1<<26)
+					/* Bridge Vlan passthrough enable */
 
 /*
  * IPv4 multicast destination structure
@@ -251,6 +260,10 @@ struct sfe_ipv4_connection_match {
 	u32 priority;
 	u32 dscp;
 	u32 mark;			/* mark for outgoing packet */
+	u8 svc_id;			/* service_class for the flow */
+#if defined(SFE_PPE_QOS_SUPPORTED)
+	u8 int_pri;			/* INT_PRI value of PPE QDISC */
+#endif
 
 	u8 ingress_vlan_hdr_cnt;        /* Ingress active vlan headers count */
 	u8 egress_vlan_hdr_cnt;         /* Egress active vlan headers count */
@@ -383,6 +396,10 @@ enum sfe_ipv4_exception_events {
 	SFE_IPV4_EXCEPTION_EVENT_INGRESS_TRUSTSEC_SGT_MISMATCH,
 	SFE_IPV4_EXCEPTION_EVENT_GSO_NOT_SUPPORTED,
 	SFE_IPV4_EXCEPTION_EVENT_TSO_SEG_MAX_NOT_SUPPORTED,
+	SFE_IPV4_EXCEPTION_EVENT_L2TPV3_NO_CONNECTION,
+	SFE_IPV4_EXCEPTION_EVENT_L2TPV3_IP_OPTIONS_OR_INITIAL_FRAGMENT,
+	SFE_IPV4_EXCEPTION_EVENT_L2TPV3_SMALL_TTL,
+	SFE_IPV4_EXCEPTION_EVENT_L2TPV3_NEEDS_FRAGMENTATION,
 	SFE_IPV4_EXCEPTION_EVENT_LAST
 };
 
@@ -420,6 +437,7 @@ struct sfe_ipv4_stats {
 	u64 pppoe_bridge_packets_forwarded64;	/* Number of IPv4 PPPoE bridge packets forwarded */
 	u64 pppoe_bridge_packets_3tuple_forwarded64;    /* Number of IPv4 PPPoE bridge packets forwarded based on 3-tuple info */
 	u64 connection_create_requests_overflow64;	/* Number of IPV4 connection create requests after reaching max limit */
+	u64 bridge_vlan_passthorugh_forwarded64;	/* Number of IPV4 bridge vlan passthrough packets forwarded */
 };
 
 /*
@@ -440,7 +458,7 @@ struct sfe_ipv4_per_service_class_stats {
  *	stat entries for each service class.
  */
 struct sfe_ipv4_service_class_stats_db {
-	struct sfe_ipv4_per_service_class_stats psc_stats[SFE_MAX_SERVICE_CLASS_ID];
+	struct sfe_ipv4_per_service_class_stats psc_stats[SFE_MAX_SERVICE_CLASS_ID + 1];
 				/*  Per service class stats */
 };
 
@@ -513,10 +531,13 @@ struct sfe_ipv4_debug_xml_write_state {
 	enum sfe_ipv4_debug_xml_states state;
 					/* XML output file state machine state */
 	int iter_exception;		/* Next exception iterator */
+        char *msg;			/* The message written / being returned to the reader */
+        char *msgp;                     /* Points into the msg buffer as we output it to the reader piece by piece */
+        int msg_len;                    /* Length of the msg buffer still to be written out */
 };
 
-typedef int (*sfe_ipv4_debug_xml_write_method_t)(struct sfe_ipv4 *si, char *buffer, char *msg, size_t length,
-						  int *total_read, struct sfe_ipv4_debug_xml_write_state *ws);
+typedef int (*sfe_ipv4_debug_xml_write_method_t)(struct sfe_ipv4 *si, struct sfe_ipv4_debug_xml_write_state *ws, char *buffer, size_t length,
+						  int *total_read);
 
 void sfe_ipv4_fls_clear(void);
 u16 sfe_ipv4_gen_ip_csum(struct iphdr *iph);
@@ -527,7 +548,8 @@ bool sfe_ipv4_remove_connection(struct sfe_ipv4 *si, struct sfe_ipv4_connection 
 void sfe_ipv4_flush_connection(struct sfe_ipv4 *si, struct sfe_ipv4_connection *c, sfe_sync_reason_t reason);
 void sfe_ipv4_sync_status(struct sfe_ipv4 *si, struct sfe_ipv4_connection *c, sfe_sync_reason_t reason);
 #if defined(SFE_RFS_SUPPORTED)
-void sfe_ipv4_fill_connection_dev(struct sfe_ipv4_rule_destroy_msg *msg, struct net_device **original_dev, struct net_device **reply_dev);
+void sfe_ipv4_fill_connection_info(struct sfe_ipv4_rule_destroy_msg *msg, struct net_device **original_dev, struct net_device **reply_dev, uint32_t *flow_ip,
+				uint16_t *flow_ident, uint32_t *return_ip, uint16_t *return_ident);
 #endif
 struct sfe_ipv4_connection_match *
 sfe_ipv4_find_connection_match_rcu(struct sfe_ipv4 *si, struct net_device *dev, u8 protocol,

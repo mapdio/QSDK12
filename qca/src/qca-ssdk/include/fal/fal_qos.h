@@ -1,6 +1,6 @@
 /*
  * Copyright (c) 2012, 2016-2018, The Linux Foundation. All rights reserved.
- * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2023 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for any
  * purpose with or without fee is hereby granted, provided that the above
@@ -130,37 +130,6 @@ typedef enum {
 typedef struct {
 	a_uint32_t bmp[10];
 } fal_queue_bmp_t;
-
-enum {
-	FUNC_QOS_PORT_PRI_SET = 0,
-	FUNC_QOS_PORT_PRI_GET,
-	FUNC_QOS_COSMAP_PCP_GET,
-	FUNC_QUEUE_SCHEDULER_SET,
-	FUNC_QUEUE_SCHEDULER_GET,
-	FUNC_PORT_QUEUES_GET,
-	FUNC_QOS_COSMAP_PCP_SET,
-	FUNC_QOS_PORT_REMARK_GET,
-	FUNC_QOS_COSMAP_DSCP_GET,
-	FUNC_QOS_COSMAP_FLOW_SET,
-	FUNC_QOS_PORT_GROUP_SET,
-	FUNC_RING_QUEUE_MAP_SET,
-	FUNC_QOS_COSMAP_DSCP_SET,
-	FUNC_QOS_PORT_REMARK_SET,
-	FUNC_QOS_COSMAP_FLOW_GET,
-	FUNC_QOS_PORT_GROUP_GET,
-	FUNC_RING_QUEUE_MAP_GET,
-	FUNC_TDM_TICK_NUM_SET,
-	FUNC_TDM_TICK_NUM_GET,
-	FUNC_PORT_SCHEDULER_CFG_SET,
-	FUNC_PORT_SCHEDULER_CFG_GET,
-	FUNC_SCHEDULER_DEQUEUE_CTRL_GET,
-	FUNC_SCHEDULER_DEQUEUE_CTRL_SET,
-	FUNC_QOS_PORT_MODE_PRI_GET,
-	FUNC_QOS_PORT_MODE_PRI_SET,
-	FUNC_QOS_PORT_SCHEDULER_CFG_RESET,
-	FUNC_QOS_PORT_SCHEDULER_RESOURCE_GET,
-	FUNC_QOS_RESERVEDPOOL_SCHEDULER_RESOURCE_GET,
-};
 
 typedef struct {
 	a_uint16_t ucastq_start;

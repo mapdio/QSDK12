@@ -82,11 +82,13 @@
 #define	SP_RULE_FLAG_MATCH_SCS_SPI			0x80000		/* SCS SPI match mask*/
 #define SP_RULE_FLAG_MATCH_MSCS_TID_BITMAP		0x100000	/* MSCS Bitmap match*/
 #define SP_RULE_FLAG_MATCH_PRIORITY_LIMIT		0x200000	/* Priority Limit value*/
-#define	SP_RULE_FLAG_MATCH_IFINDEX			0x400000	/* Interface Index mask */
+#define	SP_RULE_FLAG_MATCH_DST_IFINDEX			0x400000	/* Destination Interface Index mask */
 #define	SP_RULE_FLAG_MATCH_SAWF_SRC_PORT_RANGE_START	0x800000	/* Match sawf source port range start */
 #define	SP_RULE_FLAG_MATCH_SAWF_SRC_PORT_RANGE_END	0x1000000	/* Match sawf source port range end */
 #define	SP_RULE_FLAG_MATCH_SAWF_DST_PORT_RANGE_START	0x2000000	/* Match sawf destination port range start */
 #define	SP_RULE_FLAG_MATCH_SAWF_DST_PORT_RANGE_END	0x4000000	/* Match sawf destination port range end */
+#define SP_RULE_FLAG_MATCH_SAWF_SRC_IFACE		0x8000000	/* Match sawf source interface */
+#define SP_RULE_FLAG_MATCH_SAWF_DST_IFACE		0x10000000	/* Match sawf destination interface */
 
 #define IPV6_ADDR_LEN		4
 
@@ -141,6 +143,19 @@ enum sp_mapdb_add_remove_filter_types {
 	SP_MAPDB_ADD_REMOVE_FILTER_QUERY,		/* Query rule table */
 };
 typedef enum sp_mapdb_add_remove_filter_types sp_mapdb_add_remove_filter_type_t;
+
+/*
+ * sp_rule_ae_type
+ *	This enum defines different Ae types.
+ */
+enum sp_rule_ae_type {
+	SP_RULE_AE_TYPE_DEFAULT,			/* ae type default. */
+	SP_RULE_AE_TYPE_PPE,				/* ae type ppe. */
+	SP_RULE_AE_TYPE_SFE,				/* ae type sfe. */
+	SP_RULE_AE_TYPE_PPE_DS,				/* ae type ppe-ds. */
+	SP_RULE_AE_TYPE_PPE_VP,				/* ae type ppe-vp. */
+	SP_RULE_AE_TYPE_NONE,				/* no ae type. */
+};
 
 struct sp_rule_inner {
 
@@ -296,9 +311,9 @@ struct sp_rule_inner {
 	uint8_t priority_limit;
 
 	/*
-	 * Interface Index
+	 * Destination Interface Index
 	 */
-	uint8_t ifindex;
+	uint8_t dst_ifindex;
 
 	/*
 	 * Source port range start
@@ -319,6 +334,26 @@ struct sp_rule_inner {
 	 * Destination port range end
 	 */
 	uint16_t dst_port_range_end;
+
+	/*
+	 * Acceleration engine type
+	 */
+	enum sp_rule_ae_type ae_type;
+
+	/*
+	 * Source interface
+	 */
+	char src_iface[IFNAMSIZ];
+
+	/*
+	 * Destination interface
+	 */
+	char dst_iface[IFNAMSIZ];
+
+	/*
+	 * Source Interface Index
+	 */
+	uint8_t src_ifindex;
 };
 
 /*
@@ -326,11 +361,14 @@ struct sp_rule_inner {
  * 	This enum defines rule classifier type
  */
 enum sp_rule_classifier_type {
+	SP_RULE_TYPE_SAWF_INVALID,	/* For invalid type */
 	SP_RULE_TYPE_MESH,	/* For non-sawf rule */
 	SP_RULE_TYPE_SAWF,	/* For SAWF rule */
 	SP_RULE_TYPE_SCS,	/* For SCS rule */
 	SP_RULE_TYPE_MSCS,	/* For MSCS rule */
 	SP_RULE_TYPE_SAWF_SCS,	/* For SAWF-SCS rule type */
+	SP_RULE_TYPE_SAWF_IFLI,	/* For IFLI rule type */
+	SP_RULE_TYPE_SAWF_MAX,	/* Max SP rule type */
 };
 
 /*
@@ -339,6 +377,7 @@ enum sp_rule_classifier_type {
  */
 struct sp_rule {
 	u_int32_t id;						/* Service prioritization rule identifier */
+	u_int32_t key;						/* Key for IFLI cases. */
 	sp_mapdb_add_remove_filter_type_t cmd;			/* Command type. 1 means add 0 means delete. */
 	struct sp_rule_inner inner;				/* Inner structure */
 	uint8_t rule_precedence;				/* Rule precedence – higher number means higher priority. */
@@ -370,8 +409,9 @@ struct sp_rule_input_params {
 	uint8_t dscp;				/* DSCP value */
 	uint8_t ip_version_type;		/* IP Version type */
 	uint16_t vlan_tci;			/* Vlan TCI */
-	uint8_t ifindex;			/* interface index */
+	uint8_t dst_ifindex;			/* Destination interface index */
 	uint8_t dev_addr[ETH_HLEN];		/* Netdevice address in case of WDS EXT case */
+	uint8_t src_ifindex;			/* Source Interface Index */
 };
 
 /*
@@ -384,6 +424,9 @@ struct sp_rule_output_params {
 	uint8_t dscp_remark;		/* DSCP remark */
 	uint8_t vlan_pcp_remark;	/* Vlan PCP remark */
 	uint32_t rule_id;		/* Rule ID */
+	uint8_t sawf_rule_type;		/* rule based flag*/
+	enum sp_rule_ae_type ae_type;	/* acceleration engine mode */
+	uint32_t key;			/* Key to get hash bucket index*/
 };
 
 sp_mapdb_update_result_t sp_mapdb_rule_update(struct sp_rule *newrule);
@@ -393,10 +436,12 @@ void sp_mapdb_apply(struct sk_buff *skb, uint8_t *smac, uint8_t *dmac);
 void sp_mapdb_notifier_register(struct notifier_block *nb);
 void sp_mapdb_notifier_unregister(struct notifier_block *nb);
 void sp_mapdb_ruletable_flush(void);
+void sp_mapdb_ifli_rule_flush(uint32_t rule_id, uint32_t key);
 void sp_mapdb_rule_apply_sawf(struct sk_buff *skb, struct sp_rule_input_params *params,
 			      struct sp_rule_output_params *rule_output);
 void sp_mapdb_apply_scs(struct sk_buff *skb, struct sp_rule_input_params *params,
 			      struct sp_rule_output_params *rule_output);
 void sp_mapdb_apply_mscs(struct sk_buff *skb, struct sp_rule_input_params *params,
 			      struct sp_rule_output_params *output);
+char *sp_mapdb_get_classifier_type_str(enum sp_rule_classifier_type type);
 #endif

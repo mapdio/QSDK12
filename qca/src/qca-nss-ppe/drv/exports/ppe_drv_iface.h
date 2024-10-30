@@ -194,6 +194,17 @@ bool ppe_drv_iface_deref(struct ppe_drv_iface *ppe_iface);
 struct ppe_drv_iface *ppe_drv_iface_get_by_dev(struct net_device *dev);
 
 /**
+ * ppe_drv_dev_get_by_iface_idx
+ *	Get net device by PPE Interface index.
+ *
+ *  @param[in] index    PPE interface index.
+ *
+ * @return
+ * Net device if lookup is successful else NULL for failure.
+ */
+struct net_device *ppe_drv_dev_get_by_iface_idx(ppe_drv_iface_t index);
+
+/**
  * ppe_drv_iface_port_idx_get
  *	Get port index from PPE interface.
  *
@@ -259,6 +270,21 @@ ppe_drv_ret_t ppe_drv_iface_ucast_queue_set(struct ppe_drv_iface *iface, uint8_t
  */
 struct ppe_drv_iface *ppe_drv_iface_get_by_idx(ppe_drv_iface_t idx);
 
-/** @} */ /* end_addtogroup ppe_drv_iface_subsystem */
+/**
+ * ppe_drv_iface_check_flow_offload_enabled
+ *	API to check whether PPE offload is enabled or not.
+ *
+ * @datatypes
+ * ppe_drv_iface_t
+ *
+ * @param[in] rx_if  Rx interface index.
+ * @param[in] tx_if  Tx interface index.
+ *
+ * @return
+ * true or false
+ */
+bool ppe_drv_iface_check_flow_offload_enabled(ppe_drv_iface_t rx_if,
+				ppe_drv_iface_t tx_if);
 
+/** @} */ /* end_addtogroup ppe_drv_iface_subsystem */
 #endif /* _PPE_DRV_IFACE_H_ */

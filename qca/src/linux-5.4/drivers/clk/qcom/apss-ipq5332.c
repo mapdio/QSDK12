@@ -15,6 +15,7 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  */
 
+#include <linux/clk.h>
 #include <linux/kernel.h>
 #include <linux/err.h>
 #include <linux/platform_device.h>
@@ -40,6 +41,11 @@
 #include "reset.h"
 
 #define F(f, s, h, m, n) { (f), (s), (2 * (h) - 1), (m), (n) }
+
+#if !defined(CONFIG_CPU_FREQ) && defined(CONFIG_IPQ_FLASH_16M_PROFILE)
+#define NOMINAL_FREQ	1100000000
+#define TURBO_FREQ	1500000000
+#endif
 
 enum {
 	P_XO,
@@ -183,6 +189,11 @@ static int apss_ipq5332_probe(struct platform_device *pdev)
 	int ret;
 	struct regmap *regmap;
 	const struct alpha_pll_config *config;
+#if !defined(CONFIG_CPU_FREQ) && defined(CONFIG_IPQ_FLASH_16M_PROFILE)
+	struct clk* cpu_clk;
+	unsigned long rate;
+	struct device_node *np = of_cpu_device_node_get(0);
+#endif
 
 	regmap = dev_get_regmap(pdev->dev.parent, NULL);
 	if (IS_ERR(regmap))
@@ -194,6 +205,28 @@ static int apss_ipq5332_probe(struct platform_device *pdev)
 
 	ret = qcom_cc_really_probe(pdev, &apss_ipq5332_desc, regmap);
 	dev_dbg(&pdev->dev, "Registered ipq5332 apss clock provider\n");
+
+#if !defined(CONFIG_CPU_FREQ) && defined(CONFIG_IPQ_FLASH_16M_PROFILE)
+	if (!ret) {
+		cpu_clk = of_clk_get_by_name(np, "cpu");
+		if (IS_ERR(cpu_clk)) {
+			ret = PTR_ERR(cpu_clk);
+			dev_err(&pdev->dev, "failed to get cpu-clk, %d", ret);
+			return ret;
+		}
+
+		if (cpu_is_ipq5312() || cpu_is_ipq5302())
+			rate = NOMINAL_FREQ;
+		else
+			rate = TURBO_FREQ;
+
+		ret = clk_set_rate(cpu_clk, rate);
+		if (ret) {
+			dev_err(&pdev->dev, "failed to set rate for cpu-clk, %d",
+				ret);
+		}
+	}
+#endif
 
 	return ret;
 }

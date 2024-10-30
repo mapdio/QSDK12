@@ -3,7 +3,8 @@
  * IPQ9574 Memory device tree source
  *
  * Copyright (c) 2021 The Linux Foundation. All rights reserved.
- */
+ * Copyright (c) 2024 Qualcomm Innovation Center, Inc. All rights reserved.
+*/
 
 / {
 	MP_512;
@@ -18,7 +19,7 @@
 	 * |        |              |                         |
 	 * |        |              |                         |
 	 * |        |              |                         |
-	 * | Linux  |  0x42000000  |         129MB           |
+	 * | Linux  |  0x41000000  |         145MB           |
 	 * |        |              |                         |
 	 * |        |              |                         |
 	 * |        |              |                         |
@@ -88,7 +89,7 @@
 
 		nss@40000000 {
 			no-map;
-			reg = <0x0 0x40000000 0x0 0x02000000>;
+			reg = <0x0 0x40000000 0x0 0x01000000>;
 			status = "disabled";
 		 };
 
@@ -156,6 +157,10 @@
 			compatible = "shared-dma-pool";
 			no-map;
 			reg = <0x0 0x50C00000 0x0 0x00900000>;
+		};
+
+		minidump_mem: minidump_mem@0 {
+			no-map;
 		};
 
 		rpm_msg_ram: rpm_msg_ram@0x60000 {

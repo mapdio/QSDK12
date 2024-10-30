@@ -1,7 +1,7 @@
 /*
  * Copyright (c) 2021, The Linux Foundation. All rights reserved.
  *
- * Copyright (c) 2022-2023 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2024 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for any
  * purpose with or without fee is hereby granted, provided that the above
@@ -124,12 +124,19 @@ static int edma_dp_mac_addr(struct nss_dp_data_plane_ctx *dpc, uint8_t *addr)
 static int edma_dp_change_mtu(struct nss_dp_data_plane_ctx *dpc, uint32_t mtu)
 {
 	struct ppe_drv_iface *iface = ppe_drv_iface_get_by_dev(dpc->dev);
+	ppe_drv_ret_t ret;
+
 	if (!iface) {
 		netdev_dbg(dpc->dev, "cannot get iface for corresponding netdev:%p\n", dpc->dev);
 		return NSS_DP_SUCCESS;
 	}
 
-	ppe_drv_iface_mtu_set(iface, mtu);
+	ret = ppe_drv_iface_mtu_set(iface, mtu);
+
+	if (ret != PPE_DRV_RET_SUCCESS) {
+		netdev_dbg(dpc->dev, "MTU %d is not supported:%p\n", mtu, dpc->dev);
+		return NSS_DP_FAILURE;
+	}
 
 	return NSS_DP_SUCCESS;
 }
@@ -148,8 +155,12 @@ static netdev_tx_t edma_dp_xmit(struct nss_dp_data_plane_ctx *dpc,
 	struct nss_dp_dev *dp_dev;
 	struct sk_buff *segs;
 	uint32_t skbq;
+	uint8_t cpu_id;
 	int ret;
 	enum edma_tx_gso result;
+#ifdef NSS_DP_MHT_SW_PORT_MAP
+	uint32_t skb_mark = 0;
+#endif
 
 	/*
 	 * Select a TX ring
@@ -157,7 +168,18 @@ static netdev_tx_t edma_dp_xmit(struct nss_dp_data_plane_ctx *dpc,
 	skbq = (skb_get_queue_mapping(skb) & (NR_CPUS - 1));
 
 	dp_dev = (struct nss_dp_dev *)netdev_priv(netdev);
+#ifdef NSS_DP_MHT_SW_PORT_MAP
+	if (dp_dev->nss_dp_mht_dev) {
+		if (EDMA_TX_MHT_SW_PORT_MARK_VALID(skb->mark))
+			skb_mark = EDMA_TX_MHT_SW_PORT_MARK_GET(skb->mark);
+
+		txdesc_ring = (struct edma_txdesc_ring *)dp_dev->dp_info.txr_sw_port_map[skb_mark][skbq];
+	} else {
+		txdesc_ring = (struct edma_txdesc_ring *)dp_dev->dp_info.txr_map[0][skbq];
+	}
+#else
 	txdesc_ring = (struct edma_txdesc_ring *)dp_dev->dp_info.txr_map[0][skbq];
+#endif
 
 	pcpu_stats = &dp_dev->dp_info.pcpu_stats;
 	stats = this_cpu_ptr(pcpu_stats->tx_stats);
@@ -174,6 +196,37 @@ static netdev_tx_t edma_dp_xmit(struct nss_dp_data_plane_ctx *dpc,
 		 * Transmit the packet
 		 */
 		ret = edma_tx_ring_xmit(netdev, NULL, skb, txdesc_ring, stats);
+
+		/*
+		 * If return failure is due to no descriptor and if tx_requeue_stop is not enabled
+		 * then stop the queue and return status as "NETDEV_TX_BUSY".
+		 * This queue will be enabled again from EDMA tx complete.
+		 */
+		if (unlikely(ret == EDMA_TX_FAIL_NO_DESC)) {
+#ifdef NSS_DP_MHT_SW_PORT_MAP
+			/*
+			 * When MHT SW port is enabled, Tx rings are mapped
+			 * to individual MHT ports but netdev still
+			 * remains same. Hence requeue cannot be done if
+			 * MHT SW port mapping is enabled on MHT netdevice.
+			 */
+			if (unlikely(dp_dev->nss_dp_mht_dev)) {
+				goto no_requeue;
+			}
+#endif
+			if (likely(!dp_global_ctx.tx_requeue_stop)) {
+				cpu_id = smp_processor_id();
+				edma_debug("Stopping tx queue due to lack of tx descriptors\n");
+				u64_stats_update_begin(&stats->syncp);
+				++stats->tx_queue_stopped[cpu_id];
+				u64_stats_update_end(&stats->syncp);
+				netif_tx_stop_queue(netdev_get_tx_queue(netdev, skbq));
+				return NETDEV_TX_BUSY;
+			}
+		}
+#ifdef NSS_DP_MHT_SW_PORT_MAP
+no_requeue:
+#endif
 		if (unlikely(ret != EDMA_TX_OK)) {
 			dev_kfree_skb_any(skb);
 			u64_stats_update_begin(&stats->syncp);
@@ -262,11 +315,10 @@ static void edma_dp_get_ndo_stats(struct nss_dp_data_plane_ctx *dpc,
 		struct edma_tx_stats txp;
 		unsigned int start;
 		pcpu_rx_stats = per_cpu_ptr(dp_info->pcpu_stats.rx_stats, i);
-
 		do {
-			start = u64_stats_fetch_begin_irq(&pcpu_rx_stats->syncp);
+			start = edma_dp_stats_fetch_begin(&pcpu_rx_stats->syncp);
 			memcpy(&rxp, pcpu_rx_stats, sizeof(*pcpu_rx_stats));
-		} while (u64_stats_fetch_retry_irq(&pcpu_rx_stats->syncp, start));
+		} while (edma_dp_stats_fetch_retry(&pcpu_rx_stats->syncp, start));
 
 		stats->stats.rx_packets += rxp.rx_pkts;
 		stats->stats.rx_bytes += rxp.rx_bytes;
@@ -278,9 +330,9 @@ static void edma_dp_get_ndo_stats(struct nss_dp_data_plane_ctx *dpc,
 		pcpu_tx_stats = per_cpu_ptr(dp_info->pcpu_stats.tx_stats, i);
 
 		do {
-			start = u64_stats_fetch_begin_irq(&pcpu_tx_stats->syncp);
+			start = edma_dp_stats_fetch_begin(&pcpu_tx_stats->syncp);
 			memcpy(&txp, pcpu_tx_stats, sizeof(*pcpu_tx_stats));
-		} while (u64_stats_fetch_retry_irq(&pcpu_tx_stats->syncp, start));
+		} while (edma_dp_stats_fetch_retry(&pcpu_tx_stats->syncp, start));
 
 		stats->stats.tx_packets += txp.tx_pkts;
 		stats->stats.tx_bytes += txp.tx_bytes;
@@ -292,6 +344,8 @@ static void edma_dp_get_ndo_stats(struct nss_dp_data_plane_ctx *dpc,
 		stats->stats.tx_tso_drop_packets += txp.tx_tso_drop_pkts;
 		stats->stats.tx_gso_packets += txp.tx_gso_pkts;
 		stats->stats.tx_gso_drop_packets += txp.tx_gso_drop_pkts;
+		stats->stats.tx_queue_stopped[i] += txp.tx_queue_stopped[i];
+
 	}
 }
 
@@ -376,16 +430,20 @@ static int edma_dp_configure(struct net_device *netdev, uint32_t macid)
 
 	edma_cfg_tx_fill_per_port_tx_map(netdev, macid);
 
+	/*
+	 * TX NAPI addition
+	 */
+	edma_cfg_tx_napi_add(&edma_gbl_ctx, netdev, macid);
+
 	if (edma_gbl_ctx.napi_added) {
 		return 0;
 	}
 
 	/*
-	 * TX/RX NAPI addition
+	 * RX NAPI addition
 	 * Note: We do not support Rx for VPs dummy MACs.
 	 */
 	edma_cfg_rx_napi_add(&edma_gbl_ctx, netdev);
-	edma_cfg_tx_napi_add(&edma_gbl_ctx, netdev);
 
 	/*
 	 * Register the interrupt handlers
@@ -410,6 +468,11 @@ static int edma_dp_init(struct nss_dp_data_plane_ctx *dpc)
 	struct nss_dp_dev *dp_dev = (struct nss_dp_dev *)netdev_priv(netdev);
 	int ret = 0;
 	struct ppe_drv_iface *iface = NULL;
+#ifdef NSS_DP_MHT_SW_PORT_MAP
+	bool is_mht_dev = dp_dev->nss_dp_mht_dev;
+#else
+	bool is_mht_dev = false;
+#endif
 
 	/*
 	 * Allocate per-cpu stats memory
@@ -445,9 +508,9 @@ static int edma_dp_init(struct nss_dp_data_plane_ctx *dpc)
 
 	if (dp_dev->macid < NSS_DP_VP_MAC_ID) {
 		/*
-		* Allocate PPE interface global object which will hold various information
-		* about the port allocated in a single global structure.
-		*/
+		 * Allocate PPE interface global object which will hold various information
+		 * about the port allocated in a single global structure.
+		 */
 		iface = ppe_drv_iface_alloc(PPE_DRV_IFACE_TYPE_PHYSICAL, netdev);
 		if (!iface) {
 			netdev_err(netdev, "Error allocating PPE interface for dev(%p) dev-name %s\n",
@@ -458,11 +521,22 @@ static int edma_dp_init(struct nss_dp_data_plane_ctx *dpc)
 		}
 
 		/*
-		* Initialize port allocated in PPE
-		*/
-		if (ppe_drv_dp_init(iface, dp_dev->macid) != PPE_DRV_RET_SUCCESS) {
+		 * Initialize port allocated in PPE
+		 */
+		if (ppe_drv_dp_init(iface, dp_dev->macid,
+					is_mht_dev) != PPE_DRV_RET_SUCCESS) {
 			netdev_err(netdev, "Error allocating PPE interface for dev(%p) dev-name %s\n",
 					netdev, netdev->name);
+			ppe_drv_iface_deref(iface);
+			free_percpu(dp_dev->dp_info.pcpu_stats.rx_stats);
+			free_percpu(dp_dev->dp_info.pcpu_stats.tx_stats);
+			return NSS_DP_FAILURE;
+		}
+
+		if (ppe_drv_dp_set_ppe_offload_enable_flag(iface, dp_dev->ppe_offload_disabled)) {
+			netdev_err(netdev, "Error setting PPE offload enabled bit for dev: %s",
+					netdev->name);
+			ppe_drv_dp_deinit(iface);
 			ppe_drv_iface_deref(iface);
 			free_percpu(dp_dev->dp_info.pcpu_stats.rx_stats);
 			free_percpu(dp_dev->dp_info.pcpu_stats.tx_stats);

@@ -41,9 +41,30 @@ define Build/Compile
 	$(MAKE) -C $(PKG_BUILD_DIR) $(strip $(QCASSDK_CONFIG_OPTS))
 endef
 
+define Build/InstallDev
+	$(INSTALL_DIR) $(1)/usr/include/qca-ssdk-shell
+	$(INSTALL_DIR) $(1)/usr/include/qca-ssdk-shell/sal
+
+	$(CP) -rf $(PKG_BUILD_DIR)/include/fal $(1)/usr/include/qca-ssdk-shell
+	$(CP) -rf $(PKG_BUILD_DIR)/include/ref $(1)/usr/include/qca-ssdk-shell
+	$(CP) -rf $(PKG_BUILD_DIR)/include/sal/os $(1)/usr/include/qca-ssdk-shell/sal
+	$(CP) -rf $(PKG_BUILD_DIR)/include/common $(1)/usr/include/qca-ssdk-shell
+	$(CP) -rf $(PKG_BUILD_DIR)/include/common/*.h $(1)/usr/include/qca-ssdk-shell
+	$(CP) -rf $(PKG_BUILD_DIR)/include/fal/*.h $(1)/usr/include/qca-ssdk-shell
+	$(CP) -rf $(PKG_BUILD_DIR)/include/sal/os/*.h $(1)/usr/include/qca-ssdk-shell
+	$(CP) -rf $(PKG_BUILD_DIR)/include/sal/os/linux_user/*.h $(1)/usr/include/qca-ssdk-shell
+
+	$(INSTALL_DIR) $(1)/usr/lib
+	$(INSTALL_BIN) $(PKG_BUILD_DIR)/build/bin/libssdk_us.so $(1)/usr/lib/
+	$(INSTALL_BIN) $(PKG_BUILD_DIR)/build/bin/libssdk_us_um.a $(1)/usr/lib/
+endef
+
 define Package/qca-ssdk-shell/install
 	$(INSTALL_DIR) $(1)/usr/sbin
 	$(INSTALL_BIN) $(PKG_BUILD_DIR)/build/bin/ssdk_sh $(1)/usr/sbin/
+
+	$(INSTALL_DIR) $(1)/usr/lib
+	$(INSTALL_BIN) $(PKG_BUILD_DIR)/build/bin/libssdk_us.so $(1)/usr/lib/
 endef
 
 

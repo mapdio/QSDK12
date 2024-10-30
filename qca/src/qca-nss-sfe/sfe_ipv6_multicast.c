@@ -41,7 +41,7 @@
  *	Send the packet to an interface.
  */
 int sfe_ipv6_forward_multicast(struct sfe_ipv6 *si, struct sk_buff *skb, unsigned int len, struct ipv6hdr *iph,
-		struct udphdr *udph, struct sfe_ipv6_mc_dest *mc_xmit_dev, struct sfe_l2_info *l2_info, bool tun_outer)
+		struct udphdr *udph, struct sfe_ipv6_mc_dest *mc_xmit_dev, struct sfe_l2_info *l2_info, bool tun_outer, bool udph_valid)
 
 {
 	struct net_device *xmit_dev;
@@ -68,13 +68,58 @@ int sfe_ipv6_forward_multicast(struct sfe_ipv6 *si, struct sk_buff *skb, unsigne
 	hw_csum = !!(mc_xmit_dev->flags & SFE_IPV6_CONNECTION_MATCH_FLAG_CSUM_OFFLOAD) && (skb->ip_summed == CHECKSUM_UNNECESSARY);
 
 	/*
+	 * Do we have to perform translations of the source address/port?
+	 */
+	if (unlikely(mc_xmit_dev->flags & SFE_IPV6_CONNECTION_MATCH_FLAG_XLATE_SRC)) {
+		u16 udp_csum;
+
+		iph->saddr.s6_addr32[0] = mc_xmit_dev->xlate_src_ip[0];
+		iph->saddr.s6_addr32[1] = mc_xmit_dev->xlate_src_ip[1];
+		iph->saddr.s6_addr32[2] = mc_xmit_dev->xlate_src_ip[2];
+		iph->saddr.s6_addr32[3] = mc_xmit_dev->xlate_src_ip[3];
+		if (likely(udph_valid)) {
+			udph->source = mc_xmit_dev->xlate_src_ident;
+
+			DEBUG_TRACE("%px: SRC XLAT :%pI6 ident:%u\n", skb, (void *)&mc_xmit_dev->xlate_src_ip,	mc_xmit_dev->xlate_src_ident);
+
+			/*
+			 * Do we have a non-zero UDP checksum?  If we do then we need
+			 * to update it.
+			 */
+			if (unlikely(!hw_csum)) {
+				udp_csum = udph->check;
+				if (likely(udp_csum)) {
+					u32 sum;
+
+					/*
+					 * Get the 1's compliment of csum here
+					 * instead of inline in the next step to prevent
+					 * compilier from doing a 32bit 1's compliment.
+					 */
+					udp_csum = ~udp_csum;
+					sum = udp_csum + mc_xmit_dev->xlate_src_csum_adjustment;
+
+					/*
+					 * Since we used 32bits to store the 1's compliment sum,
+					 * when converting it back to 16bits, we need to add the
+					 * carry to lsb as well. This is taken care by the 2nd
+					 * iteration of sum.
+					 */
+					sum = (sum & 0xffff) + (sum >> 16);
+					sum = (sum & 0xffff) + (sum >> 16);
+					udph->check = (u16)~sum;
+				}
+			}
+		}
+	}
+
+	/*
 	 * Decrement our TTL
 	 * Except when called from hook function in post-decap.
 	 */
 	if (likely(!bridge_flow)) {
 		iph->hop_limit -= (u8)!tun_outer;
 	}
-
 
 	/*
 	 * If HW checksum offload is not possible, full L3 checksum and incremental L4 checksum
@@ -166,12 +211,12 @@ int sfe_ipv6_forward_multicast(struct sfe_ipv6 *si, struct sk_buff *skb, unsigne
  */
 int sfe_ipv6_recv_multicast(struct sfe_ipv6 *si, struct sk_buff *skb,
 		unsigned int ihl, unsigned int len, struct sfe_ipv6_connection_match *cm,
-		struct sfe_l2_info *l2_info, bool tun_outer)
+		struct sfe_l2_info *l2_info, bool tun_outer, bool udph_valid)
 
 {
 	u32 service_class_id;
 	struct ipv6hdr *iph;
-	struct udphdr *udph;
+	struct udphdr *udph = NULL;
 	struct sfe_ipv6_mc_dest *mc_xmit_dev;
 
 	/*
@@ -179,6 +224,20 @@ int sfe_ipv6_recv_multicast(struct sfe_ipv6 *si, struct sk_buff *skb,
 	 */
 	atomic_inc(&cm->rx_packet_count);
 	atomic_add(len, &cm->rx_byte_count);
+
+	/*
+	 * Temporary WAR to avoid SKB leak where mc_list is NULL at this point
+	 */
+	if (list_empty(&cm->mc_list)) {
+		return 0;
+	}
+
+	/*
+         * duplicated packet with VLan Passthrough
+         */
+        if (unlikely((cm->flags & SFE_IPV6_CONNECTION_MATCH_FLAG_BRIDGE_VLAN_PASSTHROUGH) && !l2_info->vlan_hdr_cnt)) {
+                return 0;
+        }
 
 	/*
 	 * Update DSCP
@@ -212,7 +271,7 @@ int sfe_ipv6_recv_multicast(struct sfe_ipv6 *si, struct sk_buff *skb,
 		 * Update service class stats if SAWF is valid.
 		 */
 		if (likely(cm->sawf_valid)) {
-			service_class_id = SFE_GET_SAWF_SERVICE_CLASS(cm->mark);
+			service_class_id = cm->svc_id;
 			sfe_ipv6_service_class_stats_inc(si, service_class_id, len);
 		}
 	}
@@ -236,7 +295,7 @@ int sfe_ipv6_recv_multicast(struct sfe_ipv6 *si, struct sk_buff *skb,
 		if (mc_xmit_dev->list.next == &cm->mc_list) {
 			nskb = skb;
 		} else if ((!bridge_flow && !tun_outer) || (mc_xmit_dev->flags & SFE_IPV6_CONNECTION_MATCH_FLAG_MULTICAST_CHANGED)) {
-			nskb = skb_copy(skb, GFP_ATOMIC);
+			nskb = pskb_copy(skb, GFP_ATOMIC);
 		} else {
 			nskb = skb_clone(skb, GFP_ATOMIC);
 		}
@@ -253,11 +312,14 @@ int sfe_ipv6_recv_multicast(struct sfe_ipv6 *si, struct sk_buff *skb,
 
 		}
 		iph = (struct ipv6hdr *)nskb->data;
-		udph = (struct udphdr *)(nskb->data + ihl);
+		if (udph_valid) {
+			udph = (struct udphdr *)(nskb->data + ihl);
+		}
+
 		/*
 		 * Always return 1
 		 */
-		sfe_ipv6_forward_multicast(si, nskb, len, iph, udph, mc_xmit_dev, l2_info,tun_outer);
+		sfe_ipv6_forward_multicast(si, nskb, len, iph, udph, mc_xmit_dev, l2_info, tun_outer, udph_valid);
 	}
 
 	return 1;

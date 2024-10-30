@@ -807,7 +807,7 @@ EXPORT_SYMBOL(ecm_db_mapping_alloc);
  */
 bool ecm_db_mapping_init(struct dentry *dentry)
 {
-	if (!debugfs_create_u32("mapping_count", S_IRUGO, dentry,
+	if (!ecm_debugfs_create_u32("mapping_count", S_IRUGO, dentry,
 					(u32 *)&ecm_db_mapping_count)) {
 		DEBUG_ERROR("Failed to create ecm db mapping count file in debugfs\n");
 		return false;

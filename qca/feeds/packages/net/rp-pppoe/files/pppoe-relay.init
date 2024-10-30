@@ -1,9 +1,8 @@
 #!/bin/sh /etc/rc.common
 # Copyright (C) 2006-2011 OpenWrt.org
-# Copyright (c) 2013 The Linux Foundation. All rights reserved.
 
-START=60
-STOP=80
+START=50
+STOP=50
 USE_PROCD=1
 
 pppoe_triggers() {

@@ -88,7 +88,7 @@ Signed-off-by: Aloka Dixit <quic_alokad@quicinc.com>
  			     u16 reason_code, const u8 *ie, size_t ielen);
 --- a/src/ap/beacon.c
 +++ b/src/ap/beacon.c
-@@ -2192,7 +2192,9 @@ static int __ieee802_11_set_beacon(struc
+@@ -2190,7 +2190,9 @@ static int __ieee802_11_set_beacon(struc
  				    cmode->vht_capab,
  				    &cmode->he_capab[IEEE80211_MODE_AP],
  				    &cmode->eht_capab[IEEE80211_MODE_AP],
@@ -136,7 +136,7 @@ Signed-off-by: Aloka Dixit <quic_alokad@quicinc.com>
 @@ -1450,7 +1455,9 @@ static int hostapd_dfs_testmode_set_beac
  				      iface->current_mode->vht_capab,
  				      &iface->current_mode->he_capab[IEEE80211_MODE_AP],
- 				      &iface->current_mode->eht_capab[IEEE80211_MODE_AP],
+ 				      NULL,
 -				      iface->conf->he_6ghz_reg_pwr_type);
 +				      iface->conf->he_6ghz_reg_pwr_type,
 +				      iface->conf->ru_punct_bitmap,
@@ -146,7 +146,7 @@ Signed-off-by: Aloka Dixit <quic_alokad@quicinc.com>
  		wpa_printf(MSG_ERROR, "DFS failed to calculate CSA freq params");
 --- a/src/ap/hostapd.c
 +++ b/src/ap/hostapd.c
-@@ -2143,7 +2143,9 @@ static int hostapd_setup_interface_compl
+@@ -2140,7 +2140,9 @@ static int hostapd_setup_interface_compl
  				     hostapd_get_oper_centr_freq_seg0_idx(
  					     hapd->iconf),
  				     hostapd_get_oper_centr_freq_seg1_idx(
@@ -157,7 +157,7 @@ Signed-off-by: Aloka Dixit <quic_alokad@quicinc.com>
  			wpa_printf(MSG_ERROR, "Could not set channel for "
  				   "kernel driver");
  			goto fail;
-@@ -3554,7 +3556,9 @@ static int hostapd_change_config_freq(st
+@@ -3551,7 +3553,9 @@ static int hostapd_change_config_freq(st
  				    NULL,
  				    mode ? &mode->eht_capab[IEEE80211_MODE_AP] :
  				    NULL,
@@ -226,7 +226,7 @@ Signed-off-by: Aloka Dixit <quic_alokad@quicinc.com>
  /**
 --- a/wpa_supplicant/mesh.c
 +++ b/wpa_supplicant/mesh.c
-@@ -233,7 +233,9 @@ static int wpas_mesh_update_freq_params(
+@@ -234,7 +234,9 @@ static int wpas_mesh_update_freq_params(
  		    hostapd_get_oper_centr_freq_seg1_idx(ifmsh->conf),
  		    ifmsh->conf->vht_capab,
  		    he_capab, NULL,
@@ -239,7 +239,7 @@ Signed-off-by: Aloka Dixit <quic_alokad@quicinc.com>
  		return -1;
 --- a/wpa_supplicant/wpa_supplicant.c
 +++ b/wpa_supplicant/wpa_supplicant.c
-@@ -3019,7 +3019,9 @@ skip_to_6ghz:
+@@ -2999,7 +2999,9 @@ skip_to_6ghz:
  				    freq->sec_channel_offset,
  				    chwidth, seg0, seg1, vht_caps,
  				    &mode->he_capab[ieee80211_mode],

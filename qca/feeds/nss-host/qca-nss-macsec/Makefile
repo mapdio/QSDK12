@@ -53,9 +53,7 @@ subtarget:=$(CONFIG_TARGET_BOARD)
 endif
 
 define Build/Compile
-	$(MAKE) -C "$(LINUX_DIR)" \
-		CROSS_COMPILE="$(TARGET_CROSS)" \
-		ARCH="$(LINUX_KARCH)" \
+	$(KERNEL_MAKE) \
 		M="$(PKG_BUILD_DIR)" \
 		SoC="$(subtarget)" \
 		modules

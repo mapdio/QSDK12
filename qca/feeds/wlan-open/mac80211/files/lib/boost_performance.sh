@@ -21,7 +21,8 @@ type ipq806x_board_name &>/dev/null  || ipq806x_board_name() {
 }
 
 boost_performance() {
-	local board=$(ipq806x_board_name)
+	if [ -d "/sys/kernel/debug/ath11k" ]; then
+		local board=$(ipq806x_board_name)
 
 	if [ -e /sys/module/ath11k/parameters/nss_offload ];then
 		uni_dp=0
@@ -147,12 +148,8 @@ boost_performance() {
 				tc qdisc replace dev wlan0 root noqueue
 				tc qdisc replace dev wlan1 root noqueue
 				tc qdisc replace dev wlan2 root noqueue
-				tc qdisc replace dev eth0 root noqueue
-				tc qdisc replace dev eth1 root noqueue
-				tc qdisc replace dev eth2 root noqueue
 				tc qdisc replace dev eth4 root noqueue
 				tc qdisc replace dev eth5 root noqueue
-
 				ethtool -K eth4 gro off
 				ethtool -K eth4 gso off
 				ethtool -K eth5 gro off
@@ -168,9 +165,6 @@ boost_performance() {
 
 				;;
 			ap-al02-c4)
-				tc qdisc replace dev eth0 root noqueue
-				tc qdisc replace dev eth1 root noqueue
-				tc qdisc replace dev eth2 root noqueue
 				tc qdisc replace dev eth4 root noqueue
 				tc qdisc replace dev eth5 root noqueue
 				ethtool -K eth4 gro off
@@ -193,374 +187,75 @@ boost_performance() {
 					soc=`ls  /sys/kernel/debug/ath12k/ | head -1 |awk '{print substr($0,0,13)}' | awk '{print $2}'`
 					case $soc in
 						"hw1.0")
-							echo 0x21212121 > /sys/kernel/debug/ath12k/qcn9274\ hw1.0_0002\:01\:00.0/rx_hash_ix2
-							echo 0x21321321 > /sys/kernel/debug/ath12k/qcn9274\ hw1.0_0002\:01\:00.0/rx_hash_ix3
-							echo 0x33333333 > /sys/kernel/debug/ath12k/qcn9274\ hw1.0_0004\:01\:00.0/rx_hash_ix2
-							echo 0x21321321 > /sys/kernel/debug/ath12k/qcn9274\ hw1.0_0004\:01\:00.0/rx_hash_ix3
-							echo 0x21212121 > /sys/kernel/debug/ath12k/qcn9274\ hw1.0_0003\:01\:00.0/rx_hash_ix2
-							echo 0x21321321 > /sys/kernel/debug/ath12k/qcn9274\ hw1.0_0003\:01\:00.0/rx_hash_ix3
-							echo 0 > /sys/kernel/debug/ath12k/qcn9274\ hw1.0_0004\:01\:00.0/stats_disable
-							echo 0 > /sys/kernel/debug/ath12k/qcn9274\ hw1.0_0003\:01\:00.0/stats_disable
-							echo 0 > /sys/kernel/debug/ath12k/qcn9274\ hw1.0_0002\:01\:00.0/stats_disable
-							echo 1 > /sys/kernel/debug/ath12k/qcn9274\ hw1.0_0004\:01\:00.0/stats_disable
-							echo 1 > /sys/kernel/debug/ath12k/qcn9274\ hw1.0_0003\:01\:00.0/stats_disable
-							echo 1 > /sys/kernel/debug/ath12k/qcn9274\ hw1.0_0002\:01\:00.0/stats_disable
-
+							echo 0x21321321 > /sys/kernel/debug/ath12k/qcn9274\ hw1.0_0002\:01\:00.0/rx_hash_ix2
+							echo 0x13213213 > /sys/kernel/debug/ath12k/qcn9274\ hw1.0_0002\:01\:00.0/rx_hash_ix3
+							echo 0x21321321 > /sys/kernel/debug/ath12k/qcn9274\ hw1.0_0004\:01\:00.0/rx_hash_ix2
+							echo 0x13213213 > /sys/kernel/debug/ath12k/qcn9274\ hw1.0_0004\:01\:00.0/rx_hash_ix3
+							echo 0x21321321 > /sys/kernel/debug/ath12k/qcn9274\ hw1.0_0003\:01\:00.0/rx_hash_ix2
+							echo 0x13213213 > /sys/kernel/debug/ath12k/qcn9274\ hw1.0_0003\:01\:00.0/rx_hash_ix3
 						;;
 						"hw2.0")
-							echo 0x21212121 > /sys/kernel/debug/ath12k/qcn9274\ hw2.0_0002\:01\:00.0/rx_hash_ix2
-							echo 0x21321321 > /sys/kernel/debug/ath12k/qcn9274\ hw2.0_0002\:01\:00.0/rx_hash_ix3
-							echo 0x33333333 > /sys/kernel/debug/ath12k/qcn9274\ hw2.0_0004\:01\:00.0/rx_hash_ix2
-							echo 0x21321321 > /sys/kernel/debug/ath12k/qcn9274\ hw2.0_0004\:01\:00.0/rx_hash_ix3
-							echo 0x21212121 > /sys/kernel/debug/ath12k/qcn9274\ hw2.0_0003\:01\:00.0/rx_hash_ix2
-							echo 0x21321321 > /sys/kernel/debug/ath12k/qcn9274\ hw2.0_0003\:01\:00.0/rx_hash_ix3
-							echo 0 > /sys/kernel/debug/ath12k/qcn9274\ hw2.0_0004\:01\:00.0/stats_disable
-							echo 0 > /sys/kernel/debug/ath12k/qcn9274\ hw2.0_0003\:01\:00.0/stats_disable
-							echo 0 > /sys/kernel/debug/ath12k/qcn9274\ hw2.0_0002\:01\:00.0/stats_disable
-							echo 1 > /sys/kernel/debug/ath12k/qcn9274\ hw2.0_0004\:01\:00.0/stats_disable
-							echo 1 > /sys/kernel/debug/ath12k/qcn9274\ hw2.0_0003\:01\:00.0/stats_disable
-							echo 1 > /sys/kernel/debug/ath12k/qcn9274\ hw2.0_0002\:01\:00.0/stats_disable
-
+							echo 0x21321321 > /sys/kernel/debug/ath12k/qcn9274\ hw2.0_0002\:01\:00.0/rx_hash_ix2
+							echo 0x13213213 > /sys/kernel/debug/ath12k/qcn9274\ hw2.0_0002\:01\:00.0/rx_hash_ix3
+							echo 0x21321321 > /sys/kernel/debug/ath12k/qcn9274\ hw2.0_0004\:01\:00.0/rx_hash_ix2
+							echo 0x13213213 > /sys/kernel/debug/ath12k/qcn9274\ hw2.0_0004\:01\:00.0/rx_hash_ix3
+							echo 0x21321321 > /sys/kernel/debug/ath12k/qcn9274\ hw2.0_0003\:01\:00.0/rx_hash_ix2
+							echo 0x13213213 > /sys/kernel/debug/ath12k/qcn9274\ hw2.0_0003\:01\:00.0/rx_hash_ix3
 						;;
 					esac
 				fi
 				echo 0 > /sys/class/net/wlan0/queues/rx-0/rps_cpus
 				echo 0 > /sys/class/net/wlan1/queues/rx-0/rps_cpus
 				echo 0 > /sys/class/net/wlan2/queues/rx-0/rps_cpus
-
-				if [ $(cat /sys/module/ath12k/parameters/ppe_ds_enable) -eq 1 ]; then
-					tc qdisc replace dev wlan0_b root noqueue
-					tc qdisc replace dev wlan0_l0 root noqueue
-					tc qdisc replace dev wlan0_l1 root noqueue
-					tc qdisc replace dev wlan0_l2 root noqueue
-
-					tc qdisc replace dev eth0 root noqueue
-					tc qdisc replace dev eth1 root noqueue
-					tc qdisc replace dev eth2 root noqueue
-					tc qdisc replace dev eth3 root noqueue
-					tc qdisc replace dev eth4 root noqueue
-					tc qdisc replace dev eth5 root noqueue
-
-					echo 1 > /sys/kernel/debug/ecm/ecm_db/defunct_all
-					echo f > /proc/net/nf_conntrack
-				fi
-
-				tc qdisc replace dev wlan0 root noqueue
-				tc qdisc replace dev wlan1 root noqueue
-				tc qdisc replace dev wlan2 root noqueue
-				echo "16384" > /proc/net/skb_recycler/max_skbs
 				#case for rdp433 (QCN9274 2.4, 5, 6 GHz)
 
 				;;
 			ap-al02-c6)
+				tc qdisc replace dev eth4 root noqueue
+				tc qdisc replace dev eth5 root noqueue
+				ethtool -K eth4 gro off
+				ethtool -K eth4 gso off
+				ethtool -K eth5 gro off
+				ethtool -K eth5 gso off
+				ssdk_sh fdb learnCtrl set disable
+				ssdk_sh fdb entry flush 1
+				sysctl -w net.bridge.bridge-nf-call-ip6tables=1
+				sysctl -w net.bridge.bridge-nf-call-iptables=1
+				echo 1 > /sys/kernel/debug/ecm/ecm_db/defunct_all
+				/etc/init.d/firewall stop
+
+				echo "performance" > /sys/devices/system/cpu/cpu0/cpufreq/scaling_governor
+				echo "performance" > /sys/devices/system/cpu/cpu1/cpufreq/scaling_governor
+				echo "performance" > /sys/devices/system/cpu/cpu2/cpufreq/scaling_governor
+				echo "performance" > /sys/devices/system/cpu/cpu3/cpufreq/scaling_governor
+				if [ -d "/sys/kernel/debug/ath12k" ]; then
+					# logic to identify QCN9274 V1.0 / V2.0
+					soc=`ls  /sys/kernel/debug/ath12k/ | head -1 |awk '{print substr($0,0,13)}' | awk '{print $2}'`
+					case $soc in
+						"hw1.0")
+							echo 0x21321321 > /sys/kernel/debug/ath12k/qcn9274\ hw1.0_0004\:01\:00.0/rx_hash_ix2
+							echo 0x13213213 > /sys/kernel/debug/ath12k/qcn9274\ hw1.0_0004\:01\:00.0/rx_hash_ix3
+							echo 0x21321321 > /sys/kernel/debug/ath12k/qcn9274\ hw1.0_0003\:01\:00.0/rx_hash_ix2
+							echo 0x13213213 > /sys/kernel/debug/ath12k/qcn9274\ hw1.0_0003\:01\:00.0/rx_hash_ix3
+						;;
+						"hw2.0")
+							echo 0x21321321 > /sys/kernel/debug/ath12k/qcn9274\ hw2.0_0004\:01\:00.0/rx_hash_ix2
+							echo 0x13213213 > /sys/kernel/debug/ath12k/qcn9274\ hw2.0_0004\:01\:00.0/rx_hash_ix3
+							echo 0x21321321 > /sys/kernel/debug/ath12k/qcn9274\ hw2.0_0003\:01\:00.0/rx_hash_ix2
+							echo 0x13213213 > /sys/kernel/debug/ath12k/qcn9274\ hw2.0_0003\:01\:00.0/rx_hash_ix3
+						;;
+					esac
+				fi
+				echo 0 > /sys/class/net/wlan0/queues/rx-0/rps_cpus
+				echo 0 > /sys/class/net/wlan1/queues/rx-0/rps_cpus
+				echo 0 > /sys/class/net/wlan2/queues/rx-0/rps_cpus
+				;;
 				#rdp433 (IPQ9574(2.4 GHz) + QCN9274(5 and 6 GHz))
-
-				tc qdisc replace dev eth0 root noqueue
-				tc qdisc replace dev eth1 root noqueue
-				tc qdisc replace dev eth2 root noqueue
-				tc qdisc replace dev eth4 root noqueue
-				tc qdisc replace dev eth5 root noqueue
-				ethtool -K eth4 gro off
-				ethtool -K eth4 gso off
-				ethtool -K eth5 gro off
-				ethtool -K eth5 gso off
-				ssdk_sh fdb learnCtrl set disable
-				ssdk_sh fdb entry flush 1
-				sysctl -w net.bridge.bridge-nf-call-ip6tables=1
-				sysctl -w net.bridge.bridge-nf-call-iptables=1
-				echo 1 > /sys/kernel/debug/ecm/ecm_db/defunct_all
-				/etc/init.d/firewall stop
-
-				echo "performance" > /sys/devices/system/cpu/cpu0/cpufreq/scaling_governor
-				echo "performance" > /sys/devices/system/cpu/cpu1/cpufreq/scaling_governor
-				echo "performance" > /sys/devices/system/cpu/cpu2/cpufreq/scaling_governor
-				echo "performance" > /sys/devices/system/cpu/cpu3/cpufreq/scaling_governor
-				if [ -d "/sys/kernel/debug/ath12k" ]; then
-					# logic to identify QCN9274 V1.0 / V2.0
-					soc=`ls  /sys/kernel/debug/ath12k/ | head -1 |awk '{print substr($0,0,13)}' | awk '{print $2}'`
-					case $soc in
-						"hw1.0")
-							echo 0x33333333 > /sys/kernel/debug/ath12k/qcn9274\ hw1.0_0004\:01\:00.0/rx_hash_ix2
-							echo 0x21321321 > /sys/kernel/debug/ath12k/qcn9274\ hw1.0_0004\:01\:00.0/rx_hash_ix3
-							echo 0x21212121 > /sys/kernel/debug/ath12k/qcn9274\ hw1.0_0003\:01\:00.0/rx_hash_ix2
-							echo 0x21321321 > /sys/kernel/debug/ath12k/qcn9274\ hw1.0_0003\:01\:00.0/rx_hash_ix3
-							echo 0 > /sys/kernel/debug/ath12k/qcn9274\ hw1.0_0004\:01\:00.0/stats_disable
-							echo 0 > /sys/kernel/debug/ath12k/qcn9274\ hw1.0_0003\:01\:00.0/stats_disable
-							echo 0 > /sys/kernel/debug/ath12k/qcn9274\ hw1.0_0002\:01\:00.0/stats_disable
-							echo 1 > /sys/kernel/debug/ath12k/qcn9274\ hw1.0_0004\:01\:00.0/stats_disable
-							echo 1 > /sys/kernel/debug/ath12k/qcn9274\ hw1.0_0003\:01\:00.0/stats_disable
-							echo 1 > /sys/kernel/debug/ath12k/qcn9274\ hw1.0_0002\:01\:00.0/stats_disable
-
-						;;
-						"hw2.0")
-							echo 0x33333333 > /sys/kernel/debug/ath12k/qcn9274\ hw2.0_0004\:01\:00.0/rx_hash_ix2
-							echo 0x21321321 > /sys/kernel/debug/ath12k/qcn9274\ hw2.0_0004\:01\:00.0/rx_hash_ix3
-							echo 0x21212121 > /sys/kernel/debug/ath12k/qcn9274\ hw2.0_0003\:01\:00.0/rx_hash_ix2
-							echo 0x21321321 > /sys/kernel/debug/ath12k/qcn9274\ hw2.0_0003\:01\:00.0/rx_hash_ix3
-							echo 0 > /sys/kernel/debug/ath12k/qcn9274\ hw2.0_0004\:01\:00.0/stats_disable
-							echo 0 > /sys/kernel/debug/ath12k/qcn9274\ hw2.0_0003\:01\:00.0/stats_disable
-							echo 0 > /sys/kernel/debug/ath12k/qcn9274\ hw2.0_0002\:01\:00.0/stats_disable
-							echo 1 > /sys/kernel/debug/ath12k/qcn9274\ hw2.0_0004\:01\:00.0/stats_disable
-							echo 1 > /sys/kernel/debug/ath12k/qcn9274\ hw2.0_0003\:01\:00.0/stats_disable
-							echo 1 > /sys/kernel/debug/ath12k/qcn9274\ hw2.0_0002\:01\:00.0/stats_disable
-
-						;;
-					esac
-				fi
-				echo 0 > /sys/class/net/wlan0/queues/rx-0/rps_cpus
-				echo 0 > /sys/class/net/wlan1/queues/rx-0/rps_cpus
-				echo 0 > /sys/class/net/wlan2/queues/rx-0/rps_cpus
-
-				if [ $(cat /sys/module/ath12k/parameters/ppe_ds_enable) -eq 1 ]; then
-					tc qdisc replace dev wlan0_b root noqueue
-					tc qdisc replace dev wlan0_l0 root noqueue
-					tc qdisc replace dev wlan0_l1 root noqueue
-					tc qdisc replace dev wlan0_l2 root noqueue
-
-					tc qdisc replace dev eth0 root noqueue
-					tc qdisc replace dev eth1 root noqueue
-					tc qdisc replace dev eth2 root noqueue
-					tc qdisc replace dev eth3 root noqueue
-					tc qdisc replace dev eth4 root noqueue
-					tc qdisc replace dev eth5 root noqueue
-
-					echo 1 > /sys/kernel/debug/ecm/ecm_db/defunct_all
-					echo f > /proc/net/nf_conntrack
-				fi
-
-
-				tc qdisc replace dev wlan0 root noqueue
-				tc qdisc replace dev wlan1 root noqueue
-				tc qdisc replace dev wlan2 root noqueue
-				echo "16384" > /proc/net/skb_recycler/max_skbs
-				;;
-			ap-al02-c9)
-				#case for rdp454 (QCN9274 (2.4 and 5 Low) + QCN9274 (5 High and 6 GHz))
-
-				tc qdisc replace dev eth0 root noqueue
-				tc qdisc replace dev eth1 root noqueue
-				tc qdisc replace dev eth2 root noqueue
-				tc qdisc replace dev eth4 root noqueue
-				tc qdisc replace dev eth5 root noqueue
-				ethtool -K eth4 gro off
-				ethtool -K eth4 gso off
-				ethtool -K eth5 gro off
-				ethtool -K eth5 gso off
-				ssdk_sh fdb learnCtrl set disable
-				ssdk_sh fdb entry flush 1
-				sysctl -w net.bridge.bridge-nf-call-ip6tables=1
-				sysctl -w net.bridge.bridge-nf-call-iptables=1
-				echo 1 > /sys/kernel/debug/ecm/ecm_db/defunct_all
-				/etc/init.d/firewall stop
-
-				echo "performance" > /sys/devices/system/cpu/cpu0/cpufreq/scaling_governor
-				echo "performance" > /sys/devices/system/cpu/cpu1/cpufreq/scaling_governor
-				echo "performance" > /sys/devices/system/cpu/cpu2/cpufreq/scaling_governor
-				echo "performance" > /sys/devices/system/cpu/cpu3/cpufreq/scaling_governor
-				if [ -d "/sys/kernel/debug/ath12k" ]; then
-					# logic to identify QCN9274 V1.0 / V2.0
-					soc=`ls  /sys/kernel/debug/ath12k/ | head -1 |awk '{print substr($0,0,13)}' | awk '{print $2}'`
-					case $soc in
-						"hw1.0")
-							echo 0x33333333 > /sys/kernel/debug/ath12k/qcn9274\ hw1.0_0001\:01\:00.0/rx_hash_ix2
-							echo 0x21321321 > /sys/kernel/debug/ath12k/qcn9274\ hw1.0_0001\:01\:00.0/rx_hash_ix3
-							echo 0x21212121 > /sys/kernel/debug/ath12k/qcn9274\ hw1.0_0003\:01\:00.0/rx_hash_ix2
-							echo 0x21321321 > /sys/kernel/debug/ath12k/qcn9274\ hw1.0_0003\:01\:00.0/rx_hash_ix3
-							echo 0 > /sys/kernel/debug/ath12k/qcn9274\ hw1.0_0001\:01\:00.0/stats_disable
-							echo 0 > /sys/kernel/debug/ath12k/qcn9274\ hw1.0_0003\:01\:00.0/stats_disable
-							echo 1 > /sys/kernel/debug/ath12k/qcn9274\ hw1.0_0001\:01\:00.0/stats_disable
-							echo 1 > /sys/kernel/debug/ath12k/qcn9274\ hw1.0_0003\:01\:00.0/stats_disable
-
-						;;
-						"hw2.0")
-							echo 0x33333333 > /sys/kernel/debug/ath12k/qcn9274\ hw2.0_0001\:01\:00.0/rx_hash_ix2
-							echo 0x21321321 > /sys/kernel/debug/ath12k/qcn9274\ hw2.0_0001\:01\:00.0/rx_hash_ix3
-							echo 0x21212121 > /sys/kernel/debug/ath12k/qcn9274\ hw2.0_0003\:01\:00.0/rx_hash_ix2
-							echo 0x21321321 > /sys/kernel/debug/ath12k/qcn9274\ hw2.0_0003\:01\:00.0/rx_hash_ix3
-							echo 0 > /sys/kernel/debug/ath12k/qcn9274\ hw2.0_0001\:01\:00.0/stats_disable
-							echo 0 > /sys/kernel/debug/ath12k/qcn9274\ hw2.0_0003\:01\:00.0/stats_disable
-							echo 1 > /sys/kernel/debug/ath12k/qcn9274\ hw2.0_0001\:01\:00.0/stats_disable
-							echo 1 > /sys/kernel/debug/ath12k/qcn9274\ hw2.0_0003\:01\:00.0/stats_disable
-
-						;;
-					esac
-				fi
-				echo 0 > /sys/class/net/wlan0/queues/rx-0/rps_cpus
-				echo 0 > /sys/class/net/wlan1/queues/rx-0/rps_cpus
-				echo 0 > /sys/class/net/wlan2/queues/rx-0/rps_cpus
-				echo 0 > /sys/class/net/wlan3/queues/rx-0/rps_cpus
-
-				if [ $(cat /sys/module/ath12k/parameters/ppe_ds_enable) -eq 1 ]; then
-					tc qdisc replace dev wlan0_b root noqueue
-					tc qdisc replace dev wlan0_l0 root noqueue
-					tc qdisc replace dev wlan0_l1 root noqueue
-					tc qdisc replace dev wlan0_l2 root noqueue
-
-					tc qdisc replace dev eth0 root noqueue
-					tc qdisc replace dev eth1 root noqueue
-					tc qdisc replace dev eth2 root noqueue
-					tc qdisc replace dev eth3 root noqueue
-					tc qdisc replace dev eth4 root noqueue
-					tc qdisc replace dev eth5 root noqueue
-
-					echo 1 > /sys/kernel/debug/ecm/ecm_db/defunct_all
-					echo f > /proc/net/nf_conntrack
-				fi
-
-
-				tc qdisc replace dev wlan0 root noqueue
-				tc qdisc replace dev wlan1 root noqueue
-				tc qdisc replace dev wlan2 root noqueue
-				tc qdisc replace dev wlan3 root noqueue
-				echo "16384" > /proc/net/skb_recycler/max_skbs
-
-				;;
-			ap-mi01.2)
-				tc qdisc replace dev eth0 root noqueue
-				tc qdisc replace dev eth1 root noqueue
-
-				ethtool -K eth0 gro off
-				ethtool -K eth0 gso off
-				ethtool -K eth1 gro off
-				ethtool -K eth1 gso off
-
-				ssdk_sh fdb learnCtrl set disable
-				ssdk_sh fdb entry flush 1
-
-				sysctl -w net.bridge.bridge-nf-call-ip6tables=1
-				sysctl -w net.bridge.bridge-nf-call-iptables=1
-
-				echo 1 > /sys/kernel/debug/ecm/ecm_db/defunct_all
-
-				/etc/init.d/firewall stop
-
-				echo "performance" > /sys/devices/system/cpu/cpu0/cpufreq/scaling_governor
-				echo "performance" > /sys/devices/system/cpu/cpu1/cpufreq/scaling_governor
-				echo "performance" > /sys/devices/system/cpu/cpu2/cpufreq/scaling_governor
-				echo "performance" > /sys/devices/system/cpu/cpu3/cpufreq/scaling_governor
-
-				#5G reo queues
-				echo 0x23123123 > /sys/kernel/debug/ath12k/qcn9274\ hw2.0_0000:01:00.0/rx_hash_ix2
-				echo 0x23123123 > /sys/kernel/debug/ath12k/qcn9274\ hw2.0_0000:01:00.0/rx_hash_ix3
-
-				#For 6G reo queues
-				echo 0x23123123 > /sys/kernel/debug/ath12k/qcn9274\ hw2.0_0001:01:00.0/rx_hash_ix2
-				echo 0x23123123 > /sys/kernel/debug/ath12k/qcn9274\ hw2.0_0001:01:00.0/rx_hash_ix3
-
-				#For 2G reo queues
-				echo 0x23123123 > /sys/kernel/debug/ath12k/ipq5332\ hw1.0_c000000.wifi/rx_hash_ix2
-				echo 0x23123123 > /sys/kernel/debug/ath12k/ipq5332\ hw1.0_c000000.wifi/rx_hash_ix3
-
-				echo 0 > /sys/kernel/debug/ath12k/qcn9274\ hw2.0_0001:01:00.0/stats_disable
-				echo 1 > /sys/kernel/debug/ath12k/qcn9274\ hw2.0_0001:01:00.0/stats_disable
-
-				echo 0 > /sys/kernel/debug/ath12k/qcn9274\ hw2.0_0000:01:00.0/stats_disable
-				echo 1 > /sys/kernel/debug/ath12k/qcn9274\ hw2.0_0000:01:00.0/stats_disable
-
-				echo 0 > /sys/kernel/debug/ath12k/ipq5332\ hw1.0_c000000.wifi/stats_disable
-				echo 1 > /sys/kernel/debug/ath12k/ipq5332\ hw1.0_c000000.wifi/stats_disable
-
-				echo 0 > /sys/class/net/wlan0/queues/rx-0/rps_cpus
-				echo 0 > /sys/class/net/wlan1/queues/rx-0/rps_cpus
-				echo 0 > /sys/class/net/wlan2/queues/rx-0/rps_cpus
-
-				if [ $(cat /sys/module/ath12k/parameters/ppe_ds_enable) -eq 1 ]; then
-					tc qdisc replace dev wlan0_b root noqueue
-					tc qdisc replace dev wlan0_l0 root noqueue
-					tc qdisc replace dev wlan0_l1 root noqueue
-					tc qdisc replace dev wlan0_l2 root noqueue
-
-					tc qdisc replace dev eth0 root noqueue
-					tc qdisc replace dev eth1 root noqueue
-					tc qdisc replace dev eth2 root noqueue
-					tc qdisc replace dev eth3 root noqueue
-					tc qdisc replace dev eth4 root noqueue
-					tc qdisc replace dev eth5 root noqueue
-
-					echo 1 > /sys/kernel/debug/ecm/ecm_db/defunct_all
-					echo f > /proc/net/nf_conntrack
-				fi
-
-
-				tc qdisc replace dev wlan0 root noqueue
-                                tc qdisc replace dev wlan1 root noqueue
-                                tc qdisc replace dev wlan2 root noqueue
-				echo "16384" > /proc/net/skb_recycler/max_skbs
-				#no settings
-				;;
-			ap-mi01.6)
-                                tc qdisc replace dev eth0 root noqueue
-                                tc qdisc replace dev eth1 root noqueue
-
-                                ethtool -K eth0 gro off
-                                ethtool -K eth0 gso off
-                                ethtool -K eth1 gro off
-                                ethtool -K eth1 gso off
-
-                                ssdk_sh fdb learnCtrl set disable
-                                ssdk_sh fdb entry flush 1
-
-                                sysctl -w net.bridge.bridge-nf-call-ip6tables=1
-                                sysctl -w net.bridge.bridge-nf-call-iptables=1
-
-                                echo 1 > /sys/kernel/debug/ecm/ecm_db/defunct_all
-
-                                /etc/init.d/firewall stop
-
-                                echo "performance" > /sys/devices/system/cpu/cpu0/cpufreq/scaling_governor
-                                echo "performance" > /sys/devices/system/cpu/cpu1/cpufreq/scaling_governor
-                                echo "performance" > /sys/devices/system/cpu/cpu2/cpufreq/scaling_governor
-                                echo "performance" > /sys/devices/system/cpu/cpu3/cpufreq/scaling_governor
-
-                                #For 5G/6G reo queues
-                                echo 0x23123123 > /sys/kernel/debug/ath12k/qcn9274\ hw2.0_0001:01:00.0/rx_hash_ix2
-                                echo 0x23123123 > /sys/kernel/debug/ath12k/qcn9274\ hw2.0_0001:01:00.0/rx_hash_ix3
-
-                                #For 2G reo queues
-                                echo 0x23123123 > /sys/kernel/debug/ath12k/ipq5332\ hw1.0_c000000.wifi/rx_hash_ix2
-                                echo 0x23123123 > /sys/kernel/debug/ath12k/ipq5332\ hw1.0_c000000.wifi/rx_hash_ix3
-
-				echo 0 > /sys/kernel/debug/ath12k/qcn9274\ hw2.0_0001:01:00.0/stats_disable
-				echo 1 > /sys/kernel/debug/ath12k/qcn9274\ hw2.0_0001:01:00.0/stats_disable
-
-				echo 0 > /sys/kernel/debug/ath12k/qcn9274\ hw2.0_0000:01:00.0/stats_disable
-				echo 1 > /sys/kernel/debug/ath12k/qcn9274\ hw2.0_0000:01:00.0/stats_disable
-
-				echo 0 > /sys/kernel/debug/ath12k/ipq5332\ hw1.0_c000000.wifi/stats_disable
-				echo 1 > /sys/kernel/debug/ath12k/ipq5332\ hw1.0_c000000.wifi/stats_disable
-
-                                echo 0 > /sys/class/net/wlan0/queues/rx-0/rps_cpus
-                                echo 0 > /sys/class/net/wlan1/queues/rx-0/rps_cpus
-                                echo 0 > /sys/class/net/wlan2/queues/rx-0/rps_cpus
-
-                                if [ $(cat /sys/module/ath12k/parameters/ppe_ds_enable) -eq 1 ]; then
-                                    tc qdisc replace dev wlan0_b root noqueue
-                                    tc qdisc replace dev wlan0_l0 root noqueue
-                                    tc qdisc replace dev wlan0_l1 root noqueue
-                                    tc qdisc replace dev wlan0_l2 root noqueue
-
-                                    tc qdisc replace dev eth0 root noqueue
-                                    tc qdisc replace dev eth1 root noqueue
-                                    tc qdisc replace dev eth2 root noqueue
-                                    tc qdisc replace dev eth3 root noqueue
-                                    tc qdisc replace dev eth4 root noqueue
-                                    tc qdisc replace dev eth5 root noqueue
-
-                                    echo 1 > /sys/kernel/debug/ecm/ecm_db/defunct_all
-                                    echo f > /proc/net/nf_conntrack
-                                fi
-
-                                tc qdisc replace dev wlan0 root noqueue
-                                tc qdisc replace dev wlan1 root noqueue
-                                tc qdisc replace dev wlan2 root noqueue
-				echo "16384" > /proc/net/skb_recycler/max_skbs
-                                #no settings
-                                ;;
-
 			*)
 				#no settings
 				;;
 		esac
+	fi
 }
 
 boost_performance

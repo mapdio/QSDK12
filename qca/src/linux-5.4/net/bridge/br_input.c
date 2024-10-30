@@ -174,8 +174,16 @@ int br_handle_frame_finish(struct net *net, struct sock *sk, struct sk_buff *skb
 		if (pdst) {
 			if (!skb)
 				goto out;
+			/* TODO: Check if sub bridge concept apply to hyfi */
 		} else {
 			dst = br_fdb_find_rcu(br, eth_hdr(skb)->h_dest, vid);
+
+			/* Restrict forwarding to/from upstream port & within same sub bridge */
+			if (dst && dst->dst &&
+				!((p->flags & BR_UPSTREAM_PORT) || (dst->dst->flags & BR_UPSTREAM_PORT))
+				&& (p->sub_br_id != dst->dst->sub_br_id))
+				dst = NULL;
+
 		}
 	default:
 		break;

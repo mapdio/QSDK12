@@ -55,13 +55,15 @@ struct nss_ipsec_xfrm_algo {
 static struct nss_ipsec_xfrm_algo xfrm_algo[] = {
 	{.cipher_name = "cbc(aes)", .auth_name = "hmac(sha1)", .algo = NSS_IPSECMGR_ALGO_AES_CBC_SHA1_HMAC},
 	{.cipher_name = "cbc(des3_ede)", .auth_name = "hmac(sha1)", .algo = NSS_IPSECMGR_ALGO_3DES_CBC_SHA1_HMAC},
+#ifndef NSS_IPSEC_XFRM_IPQ50XX
 	{.cipher_name  = "cbc(aes)", .auth_name = "hmac(md5)", .algo = NSS_IPSECMGR_ALGO_AES_CBC_MD5_HMAC},
 	{.cipher_name = "cbc(des3_ede)", .auth_name = "hmac(md5)", .algo = NSS_IPSECMGR_ALGO_3DES_CBC_MD5_HMAC},
 	{.cipher_name = "rfc4106(gcm(aes))", .auth_name = "rfc4106(gcm(aes))", .algo = NSS_IPSECMGR_ALGO_AES_GCM_GMAC_RFC4106},
 	{.cipher_name = "ecb(cipher_null)", .auth_name = "hmac(sha1)", .algo = NSS_IPSECMGR_ALGO_NULL_CIPHER_SHA1_HMAC},
+	{.cipher_name = "ecb(cipher_null)", .auth_name = "hmac(sha256)", .algo = NSS_IPSECMGR_ALGO_NULL_CIPHER_SHA256_HMAC},
+#endif
 	{.cipher_name = "cbc(aes)", .auth_name = "hmac(sha256)", .algo = NSS_IPSECMGR_ALGO_AES_CBC_SHA256_HMAC},
 	{.cipher_name = "cbc(des3_ede)", .auth_name = "hmac(sha256)", .algo = NSS_IPSECMGR_ALGO_3DES_CBC_SHA256_HMAC},
-	{.cipher_name = "ecb(cipher_null)", .auth_name = "hmac(sha256)", .algo = NSS_IPSECMGR_ALGO_NULL_CIPHER_SHA256_HMAC},
 };
 
 /*

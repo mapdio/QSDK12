@@ -1,0 +1,220 @@
+Author: Ken Zhu <guigenz@codeaurora.org>
+Date:   Thu Feb 25 16:19:14 2021 -0800
+
+    odhcpd: prevent periodic routing table flush and sending NS continuously
+
+    When the NDP relay is enabled, there are two problems.
+    odhcpd periodically send ping packet.It will setup route to send ping
+    packet and later remove the route entry.Each ping triggers some
+    listeners to do the flush accordingly.
+    
+    Keep sending NS once odhcpd reloads. Change it to only send NS one time.
+    
+    Change-Id: I39b196abc7dcb8ea87647ebadd9163e54b5e76d5
+    Signed-off-by: Ken Zhu <guigenz@codeaurora.org>
+    Signed-off-by: Ken Zhu <quic_guigenz@quicinc.com>
+
+diff -Nur a/src/config.c b/src/config.c
+--- a/src/config.c	2023-06-24 09:48:29.000000000 -0700
++++ b/src/config.c	2023-12-07 16:20:20.202013583 -0800
+@@ -554,7 +554,7 @@
+ 		iface->router_event.uloop.fd = -1;
+ 		iface->dhcpv6_event.uloop.fd = -1;
+ 		iface->ndp_event.uloop.fd = -1;
+-		iface->ndp_ping_fd = -1;
++		iface->ndp_ns_fd = -1;
+ 		iface->dhcpv4_event.uloop.fd = -1;
+ 		INIT_LIST_HEAD(&iface->ia_assignments);
+ 		INIT_LIST_HEAD(&iface->dhcpv4_assignments);
+diff -Nur a/src/ndp.c b/src/ndp.c
+--- a/src/ndp.c	2023-06-24 09:48:29.000000000 -0700
++++ b/src/ndp.c	2023-12-07 16:21:34.165406309 -0800
+@@ -81,9 +81,9 @@
+ 		goto out;
+ 	}
+ 
+-	if (iface->ndp_ping_fd >= 0) {
+-		close(iface->ndp_ping_fd);
+-		iface->ndp_ping_fd = -1;
++	if (iface->ndp_ns_fd >= 0) {
++		close(iface->ndp_ns_fd);
++		iface->ndp_ns_fd = -1;
+ 	}
+ 
+ 	if (iface->ndp_event.uloop.fd >= 0) {
+@@ -106,21 +106,21 @@
+ 		if (write(procfd, "1\n", 2) < 0) {}
+ 
+ 		/* Open ICMPv6 socket */
+-		iface->ndp_ping_fd = socket(AF_INET6, SOCK_RAW | SOCK_CLOEXEC, IPPROTO_ICMPV6);
+-		if (iface->ndp_ping_fd < 0) {
++		iface->ndp_ns_fd = socket(AF_INET6, SOCK_RAW | SOCK_CLOEXEC, IPPROTO_ICMPV6);
++		if (iface->ndp_ns_fd < 0) {
+ 			syslog(LOG_ERR, "socket(AF_INET6): %m");
+ 			ret = -1;
+ 			goto out;
+ 		}
+ 
+-		if (setsockopt(iface->ndp_ping_fd, SOL_SOCKET, SO_BINDTODEVICE,
++		if (setsockopt(iface->ndp_ns_fd, SOL_SOCKET, SO_BINDTODEVICE,
+ 			       iface->ifname, strlen(iface->ifname)) < 0) {
+ 			syslog(LOG_ERR, "setsockopt(SO_BINDTODEVICE): %m");
+ 			ret = -1;
+ 			goto out;
+ 		}
+ 
+-		if (setsockopt(iface->ndp_ping_fd, IPPROTO_RAW, IPV6_CHECKSUM,
++		if (setsockopt(iface->ndp_ns_fd, IPPROTO_RAW, IPV6_CHECKSUM,
+ 				&val, sizeof(val)) < 0) {
+ 			syslog(LOG_ERR, "setsockopt(IPV6_CHECKSUM): %m");
+ 			ret = -1;
+@@ -129,14 +129,14 @@
+ 
+ 		/* This is required by RFC 4861 */
+ 		val = 255;
+-		if (setsockopt(iface->ndp_ping_fd, IPPROTO_IPV6, IPV6_MULTICAST_HOPS,
++		if (setsockopt(iface->ndp_ns_fd, IPPROTO_IPV6, IPV6_MULTICAST_HOPS,
+ 			       &val, sizeof(val)) < 0) {
+ 			syslog(LOG_ERR, "setsockopt(IPV6_MULTICAST_HOPS): %m");
+ 			ret = -1;
+ 			goto out;
+ 		}
+ 
+-		if (setsockopt(iface->ndp_ping_fd, IPPROTO_IPV6, IPV6_UNICAST_HOPS,
++		if (setsockopt(iface->ndp_ns_fd, IPPROTO_IPV6, IPV6_UNICAST_HOPS,
+ 			       &val, sizeof(val)) < 0) {
+ 			syslog(LOG_ERR, "setsockopt(IPV6_UNICAST_HOPS): %m");
+ 			ret = -1;
+@@ -145,7 +145,7 @@
+ 
+ 		/* Filter all packages, we only want to send */
+ 		ICMP6_FILTER_SETBLOCKALL(&filt);
+-		if (setsockopt(iface->ndp_ping_fd, IPPROTO_ICMPV6, ICMP6_FILTER,
++		if (setsockopt(iface->ndp_ns_fd, IPPROTO_ICMPV6, ICMP6_FILTER,
+ 			       &filt, sizeof(filt)) < 0) {
+ 			syslog(LOG_ERR, "setsockopt(ICMP6_FILTER): %m");
+ 			ret = -1;
+@@ -220,9 +220,9 @@
+ 			iface->ndp_event.uloop.fd = -1;
+ 		}
+ 
+-		if (iface->ndp_ping_fd >= 0) {
+-			close(iface->ndp_ping_fd);
+-			iface->ndp_ping_fd = -1;
++		if (iface->ndp_ns_fd >= 0) {
++			close(iface->ndp_ns_fd);
++			iface->ndp_ns_fd = -1;
+ 		}
+ 	}
+ 
+@@ -277,22 +277,48 @@
+ 	}
+ }
+ 
+-/* Send an ICMP-ECHO. This is less for actually pinging but for the
++/* Send an NS. This is less for actually pinging but for the
+  * neighbor cache to be kept up-to-date. */
+-static void ping6(struct in6_addr *addr,
++static void ns_send(struct in6_addr *addr,
+ 		const struct interface *iface)
+ {
+-	struct sockaddr_in6 dest = { .sin6_family = AF_INET6, .sin6_addr = *addr , };
+-	struct icmp6_hdr echo = { .icmp6_type = ICMP6_ECHO_REQUEST };
+-	struct iovec iov = { .iov_base = &echo, .iov_len = sizeof(echo) };
+-	char ipbuf[INET6_ADDRSTRLEN];
++	struct solicit_packet {
++		struct nd_neighbor_solicit nh;
++		struct nd_opt_hdr opt;
++		uint8_t hwaddr[6];
++	} __packed ns;
++	struct in6_addr daddr = {/*0*/};
++
++	memset(&ns, 0, sizeof(ns));
++
++	ns.nh.nd_ns_type   = ND_NEIGHBOR_SOLICIT;
++	memcpy(&ns.nh.nd_ns_target, addr, sizeof(struct in6_addr));
++
++	ns.opt.nd_opt_type = ND_OPT_SOURCE_LINKADDR;
++	ns.opt.nd_opt_len  = 1;
++
++	if (odhcpd_get_mac(iface, ns.hwaddr)) {
++		return;
++	}
++
++	/*
++	 * NS detination address pattern: ff02::1:ff00:0000, replacing
++	 * the last 24bits with target addresss's last 24 bits
++	 */
++	daddr.s6_addr[0]=0xff;
++	daddr.s6_addr[1]=0x02;
++	daddr.s6_addr[11] = 0x1;
++	daddr.s6_addr[12] = 0xff;
++	daddr.s6_addr[13] = addr->s6_addr[13];
++	daddr.s6_addr[14] = addr->s6_addr[14];
++	daddr.s6_addr[15] = addr->s6_addr[15];
++
++	struct sockaddr_in6 dest = {AF_INET6, 0, 0, daddr, iface->ifindex};
++
++	struct iovec iov = {&ns, sizeof(ns)};
+ 
+-	inet_ntop(AF_INET6, addr, ipbuf, sizeof(ipbuf));
+-	syslog(LOG_DEBUG, "Pinging for %s on %s", ipbuf, iface->name);
++	odhcpd_send(iface->ndp_ns_fd, &dest, &iov, 1, iface);
+ 
+-	netlink_setup_route(addr, 128, iface->ifindex, NULL, 128, true);
+-	odhcpd_send(iface->ndp_ping_fd, &dest, &iov, 1, iface);
+-	netlink_setup_route(addr, 128, iface->ifindex, NULL, 128, false);
+ }
+ 
+ /* Send a Neighbor Advertisement. */
+@@ -319,7 +345,7 @@
+ 	inet_ntop(AF_INET6, to_addr, ipbuf, sizeof(ipbuf));
+ 	syslog(LOG_DEBUG, "Answering NS to %s on %s", ipbuf, iface->ifname);
+ 
+-	odhcpd_send(iface->ndp_ping_fd, &dest, &iov, 1, iface);
++	odhcpd_send(iface->ndp_ns_fd, &dest, &iov, 1, iface);
+ }
+ 
+ /* Handle solicitations */
+@@ -360,7 +386,7 @@
+ 	avl_for_each_element(&interfaces, c, avl) {
+ 		if (iface != c && c->ndp == MODE_RELAY &&
+ 				(ns_is_dad || !c->external))
+-			ping6(&req->nd_ns_target, c);
++			ns_send(&req->nd_ns_target, c);
+ 	}
+ 
+ 	/* Catch global-addressed NS and answer them manually.
+diff -Nur a/src/odhcpd.h b/src/odhcpd.h
+--- a/src/odhcpd.h	2023-06-24 09:48:29.000000000 -0700
++++ b/src/odhcpd.h	2023-12-07 16:20:20.202013583 -0800
+@@ -264,7 +264,7 @@
+ 
+ 	// NDP runtime data
+ 	struct odhcpd_event ndp_event;
+-	int ndp_ping_fd;
++	int ndp_ns_fd;
+ 
+ 	// IPv4 runtime data
+ 	struct odhcpd_ipaddr *addr4;
+@@ -285,6 +285,7 @@
+ 	enum odhcpd_mode ndp;
+ 	enum odhcpd_mode dhcpv4;
+ 
++	int first_rs_sent;
+ 	// Config
+ 	bool inuse;
+ 	bool external;
+diff -Nur a/src/router.c b/src/router.c
+--- a/src/router.c	2023-06-24 09:48:29.000000000 -0700
++++ b/src/router.c	2023-12-07 16:20:20.202013583 -0800
+@@ -197,7 +197,8 @@
+ 		mreq.ipv6mr_interface = iface->ifindex;
+ 		inet_pton(AF_INET6, ALL_IPV6_ROUTERS, &mreq.ipv6mr_multiaddr);
+ 
+-		if (iface->ra == MODE_RELAY && iface->master) {
++		if (iface->ra == MODE_RELAY && iface->master && !iface->first_rs_sent) {
++			iface->first_rs_sent = 1;
+ 			inet_pton(AF_INET6, ALL_IPV6_NODES, &mreq.ipv6mr_multiaddr);
+ 			forward_router_solicitation(iface);
+ 		} else if (iface->ra == MODE_SERVER) {

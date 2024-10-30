@@ -15,6 +15,7 @@
  */
 
 #include <linux/etherdevice.h>
+#include <linux/if_vlan.h>
 #include <fal/fal_ip.h>
 #include "ppe_drv.h"
 
@@ -395,7 +396,7 @@ struct ppe_drv_nexthop *ppe_drv_nexthop_v6_get_and_ref(struct ppe_drv_v6_conn_fl
 	uint32_t match_src_ip[4];
 	uint32_t match_dest_ip[4];
 	uint8_t vtag = PPE_DRV_VLAN_UNTAGGED;
-	struct ppe_drv_iface *iface_vsi;
+	struct ppe_drv_iface *iface_vsi, *iface_tx;
 	fal_ip_nexthop_t fal_nh = {0};
 	struct ppe_drv_l3_if *l3_if;
 	struct ppe_drv_nexthop *nh;
@@ -403,6 +404,7 @@ struct ppe_drv_nexthop *ppe_drv_nexthop_v6_get_and_ref(struct ppe_drv_v6_conn_fl
 	struct ppe_drv_port *pp;
 	struct ppe_drv_port *pp_rx;
 	sw_error_t err;
+	bool is_vlan_as_vp;
 
 	ppe_drv_v6_conn_flow_match_src_ip_get(pcf, match_src_ip);
 	ppe_drv_v6_conn_flow_match_dest_ip_get(pcf, match_dest_ip);
@@ -482,12 +484,18 @@ struct ppe_drv_nexthop *ppe_drv_nexthop_v6_get_and_ref(struct ppe_drv_v6_conn_fl
 	ppe_drv_info("%p: ppe_port: %d", nh, pp->port);
 
 	/*
+	 * VLAN as VP port does not have vsi assosiated with it.
+	 * So skip vsi check if the port is VLAN as VP.
+	 */
+	iface_tx = ppe_drv_v6_conn_flow_eg_port_if_get(pcf);
+	is_vlan_as_vp = is_vlan_dev(iface_tx->dev) && (iface_tx->type == PPE_DRV_IFACE_TYPE_VIRTUAL);
+
+	/*
 	 * Get vsi for vlan flows.
-	 * Note: for non-vlan flows program the final egress port.
 	 */
 	iface_vsi = ppe_drv_v6_conn_flow_eg_vsi_if_get(pcf);
 	vsi = iface_vsi ? ppe_drv_iface_vsi_get(iface_vsi) : NULL;
-	if ((vtag == PPE_DRV_VLAN_TAGGED) && !vsi) {
+	if ((vtag == PPE_DRV_VLAN_TAGGED) && !vsi && !is_vlan_as_vp) {
 		ppe_drv_nexthop_deref(nh);
 		ppe_drv_warn("%p: vlan-vsi not configured on interface: %u in_vlan: %u, out_vlan: %u",
 				p, pp->port, in_vlan, out_vlan);
@@ -505,11 +513,15 @@ struct ppe_drv_nexthop *ppe_drv_nexthop_v6_get_and_ref(struct ppe_drv_v6_conn_fl
 	fal_nh.pub_ip_index = nh->pub_ip ? nh->pub_ip->index : 0;
 	memcpy(&fal_nh.mac_addr, ppe_drv_v6_conn_flow_xmit_dest_mac_addr_get(pcf), sizeof(fal_nh.mac_addr));
 
+	/*
+	 * Note: for non-vlan flows program the final egress port.
+	 */
 	if (vtag != PPE_DRV_VLAN_TAGGED) {
 		fal_nh.type = FAL_NEXTHOP_VP;
 		fal_nh.port = pp->port;
 	} else {
-		if (vsi->is_fdb_learn_enabled && pp->is_fdb_learn_enabled && pp_rx->is_fdb_learn_enabled) {
+		if (vsi && vsi->is_fdb_learn_enabled && pp->is_fdb_learn_enabled && pp_rx->is_fdb_learn_enabled
+		   && !(ppe_drv_v6_conn_flow_flags_check(pcf, PPE_DRV_V6_CONN_FLAG_BRIDGE_VLAN_NETDEV))) {
 			fal_nh.type = FAL_NEXTHOP_L3;
 			fal_nh.vsi = vsi->index;
 		} else {
@@ -519,7 +531,8 @@ struct ppe_drv_nexthop *ppe_drv_nexthop_v6_get_and_ref(struct ppe_drv_v6_conn_fl
 			fal_nh.type = FAL_NEXTHOP_VP;
 			fal_nh.port = pp->port;
 
-			ppe_drv_trace("%p: fdb learning disable on vsi:%u", pcf, vsi->index);
+			ppe_drv_trace("%p: fdb learning disable for dev %s out_vlan %d in_vlan %d\n", pcf,
+				      pp->dev->name, out_vlan, in_vlan);
 
 			if (out_vlan != PPE_DRV_VLAN_NOT_CONFIGURED) {
 				ppe_drv_trace("%p: fdb learning disable configuring STAG:%u", pcf, out_vlan);
@@ -766,7 +779,7 @@ struct ppe_drv_nexthop *ppe_drv_nexthop_v4_get_and_ref(struct ppe_drv_v4_conn_fl
 	uint32_t match_dest_ip = ppe_drv_v4_conn_flow_match_dest_ip_get(pcf);
 	uint32_t xlate_dest_ip = ppe_drv_v4_conn_flow_xlate_dest_ip_get(pcf);
 	uint8_t vtag = PPE_DRV_VLAN_UNTAGGED;
-	struct ppe_drv_iface *iface_vsi;
+	struct ppe_drv_iface *iface_vsi, *iface_tx;
 	fal_ip_nexthop_t fal_nh = {0};
 	struct ppe_drv_l3_if *l3_if;
 	struct ppe_drv_nexthop *nh;
@@ -774,6 +787,7 @@ struct ppe_drv_nexthop *ppe_drv_nexthop_v4_get_and_ref(struct ppe_drv_v4_conn_fl
 	struct ppe_drv_port *pp;
 	struct ppe_drv_port *pp_rx;
 	sw_error_t err;
+	bool is_vlan_as_vp;
 
 	/*
 	 * Both single and double VLANs are handled by EG_VLAN_XLT_* tables, we just need to
@@ -867,12 +881,18 @@ struct ppe_drv_nexthop *ppe_drv_nexthop_v4_get_and_ref(struct ppe_drv_v4_conn_fl
 	}
 
 	/*
+	 * VLAN as VP port does not have vsi assosiated with it.
+	 * So skip vsi check if the port is VLAN as VP.
+	 */
+	iface_tx = ppe_drv_v4_conn_flow_eg_port_if_get(pcf);
+	is_vlan_as_vp = is_vlan_dev(iface_tx->dev) && (iface_tx->type == PPE_DRV_IFACE_TYPE_VIRTUAL);
+
+	/*
 	 * Get vsi for vlan flows.
-	 * Note: for non-vlan flows program the final egress port.
 	 */
 	iface_vsi = ppe_drv_v4_conn_flow_eg_vsi_if_get(pcf);
 	vsi = iface_vsi ? ppe_drv_iface_vsi_get(iface_vsi) : NULL;
-	if ((vtag == PPE_DRV_VLAN_TAGGED) && !vsi) {
+	if ((vtag == PPE_DRV_VLAN_TAGGED) && !vsi && !is_vlan_as_vp) {
 		ppe_drv_nexthop_deref(nh);
 		ppe_drv_warn("%p: vlan-vsi not configured on interface: %u in_vlan: %u, out_vlan: %u",
 				p, pp->port, in_vlan, out_vlan);
@@ -891,11 +911,15 @@ struct ppe_drv_nexthop *ppe_drv_nexthop_v4_get_and_ref(struct ppe_drv_v4_conn_fl
 	fal_nh.dnat_ip = xlate_dest_ip;
 	memcpy(&fal_nh.mac_addr, ppe_drv_v4_conn_flow_xmit_dest_mac_addr_get(pcf), sizeof(fal_nh.mac_addr));
 
+	/*
+	 * Note: for non-vlan flows program the final egress port.
+	 */
 	if (vtag != PPE_DRV_VLAN_TAGGED) {
 		fal_nh.type = FAL_NEXTHOP_VP;
 		fal_nh.port = pp->port;
 	} else {
-		if (vsi->is_fdb_learn_enabled && pp->is_fdb_learn_enabled && pp_rx->is_fdb_learn_enabled) {
+		if (vsi && vsi->is_fdb_learn_enabled && pp->is_fdb_learn_enabled && pp_rx->is_fdb_learn_enabled &&
+		   !(ppe_drv_v4_conn_flow_flags_check(pcf, PPE_DRV_V4_CONN_FLAG_BRIDGE_VLAN_NETDEV))) {
 			fal_nh.type = FAL_NEXTHOP_L3;
 			fal_nh.vsi = vsi->index;
 		} else {
@@ -905,7 +929,8 @@ struct ppe_drv_nexthop *ppe_drv_nexthop_v4_get_and_ref(struct ppe_drv_v4_conn_fl
 			fal_nh.type = FAL_NEXTHOP_VP;
 			fal_nh.port = pp->port;
 
-			ppe_drv_trace("%p: fdb learning disable on vsi:%u", pcf, vsi->index);
+			ppe_drv_trace("%p: fdb learning disable for dev %s out_vlan %d in_vlan %d\n", pcf,
+				      pp->dev->name, out_vlan, in_vlan);
 
 			if (out_vlan != PPE_DRV_VLAN_NOT_CONFIGURED) {
 				ppe_drv_trace("%p: fdb learning disable configuring STAG:%u", pcf, out_vlan);

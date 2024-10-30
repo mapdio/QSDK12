@@ -69,7 +69,10 @@ def dump_thread_group(ramdump, thread_group, task_out, check_for_panic=0):
     offset_comm = ramdump.field_offset('struct task_struct', 'comm')
     offset_pid = ramdump.field_offset('struct task_struct', 'pid')
     offset_stack = ramdump.field_offset('struct task_struct', 'stack')
-    offset_state = ramdump.field_offset('struct task_struct', 'state')
+    if (ramdump.kernel_version >= (6, 1)):
+        offset_state = ramdump.field_offset('struct task_struct', '__state')
+    else:
+        offset_state = ramdump.field_offset('struct task_struct', 'state')
     offset_exit_state = ramdump.field_offset(
         'struct task_struct', 'exit_state')
     offset_cpu = ramdump.field_offset('struct thread_info', 'cpu')
@@ -183,7 +186,10 @@ def do_dump_stacks(ramdump, check_for_panic=0):
     offset_thread_group = ramdump.field_offset(
         'struct task_struct', 'thread_group')
     offset_pid = ramdump.field_offset('struct task_struct', 'pid')
-    offset_state = ramdump.field_offset('struct task_struct', 'state')
+    if (ramdump.kernel_version >= (6, 1)):
+         offset_state = ramdump.field_offset('struct task_struct', '__state')
+    else:
+         offset_state = ramdump.field_offset('struct task_struct', 'state')
     offset_exit_state = ramdump.field_offset(
         'struct task_struct', 'exit_state')
     init_addr = ramdump.addr_lookup('init_task')
@@ -233,7 +239,10 @@ class DumpTasks(RamParser):
 class CheckForPanic(RamParser):
 
     def parse(self):
-        if (self.ramdump.kernel_version[0], self.ramdump.kernel_version[1]) >= (5, 4):
+        if (self.ramdump.kernel_version[0], self.ramdump.kernel_version[1]) >= (6, 1):
+            print_out_str('check for panic is not supported')
+            return
+        elif (self.ramdump.kernel_version[0], self.ramdump.kernel_version[1]) >= (5, 4):
             addr = self.ramdump.addr_lookup('tlv_msg')
             offset_is_panic = self.ramdump.field_offset('struct ctx_save_tlv_msg', 'is_panic')
             result = self.ramdump.read_byte(addr + offset_is_panic)

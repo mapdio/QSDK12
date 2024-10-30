@@ -2368,8 +2368,13 @@ static const struct flash_info spi_nor_ids[] = {
 	{ "mx25u6435f",  INFO(0xc22537, 0, 64 * 1024, 128, SECT_4K) },
 	{ "mx25l12805d", INFO(0xc22018, 0, 64 * 1024, 256, 0) },
 	{ "mx25l12855e", INFO(0xc22618, 0, 64 * 1024, 256, 0) },
+#ifdef CONFIG_IPQ_FLASH_16M_PROFILE
+	{ "mx25u12832f", INFO(0xc22538, 0, 4 * 1024, 4096,
+			 SECT_4K | SPI_NOR_DUAL_READ | SPI_NOR_QUAD_READ) },
+#else
 	{ "mx25u12835f", INFO(0xc22538, 0, 64 * 1024, 256,
 			 SECT_4K | SPI_NOR_DUAL_READ | SPI_NOR_QUAD_READ) },
+#endif
 	{ "mx25l25635e", INFO(0xc22019, 0, 64 * 1024, 512,
 			 SPI_NOR_DUAL_READ | SPI_NOR_QUAD_READ)
 			 .fixups = &mx25l25635_fixups },

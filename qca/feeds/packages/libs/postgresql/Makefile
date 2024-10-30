@@ -5,7 +5,7 @@
 include $(TOPDIR)/rules.mk
 
 PKG_NAME:=postgresql
-PKG_VERSION:=11.16
+PKG_VERSION:=15.1
 PKG_RELEASE:=1
 PKG_MAINTAINER:=Daniel Golle <daniel@makrotopia.org>
 PKG_LICENSE:=PostgreSQL
@@ -17,14 +17,13 @@ PKG_SOURCE_URL:=\
 	http://ftp.postgresql.org/pub/source/v$(PKG_VERSION) \
 	ftp://ftp.postgresql.org/pub/source/v$(PKG_VERSION)
 
-PKG_HASH:=2dd9e111f0a5949ee7cacc065cea0fb21092929bae310ce05bf01b4ffc5103a5
+PKG_HASH:=64fdf23d734afad0dfe4077daca96ac51dcd697e68ae2d3d4ca6c45cb14e21ae
 
-PKG_USE_MIPS16:=0
+PKG_BUILD_FLAGS:=no-mips16
 PKG_FIXUP:=autoreconf
 PKG_MACRO_PATHS:=config
 PKG_BUILD_DEPENDS:=postgresql/host
 PKG_INSTALL:=1
-PKG_ASLR_PIE:=0
 
 include $(INCLUDE_DIR)/host-build.mk
 include $(INCLUDE_DIR)/package.mk
@@ -35,7 +34,7 @@ define Package/libpq
   DEPENDS:=+libpthread
   TITLE:=PostgreSQL client library
   URL:=http://www.postgresql.org/
-  SUBMENU:=database
+  SUBMENU:=Database
 endef
 
 define Package/libpq/description
@@ -48,7 +47,7 @@ define Package/pgsql-cli
   DEPENDS:=+libncursesw +libpq +libreadline +librt +zlib
   TITLE:=Command Line Interface (CLI) to PostgreSQL databases
   URL:=http://www.postgresql.org/
-  SUBMENU:=database
+  SUBMENU:=Database
 endef
 
 define Package/pgsql-cli/description
@@ -61,7 +60,7 @@ define Package/pgsql-cli-extra
   DEPENDS:=+libncursesw +libpq +libreadline +librt +zlib
   TITLE:=Command Line extras for PostgreSQL databases
   URL:=http://www.postgresql.org/
-  SUBMENU:=database
+  SUBMENU:=Database
 endef
 
 define Package/pgsql-cli-extra/description
@@ -71,10 +70,10 @@ endef
 define Package/pgsql-server
   SECTION:=utils
   CATEGORY:=Utilities
-  DEPENDS:=+pgsql-cli
+  DEPENDS:=+pgsql-cli +blockd
   TITLE:=PostgreSQL databases Server
   URL:=http://www.postgresql.org/
-  SUBMENU:=database
+  SUBMENU:=Database
   USERID:=postgres=5432:postgres=5432
 endef
 
@@ -83,18 +82,23 @@ PostgreSQL databases Server.
 endef
 
 PGSQL_SERVER_BIN := \
+	pg_amcheck \
 	pg_archivecleanup \
 	pg_basebackup \
+	pg_checksums \
 	pg_controldata \
 	pg_ctl \
 	pg_dump \
 	pg_dumpall \
 	pg_isready \
 	pg_recvlogical \
+	pg_receivewal \
 	pg_resetwal \
 	pg_restore \
-	pg_standby \
+	pg_rewind \
 	pg_upgrade \
+	pg_verifybackup \
+	pg_waldump \
 	postgres \
 	initdb
 
@@ -104,14 +108,17 @@ PGSQL_CLI_EXTRA_BIN := \
 	createuser	\
 	dropdb		\
 	dropuser	\
+	oid2name	\
 	pgbench		\
 	reindexdb	\
-	vacuumdb
+	vacuumdb	\
+	vacuumlo
 
 PGSQL_CONFIG_VARS:= \
 	pgac_cv_snprintf_long_long_int_format="%lld" \
 	pgac_cv_snprintf_size_t_support=yes \
 	USE_DEV_URANDOM=1 \
+	ac_cv_file__dev_urandom="/dev/urandom" \
 	ZIC=zic
 
 ifeq ($(CONFIG_USE_UCLIBC),y)
@@ -157,6 +164,8 @@ CONFIGURE_ARGS += \
 			--enable-depend \
 			$(if $(CONFIG_arc),--disable-spinlocks)
 
+HOST_CFLAGS += -std=gnu99
+
 # Need a native zic and pg_config for build
 define Host/Compile
 	+$(HOST_MAKE_VARS) MAKELEVEL=0 $(MAKE) -C $(HOST_BUILD_DIR)/src/bin/pg_config CC="$(HOSTCC)"
@@ -192,6 +201,10 @@ endef
 define Package/pgsql-cli-extra/install
 	$(INSTALL_DIR) $(1)/usr/bin
 	$(INSTALL_BIN) $(foreach bin,$(PGSQL_CLI_EXTRA_BIN),$(PKG_INSTALL_DIR)/usr/bin/$(bin)) $(1)/usr/bin/
+endef
+
+define Package/pgsql-server/conffiles
+/etc/config/postgresql
 endef
 
 define Package/pgsql-server/install

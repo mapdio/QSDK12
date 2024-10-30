@@ -1,6 +1,6 @@
 /*
  **************************************************************************
- * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2024 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
@@ -150,10 +150,10 @@ struct nss_udp_st_ip {
  *  packet stats
  */
 struct nss_udp_st_pkt_stats {
-	atomic_long_t tx_packets;	/* Number of packets transmitted */
-	atomic_long_t tx_bytes;	/* Number of bytes transmitted */
-	atomic_long_t rx_packets;	/* Number of packets received */
-	atomic_long_t rx_bytes;	/* Number of bytes received */
+	atomic64_t tx_packets;	/* Number of packets transmitted */
+	atomic64_t tx_bytes;	/* Number of bytes transmitted */
+	atomic64_t rx_packets;	/* Number of packets received */
+	atomic64_t rx_bytes;	/* Number of bytes received */
 };
 /*
  * nss_udp_st_stats
@@ -161,8 +161,8 @@ struct nss_udp_st_pkt_stats {
  */
 struct nss_udp_st_stats {
 	struct nss_udp_st_pkt_stats p_stats;			/* Packet statistics */
-	atomic_long_t timer_stats[NSS_UDP_ST_STATS_TIME_MAX];	/* Time statistics */
-	atomic_long_t errors[NSS_UDP_ST_ERROR_MAX];		/* Error statistics */
+	atomic64_t timer_stats[NSS_UDP_ST_STATS_TIME_MAX];	/* Time statistics */
+	atomic64_t errors[NSS_UDP_ST_ERROR_MAX];		/* Error statistics */
 	bool first_pkt;					/* First packet flag */
 };
 
@@ -189,7 +189,7 @@ struct nss_udp_st {
 	struct nss_udp_st_rules rules;	/* database for config rules */
 	struct nss_udp_st_stats stats;	/* result statistics */
 	uint32_t rule_count;		/* no of rules configured */
-	uint64_t time;			/* duration of test */
+	uint32_t time;			/* duration of test */
 	bool mode;			/* start =0; stop=1 */
 	bool dir;			/* tx=0; rx=1 */
 };

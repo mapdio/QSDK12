@@ -878,10 +878,16 @@ int __qti_scm_dload(struct device *dev, u32 svc_id, u32 cmd_id, void *cmd_buf,
 	struct arm_smccc_res res;
 	int ret;
 	unsigned int enable;
+	uint32_t val;
 
 	enable = cmd_buf ? *((unsigned int *)cmd_buf) : 0;
+
+	ret = qti_read_dload_reg(&val);
+	if (ret)
+		return ret;
+
 	desc.args[0] = dload_mode_addr;
-	desc.args[1] = readl(dload_reg);
+	desc.args[1] = val;
 	if (enable == SET_MAGIC_WARMRESET)
 		desc.args[1] |= DLOAD_MODE_ENABLE_WARMRESET;
 	else if (enable == ABNORMAL_MAGIC)
@@ -1226,8 +1232,9 @@ int __qti_scm_get_ecdsa_blob(struct device *dev, u32 svc_id, u32 cmd_id,
 
 	return ret ? : res.a1;
 }
+
 /**
- * __qti_scm_get_ipq5332_fuse_list() - Get OEM Fuse parameter from TME-L
+ * __qti_scm_get_ipq_fuse_list() - Get OEM Fuse parameter from TME-L
  *
  * @svc_id: SCM service id
  * @cmd_id: SCM command id
@@ -1236,8 +1243,8 @@ int __qti_scm_get_ecdsa_blob(struct device *dev, u32 svc_id, u32 cmd_id,
  *
  * This function can be used to get the OEM Fuse parameters from TME-L.
  */
-int __qti_scm_get_ipq5332_fuse_list(struct device *dev, u32 svc_id,
-		u32 cmd_id, struct fuse_payload *fuse, size_t size)
+int __qti_scm_get_ipq_fuse_list(struct device *dev, u32 svc_id, u32 cmd_id,
+				void *fuse, size_t size)
 {
 	int ret;
 	dma_addr_t dma_fuse;
@@ -1263,6 +1270,31 @@ int __qti_scm_get_ipq5332_fuse_list(struct device *dev, u32 svc_id,
 	}
 
 	dma_unmap_single(dev, dma_fuse, size, DMA_FROM_DEVICE);
+
+	return ret ? : res.a1;
+}
+
+/**
+ * __qti_scm_is_feature_available() - Check if a given feature is enabled by TZ,
+ *                   and its version if enabled.
+ * @feature_id: ID of the feature to check in TZ for availablilty/version.
+ *
+ * Return: 0 on success and the version of the feature in result.
+ *
+ * TZ returns 0xFFFFFFFF if this smc call is not supported or
+ * if smc call supported but feature ID not supported
+ */
+long  __qti_scm_is_feature_available(struct device *dev, u32 svc_id, u32 cmd_id,
+							u32 feature_id)
+{
+	long ret;
+	struct arm_smccc_res res;
+	struct qcom_scm_desc desc = {0};
+
+	desc.args[0] = feature_id;
+	desc.arginfo = SCM_ARGS(1, QCOM_SCM_VAL);
+	ret = qcom_scm_call(dev, ARM_SMCCC_OWNER_SIP, svc_id, cmd_id,
+			&desc, &res);
 
 	return ret ? : res.a1;
 }

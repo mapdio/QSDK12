@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2024 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for any
  * purpose with or without fee is hereby granted, provided that the above
@@ -17,6 +17,7 @@
 #include <linux/vmalloc.h>
 #include <linux/skbuff.h>
 #include <linux/in.h>
+#include <linux/ip.h>
 #include <linux/etherdevice.h>
 #include "ppe_drv.h"
 
@@ -65,14 +66,14 @@ static void ppe_drv_cc_process_v4(ppe_drv_cc_t cc, struct flow_keys *keys)
 	cn = pcf->conn;
 	pcr = (pcf == &cn->pcf) ? &cn->pcr : &cn->pcf;
 
-	if (ppe_drv_v4_conn_flow_flags_check(pcf, PPE_DRV_V4_CONN_FLAG_FLOW_PPE_ASSIST)) {
+	if (ppe_drv_v4_conn_flow_flags_check(pcf, PPE_DRV_V4_CONN_FLAG_FLOW_RFS_PPE_ASSIST)) {
 		spin_unlock_bh(&p->lock);
 		ppe_drv_stats_inc(&p->stats.gen_stats.v4_flush_skip_conn_rfs);
 		ppe_drv_info("%p: connection flush called for ppe_rfs cpu_code: %d", keys, cc);
 		return;
 	}
 
-	if (ppe_drv_v4_conn_flow_flags_check(pcr, PPE_DRV_V4_CONN_FLAG_FLOW_PPE_ASSIST)) {
+	if (ppe_drv_v4_conn_flow_flags_check(pcr, PPE_DRV_V4_CONN_FLAG_FLOW_RFS_PPE_ASSIST)) {
 		spin_unlock_bh(&p->lock);
 		ppe_drv_stats_inc(&p->stats.gen_stats.v4_flush_skip_conn_rfs);
 		ppe_drv_info("%p: connection flush called for ppe_rfs cpu_code: %d", keys, cc);
@@ -152,14 +153,14 @@ static void ppe_drv_cc_process_v6(ppe_drv_cc_t cc, struct flow_keys *keys)
 	cn = pcf->conn;
 	pcr = (pcf == &cn->pcf) ? &cn->pcr : &cn->pcf;
 
-	if (ppe_drv_v6_conn_flow_flags_check(pcf, PPE_DRV_V6_CONN_FLAG_FLOW_PPE_ASSIST)) {
+	if (ppe_drv_v6_conn_flow_flags_check(pcf, PPE_DRV_V6_CONN_FLAG_FLOW_RFS_PPE_ASSIST)) {
 		spin_unlock_bh(&p->lock);
 		ppe_drv_stats_inc(&p->stats.gen_stats.v6_flush_skip_conn_rfs);
 		ppe_drv_info("%p: connection flush called for ppe_rfs cpu_code: %d", keys, cc);
 		return;
 	}
 
-	if (ppe_drv_v6_conn_flow_flags_check(pcr, PPE_DRV_V6_CONN_FLAG_FLOW_PPE_ASSIST)) {
+	if (ppe_drv_v6_conn_flow_flags_check(pcr, PPE_DRV_V6_CONN_FLAG_FLOW_RFS_PPE_ASSIST)) {
 		spin_unlock_bh(&p->lock);
 		ppe_drv_stats_inc(&p->stats.gen_stats.v6_flush_skip_conn_rfs);
 		ppe_drv_info("%p: connection flush called for ppe_rfs cpu_code: %d", keys, cc);
@@ -197,34 +198,29 @@ static void ppe_drv_cc_process_v6(ppe_drv_cc_t cc, struct flow_keys *keys)
  * ppe_drv_cc_process_skbuff()
  *	Process skbuff with a non-zero cpu code.
  */
-bool ppe_drv_cc_process_skbuff(uint8_t cc, struct sk_buff *skb)
+bool ppe_drv_cc_process_skbuff(struct ppe_drv_cc_metadata *cc_info, struct sk_buff *skb)
 {
 	struct ppe_drv *p = &ppe_drv_gbl;
 	struct ppe_drv_cc *pcc;
 	struct flow_keys keys = {0};
 	ppe_drv_cc_callback_t cb;
-	ppe_drv_cc_t exp_code;
 	void *app_data;
 	bool ret = false;
+	uint16_t cc = cc_info->cpu_code;
+	struct iphdr *iph;
 
 	ppe_drv_assert((cc > 0) && (cc < PPE_DRV_CC_MAX), "%p: invalid cpu code %u", p, cc);
 
 	/*
-	 * Map CPU code to exception code
-	 */
-	exp_code = PPE_DRV_CC_TO_EXP(cc);
-
-	/*
 	 * Check if this CPU code needs flush.
 	 */
-	pcc = &p->cc[exp_code];
+	pcc = &p->cc[cc];
 	if (!pcc->flush) {
 		goto done;
 	}
 
 	/*
 	 * Extract flow key from skbuff
-	 *
 	 * We are using skb flow dissect and ignoring its performance impact,
 	 * since PPE generate explicit CPU code only for first packet which is
 	 * responsible for auto flow deceleration in PPE, all subsequent packets
@@ -236,8 +232,29 @@ bool ppe_drv_cc_process_skbuff(uint8_t cc, struct sk_buff *skb)
 	 *    associated rule.
 	 * 2. PPE uses 3 tuple rule for all ip protocol other than TCP, UDP & UDP_LITE,
 	 *    so we STOP_AT_ENCAP.
+	 * 3. For packets with fake MAC header PPE can generate a flow based exception,
+	 *    only when it's an IPv4 or IPv6 packets.
 	 */
-	skb->protocol = eth_type_trans(skb, skb->dev);
+	if (cc_info->fake_mac) {
+		/*
+		 * Discard L2 header
+		 */
+		skb_pull_inline(skb, ETH_HLEN);
+		iph = (struct iphdr *)skb->data;
+
+		if (iph->version == 4) {
+			skb->protocol = htons(ETH_P_IP);
+		} else if (iph->version == 6) {
+			skb->protocol = htons(ETH_P_IPV6);
+		} else {
+			ppe_drv_info("%p: Non-IP packet with fake mac set :%p for cc:%u ",
+					p, skb, cc);
+			goto push;
+		}
+	} else {
+		skb->protocol = eth_type_trans(skb, skb->dev);
+	}
+
 	skb_reset_network_header(skb);
 	if (!skb_flow_dissect_flow_keys(skb, &keys,
 			FLOW_DISSECTOR_F_PARSE_1ST_FRAG | FLOW_DISSECTOR_F_STOP_AT_ENCAP)) {
@@ -250,11 +267,11 @@ bool ppe_drv_cc_process_skbuff(uint8_t cc, struct sk_buff *skb)
 	 */
 	switch (keys.control.addr_type) {
 		case FLOW_DISSECTOR_KEY_IPV4_ADDRS:
-			ppe_drv_cc_process_v4(exp_code, &keys);
+			ppe_drv_cc_process_v4((ppe_drv_cc_t)cc, &keys);
 			break;
 
 		case FLOW_DISSECTOR_KEY_IPV6_ADDRS:
-			ppe_drv_cc_process_v6(exp_code, &keys);
+			ppe_drv_cc_process_v6((ppe_drv_cc_t)cc, &keys);
 			break;
 
 		default:
@@ -268,11 +285,12 @@ done:
 	app_data = pcc->app_data;
 	spin_unlock_bh(&p->lock);
 
-	ppe_drv_trace("%p: processing skb:%p cc:%u exp_code: %u cb:%p app:%p",
-			p, skb, cc, exp_code, cb, app_data);
+	ppe_drv_trace("%p: processing skb:%p cc:%u cb:%p app:%p",
+			p, skb, cc, cb, app_data);
+
 
 	if (cb) {
-		ret = cb(app_data, skb);
+		ret = cb(app_data, skb, (void *)cc_info);
 	}
 
 	return ret;
@@ -361,6 +379,26 @@ struct ppe_drv_cc *ppe_drv_cc_entries_alloc(void)
 		pcc = &cc[cpu_code];
 		pcc->flush = true;
 	}
+
+	pcc = &cc[PPE_DRV_CC_L2_EXP_MTU_FAIL];
+	pcc->flush = true;
+
+	pcc = &cc[PPE_DRV_CC_L3_EXP_MTU_FAIL];
+	pcc->flush = true;
+
+	pcc = &cc[PPE_DRV_CC_L3_EXP_FLOW_MTU_FAIL];
+	pcc->flush = true;
+
+	/*
+	 * Sometime PPE decelerate the flow but, it doesn't produce the original CPU
+	 * code with the first exceptioned packet that caused the auto-deceleration.
+	 * If we miss that, there is no way to flush an auto-decelerated flow. In such
+	 * cases, PPE still generate a specific CPU code which indicate there is a matching
+	 * flow for the given packet, but in decelerated status. We rely on this and try to
+	 * flush the associated flow with sub-sequent packets.
+	 */
+	pcc = &cc[PPE_DRV_CC_L3_FLOW_DE_ACCELEARTE];
+	pcc->flush = true;
 
 	return cc;
 }

@@ -8,12 +8,12 @@
 include $(TOPDIR)/rules.mk
 
 PKG_NAME:=libssh2
-PKG_VERSION:=1.9.0
-PKG_RELEASE:=2
+PKG_VERSION:=1.10.0
+PKG_RELEASE:=1
 
 PKG_SOURCE:=$(PKG_NAME)-$(PKG_VERSION).tar.gz
 PKG_SOURCE_URL:=https://www.libssh2.org/download
-PKG_HASH:=d5fb8bd563305fd1074dda90bd053fb2d29fc4bce048d182f96eaa466dfadafd
+PKG_HASH:=2d64e90f3ded394b91d3a2e774ca203a4179f69aebee03003e5a6fa621e41d51
 
 PKG_MAINTAINER:=Jiri Slachta <jiri@slachta.eu>
 PKG_LICENSE:=BSD-3-Clause
@@ -21,7 +21,6 @@ PKG_LICENSE_FILES:=COPYING
 PKG_CPE_ID:=cpe:/a:libssh2:libssh2
 
 CMAKE_INSTALL:=1
-PKG_BUILD_PARALLEL:=1
 
 PKG_CONFIG_DEPENDS:= \
 	CONFIG_LIBSSH2_MBEDTLS \
@@ -35,7 +34,7 @@ define Package/libssh2
   CATEGORY:=Libraries
   TITLE:=SSH2 library
   URL:=https://www.libssh2.org/
-  DEPENDS:=+LIBSSH2_MBEDTLS:libmbedtls +LIBSSH2_OPENSSL:libopenssl +zlib
+  DEPENDS:=+LIBSSH2_MBEDTLS:libmbedtls +!LIBSSH2_MBEDTLS:libopenssl +zlib
   ABI_VERSION:=1
 endef
 
@@ -44,20 +43,28 @@ define Package/libssh2/description
 endef
 
 define Package/libssh2/config
-	source "$(SOURCE)/Config.in"
+if PACKAGE_libssh2
+
+choice
+	prompt "Choose crypto backend"
+	default LIBSSH2_OPENSSL
+
+	config LIBSSH2_OPENSSL
+	bool "openssl"
+
+	config LIBSSH2_MBEDTLS
+	bool "mbedtls"
+endchoice
+
+endif
 endef
 
 CMAKE_OPTIONS += \
 	-DBUILD_SHARED_LIBS=ON \
 	-DBUILD_TESTING=OFF \
 	-DENABLE_ZLIB_COMPRESSION=ON \
-	-DCLEAR_MEMORY=ON
-
-ifeq ($(CONFIG_LIBSSH2_OPENSSL),y)
-	CMAKE_OPTIONS += -DCRYPTO_BACKEND=OpenSSL
-else
-	CMAKE_OPTIONS += -DCRYPTO_BACKEND=mbedTLS
-endif
+	-DCLEAR_MEMORY=ON \
+	-DCRYPTO_BACKEND=$(if $(CONFIG_LIBSSH2_MBEDTLS),mbedTLS,OpenSSL)
 
 define Package/libssh2/install
 	$(INSTALL_DIR) $(1)/usr/lib

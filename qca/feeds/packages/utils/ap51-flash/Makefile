@@ -7,15 +7,18 @@
 include $(TOPDIR)/rules.mk
 
 PKG_NAME:=ap51-flash
-PKG_VERSION:=2019.0
+PKG_VERSION:=2022.0
 PKG_RELEASE:=2
 
 PKG_SOURCE:=$(PKG_NAME)-$(PKG_VERSION).tar.gz
 PKG_SOURCE_URL:=https://github.com/ap51-flash/ap51-flash/releases/download/v$(PKG_VERSION)
-PKG_HASH:=e7992b2151721cc6f5db91f443ad7fc83cb5604c08cd11fca3e78ecd6b538e57
+PKG_HASH:=54999e07906296f213b298a2a80ba5df59273da30ecba1b82f94d0edf1d5d7f8
+
 PKG_MAINTAINER:=Russell Senior <russell@personaltelco.net>
 PKG_LICENSE:=GPL-3.0-or-later CC0-1.0
 PKG_LICENSE_FILES:=LICENSES/GPL-3.0-or-later.txt LICENSES/CC0-1.0.txt
+
+PKG_BUILD_FLAGS:=lto
 
 include $(INCLUDE_DIR)/package.mk
 
@@ -30,6 +33,8 @@ endef
 MAKE_FLAGS += \
 	REVISION="$(PKG_VERSION)" \
 	ap51-flash
+
+TARGET_LDFLAGS += -Wl,--gc-sections,--as-needed
 
 define Package/ap51-flash/install
 	$(INSTALL_DIR) $(1)/etc/config $(1)/etc/init.d $(1)/usr/sbin \

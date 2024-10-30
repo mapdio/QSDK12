@@ -1,6 +1,7 @@
 include $(TOPDIR)/rules.mk
 include $(INCLUDE_DIR)/kernel.mk
 
+
 PKG_NAME:=mac80211
 
 PKG_BACKPORTS_VERSION:=42a95ce7
@@ -74,12 +75,10 @@ define KernelPackage/mac80211
   DEPENDS+= @TARGET_ipq95xx||TARGET_ipq53xx||TARGET_ipq50xx||TARGET_ipq60xx||TARGET_ipq807x||TARGET_ipq806x||TARGET_ipq||TARGET_ar71xx \
 	+LINUX_4_4:kmod-crypto-arc4 +LINUX_4_4:kmod-crypto-aes +kmod-cfg80211 +hostapd-common \
 	+!(TARGET_ipq95xx||TARGET_ipq53xx):kmod-qca-nss-drv-wifi-meshmgr +!(TARGET_ipq95xx||TARGET_ipq53xx):kmod-qca-nss-drv +TARGET_ipq95xx:kmod-qca-nss-ppe +TARGET_ipq95xx:kmod-qca-nss-ppe-vp \
-	+TARGET_ipq53xx:kmod-qca-nss-ppe +TARGET_ipq53xx:kmod-qca-nss-ppe-vp +TARGET_ipq95xx:kmod-qca-nss-ppe-ds +TARGET_ipq53xx:kmod-qca-nss-ppe-ds +TARGET_ipq95xx:kmod-bonding +TARGET_ipq53xx:kmod-bonding
+	+TARGET_ipq53xx:kmod-qca-nss-ppe +TARGET_ipq53xx:kmod-qca-nss-ppe-vp
   PKG_BUILD_DEPENDS+= PACKAGE_kmod-qca-nss-drv:kmod-qca-nss-drv
   PKG_BUILD_DEPENDS+= PACKAGE_kmod-qca-nss-ppe:kmod-qca-nss-ppe
   PKG_BUILD_DEPENDS+= PACKAGE_kmod-qca-nss-ppe-vp:kmod-qca-nss-ppe-vp
-  PKG_BUILD_DEPENDS+= PACKAGE_kmod-qca-nss-ppe-ds:kmod-qca-nss-ppe-ds
-  PKG_BUILD_DEPENDS+= PACKAGE_kmod-bonding:kmod-bonding
   KCONFIG:=\
 	CONFIG_AVERAGE=y
   FILES:= $(PKG_BUILD_DIR)/net/mac80211/mac80211.ko
@@ -104,12 +103,6 @@ define KernelPackage/mac80211/config
 		default y
 		help
 		  This option enables support for PPE in boards
-		  like RDP433
-	config PACKAGE_MAC80211_BONDED_SUPPORT
-		bool "Enable bonded  support for IPQ platform"
-		default y
-		help
-		  This option enables support for Bonded netdev in boards
 		  like RDP433
      endif
 
@@ -241,18 +234,18 @@ ifneq ($(call qstrip,$(_LINUX_SRC)),)
 # --reference option doesn't work on git trees synced with "repo", so instead
 # we're manually using clone & fetch to speed up sync time
   define FastCloneKernel
-	git clone --depth=1 file://$(_LINUX_SRC) $(2) || \
+	git clone $(_LINUX_SRC) $(2) || \
 	(rm -rf $(2) && \
-	git clone --depth=1 file://$(_LINUX_SRC) $(2))
+	git clone $(_LINUX_SRC) $(2))
 	(cd $(2); git remote add src $(1); git fetch src)
   endef
 else
   define FastCloneKernel
 	GIT_NAME=$$$$(echo $(1) | sed -e 's:.*//[^/]*.::g'); \
-	git clone --depth=1 $(1) $(2) || \
+	git clone $(1) $(2) || \
 	([ -n "${CONFIG_GIT_MIRROR}" ] && \
 	rm -rf $(2) && \
-	git clone --depth=1 $(CONFIG_GIT_MIRROR)$$$$GIT_NAME $(2))
+	git clone $(CONFIG_GIT_MIRROR)$$$$GIT_NAME $(2))
   endef
 endif
 
@@ -290,7 +283,14 @@ define DownloadBackports
   $(DL_DIR)/$(FILE):
 	mkdir -p $(TMP_DIR)/dl/$(PKG_NAME)-$(PKG_VERSION)
 	$(call FastCloneKernel,$(PKG_KERNEL_SOURCE_URL),$(TMP_DIR)/dl/$(PKG_NAME)-kernel)
-	(cd $(TMP_DIR)/dl/$(PKG_NAME)-kernel && git checkout $(PKG_KERNEL_VERSION))
+	(cd $(TMP_DIR)/dl/$(PKG_NAME)-kernel && git checkout $(PKG_KERNEL_VERSION) && \
+	git revert --no-edit bde292c07b && \
+	git revert --no-edit 4dc84c06a && git revert --no-edit 1241e329c && \
+	git revert --no-edit db3bdcb9 && git revert --no-edit 48a54f6bc && \
+	git revert --no-edit b55379e34 && git revert --no-edit 47c662486 && \
+	git revert --no-edit 36b0cefe9 && git revert --no-edit dfcb63ce && \
+	git revert --no-edit e72aeb9e && git revert --no-edit de1352ead8 && \
+	git revert --no-edit fb5f6a0e && git revert --no-edit 74624944)
 
 	git clone $(PKG_BACKPORTS_SOURCE_URL) $(TMP_DIR)/dl/$(PKG_NAME)-source || \
 	(rm -rf $(TMP_DIR)/dl/$(PKG_NAME)-source && \
@@ -299,7 +299,7 @@ define DownloadBackports
 	(cd $(TMP_DIR)/dl/$(PKG_NAME)-source && git checkout $(PKG_BACKPORTS_VERSION) && \
 	rm -f $(TMP_DIR)/dl/$(PKG_NAME)-source/patches/0073-netdevice-mtu-range.cocci && \
 	rm -f $(TMP_DIR)/dl/$(PKG_NAME)-source/patches/0075-ndo-stats-64.cocci && \
-	rm -f $(TMP_DIR)/dl/$(PKG_NAME)-source/patches/0105-remove-const-from-rchan_callbacks.patch)
+	git revert --no-edit 49432781 && git revert --no-edit 8afac3a8)
 	$(call backports_mlo_support,$(TMP_DIR)/dl/$(PKG_NAME)-source)
 	(cd $(TMP_DIR)/dl/$(PKG_NAME)-source && \
 	./gentree.py --clean --copy-list ./copy-list.ath \
@@ -538,7 +538,6 @@ endif
 
 config-$(CONFIG_PACKAGE_MAC80211_NSS_SUPPORT) += MAC80211_NSS_SUPPORT
 config-$(CONFIG_PACKAGE_MAC80211_PPE_SUPPORT) += MAC80211_PPE_SUPPORT
-config-$(CONFIG_PACKAGE_MAC80211_BONDED_SUPPORT) += MAC80211_BONDED_SUPPORT
 config-$(CONFIG_PACKAGE_MAC80211_MESSAGE_TRACING) += MAC80211_MESSAGE_TRACING ATH10K_TRACING ATH11K_TRACING ATH12K_TRACING
 config-$(CONFIG_PACKAGE_MAC80211_DEBUG_MENU) += MAC80211_DEBUG_MENU
 config-$(CONFIG_PACKAGE_MAC80211_VERBOSE_DEBUG) += MAC80211_VERBOSE_DEBUG
@@ -554,8 +553,7 @@ config-$(CONFIG_PACKAGE_ATH_DEBUG) += ATH_DEBUG ATH10K_DEBUG ATH11K_DEBUG ATH12K
 config-$(call config_package,ath9k) += ATH9K
 config-$(call config_package,ath9k-common) += ATH9K_COMMON
 config-$(CONFIG_TARGET_ar71xx) += ATH9K_AHB
-config-$(CONFIG_TARGET_ipq53xx) += ATH12K_AHB ATH12K_PPE_DS_SUPPORT ATH12K_BONDED_DS_SUPPORT MAC80211_PPE_SUPPORT MAC80211_BONDED_SUPPORT
-config-$(CONFIG_TARGET_ipq95xx) += ATH12K_PPE_DS_SUPPORT ATH12K_BONDED_DS_SUPPORT MAC80211_PPE_SUPPORT MAC80211_BONDED_SUPPORT
+config-$(CONFIG_TARGET_ipq53xx) += ATH12K_AHB
 config-$(CONFIG_PCI) += ATH9K_PCI
 config-$(CONFIG_ATH_USER_REGD) += ATH_USER_REGD \
 				      ATH_REG_DYNAMIC_USER_REG_HINTS \
@@ -670,10 +668,7 @@ ifeq ($(CONFIG_LINUX_5_4),y)
 endif
 	$(INSTALL_DIR) $(1)/lib/wifi $(1)/etc/hotplug.d/devcoredump
 	$(INSTALL_DIR) $(1)/lib/wifi $(1)/lib/netifd/wireless
-	$(INSTALL_DIR) $(1)/lib/wifi/sawf
 	$(INSTALL_DATA) ./files/lib/wifi/mac80211.sh $(1)/lib/wifi
-	$(INSTALL_DATA) ./files/lib/wifi/def_service_classes.json $(1)/lib/wifi/sawf/
-	$(INSTALL_DATA) ./files/lib/wifi/service_classes.json $(1)/lib/wifi/sawf/
 	$(INSTALL_BIN) ./files/lib/netifd/wireless/mac80211.sh $(1)/lib/netifd/wireless
 	$(INSTALL_BIN) ./files/lib/performance.sh $(1)/lib
 	$(INSTALL_BIN) ./files/lib/smp_affinity_settings.sh $(1)/lib

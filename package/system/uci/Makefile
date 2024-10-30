@@ -9,20 +9,18 @@
 include $(TOPDIR)/rules.mk
 
 PKG_NAME:=uci
-PKG_RELEASE:=4
+PKG_RELEASE:=1
 
 PKG_SOURCE_URL=$(PROJECT_GIT)/project/uci.git
 PKG_SOURCE_PROTO:=git
-PKG_SOURCE_DATE=2019-09-01
-PKG_SOURCE_VERSION:=415f9e48436d29f612348f58f546b3ad8d74ac38
-PKG_MIRROR_HASH:=06f2801b103c359129c1675cbe5045c2cd04d756c2ab1efd2160608f34a27a8f
+PKG_SOURCE_DATE=2023-08-10
+PKG_SOURCE_VERSION:=5781664d5087ccc4b5ab58505883231212dbedbc
+PKG_MIRROR_HASH:=2d60a8543fa00cfc75df6417354b004abf58f672c91bf0a3bffe3ea1dbf84a4b
 
 PKG_LICENSE:=LGPL-2.1
 PKG_LICENSE_FILES:=
 
 PKG_MAINTAINER:=Felix Fietkau <nbd@nbd.name>
-
-PKG_BUILD_PARALLEL:=0
 
 include $(INCLUDE_DIR)/package.mk
 include $(INCLUDE_DIR)/cmake.mk
@@ -55,7 +53,7 @@ endef
 TARGET_CFLAGS += -I$(STAGING_DIR)/usr/include
 TARGET_LDFLAGS += -L$(STAGING_DIR)/usr/lib
 
-CMAKE_OPTIONS = \
+CMAKE_OPTIONS += \
 	-DLUAPATH=/usr/lib/lua \
 	$(if $(DEBUG),-DUCI_DEBUG=ON)
 
@@ -84,6 +82,6 @@ define Build/InstallDev
 	$(CP) $(PKG_BUILD_DIR)/libucimap.a $(1)/usr/lib
 endef
 
-$(eval $(call BuildPackage,uci))
 $(eval $(call BuildPackage,libuci))
 $(eval $(call BuildPackage,libuci-lua))
+$(eval $(call BuildPackage,uci))

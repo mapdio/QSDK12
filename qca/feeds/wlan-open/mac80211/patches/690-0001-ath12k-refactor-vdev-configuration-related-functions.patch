@@ -24,7 +24,7 @@ Signed-off-by: Aditya Kumar Singh <quic_adisi@quicinc.com>
 
 --- a/drivers/net/wireless/ath/ath12k/mac.c
 +++ b/drivers/net/wireless/ath/ath12k/mac.c
-@@ -9668,6 +9668,55 @@ ath12k_mac_mlo_get_vdev_args(struct ath1
+@@ -9644,6 +9644,59 @@ ath12k_mac_mlo_get_vdev_args(struct ath1
  }
  
  static int
@@ -38,7 +38,11 @@ Signed-off-by: Aditya Kumar Singh <quic_adisi@quicinc.com>
 +
 +	lockdep_assert_held(&ar->conf_mutex);
 +
++	/* TODO: Transmit Power Envelope specification for 320 is not
++         * available yet. Need to add TPE 320 support when spec is ready
++         */
 +	if (ar->supports_6ghz &&
++	    chandef->width != NL80211_CHAN_WIDTH_320 &&
 +            chandef->chan->band == NL80211_BAND_6GHZ &&
 +            (ahvif->vdev_type == WMI_VDEV_TYPE_STA || ahvif->vdev_type == WMI_VDEV_TYPE_AP) &&
 +            test_bit(WMI_TLV_SERVICE_EXT_TPC_REG_SUPPORT, ar->ab->wmi_ab.svc_map)) {
@@ -80,22 +84,26 @@ Signed-off-by: Aditya Kumar Singh <quic_adisi@quicinc.com>
  ath12k_mac_vdev_start_restart(struct ath12k_link_vif *arvif,
  			      const struct cfg80211_chan_def *chandef,
  			      bool restart, bool radar_enabled)
-@@ -9756,44 +9805,15 @@ ath12k_mac_vdev_start_restart(struct ath
+@@ -9732,48 +9785,15 @@ ath12k_mac_vdev_start_restart(struct ath
  		return ret;
  	}
  
+-	/* TODO: Transmit Power Envelope specification for 320 is not
+-         * available yet. Need to add TPE 320 support when spec is ready
+-         */
 -	if (ar->supports_6ghz &&
+-	    chandef->width != NL80211_CHAN_WIDTH_320 &&
 -            chandef->chan->band == NL80211_BAND_6GHZ &&
 -            (ahvif->vdev_type == WMI_VDEV_TYPE_STA || ahvif->vdev_type == WMI_VDEV_TYPE_AP) &&
 -            test_bit(WMI_TLV_SERVICE_EXT_TPC_REG_SUPPORT, ar->ab->wmi_ab.svc_map)) {
 -                ath12k_mac_fill_reg_tpc_info(ar, arvif, &arvif->chanctx);
 -                ath12k_wmi_send_vdev_set_tpc_power(ar, arvif->vdev_id,
 -                                                   &arvif->reg_tpc_info);
--       }
+-	}
 -
  	ar->num_started_vdevs++;
  	ath12k_dbg(ab, ATH12K_DBG_MAC,  "vdev %pM started, vdev_id %d\n",
- 		   arvif->addr, arvif->vdev_id);
+ 		   ahvif->vif->addr, arvif->vdev_id);
  
 -	/* Enable CAC Flag in the driver by checking the channel DFS cac time,
 -	 * i.e dfs_cac_ms value which will be valid only for radar channels
@@ -129,7 +137,7 @@ Signed-off-by: Aditya Kumar Singh <quic_adisi@quicinc.com>
  
  	return 0;
  }
-@@ -10162,6 +10182,67 @@ static void ath12k_mac_update_rx_channel
+@@ -10143,6 +10163,67 @@ static void ath12k_mac_update_rx_channel
  }
  
  static void
@@ -197,7 +205,7 @@ Signed-off-by: Aditya Kumar Singh <quic_adisi@quicinc.com>
  ath12k_mac_update_vif_chan(struct ath12k *ar,
  			   struct ieee80211_vif_chanctx_switch *vifs,
  			   int n_vifs)
-@@ -10169,10 +10250,8 @@ ath12k_mac_update_vif_chan(struct ath12k
+@@ -10150,10 +10231,8 @@ ath12k_mac_update_vif_chan(struct ath12k
  	struct ath12k_base *ab = ar->ab;
  	struct ath12k_link_vif *arvif, *tx_arvif;
  	struct ath12k_vif *ahvif;
@@ -208,7 +216,7 @@ Signed-off-by: Aditya Kumar Singh <quic_adisi@quicinc.com>
  	u64 vif_down_failed_map = 0;
  	struct ieee80211_vif *tx_vif;
  
-@@ -10194,9 +10273,6 @@ ath12k_mac_update_vif_chan(struct ath12k
+@@ -10175,9 +10254,6 @@ ath12k_mac_update_vif_chan(struct ath12k
  		if (WARN_ON(!arvif))
  			continue;
  
@@ -218,16 +226,16 @@ Signed-off-by: Aditya Kumar Singh <quic_adisi@quicinc.com>
  		ath12k_dbg(ab, ATH12K_DBG_MAC,
  			   "mac chanctx switch vdev_id %i freq %u->%u width %d->%d\n",
  			   arvif->vdev_id,
-@@ -10205,7 +10281,7 @@ ath12k_mac_update_vif_chan(struct ath12k
+@@ -10186,7 +10262,7 @@ ath12k_mac_update_vif_chan(struct ath12k
  			   vifs[i].old_ctx->def.width,
  			   vifs[i].new_ctx->def.width);
  
--		if (WARN_ON(!arvif->is_started)) {
-+		if (!arvif->is_started) {
- 			memcpy(&arvif->chanctx, vifs[i].new_ctx, sizeof(*vifs[i].new_ctx));
+-		if (WARN_ON(!arvif->is_started))
++		if (!arvif->is_started)
  			continue;
- 		}
-@@ -10230,8 +10306,6 @@ ath12k_mac_update_vif_chan(struct ath12k
+ 
+ 		if (!arvif->is_up)
+@@ -10209,8 +10285,6 @@ ath12k_mac_update_vif_chan(struct ath12k
  		}
  	}
  
@@ -236,7 +244,7 @@ Signed-off-by: Aditya Kumar Singh <quic_adisi@quicinc.com>
  	ath12k_mac_update_rx_channel(ar, NULL, vifs, n_vifs);
  
  	if (tx_arvif) {
-@@ -10252,9 +10326,6 @@ ath12k_mac_update_vif_chan(struct ath12k
+@@ -10231,9 +10305,6 @@ ath12k_mac_update_vif_chan(struct ath12k
  		if (WARN_ON(!arvif))
  			continue;
  
@@ -246,7 +254,7 @@ Signed-off-by: Aditya Kumar Singh <quic_adisi@quicinc.com>
  		if (ahvif->vif->mbssid_tx_vif &&
  		    arvif == tx_arvif)
  			continue;
-@@ -10269,43 +10340,7 @@ ath12k_mac_update_vif_chan(struct ath12k
+@@ -10248,43 +10319,7 @@ ath12k_mac_update_vif_chan(struct ath12k
  		}
  	}
  

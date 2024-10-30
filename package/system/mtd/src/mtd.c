@@ -44,6 +44,7 @@
 #include <sys/reboot.h>
 #include <linux/reboot.h>
 #include <mtd/mtd-user.h>
+#include "crc32.h"
 #include "fis.h"
 #include "mtd.h"
 
@@ -93,6 +94,7 @@ int mtdsize = 0;
 int erasesize = 0;
 int jffs2_skip_bytes=0;
 int mtdtype = 0;
+uint32_t opt_trxmagic = TRX_MAGIC;
 
 int mtd_open(const char *mtd, bool block)
 {
@@ -204,7 +206,7 @@ image_check(int imagefd, const char *mtd)
 
 	magic = ((uint32_t *)buf)[0];
 
-	if (be32_to_cpu(magic) == TRX_MAGIC)
+	if (be32_to_cpu(magic) == opt_trxmagic)
 		imageformat = MTD_IMAGE_FORMAT_TRX;
 	else if (be32_to_cpu(magic) == SEAMA_MAGIC)
 		imageformat = MTD_IMAGE_FORMAT_SEAMA;
@@ -473,12 +475,14 @@ mtd_write(int imagefd, const char *mtd, char *fis_layout, size_t part_offset)
 	ssize_t r, w, e;
 	ssize_t skip = 0;
 	uint32_t offset = 0;
+	int buflen_raw = 0;
 	int jffs2_replaced = 0;
 	int skip_bad_blocks = 0;
 
 #ifdef FIS_SUPPORT
 	static struct fis_part new_parts[MAX_ARGS];
 	static struct fis_part old_parts[MAX_ARGS];
+	struct fis_part *cur_part = NULL;
 	int n_new = 0, n_old = 0;
 
 	if (fis_layout) {
@@ -488,6 +492,8 @@ mtd_write(int imagefd, const char *mtd, char *fis_layout, size_t part_offset)
 
 		memset(&old_parts, 0, sizeof(old_parts));
 		memset(&new_parts, 0, sizeof(new_parts));
+		if (!part_offset)
+			cur_part = new_parts;
 
 		do {
 			next = strchr(tmp, ':');
@@ -588,6 +594,9 @@ resume:
 			buflen += r;
 		}
 
+		if (buflen_raw == 0)
+			buflen_raw = buflen;
+
 		if (buflen == 0)
 			break;
 
@@ -599,6 +608,7 @@ resume:
 
 		if (skip > 0) {
 			skip -= buflen;
+			buflen_raw = 0;
 			buflen = 0;
 			if (skip <= 0)
 				indicate_writing(mtd);
@@ -622,6 +632,7 @@ resume:
 				w += skip;
 				e += skip;
 				skip -= buflen;
+				buflen_raw = 0;
 				buflen = 0;
 				offset = 0;
 				continue;
@@ -687,6 +698,17 @@ resume:
 		}
 		w += buflen;
 
+#ifdef FIS_SUPPORT
+		if (cur_part && cur_part->size
+		&& cur_part < &new_parts[MAX_ARGS - 1]
+		&& cur_part->length + buflen_raw > cur_part->size)
+			cur_part++;
+		if (cur_part) {
+			cur_part->length += buflen_raw;
+			cur_part->crc = crc32(cur_part->crc, buf, buflen_raw);
+		}
+#endif
+		buflen_raw = 0;
 		buflen = 0;
 		offset = 0;
 	}
@@ -789,6 +811,7 @@ static void usage(void)
 	"        -l <length>             the length of data that we want to dump\n");
 	if (mtd_fixtrx) {
 	    fprintf(stderr,
+	"        -M <magic>              magic number of the image header in the partition (for fixtrx)\n"
 	"        -o offset               offset of the image header in the partition(for fixtrx)\n");
 	}
 	if (mtd_fixtrx || mtd_fixseama || mtd_fixwrg || mtd_fixwrgg) {
@@ -856,7 +879,7 @@ int main (int argc, char **argv)
 #ifdef FIS_SUPPORT
 			"F:"
 #endif
-			"frnqe:d:s:j:p:o:c:t:l:")) != -1)
+			"frnqe:d:s:j:p:o:c:t:l:M:")) != -1)
 		switch (ch) {
 			case 'f':
 				force = 1;
@@ -905,6 +928,14 @@ int main (int argc, char **argv)
 				dump_len = strtoul(optarg, 0, 0);
 				if (errno) {
 					fprintf(stderr, "-l: illegal numeric string\n");
+					usage();
+				}
+				break;
+			case 'M':
+				errno = 0;
+				opt_trxmagic = strtoul(optarg, 0, 0);
+				if (errno) {
+					fprintf(stderr, "-M: illegal numeric string\n");
 					usage();
 				}
 				break;

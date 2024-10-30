@@ -19,4 +19,4 @@
 +#define BGP_LARGE_HOLDTIME                     240
  #define BGP_DEFAULT_HOLDTIME                   180
  #define BGP_DEFAULT_KEEPALIVE                   60 
- #define BGP_DEFAULT_EBGP_ROUTEADV               30
+ #define BGP_DEFAULT_EBGP_ROUTEADV                3

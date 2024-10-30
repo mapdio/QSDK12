@@ -14,6 +14,7 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  */
 
+#include <linux/version.h>
 #include <linux/kref.h>
 #include <linux/crypto.h>
 #include <linux/slab.h>
@@ -21,7 +22,12 @@
 #include <asm/cacheflush.h>
 
 #include <crypto/md5.h>
+#if (LINUX_VERSION_CODE < KERNEL_VERSION(6, 1, 0))
 #include <crypto/sha.h>
+#else
+#include <crypto/sha1.h>
+#include <crypto/sha2.h>
+#endif
 #include <crypto/sha3.h>
 #include <crypto/aes.h>
 #include <crypto/gcm.h>
@@ -382,7 +388,7 @@ bool eip_tr_aead_init(struct eip_tr *tr, struct eip_tr_info *info, const struct 
 	/*
 	 * Flush record memory.
 	 * Driver must not make any update in transform records words after this.
-	 * EIP197 will do ipad/opad update.
+	 * EIP196 will do ipad/opad update.
 	 */
 	dmac_clean_range(tr->hw_words, tr->hw_words + EIP_HW_CTX_SIZE_LARGE_WORDS);
 
@@ -542,7 +548,7 @@ int eip_tr_aead_encauth(struct eip_tr *tr, struct aead_request *req)
 	/*
 	 * Fill token for encryption and hmac.
 	 */
-	tk_words = tr->crypto.enc.tk_fill(tk, tr, req, &tk_hdr);
+	tk_words = EIP_TR_FILL_TOKEN(tr, &tr->crypto.enc, tk, req, &tk_hdr);
 
 	dmac_clean_range(tk, tk + 1);
 
@@ -614,7 +620,7 @@ int eip_tr_aead_authdec(struct eip_tr *tr, struct aead_request *req)
 	/*
 	 * Fill token for hmac and decryption.
 	 */
-	tk_words = tr->crypto.dec.tk_fill(tk, tr, req, &tk_hdr);
+	tk_words = EIP_TR_FILL_TOKEN(tr, &tr->crypto.dec, tk, req, &tk_hdr);
 
 	dmac_clean_range(tk, tk + 1);
 

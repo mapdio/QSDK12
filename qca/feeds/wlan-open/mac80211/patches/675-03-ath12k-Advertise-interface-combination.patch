@@ -15,7 +15,7 @@ Signed-off-by: Harshitha Prem <quic_hprem@quicinc.com>
 
 --- a/drivers/net/wireless/ath/ath12k/mac.c
 +++ b/drivers/net/wireless/ath/ath12k/mac.c
-@@ -11213,7 +11213,15 @@ static void __ath12k_mac_unregister(stru
+@@ -11216,7 +11216,15 @@ static void __ath12k_mac_unregister(stru
  	__ath12k_mac_pre_unregister(ar);
  	__ath12k_mac_post_unregister(ar);
  }
@@ -31,7 +31,7 @@ Signed-off-by: Harshitha Prem <quic_hprem@quicinc.com>
  static void ath12k_mac_hw_unregister(struct ath12k_hw *ah)
  {
  	struct ath12k *ar;
-@@ -11232,6 +11240,8 @@ static void ath12k_mac_hw_unregister(str
+@@ -11235,6 +11243,8 @@ static void ath12k_mac_hw_unregister(str
  		__ath12k_mac_post_unregister(ar);
  		ar++;
  	}
@@ -40,7 +40,7 @@ Signed-off-by: Harshitha Prem <quic_hprem@quicinc.com>
  
  	kfree(ah->hw->wiphy->iface_combinations[0].limits);
  	kfree(ah->hw->wiphy->iface_combinations);
-@@ -11298,7 +11308,94 @@ static int __ath12k_mac_register(struct
+@@ -11301,7 +11311,94 @@ static int __ath12k_mac_register(struct
  
  	return 0;
  }
@@ -90,7 +90,7 @@ Signed-off-by: Harshitha Prem <quic_hprem@quicinc.com>
 +		band = &ar->mac.sbands[NL80211_BAND_6GHZ];
 +	}
 +
-+	chan_sz = struct_size(chans, chans, band->n_channels);
++	chan_sz = band->n_channels * sizeof(struct ieee80211_channel);
 +	chans = kzalloc(chan_sz, GFP_KERNEL);
 +	if (!chans)
 +		return NULL;
@@ -135,7 +135,7 @@ Signed-off-by: Harshitha Prem <quic_hprem@quicinc.com>
  static int ath12k_mac_hw_register(struct ath12k_hw *ah)
  {
  	struct ieee80211_hw *hw;
-@@ -11374,6 +11471,15 @@ static int ath12k_mac_hw_register(struct
+@@ -11377,6 +11474,15 @@ static int ath12k_mac_hw_register(struct
  		goto err_cleanup;
  	}
  

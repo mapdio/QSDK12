@@ -196,6 +196,7 @@ union ipr_udf_profile_offset_u {
 	#define EG_IPO_EXT_TBL_COOKIE_PRI_LEN     4
 	#define EG_IPO_EXT_TBL_COOKIE_PRI_DEFAULT 0x0
 #endif
+
 struct eg_ipo_ext_tbl {
 	a_uint32_t  policy_id:16;
 #if defined(MPPE)

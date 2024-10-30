@@ -104,7 +104,7 @@ Signed-off-by: Hari Chandrakanthan <quic_haric@quicinc.com>
  
  	res = hostapd_start_dfs_cac(
  		iface, iface->conf->hw_mode, iface->freq, iface->conf->channel,
-@@ -1765,6 +1775,9 @@ int hostapd_is_dfs_overlap(struct hostap
+@@ -1762,6 +1772,9 @@ int hostapd_is_dfs_overlap(struct hostap
  	case CHAN_WIDTH_160:
  		half_width = 80;
  		break;
@@ -199,7 +199,7 @@ Signed-off-by: Hari Chandrakanthan <quic_haric@quicinc.com>
  bool is_6ghz_op_class(u8 op_class);
 --- a/src/common/ieee802_11_defs.h
 +++ b/src/common/ieee802_11_defs.h
-@@ -2512,6 +2512,7 @@ struct ieee80211_eht_operation {
+@@ -2519,6 +2519,7 @@ struct ieee80211_eht_operation {
  /* Figure 9-1002ah: Supported EHT-MCS and NSS Set field format */
  #define EHT_PHYCAP_MCS_NSS_LEN_20MHZ_ONLY	4
  #define EHT_PHYCAP_MCS_NSS_LEN_20MHZ_PLUS	3
@@ -207,34 +207,3 @@ Signed-off-by: Hari Chandrakanthan <quic_haric@quicinc.com>
  
  #define EHT_MCS_NSS_CAPAB_LEN			9
  /*
---- a/src/ap/ieee802_11.c
-+++ b/src/ap/ieee802_11.c
-@@ -7678,18 +7678,22 @@ static u8 * hostapd_eid_rnr_iface(struct
- 	struct hostapd_iface *iface = hapd->iface;
- 	size_t i, start = 0;
- 	size_t len = *current_len;
-+	int ch_width = hostapd_get_oper_chwidth(hapd->iconf);
- 	u8 *tbtt_count_pos, *eid_start = eid, *size_offset = (eid - len) + 1;
- 	u8 tbtt_count = 0, op_class, channel, bss_param;
- 
- 	if (!(iface->drv_flags & WPA_DRIVER_FLAGS_AP_CSA) || !iface->freq)
- 		return eid;
- 
--	if (ieee80211_freq_to_channel_ext(iface->freq,
--					  hapd->iconf->secondary_channel,
--					  hostapd_get_oper_chwidth(hapd->iconf),
--					  &op_class, &channel) ==
--	    NUM_HOSTAPD_MODES)
--		return eid;
-+	/* op_class for 5GHz 320MHz bw is not defined in spec. So use op_class of 160MHz */
-+	if (is_5ghz_freq(hapd->iface->freq) && ch_width == CONF_OPER_CHWIDTH_320MHZ)
-+		op_class = 129;
-+	else
-+		if (ieee80211_freq_to_channel_ext(iface->freq,
-+						  hapd->iconf->secondary_channel,
-+						  ch_width, &op_class, &channel) ==
-+		    NUM_HOSTAPD_MODES)
-+			return eid;
- 
- 	while (start < iface->num_bss) {
- 		if (!len ||

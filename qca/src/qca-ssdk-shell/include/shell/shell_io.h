@@ -1,6 +1,6 @@
 /*
  * Copyright (c) 2014-2019, The Linux Foundation. All rights reserved.
- * Copyright (c) 2022, Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2024, Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for any
  * purpose with or without fee is hereby granted, provided that the above
@@ -936,21 +936,6 @@ void
 cmd_data_print_shaper_config(a_uint8_t * param_name, a_uint32_t * buf, a_uint32_t size);
 
 sw_error_t
-cmd_data_check_module(char *cmd_str, a_uint32_t * arg_val, a_uint32_t size);
-
-void
-cmd_data_print_module(a_uint8_t * param_name, a_uint32_t * buf, a_uint32_t size);
-
-sw_error_t
-cmd_data_check_func_ctrl(char *cmd_str, void * val, a_uint32_t size);
-
-void
-cmd_data_print_func_ctrl(a_uint8_t * param_name, a_uint32_t * buf, a_uint32_t size);
-
-void
-cmd_data_print_module_func_ctrl(a_uint32_t module, fal_func_ctrl_t *p);
-
-sw_error_t
 cmd_data_check_ptp_config(char *info, void *val, a_uint32_t size);
 
 void
@@ -1372,6 +1357,33 @@ void
 cmd_data_print_servcode_athtag(a_uint8_t * param_name, a_uint32_t * buf, a_uint32_t size);
 void
 cmd_data_print_combo_link(a_uint8_t * param_name, a_uint32_t * buf, a_uint32_t size);
+sw_error_t
+cmd_data_check_erp_power_mode(char * cmd_str, a_uint32_t * val, a_uint32_t size);
+sw_error_t
+cmd_data_check_toeplitz_hash_secret_key(char *cmd_str, a_uint32_t * arg_val, a_uint32_t size);
+void
+cmd_data_print_toeplitz_hash_secret_key(a_uint8_t * param_name, a_uint32_t * buf, a_uint32_t size);
+sw_error_t
+cmd_data_check_rss_hash_algm(char *cmd_str, a_uint32_t * arg_val, a_uint32_t size);
+void
+cmd_data_print_rss_hash_algm(a_uint8_t * param_name, a_uint32_t * buf, a_uint32_t size);
+sw_error_t
+cmd_data_check_toeplitz_hash_config(char *cmd_str, a_uint32_t * arg_val, a_uint32_t size);
+void
+cmd_data_print_toeplitz_hash_config(a_uint8_t * param_name, a_uint32_t * buf, a_uint32_t size);
+sw_error_t
+cmd_data_check_flow_npt66_iid_cal(char *cmd_str, fal_flow_npt66_iid_calc_t *arg_val, a_uint32_t size);
+void
+cmd_data_print_flow_npt66_iid_cal(a_uint8_t *param_name, a_ulong_t *buf, a_uint32_t size);
+sw_error_t
+cmd_data_check_flow_npt66_iid(char *cmd_str, fal_flow_npt66_iid_t *arg_val, a_uint32_t size);
+void
+cmd_data_print_flow_npt66_iid(a_uint8_t *param_name, a_ulong_t *buf, a_uint32_t size);
+sw_error_t
+cmd_data_check_pktedit_padding(char *cmd_str, void *val, a_uint32_t size);
+void
+cmd_data_print_pktedit_padding(a_uint8_t *param_name, a_uint32_t *buf, a_uint32_t size);
+
 /* auto_insert_flag */
 
 /*qca808x_start*/

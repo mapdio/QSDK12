@@ -1,7 +1,7 @@
 /*
  **************************************************************************
  * Copyright (c) 2017-2018, 2020-2021 The Linux Foundation. All rights reserved.
- * Copyright (c) 2022, Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2024, Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
@@ -69,6 +69,9 @@
 #define NSS_PPE_VLAN_MGR_TAG_CNT(v) ((v->parent) ? NSS_PPE_VLAN_MGR_TYPE_DOUBLE : NSS_PPE_VLAN_MGR_TYPE_SINGLE)
 #define NSS_PPE_VLAN_MGR_PORT_ROLE_CHANGED 1
 
+#define NSS_PPE_VLAN_MGR_WHITESPACE		" \t\v\f\n,"
+#define NSS_PPE_VLAN_MGR_VLAN_AS_VP_MAX		16
+
 /*
  * vlan client context
  */
@@ -80,6 +83,7 @@ struct nss_ppe_vlan_mgr_context {
 	struct list_head list;			/* List of vlan private instance */
 	spinlock_t lock;			/* Lock to protect vlan private instance */
 	struct ctl_table_header *sys_hdr;	/* "/pro/sys/nss/vlan_client" directory */
+	nss_ppe_vlan_mgr_br_vlan_cb_t vlan_over_bridge_cb;	/* CB to update bridge manager */
 };
 
 /*
@@ -110,6 +114,9 @@ struct nss_vlan_pvt {
 	uint32_t ppe_svid;			/* ppe_svid info */
 	struct ppe_drv_vlan_xlate_info xlate_info;
 						/* XLATE info */
-	int refs;				/* reference count */
+	struct kref ref;			/* Reference count */
+	bool is_vlan_as_vp_iface;		/* is VP created for this VLAN */
+	struct net_device *br_net_dev;		/* base dev of bridge VLAN netdev*/
+	bool is_vlan_over_bridge;		/* VLAN interface is created over bridge */
 };
 #endif

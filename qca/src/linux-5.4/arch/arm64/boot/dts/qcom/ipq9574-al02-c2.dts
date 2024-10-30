@@ -71,3 +71,7 @@
 		};
 	};
 };
+
+&license_manager {
+	status = "disabled";
+};

@@ -19,7 +19,7 @@ Signed-off-by: Sriram R <quic_srirrama@quicinc.com>
 
 --- a/drivers/net/wireless/ath/ath12k/mac.c
 +++ b/drivers/net/wireless/ath/ath12k/mac.c
-@@ -7723,6 +7723,75 @@ static int ath12k_mac_mgmt_tx(struct ath
+@@ -7705,6 +7705,53 @@ static int ath12k_mac_mgmt_tx(struct ath
  	return 0;
  }
  
@@ -60,30 +60,8 @@ Signed-off-by: Sriram R <quic_srirrama@quicinc.com>
 +	if (bss_conf && link_sta) {
 +		ether_addr_copy(hdr->addr1, link_sta->addr);
 +		ether_addr_copy(hdr->addr2, bss_conf->addr);
-+	} else if (bss_conf) {
-+		/* In certain cases where a ML sta associated and added subset of links
-+		 * on which the ML AP is active, but now sends some frame (ex Probe request)
-+		 * on a different link which is active in our MLD but was not added during
-+		 * previous association, we can still honor the Tx to that ML STA via the
-+		 * requested link.
-+		 * The control would reach here in such case only when that link address
-+		 * is same as the MLD address or in worst case clients used MLD address at TA wrongly
-+		 * which would have helped identify the ML sta object and pass it here.
-+		 * If the link address of that STA is different from MLD address, then
-+		 * the sta object would be NULL and control wont reach here but return at the
-+		 * start of the function itself with !sta check. Also this would not need any
-+		 * translation at hdr->addr1 from MLD to link address since the RA is the
-+		 * MLD address (same as that link address ideally) already.
-+		 */
-+		ether_addr_copy(hdr->addr2, bss_conf->addr);
-+
-+		ath12k_dbg(NULL, ATH12K_DBG_MAC,
-+			   "unable to determine link sta addr for translation - Frame control %x link %d sta links %x ahsta links %x\n",
-+			   hdr->frame_control, link, sta->valid_links, ahsta->links_map);
 +	} else {
-+		ath12k_err(NULL, "unable to determine Tx link for frame %x link %d\n vif links %x sta links %x ahvif links %x ahsta links %x",
-+			   hdr->frame_control, link, vif->valid_links,
-+			   sta->valid_links, ahvif->links_map, ahsta->links_map);
++		WARN_ON(1);
 +		link = IEEE80211_MLD_MAX_NUM_LINKS;
 +	}
 +
@@ -95,7 +73,7 @@ Signed-off-by: Sriram R <quic_srirrama@quicinc.com>
  static void ath12k_mac_op_tx(struct ieee80211_hw *hw,
  			     struct ieee80211_tx_control *control,
  			     struct sk_buff *skb)
-@@ -7731,10 +7800,9 @@ static void ath12k_mac_op_tx(struct ieee
+@@ -7713,10 +7760,9 @@ static void ath12k_mac_op_tx(struct ieee
  	struct ieee80211_tx_info *info = IEEE80211_SKB_CB(skb);
  	struct ieee80211_vif *vif = info->control.vif;
  	struct ath12k_vif *ahvif = ath12k_vif_to_ahvif(vif);
@@ -109,7 +87,7 @@ Signed-off-by: Sriram R <quic_srirrama@quicinc.com>
  	struct ieee80211_hdr *hdr = (struct ieee80211_hdr *)skb->data;
  	struct ieee80211_key_conf *key = info->control.hw_key;
  	struct ath12k_mgmt_frame_stats *mgmt_stats = &ahvif->mgmt_stats;
-@@ -7745,20 +7813,39 @@ static void ath12k_mac_op_tx(struct ieee
+@@ -7727,20 +7773,39 @@ static void ath12k_mac_op_tx(struct ieee
  	bool is_prb_rsp;
  	u16 frm_type = 0;
  	int ret;
@@ -128,7 +106,7 @@ Signed-off-by: Sriram R <quic_srirrama@quicinc.com>
 +	if (vif->valid_links) {
 +		link = ath12k_mac_get_tx_link(sta, vif, link, skb, info_flags);
 +
-+		if (link >= IEEE80211_MLD_MAX_NUM_LINKS) {
++		if (WARN_ON(link >= IEEE80211_MLD_MAX_NUM_LINKS)) {
 +			ieee80211_free_txskb(hw, skb);
 +			return;
 +		}

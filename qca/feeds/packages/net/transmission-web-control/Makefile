@@ -1,13 +1,13 @@
 include $(TOPDIR)/rules.mk
 
 PKG_NAME:=transmission-web-control
-PKG_RELEASE:=1
+PKG_RELEASE:=3
 
 PKG_SOURCE_PROTO:=git
 PKG_SOURCE_URL:=https://github.com/ronggang/transmission-web-control
-PKG_SOURCE_DATE:=2019-04-16
-PKG_SOURCE_VERSION:=a747a87babb246b0d3e6dd108ad7b4c19462cfe6
-PKG_MIRROR_HASH:=90a2e33bd799a13504881e26980823fa181b47918900fc4ef03ae3daf0625f14
+PKG_SOURCE_DATE:=2021-09-25
+PKG_SOURCE_VERSION:=4b2e1858f7a46ee678d5d1f3fa1a6cf2c739b88a
+PKG_MIRROR_HASH:=ea014c295766e2efc7b890dc6a6940176ba9c5bdcf85a029090f2bb850e59708
 
 PKG_LICENSE:=MIT
 PKG_LICENSE_FILES:=LICENSE
@@ -19,7 +19,7 @@ define Package/transmission-web-control
   SECTION:=net
   CATEGORY:=Network
   SUBMENU:=BitTorrent
-  DEPENDS:=@(PACKAGE_transmission-daemon-openssl||PACKAGE_transmission-daemon-mbedtls)
+  DEPENDS:=+transmission-daemon
   CONFLICTS:=transmission-web
   TITLE:=Transmission Web Control
   URL:=https://github.com/ronggang/transmission-web-control
@@ -34,8 +34,8 @@ define Build/Compile
 endef
 
 define Package/transmission-web-control/install
-	$(INSTALL_DIR) $(1)/usr/share/transmission/web
-	$(CP) $(PKG_BUILD_DIR)/src/* $(1)/usr/share/transmission/web
+	$(INSTALL_DIR) $(1)/usr/share/transmission/public_html
+	$(CP) $(PKG_BUILD_DIR)/src/* $(1)/usr/share/transmission/public_html
 endef
 
 $(eval $(call BuildPackage,transmission-web-control))

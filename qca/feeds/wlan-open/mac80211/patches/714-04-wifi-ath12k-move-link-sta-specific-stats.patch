@@ -148,7 +148,7 @@ Signed-off-by: Sriram R <quic_srirrama@quicinc.com>
  	return retval;
  }
  
-@@ -662,52 +712,97 @@ static const struct file_operations fops
+@@ -662,22 +712,46 @@ static const struct file_operations fops
  static int
  ath12k_dbg_sta_open_htt_peer_stats(struct inode *inode, struct file *file)
  {
@@ -201,12 +201,7 @@ Signed-off-by: Sriram R <quic_srirrama@quicinc.com>
  
  	mutex_lock(&ar->conf_mutex);
  	ar->debug.htt_stats.stats_req = stats_req;
- 	stats_req->type = ATH12K_DBG_HTT_EXT_STATS_PEER_INFO;
--	memcpy(stats_req->peer_addr, sta->addr, ETH_ALEN);
-+	memcpy(stats_req->peer_addr, link_sta->addr, ETH_ALEN);
- 	ret = ath12k_debugfs_htt_stats_req(ar);
- 	mutex_unlock(&ar->conf_mutex);
- 	if (ret < 0)
+@@ -689,25 +763,46 @@ ath12k_dbg_sta_open_htt_peer_stats(struc
  		goto out;
  
  	file->private_data = stats_req;
@@ -291,19 +286,6 @@ Signed-off-by: Sriram R <quic_srirrama@quicinc.com>
  	mutex_lock(&ar->conf_mutex);
  
  	if (ar->state != ATH12K_STATE_ON) {
-@@ -755,10 +869,10 @@ static ssize_t ath12k_dbg_sta_write_peer
- 		goto out;
- 
- 	ar->debug.pktlog_peer_valid = enable;
--	memcpy(ar->debug.pktlog_peer_addr, sta->addr, ETH_ALEN);
-+	memcpy(ar->debug.pktlog_peer_addr, link_sta->addr, ETH_ALEN);
- 
- 	/* Send peer based pktlog enable/disable */
--	ret = ath12k_wmi_pdev_peer_pktlog_filter(ar, sta->addr, enable);
-+	ret = ath12k_wmi_pdev_peer_pktlog_filter(ar, link_sta->addr, enable);
- 	if (ret) {
- 		ath12k_warn(ar->ab, "failed to set peer pktlog filter %pM: %d\n",
- 			    sta->addr, ret);
 @@ -771,6 +885,7 @@ static ssize_t ath12k_dbg_sta_write_peer
  
  out:
@@ -394,26 +376,6 @@ Signed-off-by: Sriram R <quic_srirrama@quicinc.com>
  	mutex_lock(&ar->conf_mutex);
  	cfg_params.cfg0 = HTT_STAT_PEER_INFO_MAC_ADDR;
  	cfg_params.cfg0 |= FIELD_PREP(GENMASK(15, 1),
-@@ -1050,13 +1204,13 @@ ath12k_write_htt_peer_stats_reset(struct
- 
- 	cfg_params.cfg1 = HTT_STAT_DEFAULT_PEER_REQ_TYPE;
- 
--	cfg_params.cfg2 |= FIELD_PREP(GENMASK(7, 0), sta->addr[0]);
--	cfg_params.cfg2 |= FIELD_PREP(GENMASK(15, 8), sta->addr[1]);
--	cfg_params.cfg2 |= FIELD_PREP(GENMASK(23, 16), sta->addr[2]);
--	cfg_params.cfg2 |= FIELD_PREP(GENMASK(31, 24), sta->addr[3]);
-+	cfg_params.cfg2 |= FIELD_PREP(GENMASK(7, 0), link_sta->addr[0]);
-+	cfg_params.cfg2 |= FIELD_PREP(GENMASK(15, 8), link_sta->addr[1]);
-+	cfg_params.cfg2 |= FIELD_PREP(GENMASK(23, 16), link_sta->addr[2]);
-+	cfg_params.cfg2 |= FIELD_PREP(GENMASK(31, 24), link_sta->addr[3]);
- 
--	cfg_params.cfg3 |= FIELD_PREP(GENMASK(7, 0), sta->addr[4]);
--	cfg_params.cfg3 |= FIELD_PREP(GENMASK(15, 8), sta->addr[5]);
-+	cfg_params.cfg3 |= FIELD_PREP(GENMASK(7, 0), link_sta->addr[4]);
-+	cfg_params.cfg3 |= FIELD_PREP(GENMASK(15, 8), link_sta->addr[5]);
- 
- 	cfg_params.cfg3 |= ATH12K_HTT_PEER_STATS_RESET;
- 
 @@ -1067,10 +1221,12 @@ ath12k_write_htt_peer_stats_reset(struct
  	if (ret) {
  		ath12k_warn(ar->ab, "failed to send htt peer stats request: %d\n", ret);
@@ -748,7 +710,7 @@ Signed-off-by: Sriram R <quic_srirrama@quicinc.com>
  ath12k_debugfs_sta_add_tx_stats(struct ath12k_link_sta *arsta,
 --- a/drivers/net/wireless/ath/ath12k/mac.c
 +++ b/drivers/net/wireless/ath/ath12k/mac.c
-@@ -13488,6 +13488,7 @@ static const struct ieee80211_ops ath12k
+@@ -13304,6 +13304,7 @@ static const struct ieee80211_ops ath12k
  	CFG80211_TESTMODE_CMD(ath12k_tm_cmd)
  #ifdef CPTCFG_ATH12K_DEBUGFS
  	.sta_add_debugfs		= ath12k_debugfs_sta_op_add,

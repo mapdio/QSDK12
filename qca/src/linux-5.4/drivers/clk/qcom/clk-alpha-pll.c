@@ -159,6 +159,17 @@ const u8 clk_alpha_pll_regs[][PLL_OFF_MAX_REGS] = {
 		[PLL_OFF_ALPHA_VAL] = 0x24,
 		[PLL_OFF_ALPHA_VAL_U] = 0x28,
 	},
+	[CLK_ALPHA_PLL_TYPE_DEFAULT_EVO] =  {
+		[PLL_OFF_L_VAL] = 0x04,
+		[PLL_OFF_ALPHA_VAL] = 0x08,
+		[PLL_OFF_ALPHA_VAL_U] = 0x0c,
+		[PLL_OFF_TEST_CTL] = 0x10,
+		[PLL_OFF_TEST_CTL_U] = 0x14,
+		[PLL_OFF_USER_CTL] = 0x18,
+		[PLL_OFF_USER_CTL_U] = 0x1c,
+		[PLL_OFF_CONFIG_CTL] = 0x20,
+		[PLL_OFF_STATUS] = 0x24,
+       },
 };
 EXPORT_SYMBOL_GPL(clk_alpha_pll_regs);
 
@@ -213,7 +224,7 @@ EXPORT_SYMBOL_GPL(clk_alpha_pll_regs);
 static int wait_for_pll(struct clk_alpha_pll *pll, u32 mask, bool inverse,
 			const char *action)
 {
-	u32 val;
+	u32 val, status;
 	int count;
 	int ret;
 	const char *name = clk_hw_get_name(&pll->clkr.hw);
@@ -234,7 +245,8 @@ static int wait_for_pll(struct clk_alpha_pll *pll, u32 mask, bool inverse,
 		udelay(1);
 	}
 
-	WARN(1, "%s failed to %s!\n", name, action);
+	regmap_read(pll->clkr.regmap, PLL_STATUS(pll), &status);
+	WARN(1, "%s failed to %s! PLL_MODE 0x%x PLL_STATUS 0x%x\n", name, action, val, status);
 	return -ETIMEDOUT;
 }
 

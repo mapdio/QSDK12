@@ -3,11 +3,11 @@ include $(INCLUDE_DIR)/kernel.mk
 
 PKG_NAME:=qca-nss-fw2
 PKG_BRANCH:=master
-PKG_VERSION:=149
+PKG_VERSION:=210
 PKG_RELEASE:=1
 PKG_MD5SUM:=skip
 
-NSS_VER:=12.2
+NSS_VER:=12.5
 NSS_SOC:=AK
 NSS_PROFILE:=R
 
@@ -21,7 +21,7 @@ define NssFirmware
 
   define Package/qca-nss-fw2-$(1)
     SECTION:=kernel
-    CATEGORY:=$(QTI_SOFTWARE_CATEGORY)
+    CATEGORY:=QTI software
     SUBMENU:=Network Devices
     DEPENDS:=@TARGET_ipq806x||TARGET_ipq_ipq806x
     TITLE:=NSS firmware binaries - $(1)

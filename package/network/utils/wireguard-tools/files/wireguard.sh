@@ -26,6 +26,7 @@ proto_wireguard_init_config() {
 proto_wireguard_setup_peer() {
 	local peer_config="$1"
 
+	local disabled
 	local public_key
 	local preshared_key
 	local allowed_ips
@@ -34,6 +35,7 @@ proto_wireguard_setup_peer() {
 	local endpoint_port
 	local persistent_keepalive
 
+	config_get_bool disabled "${peer_config}" "disabled" 0
 	config_get public_key "${peer_config}" "public_key"
 	config_get preshared_key "${peer_config}" "preshared_key"
 	config_get allowed_ips "${peer_config}" "allowed_ips"
@@ -41,6 +43,16 @@ proto_wireguard_setup_peer() {
 	config_get endpoint_host "${peer_config}" "endpoint_host"
 	config_get endpoint_port "${peer_config}" "endpoint_port"
 	config_get persistent_keepalive "${peer_config}" "persistent_keepalive"
+
+	if [ "${disabled}" -eq 1 ]; then
+		# skip disabled peers
+		return 0
+	fi
+
+	if [ -z "$public_key" ]; then
+		echo "Skipping peer config $peer_config because public key is not defined."
+		return 0
+	fi
 
 	echo "[Peer]" >> "${wg_cfg}"
 	echo "PublicKey=${public_key}" >> "${wg_cfg}"
@@ -90,6 +102,23 @@ proto_wireguard_setup_peer() {
 	fi
 }
 
+ensure_key_is_generated() {
+	local private_key
+	private_key="$(uci get network."$1".private_key)"
+
+	if [ "$private_key" == "generate" ]; then
+		local ucitmp
+		oldmask="$(umask)"
+		umask 077
+		ucitmp="$(mktemp -d)"
+		private_key="$("${WG}" genkey)"
+		uci -q -t "$ucitmp" set network."$1".private_key="$private_key" && \
+			uci -q -t "$ucitmp" commit network
+		rm -rf "$ucitmp"
+		umask "$oldmask"
+	fi
+}
+
 proto_wireguard_setup() {
 	local config="$1"
 	local wg_dir="/tmp/wireguard"
@@ -99,6 +128,8 @@ proto_wireguard_setup() {
 	local listen_port
 	local mtu
 
+	ensure_key_is_generated "${config}"
+
 	config_load network
 	config_get private_key "${config}" "private_key"
 	config_get listen_port "${config}" "listen_port"
@@ -107,6 +138,7 @@ proto_wireguard_setup() {
 	config_get fwmark "${config}" "fwmark"
 	config_get ip6prefix "${config}" "ip6prefix"
 	config_get nohostroute "${config}" "nohostroute"
+	config_get tunlink "${config}" "tunlink"
 
 	ip link del dev "${config}" 2>/dev/null
 	ip link add dev "${config}" type wireguard
@@ -168,7 +200,7 @@ proto_wireguard_setup() {
 		sed -E 's/\[?([0-9.:a-f]+)\]?:([0-9]+)/\1 \2/' | \
 		while IFS=$'\t ' read -r key address port; do
 			[ -n "${port}" ] || continue
-			proto_add_host_dependency "${config}" "${address}"
+			proto_add_host_dependency "${config}" "${address}" "${tunlink}"
 		done
 	fi
 

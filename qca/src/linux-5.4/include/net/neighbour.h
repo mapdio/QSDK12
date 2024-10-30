@@ -447,7 +447,7 @@ static inline struct neighbour * neigh_clone(struct neighbour *neigh)
 static inline int neigh_event_send(struct neighbour *neigh, struct sk_buff *skb)
 {
 	unsigned long now = jiffies;
-	
+
 	if (READ_ONCE(neigh->used) != now)
 		WRITE_ONCE(neigh->used, now);
 	if (!(neigh->nud_state&(NUD_CONNECTED|NUD_DELAY|NUD_PROBE)))

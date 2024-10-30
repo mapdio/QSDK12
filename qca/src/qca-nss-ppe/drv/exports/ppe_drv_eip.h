@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2023 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for any
  * purpose with or without fee is hereby granted, provided that the above
@@ -39,6 +39,7 @@
 typedef enum ppe_drv_eip_service {
 	PPE_DRV_EIP_SERVICE_IIPSEC = 1,
 	PPE_DRV_EIP_SERVICE_IDTLS,
+	PPE_DRV_EIP_SERVICE_NONINLINE,
 } ppe_drv_eip_service_t;
 
 /**

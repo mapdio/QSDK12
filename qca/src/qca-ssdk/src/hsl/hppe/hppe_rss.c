@@ -1,6 +1,6 @@
 /*
  * Copyright (c) 2016-2017, The Linux Foundation. All rights reserved.
- * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2024 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for any
  * purpose with or without fee is hereby granted, provided that the above
@@ -225,6 +225,7 @@ hppe_rss_hash_fin_ipv4_reg_set(
 				index * RSS_HASH_FIN_IPV4_REG_INC,
 				value->val);
 }
+
 
 #if 0
 sw_error_t

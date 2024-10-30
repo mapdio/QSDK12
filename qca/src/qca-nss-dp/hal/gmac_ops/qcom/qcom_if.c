@@ -2,7 +2,7 @@
  **************************************************************************
  * Copyright (c) 2016-2018, 2020-2021 The Linux Foundation. All rights reserved.
  *
- * Copyright (c) 2022-2023 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2024 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
@@ -44,7 +44,7 @@ static const struct qcom_ethtool_stats qcom_gstrings_stats[] = {
 #if defined(NSS_DP_EDMA_V2)
 	/*
 	 * Per GMAC DMA driver statistics are
-	 * supported only for IPQ95xx and IPQ53XX.
+	 * supported only for IPQ95xx, IPQ53XX.
 	 */
 	{"rx_bytes", QCOM_STAT(rx_bytes)},
 	{"rx_packets", QCOM_STAT(rx_packets)},
@@ -62,6 +62,10 @@ static const struct qcom_ethtool_stats qcom_gstrings_stats[] = {
 	{"tx_tso_drop_packets", QCOM_STAT(tx_tso_drop_packets)},
 	{"tx_gso_packets", QCOM_STAT(tx_gso_packets)},
 	{"tx_gso_drop_packets", QCOM_STAT(tx_gso_drop_packets)},
+	{"tx_queue_stopped_cpu0", QCOM_STAT(tx_queue_stopped[0])},
+	{"tx_queue_stopped_cpu1", QCOM_STAT(tx_queue_stopped[1])},
+	{"tx_queue_stopped_cpu2", QCOM_STAT(tx_queue_stopped[2])},
+	{"tx_queue_stopped_cpu3", QCOM_STAT(tx_queue_stopped[3])},
 #endif
 };
 
@@ -391,8 +395,8 @@ static void *qcom_init(struct nss_gmac_hal_platform_data *gmacpdata)
 	qhd->nghd.mac_id = gmacpdata->macid;
 
 	/* Populate the mac base addresses */
-	qhd->nghd.mac_base = devm_ioremap_nocache(&dp_priv->pdev->dev,
-						res->start, resource_size(res));
+	qhd->nghd.mac_base = devm_ioremap(&dp_priv->pdev->dev,
+			res->start, resource_size(res));
 	if (!qhd->nghd.mac_base) {
 		netdev_dbg(ndev, "ioremap fail.\n");
 		devm_release_mem_region(&dp_priv->pdev->dev,

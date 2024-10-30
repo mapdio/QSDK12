@@ -1,23 +1,30 @@
+# SPDX-License-Identifier: GPL-2.0-only
 #
-# Copyright (C) 2015 OpenWrt.org
-#
-# This is free software, licensed under the GNU General Public License v2.
-# See /LICENSE for more information.
-#
+# Copyright (C) 2015-2020 OpenWrt.org
 
 PKG_CHECK_FORMAT_SECURITY ?= 1
 PKG_ASLR_PIE ?= 1
+PKG_ASLR_PIE_REGULAR ?= 0
 PKG_SSP ?= 1
 PKG_FORTIFY_SOURCE ?= 1
 PKG_RELRO ?= 1
 
+ifdef CONFIG_PKG_MAP_SYMBOL
+    TARGET_CFLAGS += -Wl,-Map,ipq-$(PKG_NAME).map
+endif
 ifdef CONFIG_PKG_CHECK_FORMAT_SECURITY
   ifeq ($(strip $(PKG_CHECK_FORMAT_SECURITY)),1)
     TARGET_CFLAGS += -Wformat -Werror=format-security
   endif
 endif
-ifdef CONFIG_PKG_ASLR_PIE
+ifdef CONFIG_PKG_ASLR_PIE_ALL
   ifeq ($(strip $(PKG_ASLR_PIE)),1)
+    TARGET_CFLAGS += $(FPIC)
+    TARGET_LDFLAGS += $(FPIC) -specs=$(INCLUDE_DIR)/hardened-ld-pie.specs
+  endif
+endif
+ifdef CONFIG_PKG_ASLR_PIE_REGULAR
+  ifeq ($(strip $(PKG_ASLR_PIE_REGULAR)),1)
     TARGET_CFLAGS += $(FPIC)
     TARGET_LDFLAGS += $(FPIC) -specs=$(INCLUDE_DIR)/hardened-ld-pie.specs
   endif

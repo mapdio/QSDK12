@@ -18,3 +18,6 @@ $(TARGET)-objs := \
 # Module extra compilation flags
 ccflags-y += -Werror -Wall -g
 ccflags-y += -DSP_DEBUG_LEVEL=0
+
+build:
+	$(MAKE) -C $(KERNEL_SRC) M=$(M) V=1 modules

@@ -25,10 +25,8 @@ Signed-off-by: P Praneesh <quic_ppranees@quicinc.com>
  drivers/net/wireless/ath/ath12k/dp_rx.c            | 126 ++++++++++++++++-----
  3 files changed, 131 insertions(+), 28 deletions(-)
 
-Index: b/drivers/net/wireless/ath/ath12k/dp.h
-===================================================================
---- a/drivers/net/wireless/ath/ath12k/dp.h	2023-04-20 13:03:51.805609906 +0530
-+++ b/drivers/net/wireless/ath/ath12k/dp.h	2023-04-20 13:04:05.681523988 +0530
+--- a/drivers/net/wireless/ath/ath12k/dp.h
++++ b/drivers/net/wireless/ath/ath12k/dp.h
 @@ -1483,6 +1483,7 @@ enum htt_ppdu_stats_gi {
  
  #define HTT_PPDU_STATS_USER_RATE_INFO0_USER_POS_M	GENMASK(3, 0)
@@ -71,27 +69,9 @@ Index: b/drivers/net/wireless/ath/ath12k/dp.h
  } __packed;
  
  #define HTT_PPDU_STATS_TX_INFO_FLAGS_RATECODE_M		GENMASK(7, 0)
-@@ -1618,6 +1630,7 @@ struct htt_ppdu_stats_usr_cmpltn_cmn {
- #define HTT_PPDU_STATS_ACK_BA_INFO_TID_NUM	GENMASK(31, 25)
- 
- #define HTT_PPDU_STATS_NON_QOS_TID	16
-+#define HTT_PPDU_STATS_PPDU_ID		GENMASK(24, 0)
- 
- struct htt_ppdu_stats_usr_cmpltn_ack_ba_status {
- 	u32 ppdu_id;
-Index: b/drivers/net/wireless/ath/ath12k/dp_rx.c
-===================================================================
---- a/drivers/net/wireless/ath/ath12k/dp_rx.c	2023-04-20 13:03:51.805609906 +0530
-+++ b/drivers/net/wireless/ath/ath12k/dp_rx.c	2023-04-20 13:03:51.801609932 +0530
-@@ -1214,6 +1214,7 @@ static int ath12k_htt_tlv_ppdu_stats_par
- 	struct htt_ppdu_user_stats *user_stats;
- 	int cur_user;
- 	u16 peer_id;
-+	u32 ppdu_id;
- 
- 	ppdu_info = (struct htt_ppdu_stats_info *)data;
- 
-@@ -1244,7 +1245,7 @@ static int ath12k_htt_tlv_ppdu_stats_par
+--- a/drivers/net/wireless/ath/ath12k/dp_rx.c
++++ b/drivers/net/wireless/ath/ath12k/dp_rx.c
+@@ -1244,7 +1244,7 @@ static int ath12k_htt_tlv_ppdu_stats_par
  		user_stats->is_valid_peer_id = true;
  		memcpy((void *)&user_stats->rate, ptr,
  		       sizeof(struct htt_ppdu_stats_user_rate));
@@ -100,7 +80,7 @@ Index: b/drivers/net/wireless/ath/ath12k/dp_rx.c
  		break;
  	case HTT_PPDU_STATS_TAG_USR_COMPLTN_COMMON:
  		if (len < sizeof(struct htt_ppdu_stats_usr_cmpltn_cmn)) {
-@@ -1263,7 +1264,7 @@ static int ath12k_htt_tlv_ppdu_stats_par
+@@ -1263,7 +1263,7 @@ static int ath12k_htt_tlv_ppdu_stats_par
  		user_stats->is_valid_peer_id = true;
  		memcpy((void *)&user_stats->cmpltn_cmn, ptr,
  		       sizeof(struct htt_ppdu_stats_usr_cmpltn_cmn));
@@ -109,20 +89,8 @@ Index: b/drivers/net/wireless/ath/ath12k/dp_rx.c
  		break;
  	case HTT_PPDU_STATS_TAG_USR_COMPLTN_ACK_BA_STATUS:
  		if (len <
-@@ -1273,6 +1274,8 @@ static int ath12k_htt_tlv_ppdu_stats_par
- 			return -EINVAL;
- 		}
- 
-+		ppdu_id =
-+		((struct htt_ppdu_stats_usr_cmpltn_ack_ba_status *)ptr)->ppdu_id;
- 		peer_id =
- 		((struct htt_ppdu_stats_usr_cmpltn_ack_ba_status *)ptr)->sw_peer_id;
- 		cur_user = ath12k_get_ppdu_user_index(&ppdu_info->ppdu_stats,
-@@ -1282,9 +1285,13 @@ static int ath12k_htt_tlv_ppdu_stats_par
- 		user_stats = &ppdu_info->ppdu_stats.user_stats[cur_user];
- 		user_stats->peer_id = peer_id;
+@@ -1284,7 +1284,10 @@ static int ath12k_htt_tlv_ppdu_stats_par
  		user_stats->is_valid_peer_id = true;
-+		ppdu_info->ppdu_id = FIELD_GET(HTT_PPDU_STATS_PPDU_ID, ppdu_id);
  		memcpy((void *)&user_stats->ack_ba, ptr,
  		       sizeof(struct htt_ppdu_stats_usr_cmpltn_ack_ba_status));
 -		user_stats->tlv_flags |= BIT(tag);
@@ -133,7 +101,7 @@ Index: b/drivers/net/wireless/ath/ath12k/dp_rx.c
  		break;
  	}
  	return 0;
-@@ -1295,11 +1302,17 @@ int ath12k_dp_htt_tlv_iter(struct ath12k
+@@ -1295,11 +1298,17 @@ int ath12k_dp_htt_tlv_iter(struct ath12k
  				       const void *ptr, void *data),
  			   void *data)
  {
@@ -151,7 +119,7 @@ Index: b/drivers/net/wireless/ath/ath12k/dp_rx.c
  	while (len > 0) {
  		if (len < sizeof(*tlv)) {
  			ath12k_err(ab, "htt tlv parse failure at byte %zd (%zu bytes left, %zu expected)\n",
-@@ -1317,7 +1330,7 @@ int ath12k_dp_htt_tlv_iter(struct ath12k
+@@ -1317,7 +1326,7 @@ int ath12k_dp_htt_tlv_iter(struct ath12k
  				   tlv_tag, ptr - begin, len, tlv_len);
  			return -EINVAL;
  		}
@@ -160,7 +128,7 @@ Index: b/drivers/net/wireless/ath/ath12k/dp_rx.c
  		if (ret == -ENOMEM)
  			return ret;
  
-@@ -1327,38 +1340,76 @@ int ath12k_dp_htt_tlv_iter(struct ath12k
+@@ -1327,38 +1336,76 @@ int ath12k_dp_htt_tlv_iter(struct ath12k
  	return 0;
  }
  
@@ -245,7 +213,7 @@ Index: b/drivers/net/wireless/ath/ath12k/dp_rx.c
  		succ_bytes = usr_stats->ack_ba.success_bytes;
  		succ_pkts = u32_get_bits(usr_stats->ack_ba.info,
  					 HTT_PPDU_STATS_ACK_BA_INFO_NUM_MSDU_M);
-@@ -1370,13 +1421,38 @@ ath12k_update_per_peer_tx_stats(struct a
+@@ -1370,13 +1417,38 @@ ath12k_update_per_peer_tx_stats(struct a
  		tx_duration = common->fes_duration_us;
  
  	user_rate = &usr_stats->rate;
@@ -290,7 +258,7 @@ Index: b/drivers/net/wireless/ath/ath12k/dp_rx.c
  
  	/* Note: If host configured fixed rates and in some other special
  	 * cases, the broadcast/management frames are sent in different rates.
-@@ -1457,18 +1533,17 @@ ath12k_update_per_peer_tx_stats(struct a
+@@ -1457,18 +1529,17 @@ ath12k_update_per_peer_tx_stats(struct a
  		arsta->txrate.flags = RATE_INFO_FLAGS_HE_MCS;
  		arsta->txrate.he_dcm = dcm;
  		arsta->txrate.he_gi = ath12k_he_gi_to_nl80211_he_gi(sgi);
@@ -314,7 +282,7 @@ Index: b/drivers/net/wireless/ath/ath12k/dp_rx.c
  		break;
  	default:
  		break;
-@@ -1488,6 +1563,7 @@ ath12k_update_per_peer_tx_stats(struct a
+@@ -1488,6 +1559,7 @@ ath12k_update_per_peer_tx_stats(struct a
  		peer_stats->succ_bytes = succ_bytes;
  		peer_stats->is_ampdu = is_ampdu;
  		peer_stats->duration = tx_duration;
@@ -322,7 +290,7 @@ Index: b/drivers/net/wireless/ath/ath12k/dp_rx.c
  		peer_stats->ba_fails =
  			HTT_USR_CMPLTN_LONG_RETRY(usr_stats->cmpltn_cmn.flags) +
  			HTT_USR_CMPLTN_SHORT_RETRY(usr_stats->cmpltn_cmn.flags);
-@@ -1501,12 +1577,12 @@ ath12k_update_per_peer_tx_stats(struct a
+@@ -1501,12 +1573,12 @@ ath12k_update_per_peer_tx_stats(struct a
  }
  
  static void ath12k_htt_update_ppdu_stats(struct ath12k *ar,
@@ -337,7 +305,7 @@ Index: b/drivers/net/wireless/ath/ath12k/dp_rx.c
  }
  
  static
-@@ -1527,7 +1603,7 @@ struct htt_ppdu_stats_info *ath12k_dp_ht
+@@ -1527,7 +1599,7 @@ struct htt_ppdu_stats_info *ath12k_dp_ht
  						     typeof(*ppdu_info), list);
  			list_del(&ppdu_info->list);
  			ar->ppdu_stat_list_depth--;
@@ -346,10 +314,8 @@ Index: b/drivers/net/wireless/ath/ath12k/dp_rx.c
  			kfree(ppdu_info);
  		}
  	}
-Index: b/drivers/net/wireless/ath/ath12k/debugfs_htt_stats.h
-===================================================================
---- a/drivers/net/wireless/ath/ath12k/debugfs_htt_stats.h	2023-04-20 13:03:51.805609906 +0530
-+++ b/drivers/net/wireless/ath/ath12k/debugfs_htt_stats.h	2023-04-20 13:03:51.805609906 +0530
+--- a/drivers/net/wireless/ath/ath12k/debugfs_htt_stats.h
++++ b/drivers/net/wireless/ath/ath12k/debugfs_htt_stats.h
 @@ -180,6 +180,25 @@ enum htt_tx_pdev_underrun_enum {
  	HTT_TX_PDEV_MAX_URRN_STATS                   = 3,
  };

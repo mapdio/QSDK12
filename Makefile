@@ -1,10 +1,6 @@
-# Makefile for OpenWrt
+# SPDX-License-Identifier: GPL-2.0-only
 #
 # Copyright (C) 2007 OpenWrt.org
-#
-# This is free software, licensed under the GNU General Public License v2.
-# See /LICENSE for more information.
-#
 
 TOPDIR:=${CURDIR}
 LC_ALL:=C
@@ -18,8 +14,10 @@ $(if $(findstring $(space),$(TOPDIR)),$(error ERROR: The path to the OpenWrt dir
 
 world:
 
-DISTRO_PKG_CONFIG:=$(shell which -a pkg-config | grep -E '\/usr' | head -n 1)
-export PATH:=$(TOPDIR)/staging_dir/host/bin:$(PATH)
+DISTRO_PKG_CONFIG:=$(shell $(TOPDIR)/scripts/command_all.sh pkg-config | grep -e '/usr' -e '/nix/store' -m 1)
+
+export ORIG_PATH:=$(if $(ORIG_PATH),$(ORIG_PATH),$(PATH))
+export PATH:=$(if $(STAGING_DIR),$(abspath $(STAGING_DIR)/../host/bin),$(TOPDIR)/staging_dir/host/bin):$(PATH)
 
 ifneq ($(OPENWRT_BUILD),1)
   _SINGLE=export MAKEFLAGS=$(space);
@@ -42,17 +40,12 @@ else
   include tools/Makefile
   include toolchain/Makefile
 
-$(toolchain/stamp-compile): $(tools/stamp-compile)
-$(target/stamp-compile): $(toolchain/stamp-compile) $(tools/stamp-compile) $(BUILD_DIR)/.prepared $(if $(CONFIG_EXTERNAL_TOOLCHAIN),,compile_kernel-headers)
+$(toolchain/stamp-compile): $(tools/stamp-compile) $(if $(CONFIG_BUILDBOT),toolchain_rebuild_check)
+$(target/stamp-compile): $(toolchain/stamp-compile) $(tools/stamp-compile) $(BUILD_DIR)/.prepared
 $(package/stamp-compile): $(target/stamp-compile) $(package/stamp-cleanup)
 $(package/stamp-install): $(package/stamp-compile)
 $(target/stamp-install): $(package/stamp-compile) $(package/stamp-install)
 check: $(tools/stamp-check) $(toolchain/stamp-check) $(package/stamp-check)
-
-ifeq ($(CONFIG_EXTERNAL_TOOLCHAIN),)
-compile_kernel-headers: $(tools/stamp-compile) $(toolchain/stamp-compile)
-	make toolchain/kernel-headers/compile
-endif
 
 printdb:
 	@true
@@ -66,15 +59,27 @@ else
 	@true
 endif
 
-clean: FORCE clean_kernel
-	rm -rf $(BUILD_DIR) $(STAGING_DIR) $(BIN_DIR) $(OUTPUT_DIR)/packages/$(ARCH_PACKAGES) $(BUILD_LOG_DIR) $(TOPDIR)/staging_dir/packages
-ifeq ($(CONFIG_EXTERNAL_TOOLCHAIN),)
-	make toolchain/kernel-headers/clean
-endif
+_clean: FORCE clean_kernel
+	rm -rf $(BUILD_DIR) $(STAGING_DIR) $(BIN_DIR) $(OUTPUT_DIR)/packages/$(ARCH_PACKAGES) $(TOPDIR)/staging_dir/packages
 
-dirclean: clean
-	rm -rf $(STAGING_DIR_HOST) $(STAGING_DIR_HOSTPKG) $(TOOLCHAIN_DIR) $(BUILD_DIR_BASE)/host $(BUILD_DIR_BASE)/hostpkg $(BUILD_DIR_TOOLCHAIN)
+clean: _clean
+	rm -rf $(BUILD_LOG_DIR)
+
+targetclean: _clean
+	rm -rf $(TOOLCHAIN_DIR) $(BUILD_DIR_BASE)/hostpkg $(BUILD_DIR_TOOLCHAIN)
+
+dirclean: targetclean clean
+	rm -rf $(STAGING_DIR_HOST) $(STAGING_DIR_HOSTPKG) $(BUILD_DIR_BASE)/host
 	rm -rf $(TMP_DIR)
+	$(MAKE) -C $(TOPDIR)/scripts/config clean
+
+toolchain_rebuild_check:
+	$(SCRIPT_DIR)/check-toolchain-clean.sh
+
+cacheclean:
+ifneq ($(CONFIG_CCACHE),)
+	$(STAGING_DIR_HOST)/bin/ccache -C
+endif
 
 ifndef DUMP_TARGET_DB
 $(BUILD_DIR)/.prepared: Makefile
@@ -133,6 +138,9 @@ world: prepare $(target/stamp-compile) $(package/stamp-compile) $(package/stamp-
 	$(_SINGLE)$(SUBMAKE) -r package/index
 	$(_SINGLE)$(SUBMAKE) -r json_overview_image_info
 	$(_SINGLE)$(SUBMAKE) -r checksum
+ifneq ($(CONFIG_CCACHE),)
+	$(STAGING_DIR_HOST)/bin/ccache -s
+endif
 
 .PHONY: clean dirclean prereq prepare world package/symlinks package/symlinks-install package/symlinks-clean
 

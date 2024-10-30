@@ -143,6 +143,7 @@ void eip_dma_la_deinit(struct eip_dma *dma);
 
 int eip_dma_hy_init(struct eip_dma *dma, struct platform_device *pdev, uint8_t tx_cpu,
 		uint8_t rx_cpu,	uint32_t ring_id, void __iomem *base_addr);
+void eip_dma_hy_refill_all(struct eip_ctx *ctx);
 void eip_dma_hy_deinit(struct eip_dma *dma);
 
 #endif /* __EIP_DMA_H */

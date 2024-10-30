@@ -1,0 +1,64 @@
+Author: Ermine Jose <quic_erminejo@quicinc.com>
+Date:   Tue Jan 9 15:43:54 2024 +0530
+
+    strace: add 100-make-compatible-linux6.6 patch
+
+    Signed-off-by: Ermine Jose <quic_erminejo@quicinc.com>
+    Change-Id: I1887aaeb4dd03233e7f341b6a30470b7058b9d4b
+---
+Index: strace-6.3/src/io_uring.c
+===================================================================
+--- strace-6.3.orig/src/io_uring.c
++++ strace-6.3/src/io_uring.c
+@@ -45,10 +45,17 @@ print_io_sqring_offsets(const struct io_
+ 		tprint_struct_next();
+ 		PRINT_FIELD_X(*p, resv1);
+ 	}
++#ifdef LINUX_VERSION_SRC_6_6
++	if(p->user_addr) {
++		tprint_struct_next();
++		PRINT_FIELD_X(*p, user_addr);
++	}
++#else
+ 	if (p->resv2) {
+ 		tprint_struct_next();
+ 		PRINT_FIELD_X(*p, resv2);
+ 	}
++#endif
+ 	tprint_struct_end();
+ }
+ 
+@@ -73,10 +80,17 @@ print_io_cqring_offsets(const struct io_
+ 		tprint_struct_next();
+ 		PRINT_FIELD_X(*p, resv1);
+ 	}
++#ifdef LINUX_VERSION_SRC_6_6
++	if(p->user_addr) {
++		tprint_struct_next();
++		PRINT_FIELD_X(*p, user_addr);
++	}
++#else
+ 	if (p->resv2) {
+ 		tprint_struct_next();
+ 		PRINT_FIELD_X(*p, resv2);
+ 	}
++#endif
+ 	tprint_struct_end();
+ }
+ 
+Index: strace-6.3/src/ptp.c
+===================================================================
+--- strace-6.3.orig/src/ptp.c
++++ strace-6.3/src/ptp.c
+@@ -78,7 +78,11 @@ ptp_ioctl(struct tcb *const tcp, const u
+ 	case PTP_CLOCK_GETCAPS:
+ 	case PTP_CLOCK_GETCAPS2: {
+ 		struct ptp_clock_caps caps;
++#ifdef LINUX_VERSION_SRC_6_6
++		CHECK_TYPE_SIZE(caps.rsv, sizeof(unsigned int) * 11);
++#else
+ 		CHECK_TYPE_SIZE(caps.rsv, sizeof(unsigned int) * 12);
++#endif
+ 		CHECK_IOCTL_SIZE(PTP_CLOCK_GETCAPS, 80);
+ 		CHECK_IOCTL_SIZE(PTP_CLOCK_GETCAPS2, 80);
+ 

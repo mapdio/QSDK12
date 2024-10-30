@@ -10,31 +10,31 @@ include $(INCLUDE_DIR)/kernel.mk
 
 PKG_NAME:=mac80211
 
-PKG_VERSION:=4.19.237-1
-PKG_RELEASE:=1
-PKG_SOURCE_URL:=@KERNEL/linux/kernel/projects/backports/stable/v4.19.237/
-PKG_HASH:=e40ce1f4b707d5b1b5da3f4470f1ccf4f565602323424c89d956069df701bffd
+PKG_VERSION:=6.5-rc3
+PKG_RELEASE:=3
+# PKG_SOURCE_URL:=@KERNEL/linux/kernel/projects/backports/stable/v5.15.58/
+PKG_SOURCE_URL:=http://mirror2.openwrt.org/sources/
+#PKG_HASH:=5d39aca7e34c33cb9b3e366117b2e86841b7bdd37933679d6b1e61be6b150648
+PKG_HASH:=90550338f957db53cee014604b95349a1c571cbadeedbb0625139a983f7fd224
 
 PKG_SOURCE:=backports-$(PKG_VERSION).tar.xz
 PKG_BUILD_DIR:=$(KERNEL_BUILD_DIR)/backports-$(PKG_VERSION)
 PKG_BUILD_PARALLEL:=1
 
+MKHASH ?= $(STAGING_DIR_HOST)/bin/mkhash
+PKG_BUILD_ID:=$(shell date | $(MKHASH) md5)
 PKG_MAINTAINER:=Felix Fietkau <nbd@nbd.name>
 
 PKG_DRIVERS = \
-	adm8211 \
-	airo \
-	hermes hermes-pci hermes-pcmcia hermes-plx\
-	lib80211 \
 	mac80211-hwsim \
 	mt7601u \
-	p54-common p54-pci p54-usb \
 	rsi91x rsi91x-usb rsi91x-sdio\
-	wlcore wl12xx wl18xx \
-	zd1211rw
+	wlcore wl12xx wl18xx
 
 PKG_CONFIG_DEPENDS:= \
 	CONFIG_PACKAGE_kmod-mac80211 \
+	CONFIG_PACKAGE_CFG80211_TESTMODE \
+	CONFIG_PACKAGE_MAC80211_MESSAGE_TRACING \
 	CONFIG_PACKAGE_MAC80211_DEBUGFS \
 	CONFIG_PACKAGE_MAC80211_MESH \
 	CONFIG_PACKAGE_MAC80211_TRACING \
@@ -54,17 +54,22 @@ endef
 
 config_package=$(if $(CONFIG_PACKAGE_kmod-$(1)),m)
 
+ifneq (,$(findstring ipq,$(CONFIG_TARGET_BOARD)))
+	QCOM:=y
+endif
+
 config-y:= \
 	WLAN \
 	NL80211_TESTMODE \
-	CFG80211_WEXT \
 	CFG80211_CERTIFICATION_ONUS \
 	MAC80211_RC_MINSTREL \
 	MAC80211_RC_MINSTREL_HT \
 	MAC80211_RC_MINSTREL_VHT \
 	MAC80211_RC_DEFAULT_MINSTREL \
+	WLAN_VENDOR_ATH
+ifneq ($(QCOM),y)
+config-y += \
 	WLAN_VENDOR_ADMTEK \
-	WLAN_VENDOR_ATH \
 	WLAN_VENDOR_ATMEL \
 	WLAN_VENDOR_BROADCOM \
 	WLAN_VENDOR_CISCO \
@@ -77,19 +82,23 @@ config-y:= \
 	WLAN_VENDOR_RSI \
 	WLAN_VENDOR_ST \
 	WLAN_VENDOR_TI \
-	WLAN_VENDOR_ZYDAS \
+	WLAN_VENDOR_ZYDAS
+endif
 
 config-$(call config_package,cfg80211) += CFG80211
+config-$(CONFIG_PACKAGE_CFG80211_TESTMODE) += NL80211_TESTMODE
 
 config-$(call config_package,mac80211) += MAC80211
 config-$(CONFIG_PACKAGE_MAC80211_MESH) += MAC80211_MESH
 
 include ath.mk
-include broadcom.mk
-include intel.mk
-include marvell.mk
-include ralink.mk
-include realtek.mk
+ifneq ($(QCOM),y)
+  include broadcom.mk
+  include intel.mk
+  include marvell.mk
+  include ralink.mk
+  include realtek.mk
+endif
 
 PKG_CONFIG_DEPENDS += \
 	$(patsubst %,CONFIG_PACKAGE_kmod-%,$(PKG_DRIVERS))
@@ -97,7 +106,7 @@ PKG_CONFIG_DEPENDS += \
 define KernelPackage/cfg80211
   $(call KernelPackage/mac80211/Default)
   TITLE:=cfg80211 - wireless configuration API
-  DEPENDS+= +iw +wireless-regdb
+  DEPENDS+= +iw +iwinfo +wireless-regdb +USE_RFKILL:kmod-rfkill
   ABI_VERSION:=$(PKG_VERSION)-$(PKG_RELEASE)
   FILES:= \
 	$(PKG_BUILD_DIR)/compat/compat.ko \
@@ -108,20 +117,75 @@ define KernelPackage/cfg80211/description
 cfg80211 is the Linux wireless LAN (802.11) configuration API.
 endef
 
+define KernelPackage/cfg80211/config
+  if PACKAGE_kmod-cfg80211
+
+	config PACKAGE_CFG80211_TESTMODE
+		bool "Enable testmode command support"
+		default n
+		help
+		  This is typically used for tests and calibration during
+		  manufacturing, or vendor specific debugging features
+
+  endif
+endef
+
+
 define KernelPackage/mac80211
   $(call KernelPackage/mac80211/Default)
   TITLE:=Linux 802.11 Wireless Networking Stack
   # +kmod-crypto-cmac is a runtime only dependency of net/mac80211/aes_cmac.c
-  DEPENDS+= +kmod-cfg80211 +hostapd-common
+  DEPENDS+= @TARGET_ipq95xx||TARGET_ipq53xx||TARGET_ipq50xx||TARGET_ipq60xx||TARGET_ipq807x||TARGET_ipq806x||TARGET_ipq||TARGET_ar71xx \
+	+kmod-cfg80211 +hostapd-common \
+	+kmod-qca-nss-ppe \
+	+kmod-qca-nss-ppe-vp \
+	+kmod-qca-nss-ppe-ds \
+	+kmod-bonding
+  PKG_BUILD_DEPENDS+= PACKAGE_kmod-qca-nss-drv:kmod-qca-nss-drv
+  PKG_BUILD_DEPENDS+= PACKAGE_kmod-qca-nss-ppe:kmod-qca-nss-ppe
+  PKG_BUILD_DEPENDS+= PACKAGE_kmod-qca-nss-ppe-vp:kmod-qca-nss-ppe-vp
+  PKG_BUILD_DEPENDS+= PACKAGE_kmod-qca-nss-ppe-ds:kmod-qca-nss-ppe-ds
+  PKG_BUILD_DEPENDS+= PACKAGE_kmod-bonding:kmod-bonding
   KCONFIG:=\
 	CONFIG_AVERAGE=y
   FILES:= $(PKG_BUILD_DIR)/net/mac80211/mac80211.ko
-  ABI_VERSION:=$(PKG_VERSION)-$(PKG_RELEASE)
   MENU:=1
 endef
 
 define KernelPackage/mac80211/config
   if PACKAGE_kmod-mac80211
+
+    if PACKAGE_kmod-qca-nss-drv
+	config PACKAGE_MAC80211_NSS_SUPPORT
+		bool "Enable NSS support for IPQ platform"
+		default y
+		help
+		  This option enables support for NSS in QCA boards.
+    endif
+
+    if PACKAGE_kmod-qca-nss-ppe-vp
+	config PACKAGE_MAC80211_PPE_SUPPORT
+		bool "Enable PPE support for IPQ platform"
+		default y
+		help
+		  This option enables support for PPE in QCA boards
+    endif
+
+    if PACKAGE_kmod-qca-nss-ppe-ds
+       config PACKAGE_MAC80211_DS_SUPPORT
+               bool "Enable DS support for IPQ platform"
+               default y
+               help
+                 This option enables support for ds netdev in QCA boards.
+     endif
+
+    if PACKAGE_kmod-qca-nss-sfe
+	config PACKAGE_MAC80211_SFE_SUPPORT
+		bool "Enable sfe support for IPQ platform"
+		default y
+		help
+		  This option enables support for qca sfe in QCA boards
+     endif
 
 	config PACKAGE_MAC80211_DEBUGFS
 		bool "Export mac80211 internals in DebugFS"
@@ -144,6 +208,66 @@ define KernelPackage/mac80211/config
 		bool "Enable 802.11s mesh support"
 		default y
 
+	config PACKAGE_MAC80211_MESSAGE_TRACING
+		bool "Enable mac80211 message tracing"
+		default n
+		help
+		  Select this option to enable tracing.
+
+	config PACKAGE_MAC80211_DEBUG_MENU
+		bool "Select mac80211 debugging features"
+		default n
+		help
+		  This option collects various mac80211 debug settings.
+
+	menu "mac80211 debugging features"
+		depends on PACKAGE_MAC80211_DEBUG_MENU
+
+	config PACKAGE_MAC80211_VERBOSE_DEBUG
+		bool "Verbose debugging output"
+		default n
+		help
+		  Selecting this option causes mac80211 to print out
+		  many debugging messages.
+
+	config PACKAGE_MAC80211_MLME_DEBUG
+		bool "Verbose managed MLME output"
+		default n
+		help
+		  Selecting this option causes mac80211 to print out
+		  debugging messages for the managed-mode MLME.
+
+	config PACKAGE_MAC80211_STA_DEBUG
+		bool "Verbose station debugging"
+		default n
+		help
+		  Selecting this option causes mac80211 to print out
+		  debugging messages for station addition/removal.
+
+	config PACKAGE_MAC80211_HT_DEBUG
+		bool "Verbose HT debugging"
+		default n
+		help
+		  This option enables 802.11n High Throughput features
+		  debug tracing output.
+
+	config PACKAGE_MAC80211_IBSS_DEBUG
+		bool "Verbose IBSS debugging"
+		default n
+		help
+		  Selecting this option causes mac80211 to print out
+		  very verbose IBSS debugging messages.
+
+	config PACKAGE_MAC80211_PS_DEBUG
+		bool "Verbose powersave mode debugging"
+		default n
+		help
+		  Selecting this option causes mac80211 to print out very
+		  verbose power save mode debugging messages (when mac80211
+		  is an AP and has power saving stations.)
+
+        endmenu
+
   endif
 endef
 
@@ -151,106 +275,10 @@ define KernelPackage/mac80211/description
 Generic IEEE 802.11 Networking Stack (mac80211)
 endef
 
-define KernelPackage/adm8211
-  $(call KernelPackage/mac80211/Default)
-  TITLE:=ADMTek 8211 support
-  DEPENDS+=@PCI_SUPPORT +kmod-mac80211 +kmod-eeprom-93cx6
-  FILES:=$(PKG_BUILD_DIR)/drivers/net/wireless/admtek/adm8211.ko
-  AUTOLOAD:=$(call AutoProbe,adm8211)
-endef
-
-define KernelPackage/airo
-  $(call KernelPackage/mac80211/Default)
-  TITLE:=Cisco Aironet driver
-  DEPENDS+=@PCI_SUPPORT +@DRIVER_WEXT_SUPPORT +kmod-cfg80211 @TARGET_x86
-  FILES:=$(PKG_BUILD_DIR)/drivers/net/wireless/cisco/airo.ko
-  AUTOLOAD:=$(call AutoProbe,airo)
-endef
-
-define KernelPackage/airo/description
- Kernel support for Cisco Aironet cards
-endef
-
-define KernelPackage/hermes
-  $(call KernelPackage/mac80211/Default)
-  TITLE:=Hermes 802.11b chipset support
-  DEPENDS:=@PCI_SUPPORT||PCMCIA_SUPPORT +kmod-cfg80211 +@DRIVER_WEXT_SUPPORT +kmod-crypto-michael-mic
-  FILES:=$(PKG_BUILD_DIR)/drivers/net/wireless/intersil/orinoco/orinoco.ko
-  AUTOLOAD:=$(call AutoProbe,orinoco)
-endef
-
-define KernelPackage/hermes/description
- Kernel support for Hermes 802.11b chipsets
-endef
-
-define KernelPackage/hermes-pci
-  $(call KernelPackage/mac80211/Default)
-  TITLE:=Intersil Prism 2.5 PCI support
-  DEPENDS:=@PCI_SUPPORT +kmod-hermes
-  FILES:=$(PKG_BUILD_DIR)/drivers/net/wireless/intersil/orinoco/orinoco_pci.ko
-  AUTOLOAD:=$(call AutoProbe,orinoco_pci)
-endef
-
-define KernelPackage/hermes-pci/description
- Kernel modules for Intersil Prism 2.5 PCI support
-endef
-
-define KernelPackage/hermes-plx
-  $(call KernelPackage/mac80211/Default)
-  TITLE:=PLX9052 based PCI adaptor
-  DEPENDS:=@PCI_SUPPORT +kmod-hermes
-  FILES:=$(PKG_BUILD_DIR)/drivers/net/wireless/intersil/orinoco/orinoco_plx.ko
-  AUTOLOAD:=$(call AutoProbe,orinoco_plx)
-endef
-
-define KernelPackage/hermes-plx/description
- Kernel modules for Hermes in PLX9052 based PCI adaptors
-endef
-
-define KernelPackage/hermes-pcmcia
-  $(call KernelPackage/mac80211/Default)
-  TITLE:=Hermes based PCMCIA adaptors
-  DEPENDS:=@PCMCIA_SUPPORT +kmod-hermes +kmod-pcmcia-core
-  FILES:=$(PKG_BUILD_DIR)/drivers/net/wireless/intersil/orinoco/orinoco_cs.ko
-  AUTOLOAD:=$(call AutoProbe,orinoco_cs)
-endef
-
-define KernelPackage/hermes-pcmcia/description
- Kernel modules for Hermes based PCMCIA adaptors
-endef
-
-
-define KernelPackage/lib80211
-  $(call KernelPackage/mac80211/Default)
-  TITLE:=802.11 Networking stack
-  DEPENDS:=+kmod-cfg80211 +kmod-crypto-hash
-  FILES:= \
-	$(PKG_BUILD_DIR)/net/wireless/lib80211.ko \
-	$(PKG_BUILD_DIR)/net/wireless/lib80211_crypt_wep.ko \
-	$(PKG_BUILD_DIR)/net/wireless/lib80211_crypt_ccmp.ko \
-	$(PKG_BUILD_DIR)/net/wireless/lib80211_crypt_tkip.ko
-  AUTOLOAD:=$(call AutoProbe, \
-	lib80211 \
-	lib80211_crypt_wep \
-	lib80211_crypt_ccmp \
-	lib80211_crypt_tkip \
-  )
-endef
-
-define KernelPackage/lib80211/description
- Kernel modules for 802.11 Networking stack
- Includes:
- - lib80211
- - lib80211_crypt_wep
- - lib80211_crypt_tkip
- - lib80211_crytp_ccmp
-endef
-
-
 define KernelPackage/mac80211-hwsim
   $(call KernelPackage/mac80211/Default)
   TITLE:=mac80211 HW simulation device
-  DEPENDS+= +kmod-mac80211 +@DRIVER_11AC_SUPPORT +@DRIVER_11N_SUPPORT +@DRIVER_11W_SUPPORT
+  DEPENDS+= +kmod-mac80211 +@DRIVER_11AX_SUPPORT +@DRIVER_11AC_SUPPORT
   FILES:=$(PKG_BUILD_DIR)/drivers/net/wireless/mac80211_hwsim.ko
   AUTOLOAD:=$(call AutoProbe,mac80211_hwsim)
 endef
@@ -259,47 +287,15 @@ endef
 define KernelPackage/mt7601u
   $(call KernelPackage/mac80211/Default)
   TITLE:=MT7601U-based USB dongles Wireless Driver
-  DEPENDS+= +kmod-mac80211 +@DRIVER_11N_SUPPORT +@DRIVER_11W_SUPPORT @USB_SUPPORT +kmod-usb-core +mt7601u-firmware
+  DEPENDS+= +kmod-mac80211 @USB_SUPPORT +kmod-usb-core +mt7601u-firmware
   FILES:=$(PKG_BUILD_DIR)/drivers/net/wireless/mediatek/mt7601u/mt7601u.ko
   AUTOLOAD:=$(call AutoProbe,mt7601u)
-endef
-
-define KernelPackage/p54/Default
-  $(call KernelPackage/mac80211/Default)
-  TITLE:=Prism54 Drivers
-endef
-
-define KernelPackage/p54/description
-  Kernel module for Prism54 chipsets (mac80211)
-endef
-
-define KernelPackage/p54-common
-  $(call KernelPackage/p54/Default)
-  DEPENDS+= @(PCI_SUPPORT||USB_SUPPORT) +kmod-mac80211 +kmod-lib-crc-ccitt +@DRIVER_11W_SUPPORT
-  TITLE+= (COMMON)
-  FILES:=$(PKG_BUILD_DIR)/drivers/net/wireless/intersil/p54/p54common.ko
-endef
-
-define KernelPackage/p54-pci
-  $(call KernelPackage/p54/Default)
-  TITLE+= (PCI)
-  DEPENDS+= @PCI_SUPPORT +kmod-p54-common +p54-pci-firmware
-  FILES:=$(PKG_BUILD_DIR)/drivers/net/wireless/intersil/p54/p54pci.ko
-  AUTOLOAD:=$(call AutoProbe,p54pci)
-endef
-
-define KernelPackage/p54-usb
-  $(call KernelPackage/p54/Default)
-  TITLE+= (USB)
-  DEPENDS+= @USB_SUPPORT +kmod-usb-core +kmod-p54-common +p54-usb-firmware
-  FILES:=$(PKG_BUILD_DIR)/drivers/net/wireless/intersil/p54/p54usb.ko
-  AUTOLOAD:=$(call AutoProbe,p54usb)
 endef
 
 define KernelPackage/rsi91x
   $(call KernelPackage/mac80211/Default)
   TITLE:=Redpine Signals Inc 91x WLAN driver support
-  DEPENDS+= +kmod-mac80211 +rs9113-firmware +@DRIVER_11N_SUPPORT
+  DEPENDS+= +kmod-mac80211 +rs9113-firmware
   FILES:=$(PKG_BUILD_DIR)/drivers/net/wireless/rsi/rsi_91x.ko
 endef
 
@@ -323,7 +319,7 @@ endef
 define KernelPackage/wlcore
   $(call KernelPackage/mac80211/Default)
   TITLE:=TI common driver part
-  DEPENDS+= +kmod-mmc +kmod-mac80211 +@DRIVER_11N_SUPPORT
+  DEPENDS+= +kmod-mmc +kmod-mac80211
   FILES:= \
 	$(PKG_BUILD_DIR)/drivers/net/wireless/ti/wlcore/wlcore.ko \
 	$(PKG_BUILD_DIR)/drivers/net/wireless/ti/wlcore/wlcore_sdio.ko
@@ -361,23 +357,6 @@ define KernelPackage/wl18xx/description
 endef
 
 
-ZD1211FW_NAME:=zd1211-firmware
-ZD1211FW_VERSION:=1.4
-define Download/zd1211rw
-  FILE:=$(ZD1211FW_NAME)-$(ZD1211FW_VERSION).tar.bz2
-  URL:=@SF/zd1211/
-  HASH:=866308f6f59f7075f075d4959dff2ede47735c751251fecd1496df1ba4d338e1
-endef
-$(eval $(call Download,zd1211rw))
-
-define KernelPackage/zd1211rw
-  $(call KernelPackage/mac80211/Default)
-  TITLE:=Zydas ZD1211 support
-  DEPENDS+= @USB_SUPPORT +kmod-usb-core +kmod-mac80211 +@DRIVER_11W_SUPPORT
-  FILES:=$(PKG_BUILD_DIR)/drivers/net/wireless/zydas/zd1211rw/zd1211rw.ko
-  AUTOLOAD:=$(call AutoProbe,zd1211rw)
-endef
-
 ifdef CONFIG_PACKAGE_MAC80211_DEBUGFS
   config-y += \
 	CFG80211_DEBUGFS \
@@ -389,39 +368,44 @@ ifdef CONFIG_PACKAGE_MAC80211_TRACING
 	IWLWIFI_DEVICE_TRACING
 endif
 
-config-$(call config_package,lib80211) += LIB80211 LIB80211_CRYPT_WEP LIB80211_CRYPT_CCMP LIB80211_CRYPT_TKIP
+config-$(CONFIG_PACKAGE_MAC80211_NSS_SUPPORT) += MAC80211_NSS_SUPPORT
+config-$(CONFIG_PACKAGE_MAC80211_PPE_SUPPORT) += MAC80211_PPE_SUPPORT
+config-$(CONFIG_PACKAGE_MAC80211_DS_SUPPORT) += MAC80211_BONDED_SUPPORT ATH12K_PPE_DS_SUPPORT ATH12K_BONDED_DS_SUPPORT
+config-$(CONFIG_PACKAGE_MAC80211_SFE_SUPPORT) += MAC80211_SFE_SUPPORT
+config-$(CONFIG_PACKAGE_MAC80211_MESSAGE_TRACING) += MAC80211_MESSAGE_TRACING ATH10K_TRACING ATH11K_TRACING ATH12K_TRACING
+config-$(CONFIG_PACKAGE_MAC80211_DEBUG_MENU) += MAC80211_DEBUG_MENU
+config-$(CONFIG_PACKAGE_MAC80211_VERBOSE_DEBUG) += MAC80211_VERBOSE_DEBUG
+config-$(CONFIG_PACKAGE_MAC80211_MLME_DEBUG) += MAC80211_MLME_DEBUG
+config-$(CONFIG_PACKAGE_MAC80211_STA_DEBUG) += MAC80211_STA_DEBUG
+config-$(CONFIG_PACKAGE_MAC80211_HT_DEBUG) += MAC80211_HT_DEBUG
+config-$(CONFIG_PACKAGE_MAC80211_IBSS_DEBUG) += MAC80211_IBSS_DEBUG
+config-$(CONFIG_PACKAGE_MAC80211_PS_DEBUG) += MAC80211_PS_DEBUG
 
-config-$(call config_package,airo) += AIRO
 
 config-$(call config_package,mac80211-hwsim) += MAC80211_HWSIM
-config-$(call config_package,mt7601u) += MT7601U
-config-y += WL_MEDIATEK
+ifneq ($(QCOM),y)
+  config-$(call config_package,mt7601u) += MT7601U
+  config-y += WL_MEDIATEK
 
-config-$(call config_package,p54-common) += P54_COMMON
-config-$(call config_package,p54-pci) += P54_PCI
-config-$(call config_package,p54-usb) += P54_USB
+  config-$(call config_package,wlcore) += WLCORE WLCORE_SDIO
+  config-$(call config_package,wl12xx) += WL12XX
+  config-$(call config_package,wl18xx) += WL18XX
+  config-y += WL_TI WILINK_PLATFORM_DATA
+  config-$(call config_package,rsi91x) += RSI_91X
+  config-$(call config_package,rsi91x-usb) += RSI_USB
+  config-$(call config_package,rsi91x-sdio) += RSI_SDIO
+  config-$(CONFIG_LEDS_TRIGGERS) += MAC80211_LEDS
+endif
 
-config-$(call config_package,hermes) += HERMES
-config-$(call config_package,hermes-pci) += PCI_HERMES
-config-$(call config_package,hermes-plx) += PLX_HERMES
-config-$(call config_package,hermes-pcmcia) += PCMCIA_HERMES
-config-y += HERMES_PRISM
+C_DEFINES=
 
-config-$(call config_package,adm8211) += ADM8211
-config-$(call config_package,wlcore) += WLCORE WLCORE_SDIO
-config-$(call config_package,wl12xx) += WL12XX
-config-$(call config_package,wl18xx) += WL18XX
-config-y += WL_TI WILINK_PLATFORM_DATA
-config-$(call config_package,zd1211rw) += ZD1211RW
-config-$(call config_package,rsi91x) += RSI_91X
-config-$(call config_package,rsi91x-usb) += RSI_USB
-config-$(call config_package,rsi91x-sdio) += RSI_SDIO
+ifeq ($(BUILD_VARIANT),smallbuffers)
+	C_DEFINES+= -DCONFIG_ATH10K_SMALLBUFFERS
+endif
 
-config-$(CONFIG_LEDS_TRIGGERS) += MAC80211_LEDS
-
-MAKE_OPTS:= -C "$(PKG_BUILD_DIR)" \
-	$(KERNEL_MAKE_FLAGS) \
-	EXTRA_CFLAGS="-I$(PKG_BUILD_DIR)/include $(IREMAP_CFLAGS)" \
+MAKE_OPTS:= \
+	$(subst -C $(LINUX_DIR),-C "$(PKG_BUILD_DIR)",$(KERNEL_MAKEOPTS)) \
+	EXTRA_CFLAGS="-I$(PKG_BUILD_DIR)/include -I$(STAGING_DIR)/usr/include/qca-nss-drv -I$(STAGING_DIR)/usr/include/qca-nss-ppe -I$(STAGING_DIR)/usr/include/qca-nss-clients -I$(TOPDIR)/qca/src/qca-wifi/telemetry_agent/inc/ -Wall -Werror -Wno-incompatible-pointer-types -Wno-discarded-qualifiers -Wno-int-conversion" \
 	KLIB_BUILD="$(LINUX_DIR)" \
 	MODPROBE=true \
 	KLIB=$(TARGET_MODULES_DIR) \
@@ -443,9 +427,6 @@ define Build/Prepare
 	mkdir -p $(PKG_BUILD_DIR)
 	$(PKG_UNPACK)
 	$(Build/Patch)
-	$(TAR) -C $(PKG_BUILD_DIR) -xzf $(DL_DIR)/$(IPW2100_NAME)-$(IPW2100_VERSION).tgz
-	$(TAR) -C $(PKG_BUILD_DIR) -xzf $(DL_DIR)/$(IPW2200_NAME)-$(IPW2200_VERSION).tgz
-	$(TAR) -C $(PKG_BUILD_DIR) -xjf $(DL_DIR)/$(ZD1211FW_NAME)-$(ZD1211FW_VERSION).tar.bz2
 	rm -rf \
 		$(PKG_BUILD_DIR)/include/linux/ssb \
 		$(PKG_BUILD_DIR)/include/linux/bcma \
@@ -456,39 +437,42 @@ define Build/Prepare
 		$(PKG_BUILD_DIR)/include/linux/crc8.h \
 		$(PKG_BUILD_DIR)/include/linux/eeprom_93cx6.h \
 		$(PKG_BUILD_DIR)/include/linux/wl12xx.h \
-		$(PKG_BUILD_DIR)/include/linux/spi/libertas_spi.h \
+		$(PKG_BUILD_DIR)/include/linux/mhi.h \
 		$(PKG_BUILD_DIR)/include/net/ieee80211.h \
 		$(PKG_BUILD_DIR)/backport-include/linux/bcm47xx_nvram.h
 
 	echo 'compat-wireless-$(PKG_VERSION)-$(PKG_RELEASE)-$(REVISION)' > $(PKG_BUILD_DIR)/compat_version
 endef
 
-ifneq ($(CONFIG_PACKAGE_kmod-cfg80211)$(CONFIG_PACKAGE_kmod-lib80211),)
+ifneq ($(CONFIG_PACKAGE_kmod-cfg80211),)
  define Build/Compile/kmod
 	rm -rf $(PKG_BUILD_DIR)/modules
 	+$(MAKE) $(PKG_JOBS) $(MAKE_OPTS) modules
  endef
 endif
 
-#do not Build/Configure for EXTERNAL KERNEL
-ifeq ($(strip $(CONFIG_EXTERNAL_KERNEL_TREE)),"")
-  ifeq ($(strip $(CONFIG_KERNEL_GIT_CLONE_URI)),"")
-    define Build/Configure
-	  cmp $(PKG_BUILD_DIR)/include/linux/ath9k_platform.h $(LINUX_DIR)/include/linux/ath9k_platform.h
-	  cmp $(PKG_BUILD_DIR)/include/linux/ath5k_platform.h $(LINUX_DIR)/include/linux/ath5k_platform.h
-	  cmp $(PKG_BUILD_DIR)/include/linux/rt2x00_platform.h $(LINUX_DIR)/include/linux/rt2x00_platform.h
-    endef
-  endif
-endif
+EXTERNAL_PATCH_DIR:=$(TOPDIR)/openwrt-patches/package/kernel/mac80211/patches
 
 define Build/Patch
 	$(if $(QUILT),rm -rf $(PKG_BUILD_DIR)/patches; mkdir -p $(PKG_BUILD_DIR)/patches)
 	$(call PatchDir,$(PKG_BUILD_DIR),$(PATCH_DIR)/build,build/)
 	$(call PatchDir,$(PKG_BUILD_DIR),$(PATCH_DIR)/subsys,subsys/)
 	$(call PatchDir,$(PKG_BUILD_DIR),$(PATCH_DIR)/ath,ath/)
+#	$(call PatchDir,$(PKG_BUILD_DIR),$(PATCH_DIR)/ath5k,ath5k/)
+#	$(call PatchDir,$(PKG_BUILD_DIR),$(PATCH_DIR)/ath9k,ath9k/)
+#	$(call PatchDir,$(PKG_BUILD_DIR),$(PATCH_DIR)/ath10k,ath10k/)
+	$(call PatchDir,$(PKG_BUILD_DIR),$(PATCH_DIR)/ath11k,ath11k/)
+	$(call PatchDir,$(PKG_BUILD_DIR),$(PATCH_DIR)/ath12k,ath12k/)
+ifneq ($(QCOM),y)
 	$(call PatchDir,$(PKG_BUILD_DIR),$(PATCH_DIR)/rt2x00,rt2x00/)
+	$(call PatchDir,$(PKG_BUILD_DIR),$(PATCH_DIR)/mt7601u,mt7601u/)
 	$(call PatchDir,$(PKG_BUILD_DIR),$(PATCH_DIR)/mwl,mwl/)
 	$(call PatchDir,$(PKG_BUILD_DIR),$(PATCH_DIR)/brcm,brcm/)
+	$(call PatchDir,$(PKG_BUILD_DIR),$(PATCH_DIR)/rtl,rtl/)
+endif
+	$(call PatchDir,$(PKG_BUILD_DIR),$(EXTERNAL_PATCH_DIR)/subsys,subsys/)
+	$(call PatchDir,$(PKG_BUILD_DIR),$(EXTERNAL_PATCH_DIR)/ath11k,ath11k/)
+	$(call PatchDir,$(PKG_BUILD_DIR),$(EXTERNAL_PATCH_DIR)/ath12k,ath12k/)
 	$(if $(QUILT),touch $(PKG_BUILD_DIR)/.quilt_used)
 endef
 
@@ -496,9 +480,18 @@ define Quilt/Refresh/Package
 	$(call Quilt/RefreshDir,$(PKG_BUILD_DIR),$(PATCH_DIR)/build,build/)
 	$(call Quilt/RefreshDir,$(PKG_BUILD_DIR),$(PATCH_DIR)/subsys,subsys/)
 	$(call Quilt/RefreshDir,$(PKG_BUILD_DIR),$(PATCH_DIR)/ath,ath/)
+#	$(call Quilt/RefreshDir,$(PKG_BUILD_DIR),$(PATCH_DIR)/ath5k,ath5k/)
+#	$(call Quilt/RefreshDir,$(PKG_BUILD_DIR),$(PATCH_DIR)/ath9k,ath9k/)
+#	$(call Quilt/RefreshDir,$(PKG_BUILD_DIR),$(PATCH_DIR)/ath10k,ath10k/)
+	$(call Quilt/RefreshDir,$(PKG_BUILD_DIR),$(PATCH_DIR)/ath11k,ath11k/)
+	$(call Quilt/RefreshDir,$(PKG_BUILD_DIR),$(PATCH_DIR)/ath12k,ath12k/)
+ifneq ($(QCOM),y)
 	$(call Quilt/RefreshDir,$(PKG_BUILD_DIR),$(PATCH_DIR)/rt2x00,rt2x00/)
+	$(call Quilt/RefreshDir,$(PKG_BUILD_DIR),$(PATCH_DIR)/mt7601u,mt7601u/)
 	$(call Quilt/RefreshDir,$(PKG_BUILD_DIR),$(PATCH_DIR)/mwl,mwl/)
 	$(call Quilt/RefreshDir,$(PKG_BUILD_DIR),$(PATCH_DIR)/brcm,brcm/)
+	$(call Quilt/RefreshDir,$(PKG_BUILD_DIR),$(PATCH_DIR)/rtl,rtl/)
+endif
 endef
 
 define Build/Compile
@@ -520,40 +513,48 @@ define Build/InstallDev
 	rm -f $(1)/usr/include/mac80211-backport/linux/module.h
 endef
 
-
-define KernelPackage/b43/install
-	rm -rf $(1)/lib/firmware/
-ifeq ($(CONFIG_B43_OPENFIRMWARE),y)
-	tar xzf "$(DL_DIR)/$(PKG_B43_FWV4_SOURCE)" -C "$(PKG_BUILD_DIR)"
-else
-	tar xjf "$(DL_DIR)/$(PKG_B43_FWV4_SOURCE)" -C "$(PKG_BUILD_DIR)"
-endif
-	$(INSTALL_DIR) $(1)/lib/firmware/
-ifeq ($(CONFIG_B43_OPENFIRMWARE),y)
-	$(MAKE) -C "$(PKG_BUILD_DIR)/$(PKG_B43_FWV4_OBJECT)/"
-	$(INSTALL_DIR) $(1)/lib/firmware/b43-open/
-	$(INSTALL_DATA) $(PKG_BUILD_DIR)/$(PKG_B43_FWV4_OBJECT)/ucode5.fw $(1)/lib/firmware/b43-open/ucode5.fw
-	$(INSTALL_DATA) $(PKG_BUILD_DIR)/$(PKG_B43_FWV4_OBJECT)/b0g0bsinitvals5.fw $(1)/lib/firmware/b43-open/b0g0bsinitvals5.fw
-	$(INSTALL_DATA) $(PKG_BUILD_DIR)/$(PKG_B43_FWV4_OBJECT)/b0g0initvals5.fw $(1)/lib/firmware/b43-open/b0g0initvals5.fw
-else
-	b43-fwcutter -w $(1)/lib/firmware/ $(PKG_BUILD_DIR)/$(PKG_B43_FWV4_OBJECT)
-endif
-ifneq ($(CONFIG_B43_FW_SQUASH),)
-	b43-fwsquash.py "$(CONFIG_B43_FW_SQUASH_PHYTYPES)" "$(CONFIG_B43_FW_SQUASH_COREREVS)" "$(1)/lib/firmware/b43"
-endif
-endef
+EXTERNAL_FILE_DIR:=$(TOPDIR)/openwrt-patches/package/kernel/mac80211
 
 define KernelPackage/cfg80211/install
+	$(INSTALL_DIR) $(1)/lib/wifi $(1)/etc/hotplug.d/ieee80211
+	$(INSTALL_DIR) $(1)/lib/wifi $(1)/etc/hotplug.d/devcoredump
 	$(INSTALL_DIR) $(1)/lib/wifi $(1)/lib/netifd/wireless
+	$(INSTALL_DIR) $(1)/lib/wifi/sawf
+	$(INSTALL_DIR) $(1)/lib/wifi/sawf/telemetry
 	$(INSTALL_DATA) ./files/lib/wifi/mac80211.sh $(1)/lib/wifi
+	$(INSTALL_DATA) $(EXTERNAL_FILE_DIR)/files/lib/wifi/def_service_classes.json $(1)/lib/wifi/sawf/
+	$(INSTALL_DATA) $(EXTERNAL_FILE_DIR)/files/lib/wifi/service_classes.json $(1)/lib/wifi/sawf/
+	$(INSTALL_DATA) $(EXTERNAL_FILE_DIR)/files/lib/wifi/telemetry/config.json $(1)/lib/wifi/sawf/telemetry/
+	$(INSTALL_DATA) $(EXTERNAL_FILE_DIR)/files/lib/wifi/telemetry/sla.json $(1)/lib/wifi/sawf/telemetry/
+	$(INSTALL_DATA) $(EXTERNAL_FILE_DIR)/files/lib/wifi/telemetry/sla_detect.json $(1)/lib/wifi/sawf/telemetry/
 	$(INSTALL_BIN) ./files/lib/netifd/wireless/mac80211.sh $(1)/lib/netifd/wireless
-	$(INSTALL_DIR) $(1)/etc/hotplug.d/ieee80211
-	$(INSTALL_DATA) ./files/mac80211.hotplug $(1)/etc/hotplug.d/ieee80211/10-wifi-detect
+	$(INSTALL_BIN) $(EXTERNAL_FILE_DIR)/files/lib/performance.sh $(1)/lib
+	$(INSTALL_BIN) $(EXTERNAL_FILE_DIR)/files/lib/smp_affinity_settings.sh $(1)/lib
+	$(INSTALL_BIN) $(EXTERNAL_FILE_DIR)/files/lib/boost_performance.sh $(1)/lib
+	$(INSTALL_BIN) $(EXTERNAL_FILE_DIR)/files/lib/ds_enable.sh $(1)/lib
+	$(INSTALL_BIN) $(EXTERNAL_FILE_DIR)/files/lib/apsta_mode.sh $(1)/lib
+	$(INSTALL_BIN) $(EXTERNAL_FILE_DIR)/files/coredump.sh $(1)/etc/hotplug.d/devcoredump
+	$(INSTALL_BIN) $(EXTERNAL_FILE_DIR)/files/lib/wifi-config.sh $(1)/etc/hotplug.d/ieee80211/01-wifi-detect
 endef
 
-define KernelPackage/zd1211rw/install
-	$(INSTALL_DIR) $(1)/lib/firmware/zd1211
-	$(INSTALL_DATA) $(PKG_BUILD_DIR)/$(ZD1211FW_NAME)/zd1211* $(1)/lib/firmware/zd1211
+define KernelPackage/ath/install
+	$(INSTALL_DIR) $(STAGING_DIR)/usr/include/
+	$(CP) $(PKG_BUILD_DIR)/include/ath/ath_sawf.h $(STAGING_DIR)/usr/include/
+	$(CP) $(PKG_BUILD_DIR)/include/ath/ath_fse.h $(STAGING_DIR)/usr/include/
+	$(CP) $(PKG_BUILD_DIR)/include/ath/ath_dp_accel_cfg.h $(STAGING_DIR)/usr/include/
+endef
+
+define KernelPackage/ath11k/install
+	$(INSTALL_DIR) $(1)/etc/init.d
+	$(INSTALL_BIN) $(EXTERNAL_FILE_DIR)/files/etc/init.d/ath11k_nss_enable.sh $(1)/etc/init.d
+	$(INSTALL_BIN) $(EXTERNAL_FILE_DIR)/files/etc/init.d/ath11k_uboot_mod_params.sh $(1)/etc/init.d
+	$(INSTALL_BIN) $(EXTERNAL_FILE_DIR)/files/etc/init.d/qca-nss-pbuf $(1)/etc/init.d
+endef
+
+define KernelPackage/ath12k/install
+	$(call KernelPackage/ath/install)
+	$(INSTALL_DIR) $(1)/etc/init.d
+	$(INSTALL_BIN) $(EXTERNAL_FILE_DIR)/files/etc/init.d/ath12k_dyn_dbg_enable.sh $(1)/etc/init.d
 endef
 
 $(eval $(foreach drv,$(PKG_DRIVERS),$(call KernelPackage,$(drv))))

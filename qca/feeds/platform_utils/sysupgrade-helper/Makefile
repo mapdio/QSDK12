@@ -27,9 +27,15 @@ HOSTLDFLAGS+= \
 	      -L$(STAGING_DIR)/usr/lib \
 	      -znow -zrelro -pie
 
+SHA_FLAG = "-DUSE_SHA256"
+
+ifneq ($(CONFIG_TARGET_ipq95xx)$(CONFIG_TARGET_ipq807x)$(CONFIG_TARGET_ipq50xx),)
+  SHA_FLAG = "-DUSE_SHA384"
+endif
+
 define Build/Compile
 	cp config $(PKG_BUILD_DIR)/.config
-	$(MAKE) -C $(PKG_BUILD_DIR) TARGETCC=$(TARGET_CC) \
+	$(MAKE) -C $(PKG_BUILD_DIR) TARGETCC="$(TARGET_CC) $(SHA_FLAG)" \
 		CROSS_COMPILE=$(TARGET_CROSS) \
 		TARGET_CFLAGS="$(TARGET_CFLAGS)" \
 		HOSTLDFLAGS="$(HOSTLDFLAGS)" \

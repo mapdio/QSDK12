@@ -8,12 +8,12 @@
 include $(TOPDIR)/rules.mk
 
 PKG_NAME:=gzip
-PKG_VERSION:=1.10
-PKG_RELEASE:=2
+PKG_VERSION:=1.12
+PKG_RELEASE:=1
 
 PKG_SOURCE:=$(PKG_NAME)-$(PKG_VERSION).tar.xz
 PKG_SOURCE_URL:=@GNU/gzip
-PKG_HASH:=8425ccac99872d544d4310305f915f5ea81e04d0f437ef1a230dc9d1c819d7c0
+PKG_HASH:=ce5e03e519f637e1f814011ace35c4f87b33c0bbabeec35baf5fbd3479e91956
 PKG_LICENSE:=GPL-3.0-or-later
 PKG_CPE_ID:=cpe:/a:gnu:gzip
 
@@ -29,6 +29,10 @@ define Package/gzip
   TITLE:=gzip (GNU zip) is a compression utility.
   URL:=https://www.gnu.org/software/gzip/
   MAINTAINER:=Christian Beier <dontmind@freeshell.org>
+  ALTERNATIVES:=\
+    300:/bin/gunzip:/usr/libexec/gunzip-gnu \
+    300:/bin/gzip:/usr/libexec/gzip-gnu \
+    300:/bin/zcat:/usr/libexec/zcat-gnu
 endef
 
 define Package/gzip/description
@@ -42,25 +46,10 @@ CONFIGURE_VARS += \
 
 define Package/gzip/install
 	$(SED) 's,/bin/bash,/bin/sh,g' $(PKG_INSTALL_DIR)/usr/bin/{gunzip,zcat}
-	$(INSTALL_DIR) $(1)/usr/bin
-	$(INSTALL_BIN) $(PKG_INSTALL_DIR)/usr/bin/{gunzip,gzip,zcat} $(1)/usr/bin/
-endef
-
-define Package/gzip/postinst
-#!/bin/sh
-for app in gunzip gzip zcat; do
-  ln -sf ../usr/bin/$$app $${IPKG_INSTROOT}/bin/$$app
-done
-endef
-
-define Package/gzip/postrm
-#!/bin/sh
-for app in gunzip gzip zcat; do
-  ln -sf busybox $${IPKG_INSTROOT}/bin/$$app
-  $${IPKG_INSTROOT}/bin/$$app 2>&1 | grep 'applet not found' > /dev/null 2>&1 && rm $${IPKG_INSTROOT}/bin/$$app
-done
-exit 0
+	$(INSTALL_DIR) $(1)/usr/libexec
+	$(INSTALL_BIN) $(PKG_INSTALL_DIR)/usr/bin/gunzip $(1)/usr/libexec/gunzip-gnu
+	$(INSTALL_BIN) $(PKG_INSTALL_DIR)/usr/bin/gzip $(1)/usr/libexec/gzip-gnu
+	$(INSTALL_BIN) $(PKG_INSTALL_DIR)/usr/bin/zcat $(1)/usr/libexec/zcat-gnu
 endef
 
 $(eval $(call BuildPackage,gzip))
-

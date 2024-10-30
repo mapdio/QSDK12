@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2023 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for any
  * purpose with or without fee is hereby granted, provided that the above
@@ -52,6 +52,17 @@ typedef bool (*ppe_drv_tun_del_ce_callback_t)(uint8_t vp_num, void *vdestroy_rul
  * Success or failure.
  */
 bool ppe_drv_tun_configure(uint16_t port_num, struct ppe_drv_tun_cmn_ctx *pth, void *add_cb, void *del_cb);
+
+/**
+ * ppe_drv_tun_configure_vxlan_and_dport
+ *	Configure VXLAN destination port.
+ *
+ * @param[in] dport VXLAN destination port number
+ *
+ * @return
+ * Success or failure.
+ */
+bool ppe_drv_tun_configure_vxlan_and_dport(uint16_t dport);
 
 /**
  * ppe_drv_tun_deactivate
@@ -109,4 +120,28 @@ bool ppe_drv_tun_decap_disable_by_port_num(uint16_t port_num);
  * Success or failure.
  */
 bool ppe_drv_tun_decap_enable_by_port_num(uint16_t port_num);
+
+/*
+ * ppe_drv_tun_l2tp_port_set
+ *      Set L2TP source and destination port.
+ *
+ * @param[in] sport Source port value
+ * @param[in] dport Destination port value
+ *
+ * @return
+ * Success or failure.
+ */
+bool ppe_drv_tun_l2tp_port_set(uint16_t sport, uint16_t dport);
+
+/*
+ * ppe_drv_tun_l2tp_port_get
+ *      Get l2tp source and destination port configured.
+ *
+ * @param[in] sport Pointer to store source port
+ * @param[in] dport Pointer to store destination port
+ *
+ * @return
+ * Success or failure.
+ */
+bool ppe_drv_tun_l2tp_port_get(uint16_t *sport, uint16_t *dport);
 #endif /* _PPE_DRV_TUN_PUBLIC_H_ */

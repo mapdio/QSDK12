@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2022-2023 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2024 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for any
  * purpose with or without fee is hereby granted, provided that the above
@@ -18,6 +18,7 @@
 #include <ppe_drv_public.h>
 #include <ppe_drv_tun_cmn_ctx.h>
 #include <ppe_drv_tun_public.h>
+#include "ppe_drv_acl.h"
 #include "ppe_drv_exception.h"
 #include "ppe_drv_cc.h"
 #include "ppe_drv_flow.h"
@@ -25,6 +26,7 @@
 #include "ppe_drv_iface.h"
 #include "ppe_drv_l3_if.h"
 #include "ppe_drv_nexthop.h"
+#include "ppe_drv_policer.h"
 #include "ppe_drv_port.h"
 #include "ppe_drv_pppoe.h"
 #include "ppe_drv_pub_ip.h"
@@ -33,6 +35,21 @@
 #include "ppe_drv_vsi.h"
 #include "ppe_drv_v4.h"
 #include "ppe_drv_v6.h"
+#include "ppe_drv_flow_dump.h"
+#include "ppe_drv_if_map.h"
+
+extern uint32_t static_dbg_level;
+
+/*
+ * ppe_drv_static_dbg_level
+ *	PPE static debug level
+ */
+enum ppe_drv_static_dbg_level {
+	PPE_DRV_STATIC_DBG_LEVEL_NONE,
+	PPE_DRV_STATIC_DBG_LEVEL_WARN,
+	PPE_DRV_STATIC_DBG_LEVEL_INFO,
+	PPE_DRV_STATIC_DBG_LEVEL_TRACE,
+};
 
 /*
  * PPE debug macros
@@ -58,19 +75,25 @@
 #if (PPE_DRV_DEBUG_LEVEL < 2)
 #define ppe_drv_warn(s, ...)
 #else
-#define ppe_drv_warn(s, ...) pr_warn("%s[%d]:" s, __FUNCTION__, __LINE__, ##__VA_ARGS__)
+#define ppe_drv_warn(s, ...) \
+	if (static_dbg_level >= PPE_DRV_STATIC_DBG_LEVEL_WARN) \
+		pr_warn("%s[%d]:" s, __FUNCTION__, __LINE__, ##__VA_ARGS__)
 #endif
 
 #if (PPE_DRV_DEBUG_LEVEL < 3)
 #define ppe_drv_info(s, ...)
 #else
-#define ppe_drv_info(s, ...) pr_notice("%s[%d]:" s, __FUNCTION__, __LINE__, ##__VA_ARGS__)
+#define ppe_drv_info(s, ...) \
+	if (static_dbg_level >= PPE_DRV_STATIC_DBG_LEVEL_INFO) \
+		pr_notice("%s[%d]:" s, __FUNCTION__, __LINE__, ##__VA_ARGS__)
 #endif
 
 #if (PPE_DRV_DEBUG_LEVEL < 4)
 #define ppe_drv_trace(s, ...)
 #else
-#define ppe_drv_trace(s, ...) pr_info("%s[%d]:" s, __FUNCTION__, __LINE__, ##__VA_ARGS__)
+#define ppe_drv_trace(s, ...) \
+	if (static_dbg_level >= PPE_DRV_STATIC_DBG_LEVEL_TRACE) \
+		pr_info("%s[%d]:" s, __FUNCTION__, __LINE__, ##__VA_ARGS__)
 #endif
 #endif
 
@@ -78,6 +101,23 @@
  * Default switch ID
  */
 #define PPE_DRV_SWITCH_ID		0
+
+/*
+ * Profile ID
+ */
+#define PPE_DRV_COMMON_PROFILE_ID	FAL_QM_PROFILE_COMMON_ID
+#define PPE_DRV_PO_PROFILE_ID		FAL_QM_PROFILE_PO_ID
+#define PPE_DRV_REDIR_PROFILE_ID	9
+
+/*
+ * MAX queue priority
+ */
+#define PPE_DRV_MAX_PRIORITY		16
+
+/*
+ * Maximum queue priority supported per core
+ */
+#define PPE_DRV_MAX_PRIORITY_PER_CORE	8
 
 /*
  * PPE Hash seed and mask
@@ -137,11 +177,19 @@
 #define PPE_DRV_SAWF_PEER_ID_MASK			0x3ff
 #define PPE_DRV_SAWF_MSDUQ_MASK				0x3f
 #define PPE_DRV_SAWF_TAG_GET(x)				(x >> PPE_DRV_SAWF_TAG_SHIFT)
-#define PPE_DRV_SAWF_SERVICE_CLASS_GET(x)		((x >> PPE_DRV_SAWF_SERVICE_CLASS_SHIFT) & \
-							PPE_DRV_SAWF_SERVICE_CLASS_MASK)
 #define PPE_DRV_SAWF_PEER_ID_GET(x)			((x >> PPE_DRV_SAWF_PEER_ID_SHIFT) & \
 							PPE_DRV_SAWF_PEER_ID_MASK)
 #define PPE_DRV_SAWF_MSDUQ_GET(x)			(x & PPE_DRV_SAWF_MSDUQ_MASK)
+
+/*
+ * MLO macros
+ */
+#define PPE_DRV_MLO_MARK_SHIFT				6
+#define PPE_DRV_MLO_MARK_MASK				0x3FFFF
+#define PPE_DRV_MLO_MARK_GET(x)				((x >> PPE_DRV_MLO_MARK_SHIFT) & PPE_DRV_TREE_ID_MLO_MARK_MASK)
+
+#define PPE_DRV_MLO_MSDUQ_MASK				0x3F
+#define PPE_DRV_MLO_MSDUQ_GET(x)			(x & PPE_DRV_MLO_MSDUQ_MASK)
 
 /*
  * Tree ID macros
@@ -158,6 +206,12 @@
 #define PPE_DRV_TREE_ID_PEER_ID_SET(w, x)		((*w) |= ((x) & PPE_DRV_TREE_ID_PEER_ID_MASK))
 
 /*
+ * Setting MLO mark into Tree ID
+ */
+#define PPE_DRV_TREE_ID_MLO_MARK_MASK			0x0003FFFF
+#define PPE_DRV_TREE_ID_MLO_MARK_SET(w, x)		((*w) |= ((x) & PPE_DRV_TREE_ID_MLO_MARK_MASK))
+
+/*
  * HW flow stats sync timer frequency in milliseconds
  */
 #define PPE_DRV_HW_FLOW_STATS_MS	1000
@@ -167,7 +221,6 @@
  */
 #define PPE_DRV_CORE2SC_NOEDIT(core_id) (PPE_DRV_SC_NOEDIT_REDIR_CORE0 + core_id)
 #define PPE_DRV_CORE2SC_EDIT(core_id) (PPE_DRV_SC_EDIT_REDIR_CORE0 + core_id)
-#define PPE_DRV_REDIR_PROFILE_ID 9
 
 /*
  * Default port number return from ssdk is 0xF
@@ -175,12 +228,23 @@
  */
 #define PPE_DRV_MIRR_INVAL_PORT 0xF
 
-#define PPE_DRV_PORT_OFFLOAD_MAX_VAL		0x3f
 #if defined(NSS_PPE_IPQ53XX)
-#define PPE_DRV_PORT_OFFLOAD_DEF_VAL		0x3
+#define PPE_DRV_PORT_OFFLOAD_MAX_VAL		0x3
+#elif defined(NSS_PPE_IPQ95XX)
+#define PPE_DRV_PORT_OFFLOAD_MAX_VAL		0x3f
 #else
-#define PPE_DRV_PORT_OFFLOAD_DEF_VAL		0x3f
+#define PPE_DRV_PORT_OFFLOAD_MAX_VAL		0xff
 #endif
+
+/*
+ * L2TP Tunnel default UDP Port
+ */
+#define PPE_DRV_L2TP_DEFAULT_UDP_PORT	1701
+
+/*
+ * Maximum number of MLO link IDs
+ */
+#define PPE_DRV_DS_MLO_LINK_NODE_ID_MAX	3
 
 /*
  * ppe_drv_entry_valid
@@ -189,6 +253,24 @@
 enum ppe_drv_entry_valid {
 	PPE_DRV_ENTRY_INVALID,	/* Entry invalid. */
 	PPE_DRV_ENTRY_VALID,	/* Entry valid. */
+};
+
+/*
+ * ppe_drv_tun_l2tp
+ *	l2tp tunnel specific global data
+ */
+struct ppe_drv_tun_l2tp {
+	uint16_t l2tp_sport;				/* L2TP Source port */
+	uint16_t l2tp_dport;				/* L2TP Destination port */
+	struct ppe_drv_tun_encap_xlate_rule *l2tp_encap_rule; 	/* PPE L2TP EG translate rule entry */
+};
+
+/*
+ * ppe_drv_tun_gbl
+ *	PPE tunnel specific global context in ppe drv
+ */
+struct ppe_drv_tun_gbl {
+	struct ppe_drv_tun_l2tp tun_l2tp;
 };
 
 /*
@@ -222,6 +304,8 @@ struct ppe_drv {
 	/*
 	 * Pointer to memory pool for different PPE tables
 	 */
+	uint8_t core2queue[NR_CPUS];			/* Core to queue mapping */
+	uint8_t prof2portmap[PPE_DRV_PORT_SRC_PROFILE_MAX];  /* Source profile to bitmap */
 	struct ppe_drv_iface *iface;			/* Memory for PPE interface shadow table */
 	struct ppe_drv_flow *flow;			/* Memory for PPE Flow table */
 	struct ppe_drv_host *host;			/* Memory for PPE Host table */
@@ -232,6 +316,7 @@ struct ppe_drv {
 	struct ppe_drv_l3_if *l3_if;			/* Memory for PPE L3_IF shadow table */
 	struct ppe_drv_pppoe *pppoe;			/* Memory for PPE PPPoe table */
 	struct ppe_drv_queue *queue;			/* Memory for PPE queue table */
+	struct ppe_drv_policer_ctx *pol_ctx;		/* Policer global context */
 	struct ppe_drv_tun_encap *ptun_ec;	/* PPE EG tunnel/translate control entries */
 	struct ppe_drv_tun_decap *ptun_dc;	/* PPE tunnel decap control entries */
 	struct ppe_drv_tun_l3_if *ptun_l3_if;	/* PPE tunnel L3 interface info */
@@ -240,6 +325,7 @@ struct ppe_drv {
 	struct ppe_drv_tun_decap_xlate_rule *decap_xlate_rules; 	/* PPE Tunnel decap xlate rules */
 	struct ppe_drv_sc *sc;				/* Memory for PPE Service Code table */
 	struct ppe_drv_cc *cc;				/* Memory for PPE CPU Code table */
+	struct ppe_drv_acl *acl;			/* Memory for PPE ACL entries */
 	struct dentry *dentry;				/* Debugfs entry */
 	struct dentry *stats_dentry;				/* Debugfs entry */
 	struct ctl_table_header *ppe_drv_header;	/* PPE DRV sysctl */
@@ -247,9 +333,12 @@ struct ppe_drv {
 	void *ipv4_stats_sync_data;				/* Argument for above callback: ipv4_stats_sync_cb */
 	ppe_drv_v6_sync_callback_t ipv6_stats_sync_cb;		/* Callback to call to sync ipv6 statistics */
 	void *ipv6_stats_sync_data;				/* Argument for above callback: ipv6_stats_sync_cb */
+	ppe_drv_qos_int_pri_callback_t int_pri_get_cb;		/* Callback to call to get INT-PRI value */
 	struct list_head nh_active;			/* List of active nexthops */
 	struct list_head nh_free;			/* List of free nexthops */
 	struct kref ref;				/* Reference count */
+
+	struct net_device *upstream_dev;		/* Upstream port for fontana usecase */
 
 	/*
 	 * v4 and v6 connection list
@@ -258,17 +347,29 @@ struct ppe_drv {
 	struct list_head conn_v6;			/* List of v6 connection in PPE */
 	struct list_head conn_tun_v4;		/* List of v4 tunnel connection in PPE */
 	struct list_head conn_tun_v6;		/* List of v6 tunnel connection in PPE */
-
 	struct ppe_drv_fse_ops *fse_ops;        /* Wi-Fi FSE block operations */
 	struct kref fse_ops_ref;		/* FSE Reference count */
+	int vxlan_dport;			/* VXLAN destination port */
 	bool fse_enable;			/* FSE enabled */
 	bool is_wifi_fse_up;			/* Wi-FI FSE ops registered with PPE */
+
+	/*
+	 * Loopback queue
+	 */
+	int loopback_base_queue;			/* Loopback base queue_id */
+	bool loopback_enabled;			/* Indicate if loopback configuration is done */
 
 	bool toggled_v4;			/* Toggled bit for v4 sync during a particular iteration */
 	bool toggled_v6;			/* Toggled bit for v6 sync during a particular iteration */
 	bool tun_toggled_v4;		        /* Tunnel specific Toggled bit for v4 sync during a particular iteration*/
 	bool tun_toggled_v6;		        /* Tunnel specific Toggled bit for v6 sync during a particular iteration*/
 	struct list_head notifier_list_head;	/* List of event notifier operations in PPE */
+	struct ppe_drv_tun_prgm_prsr *pgm;	/* Program Parser entries list */
+	struct ppe_drv_tun_udf *pgm_udf;	/* Program Parser udf entries list */
+	struct ppe_drv_tun_encap_hdr_ctrl *ecap_hdr_ctrl;	/* header control protomap data */
+	bool disable_port_mtu_check;			/* Flag to disable MTU check for all the ports */
+	bool eth2eth_offload_if_bitmap;		/* Flag to enable if bitmap check for eth to eth flows */
+	struct ppe_drv_tun_gbl tun_gbl;		/* ppe tunnel global context */
 };
 
 /*
@@ -280,6 +381,45 @@ static inline ppe_drv_tree_id_type_t ppe_drv_tree_id_type_get(struct ppe_drv_flo
 	return flow_metadata->tree_id_data.type;
 }
 
+/*
+ * ppe_drv_assist_feature_type_check()
+ *      Checks assist feature type.
+ */
+static inline bool ppe_drv_assist_feature_type_check(uint32_t feature, uint32_t flag)
+{
+	return !!(feature & flag);
+}
+
+/*
+ * ppe_drv_sawf_metadata
+ *	SAWF information from create rule
+ */
+struct ppe_drv_sawf_metadata {
+	uint32_t sawf_mark;	/* SAWF mark from create rule. */
+	uint8_t service_class;	/* SAWF service class from create rule. */
+};
+
+/*
+ * ppe_drv_scs_metadata
+ *      SCS information from create rule
+ */
+struct ppe_drv_scs_metadata {
+	uint32_t scs_mark;	/* SCS mark from create rule. */
+};
+
+/*
+ * ppe_drv_flow_cookie_metadata
+ *	Flow Cookie information from the create rule
+ */
+struct ppe_drv_flow_cookie_metadata {
+	union {
+		uint32_t mark;				/* Mark value for tree id type none from create rule message */
+		struct ppe_drv_sawf_metadata sawf;	/* SAWF metadata from create rule message */
+		struct ppe_drv_scs_metadata scs;	/* SCS metadata from create rule message */
+	}type;
+};
+
+extern int ppe_drv_get_vxlan_dport(void);
 void ppe_drv_fse_ops_free(struct kref *kref);
 extern struct ppe_drv ppe_drv_gbl;
 extern uint32_t if_bm_to_offload;

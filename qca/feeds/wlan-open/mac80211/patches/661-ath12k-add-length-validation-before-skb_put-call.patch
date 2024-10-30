@@ -164,7 +164,7 @@ Signed-off-by: P Praneesh <quic_ppranees@quicinc.com>
 -	ar->ab->soc_stats.rxdma_error[rxcb->err_code]++;
 -
  	switch (rxcb->err_code) {
- 	case HAL_REO_ENTR_RING_RXDMA_ECODE_UNAUTH_WDS_ERR:
+ 	case HAL_REO_ENTR_RING_RXDMA_ECODE_ARXDMA_UNAUTH_WDS_ERR:
  		drop = ath12k_dp_rx_h_4addr_null_frame_handler(ar, msdu, status);
 @@ -4108,7 +4117,7 @@ static bool ath12k_dp_rx_h_rxdma_err(str
  	case HAL_REO_ENTR_RING_RXDMA_ECODE_TKIP_MIC_ERR:

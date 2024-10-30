@@ -18,7 +18,6 @@
  * @file ppe_drv_port.h
  *	NSS PPE driver definitions.
  */
-
 #ifndef _PPE_DRV_PORT_H_
 #define _PPE_DRV_PORT_H_
 
@@ -27,18 +26,27 @@
 /*
  * PPE port defines
  */
-#define PPE_DRV_PHYSICAL_START	0	/* Physical port start with port 0 */
-#define PPE_DRV_PHYSICAL_MAX	8	/* PPE supports 8 physical ports 0-7 */
-#define PPE_DRV_VIRTUAL_MAX	192	/* PPE supports 192 virtual interfaces 64-255 */
-#define PPE_DRV_VIRTUAL_START	64	/* Virtual ports start at 64 */
-#define PPE_DRV_VIRTUAL_END	(PPE_DRV_VIRTUAL_START + PPE_DRV_VIRTUAL_MAX)
-					/* Virtual ports ends at 256 */
-#define PPE_DRV_PORTS_MAX	256	/* Total ports in PPE Physical + Trunk + Virtual */
+#define PPE_DRV_PHYSICAL_START		0	/* Physical port start with port 0 */
+#define PPE_DRV_PHYSICAL_MAX		8	/* PPE supports 8 physical ports 0-7 */
+#define PPE_DRV_VIRTUAL_MAX		192	/* PPE supports 192 virtual interfaces 64-255 */
+#define PPE_DRV_VIRTUAL_START		64	/* Virtual ports start at 64 */
+#define PPE_DRV_VIRTUAL_END		(PPE_DRV_VIRTUAL_START + PPE_DRV_VIRTUAL_MAX)
+						/* Virtual ports ends at 256 */
+#define PPE_DRV_PORTS_MAX		256	/* Total ports in PPE Physical + Trunk + Virtual */
 
-#define PPE_DRV_PORT_CPU	0	/* PPE egress port to reach CPUs */
-#define PPE_DRV_PORT_EIP197	7	/* PPE egress port to reach EIP197 */
+#define PPE_DRV_PORT_ID_INVALID		-1	/* Invalid port ID */
 
-#define PPE_DRV_PORT_JUMBO_MAX	9216	/* Suggested value is 9K, but can be increased upto 10K */
+#define PPE_DRV_PORT_CPU		0	/* PPE egress port to reach CPUs */
+#define PPE_DRV_PORT_EIP197		7	/* PPE egress port to reach EIP197 */
+
+#define PPE_DRV_PORT_JUMBO_MAX		9216	/* Suggested value is 9K, but can be increased upto 10K */
+
+#define PPE_DRV_PHY_ETH_PORT_START	1	/* Physical eth port start with port 1 */
+#ifdef NSS_PPE_IPQ53XX
+#define PPE_DRV_PHY_ETH_PORT_MAX	2	/* PPE supports 2 physical ports 1-2 for IPQ53XX */
+#else
+#define PPE_DRV_PHY_ETH_PORT_MAX	6	/* PPE supports 6 physical ports 1-6 for Others */
+#endif
 
 typedef int32_t ppe_drv_port_t;
 
@@ -88,22 +96,8 @@ enum ppe_drv_port_qos_res_pre {
 	PPE_DRV_PORT_QOS_RES_PREC_4,
 	PPE_DRV_PORT_QOS_RES_PREC_5,
 	PPE_DRV_PORT_QOS_RES_PREC_6,
-	PPE_DRV_PORT_QOS_RES_PREC_7_RESERVED,
+	PPE_DRV_PORT_QOS_RES_PREC_7,
 };
-
-/**
- * ppe_drv_port_is_flow_offload_enabled
- *	API to check whether given netdevice is enabled for PPE offload or not
- *
- * @datatypes
- * net_device
- *
- * @param[in] dev   Netdevice where offload needs to be checked.
- *
- * @return
- * Status of the offload decision
- */
-bool ppe_drv_port_is_flow_offload_enabled(struct net_device *dev);
 
 /**
  * ppe_drv_port_get_vp_phys_dev
@@ -118,6 +112,18 @@ bool ppe_drv_port_is_flow_offload_enabled(struct net_device *dev);
  *  return net device
  */
 struct net_device *ppe_drv_port_get_vp_phys_dev(struct net_device *dev);
+
+/**
+ * ppe_drv_port_ucast_queue_get_by_port
+ *	Return queue id of port number.
+ *
+ * @datatypes
+ * int
+ *
+ * @return
+ * -1 for failure else port ID
+ */
+int32_t ppe_drv_port_ucast_queue_get_by_port(int port);
 
 /**
  * ppe_drv_port_num_from_dev
@@ -169,6 +175,37 @@ bool ppe_drv_port_xcpn_mode_set(uint16_t vp_num, uint8_t action);
  * True if the hw stats are copied, false otherwise.
  */
 bool ppe_drv_port_get_vp_stats(int16_t port, struct ppe_drv_port_hw_stats *vp_stats);
+
+/*
+ * ppe_drv_port_clear_policer_support
+ *	Clear Policer enabled on Port.
+ *
+ * @param[in] dev  Netdevie.
+ *
+ * @return
+ */
+void ppe_drv_port_clear_policer_support(struct net_device *dev);
+
+/*
+ * ppe_drv_port_set_policer_support
+ *	Set Policer enabled on Port.
+ *
+ * @param[in] dev  Netdevie.
+ *
+ * @return
+ */
+void ppe_drv_port_set_policer_support(struct net_device *dev);
+
+/*
+ * ppe_drv_port_check_policer_support
+ *	Is Policer enabled on Port.
+ *
+ * @param[in] dev  Netdevie.
+ *
+ * @return
+ * True or False.
+ */
+bool ppe_drv_port_check_policer_support(struct net_device *dev);
 
 /*
  * ppe_drv_port_check_rfs_support

@@ -49,6 +49,18 @@ extern "C" {
     @brief This structure defines the Fdb entry.
 
     */
+    typedef enum
+    {
+        HW_ENTRY = 0,
+        SW_ENTRY,
+    } fal_fdb_entry_type_t;
+
+    typedef enum
+    {
+        ENTRY_VER0 = 0,/*the fields from load_balance_en are invalid*/
+        ENTRY_VER1 = 1,
+    } fal_fdb_entry_ver_t;
+
     typedef struct
     {
         fal_mac_addr_t addr; /* mac address of fdb entry */
@@ -65,7 +77,7 @@ extern "C" {
         a_bool_t static_en; /* enable static or not */
         a_bool_t leaky_en; /* enable leaky or not */
         a_bool_t mirror_en; /* enable mirror or not */
-        a_bool_t clone_en; /* enable clone or not */
+        fal_fdb_entry_ver_t entry_ver; /* entry version*/
         a_bool_t cross_pt_state; /* cross port state */
         a_bool_t da_pri_en; /* enable da pri or not */
         a_uint8_t da_queue; /* da queue value */
@@ -74,6 +86,7 @@ extern "C" {
         a_uint8_t load_balance; /* load balance value */
         a_bool_t entry_valid; /* check if entry is value */
         a_bool_t lookup_valid; /* check if entry is lookup */
+        fal_fdb_entry_type_t type;/*sortware entry or hardware entry*/
     } fal_fdb_entry_t;
 
     typedef struct
@@ -105,45 +118,9 @@ extern "C" {
         INVALID_VLAN_IVL
     } fal_fdb_smode;
 
-enum {
-	FUNC_FDB_ENTRY_ADD = 0,
-	FUNC_FDB_ENTRY_FLUSH,
-	FUNC_FDB_ENTRY_DEL_BYPORT,
-	FUNC_FDB_ENTRY_DEL_BYMAC,
-	FUNC_FDB_ENTRY_GETFIRST,
-	FUNC_FDB_ENTRY_GETNEXT,
-	FUNC_FDB_ENTRY_SEARCH,
-	FUNC_FDB_PORT_LEARN_SET,
-	FUNC_FDB_PORT_LEARN_GET,
-	FUNC_FDB_PORT_LEARNING_CTRL_SET,
-	FUNC_FDB_PORT_LEARNING_CTRL_GET,
-	FUNC_FDB_PORT_STAMOVE_CTRL_SET,
-	FUNC_FDB_PORT_STAMOVE_CTRL_GET,
-	FUNC_FDB_AGING_CTRL_SET,
-	FUNC_FDB_AGING_CTRL_GET,
-	FUNC_FDB_LEARNING_CTRL_SET,
-	FUNC_FDB_LEARNING_CTRL_GET,
-	FUNC_FDB_AGING_TIME_SET,
-	FUNC_FDB_AGING_TIME_GET,
-	FUNC_FDB_ENTRY_GETNEXT_BYINDEX,
-	FUNC_FDB_ENTRY_EXTEND_GETNEXT,
-	FUNC_FDB_ENTRY_EXTEND_GETFIRST,
-	FUNC_FDB_ENTRY_UPDATE_BYPORT,
-	FUNC_PORT_FDB_LEARN_LIMIT_SET,
-	FUNC_PORT_FDB_LEARN_LIMIT_GET,
-	FUNC_PORT_FDB_LEARN_EXCEED_CMD_SET,
-	FUNC_PORT_FDB_LEARN_EXCEED_CMD_GET,
-	FUNC_FDB_PORT_LEARNED_MAC_COUNTER_GET,
-	FUNC_FDB_PORT_ADD,
-	FUNC_FDB_PORT_DEL,
-	FUNC_FDB_PORT_MACLIMIT_CTRL_SET,
-	FUNC_FDB_PORT_MACLIMIT_CTRL_GET,
-	FUNC_FDB_DEL_BY_FID,
-};
-
     sw_error_t
     fal_fdb_entry_add(a_uint32_t dev_id, const fal_fdb_entry_t * entry);
-#ifndef IN_FDB_MINI
+#if defined(IN_RFS)
     sw_error_t
     fal_fdb_rfs_set(a_uint32_t dev_id, const fal_fdb_rfs_t * entry);
 

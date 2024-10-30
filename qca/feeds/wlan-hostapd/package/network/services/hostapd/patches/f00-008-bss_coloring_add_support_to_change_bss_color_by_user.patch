@@ -21,7 +21,7 @@ Signed-off-by: Lavanya Suresh <lavaks@codeaurora.org>
 
 --- a/hostapd/ctrl_iface.c
 +++ b/hostapd/ctrl_iface.c
-@@ -2508,6 +2508,87 @@ static int hostapd_ctrl_check_freq_param
+@@ -2508,6 +2508,59 @@ static int hostapd_ctrl_check_freq_param
  }
  #endif /* NEED_AP_MLME */
  
@@ -42,43 +42,15 @@ Signed-off-by: Lavanya Suresh <lavaks@codeaurora.org>
 +		return -1;
 +	}
 +
-+	/* color value is expected to be [1-63]. If 0 comes, assumption is
-+	 * user wants to disable the color. In this case no need to do CCA,
-+	 * just changing beacon is sufficient */
-+	if (color == 0) {
-+		if (iface->conf->he_op.he_bss_color_disabled) {
-+			wpa_printf(MSG_ERROR, "colorchange: color is already disabled");
-+			return -1;
-+		}
-+
-+		iface->conf->he_op.he_bss_color_disabled = 1;
-+
-+		for (i = 0; i < iface->num_bss; i++)
-+			ieee802_11_set_beacon(iface->bss[i]);
-+
-+		return 0;
-+	}
-+
 +	if (color == iface->conf->he_op.he_bss_color) {
-+		if (!iface->conf->he_op.he_bss_color_disabled) {
-+			wpa_printf(MSG_ERROR, "colorchange: provided color is already set");
-+			return -1;
-+		}
-+
-+		iface->conf->he_op.he_bss_color_disabled = 0;
-+
-+		for (i = 0; i < iface->num_bss; i++)
-+			ieee802_11_set_beacon(iface->bss[i]);
-+
-+		return 0;
++		wpa_printf(MSG_ERROR, "colorchange: provided color is already set");
++		return -1;
 +	}
 +
 +	if (hapd->cca_in_progress) {
 +		wpa_printf(MSG_ERROR, "colorchange: cca is in progress, so color change is now allowed");
 +		return -1;
 +	}
-+
-+	iface->conf->he_op.he_bss_color_disabled = 0;
 +
 +	for (i = 0; i < iface->num_bss; i++) {
 +		struct hostapd_data *bss = iface->bss[i];
@@ -109,7 +81,7 @@ Signed-off-by: Lavanya Suresh <lavaks@codeaurora.org>
  
  static int hostapd_ctrl_iface_chan_switch(struct hostapd_iface *iface,
  					  char *pos)
-@@ -3539,6 +3620,9 @@ static int hostapd_ctrl_iface_receive_pr
+@@ -3539,6 +3592,9 @@ static int hostapd_ctrl_iface_receive_pr
  	} else if (os_strncmp(buf, "CHAN_SWITCH ", 12) == 0) {
  		if (hostapd_ctrl_iface_chan_switch(hapd->iface, buf + 12))
  			reply_len = -1;
@@ -149,32 +121,29 @@ Signed-off-by: Lavanya Suresh <lavaks@codeaurora.org>
  
  static int hostapd_cli_cmd_chan_switch(struct wpa_ctrl *ctrl,
  				       int argc, char *argv[])
-@@ -1659,6 +1680,9 @@ static const struct hostapd_cli_cmd host
+@@ -1659,6 +1680,8 @@ static const struct hostapd_cli_cmd host
  	  "<cs_count> <freq> [sec_channel_offset=] [center_freq1=]\n"
  	  "  [center_freq2=] [bandwidth=] [blocktx] [ht|vht]\n"
  	  "  = initiate channel switch announcement" },
 +	{ "color_change", hostapd_cli_cmd_color_change, NULL,
-+	  "<color> = initiate bss color change to set user color if value between 1-63\n"
-+	  "Value 0 will disable the color\n"},
++	  "<color> = initiate bss color change to set user color\n" },
  	{ "hs20_wnm_notif", hostapd_cli_cmd_hs20_wnm_notif, NULL,
  	  "<addr> <url>\n"
  	  "  = send WNM-Notification Subscription Remediation Request" },
 --- a/src/ap/ctrl_iface_ap.c
 +++ b/src/ap/ctrl_iface_ap.c
-@@ -921,10 +921,14 @@ int hostapd_ctrl_iface_status(struct hos
+@@ -1043,10 +1043,12 @@ int hostapd_ctrl_iface_status(struct hos
  		ret = os_snprintf(buf + len, buflen - len,
  				  "he_oper_chwidth=%d\n"
  				  "he_oper_centr_freq_seg0_idx=%d\n"
 -				  "he_oper_centr_freq_seg1_idx=%d\n",
 +				  "he_oper_centr_freq_seg1_idx=%d\n"
-+				  "he_bss_color=%d (%s)\n",
++				  "he_bss_color=%d\n",
  				  iface->conf->he_oper_chwidth,
  				  iface->conf->he_oper_centr_freq_seg0_idx,
 -				  iface->conf->he_oper_centr_freq_seg1_idx);
 +				  iface->conf->he_oper_centr_freq_seg1_idx,
-+				  iface->conf->he_op.he_bss_color,
-+				  iface->conf->he_op.he_bss_color_disabled ?
-+				  	"disabled" : "enabled");
++				  iface->conf->he_op.he_bss_color);
  		if (os_snprintf_error(buflen - len, ret))
  			return len;
  		len += ret;

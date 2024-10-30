@@ -1,10 +1,7 @@
+# SPDX-License-Identifier: GPL-2.0-only
 #
 # Copyright (C) 2006-2010 OpenWrt.org
 # Copyright (C) 2016 LEDE Project
-#
-# This is free software, licensed under the GNU General Public License v2.
-# See /LICENSE for more information.
-#
 
 ifneq ($(__rules_inc),1)
 __rules_inc=1
@@ -30,7 +27,7 @@ empty:=
 space:= $(empty) $(empty)
 comma:=,
 merge=$(subst $(space),,$(1))
-confvar=$(shell echo '$(foreach v,$(1),$(v)=$(subst ','\'',$($(v))))' | $(STAGING_DIR_HOST)/bin/mkhash md5)
+confvar=$(shell echo '$(foreach v,$(1),$(v)=$(subst ','\'',$($(v))))' | $(MKHASH) md5)
 strip_last=$(patsubst %.$(lastword $(subst .,$(space),$(1))),%,$(1))
 
 paren_left = (
@@ -65,19 +62,24 @@ ARCH_PACKAGES:=$(call qstrip,$(CONFIG_TARGET_ARCH_PACKAGES))
 BOARD:=$(call qstrip,$(CONFIG_TARGET_BOARD))
 SUBTARGET:=$(call qstrip,$(CONFIG_TARGET_SUBTARGET))
 TARGET_OPTIMIZATION:=$(call qstrip,$(CONFIG_TARGET_OPTIMIZATION))
-export EXTRA_OPTIMIZATION:=$(filter-out -fno-plt,$(call qstrip,$(CONFIG_EXTRA_OPTIMIZATION)))
 TARGET_SUFFIX=$(call qstrip,$(CONFIG_TARGET_SUFFIX))
 BUILD_SUFFIX:=$(call qstrip,$(CONFIG_BUILD_SUFFIX))
 SUBDIR:=$(patsubst $(TOPDIR)/%,%,${CURDIR})
 BUILD_SUBDIR:=$(patsubst $(TOPDIR)/%,%,${CURDIR})
+NPROC:=$(shell sysctl -n hw.ncpu 2>/dev/null || nproc)
 export SHELL:=/usr/bin/env bash
 
 IS_PACKAGE_BUILD := $(if $(filter package/%,$(BUILD_SUBDIR)),1)
 
 OPTIMIZE_FOR_CPU=$(subst i386,i486,$(ARCH))
 
-FPIC:=-fPIC
-HOST_FPIC:=-fPIC
+ifneq (,$(findstring $(ARCH) , aarch64 aarch64_be powerpc ))
+  FPIC:=-DPIC -fPIC
+else
+  FPIC:=-DPIC -fpic
+endif
+
+HOST_FPIC:=-DPIC -fPIC
 
 ARCH_SUFFIX:=$(call qstrip,$(CONFIG_CPU_TYPE))
 GCC_ARCH:=
@@ -107,7 +109,7 @@ $(foreach t,$(DEFAULT_SUBDIR_TARGETS) $(1),
 )
 endef
 
-DL_DIR:=$(if $(call qstrip,$(CONFIG_DOWNLOAD_FOLDER)),$(call qstrip,$(CONFIG_DOWNLOAD_FOLDER)),$(TOPDIR)/dl)
+DL_DIR=$(if $(call qstrip,$(CONFIG_DOWNLOAD_FOLDER)),$(call qstrip,$(CONFIG_DOWNLOAD_FOLDER)),$(TOPDIR)/dl)$(if $(DL_SUBDIR),/$(DL_SUBDIR))
 OUTPUT_DIR:=$(if $(call qstrip,$(CONFIG_BINARY_FOLDER)),$(call qstrip,$(CONFIG_BINARY_FOLDER)),$(TOPDIR)/bin)
 BIN_DIR:=$(OUTPUT_DIR)/targets/$(BOARD)/$(SUBTARGET)
 INCLUDE_DIR:=$(TOPDIR)/include
@@ -135,12 +137,8 @@ else
   TOOLCHAIN_DIR_NAME:=toolchain-$(GNU_TARGET_NAME)
 endif
 
-ifeq ($(or $(CONFIG_EXTERNAL_TOOLCHAIN),$(CONFIG_GCC_VERSION_4_8),$(CONFIG_TARGET_uml)),)
-  ifeq ($(CONFIG_GCC_USE_EMBEDDED_PATH_REMAP),y)
-    iremap = -fmacro-prefix-map=$(1)=$(2)
-  else
-    iremap = -iremap$(1):$(2)
-  endif
+ifeq ($(or $(CONFIG_EXTERNAL_TOOLCHAIN),$(CONFIG_TARGET_uml)),)
+  iremap = -f$(if $(CONFIG_REPRODUCIBLE_DEBUG_INFO),file,macro)-prefix-map=$(1)=$(2)
 endif
 
 PACKAGE_DIR:=$(BIN_DIR)/packages
@@ -155,22 +153,20 @@ TARGET_ROOTFS_DIR?=$(if $(call qstrip,$(CONFIG_TARGET_ROOTFS_DIR)),$(call qstrip
 TARGET_DIR:=$(TARGET_ROOTFS_DIR)/root-$(BOARD)
 STAGING_DIR_ROOT:=$(STAGING_DIR)/root-$(BOARD)
 STAGING_DIR_IMAGE:=$(STAGING_DIR)/image
-BUILD_LOG_DIR:=$(TOPDIR)/logs
+BUILD_LOG_DIR:=$(if $(call qstrip,$(CONFIG_BUILD_LOG_DIR)),$(call qstrip,$(CONFIG_BUILD_LOG_DIR)),$(TOPDIR)/logs)
 PKG_INFO_DIR := $(STAGING_DIR)/pkginfo
 
 BUILD_DIR_HOST:=$(if $(IS_PACKAGE_BUILD),$(BUILD_DIR_BASE)/hostpkg,$(BUILD_DIR_BASE)/host)
-STAGING_DIR_HOST:=$(TOPDIR)/staging_dir/host
-STAGING_DIR_HOSTPKG:=$(TOPDIR)/staging_dir/hostpkg
+STAGING_DIR_HOST:=$(abspath $(STAGING_DIR)/../host)
+STAGING_DIR_HOSTPKG:=$(abspath $(STAGING_DIR)/../hostpkg)
 
 TARGET_PATH:=$(subst $(space),:,$(filter-out .,$(filter-out ./,$(subst :,$(space),$(PATH)))))
 TARGET_INIT_PATH:=$(call qstrip,$(CONFIG_TARGET_INIT_PATH))
 TARGET_INIT_PATH:=$(if $(TARGET_INIT_PATH),$(TARGET_INIT_PATH),/usr/sbin:/sbin:/usr/bin:/bin)
-TARGET_CFLAGS:=$(TARGET_OPTIMIZATION)$(if $(CONFIG_DEBUG), -g3) $(call qstrip,$(CONFIG_EXTRA_OPTIMIZATION)) -Wa,--noexecstack
+TARGET_CFLAGS:=$(TARGET_OPTIMIZATION)$(if $(CONFIG_DEBUG), -g3) $(call qstrip,$(CONFIG_EXTRA_OPTIMIZATION))
 TARGET_CXXFLAGS = $(TARGET_CFLAGS)
 TARGET_ASFLAGS_DEFAULT = $(TARGET_CFLAGS)
 TARGET_ASFLAGS = $(TARGET_ASFLAGS_DEFAULT)
-TARGET_CPPFLAGS:=-I$(STAGING_DIR)/usr/include -I$(STAGING_DIR)/include
-TARGET_LDFLAGS:=-L$(STAGING_DIR)/usr/lib -L$(STAGING_DIR)/lib
 ifneq ($(CONFIG_EXTERNAL_TOOLCHAIN),)
 LIBGCC_S_PATH=$(realpath $(wildcard $(call qstrip,$(CONFIG_LIBGCC_ROOT_DIR))/$(call qstrip,$(CONFIG_LIBGCC_FILE_SPEC))))
 LIBGCC_S=$(if $(LIBGCC_S_PATH),-L$(dir $(LIBGCC_S_PATH)) -lgcc_s)
@@ -189,7 +185,7 @@ ifndef DUMP
     -include $(TOOLCHAIN_DIR)/info.mk
     export GCC_HONOUR_COPTS:=0
     TARGET_CROSS:=$(if $(TARGET_CROSS),$(TARGET_CROSS),$(OPTIMIZE_FOR_CPU)-openwrt-linux$(if $(TARGET_SUFFIX),-$(TARGET_SUFFIX))-)
-    TARGET_CFLAGS+= -fhonour-copts -Wno-error=unused-but-set-variable -Wno-error=unused-result
+    TARGET_CFLAGS+= -fhonour-copts
     TARGET_CPPFLAGS+= -I$(TOOLCHAIN_DIR)/usr/include
     ifeq ($(CONFIG_USE_MUSL),y)
       TARGET_CPPFLAGS+= -I$(TOOLCHAIN_DIR)/include/fortify
@@ -213,7 +209,6 @@ ifndef DUMP
       ifneq ($(TOOLCHAIN_LIB_DIRS),)
         TARGET_LDFLAGS+= $(patsubst %,-L%,$(TOOLCHAIN_LIB_DIRS))
       endif
-      TARGET_PATH:=$(TOOLCHAIN_DIR)/bin:$(TARGET_PATH)
     endif
   endif
 endif
@@ -233,6 +228,7 @@ else
   endif
 endif
 
+export ORIG_PATH:=$(if $(ORIG_PATH),$(ORIG_PATH),$(PATH))
 export PATH:=$(TARGET_PATH)
 export STAGING_DIR STAGING_DIR_HOST STAGING_DIR_HOSTPKG
 export SH_FUNC:=. $(INCLUDE_DIR)/shell.sh;
@@ -244,26 +240,26 @@ export PKG_CONFIG
 HOSTCC:=gcc
 HOSTCXX:=g++
 HOST_CPPFLAGS:=-I$(STAGING_DIR_HOST)/include $(if $(IS_PACKAGE_BUILD),-I$(STAGING_DIR_HOSTPKG)/include -I$(STAGING_DIR)/host/include)
+HOST_CXXFLAGS:=
 HOST_CFLAGS:=-O2 $(HOST_CPPFLAGS)
 HOST_LDFLAGS:=-L$(STAGING_DIR_HOST)/lib $(if $(IS_PACKAGE_BUILD),-L$(STAGING_DIR_HOSTPKG)/lib -L$(STAGING_DIR)/host/lib)
 
-ifeq ($(CONFIG_EXTERNAL_TOOLCHAIN),)
-  TARGET_AR:=$(TARGET_CROSS)gcc-ar
-  TARGET_RANLIB:=$(TARGET_CROSS)gcc-ranlib
-  TARGET_NM:=$(TARGET_CROSS)gcc-nm
-else
-  TARGET_AR:=$(TARGET_CROSS)ar
-  TARGET_RANLIB:=$(TARGET_CROSS)ranlib
-  TARGET_NM:=$(TARGET_CROSS)nm
-endif
-
 BUILD_KEY=$(TOPDIR)/key-build
 
+FAKEROOT:=$(STAGING_DIR_HOST)/bin/fakeroot
+
+TARGET_AR:=$(TARGET_CROSS)gcc-ar
+TARGET_RANLIB:=$(TARGET_CROSS)gcc-ranlib
+TARGET_NM:=$(TARGET_CROSS)gcc-nm
 TARGET_CC:=$(TARGET_CROSS)gcc
 TARGET_CXX:=$(TARGET_CROSS)g++
 KPATCH:=$(SCRIPT_DIR)/patch-kernel.sh
+FILECMD:=$(STAGING_DIR_HOST)/bin/file
 SED:=$(STAGING_DIR_HOST)/bin/sed -i -e
 ESED:=$(STAGING_DIR_HOST)/bin/sed -E -i -e
+MKHASH:=$(STAGING_DIR_HOST)/bin/mkhash
+# MKHASH is used in /scripts, so we export it here.
+export MKHASH
 CP:=cp -fpR
 LN:=ln -sf
 XARGS:=xargs -r
@@ -272,7 +268,15 @@ BASH:=bash
 TAR:=tar
 FIND:=find
 PATCH:=patch
-PYTHON:=python
+PYTHON:=python3
+
+ifeq ($(HOST_OS),Darwin)
+  TRUE:=/usr/bin/env gtrue
+  FALSE:=/usr/bin/env gfalse
+else
+  TRUE:=/usr/bin/env true
+  FALSE:=/usr/bin/env false
+endif
 
 INSTALL_BIN:=install -m0755
 INSTALL_SUID:=install -m4755
@@ -290,10 +294,13 @@ export HOSTCC_NOCACHE
 export HOSTCXX_NOCACHE
 
 ifneq ($(CONFIG_CCACHE),)
-  TARGET_CC:= ccache_cc
-  TARGET_CXX:= ccache_cxx
+  TARGET_CC:= ccache $(TARGET_CC)
+  TARGET_CXX:= ccache $(TARGET_CXX)
   HOSTCC:= ccache $(HOSTCC)
   HOSTCXX:= ccache $(HOSTCXX)
+  export CCACHE_BASEDIR:=$(TOPDIR)
+  export CCACHE_DIR:=$(if $(call qstrip,$(CONFIG_CCACHE_DIR)),$(call qstrip,$(CONFIG_CCACHE_DIR)),$(TOPDIR)/.ccache)
+  export CCACHE_COMPILERCHECK:=%compiler% -dumpmachine; %compiler% -dumpversion
 endif
 
 TARGET_CONFIGURE_OPTS = \
@@ -319,21 +326,26 @@ else
     STRIP:=$(TARGET_CROSS)strip $(call qstrip,$(CONFIG_STRIP_ARGS))
   else
     ifneq ($(CONFIG_USE_SSTRIP),)
-      STRIP:=$(STAGING_DIR_HOST)/bin/sstrip
+      STRIP:=$(STAGING_DIR_HOST)/bin/sstrip $(call qstrip,$(CONFIG_SSTRIP_ARGS))
     endif
   endif
   RSTRIP= \
     export CROSS="$(TARGET_CROSS)" \
 		$(if $(PKG_BUILD_ID),KEEP_BUILD_ID=1) \
 		$(if $(CONFIG_KERNEL_KALLSYMS),NO_RENAME=1) \
-		$(if $(CONFIG_KERNEL_PROFILING),KEEP_SYMBOLS=1) \
-		$(if $(CONFIG_KERNEL_MODULE_SIG),MOD_SIGN_CMD="$(LINUX_DIR)/scripts/sign-file $(call qstrip, $(CONFIG_KERNEL_MODULE_SIG_HASH)) $(LINUX_DIR)/$(call qstrip, $(CONFIG_KERNEL_MODULE_SIG_KEY)) $(LINUX_DIR)/certs/signing_key.x509"); \
+		$(if $(CONFIG_KERNEL_PROFILING),KEEP_SYMBOLS=1); \
     NM="$(TARGET_CROSS)nm" \
     STRIP="$(STRIP)" \
     STRIP_KMOD="$(SCRIPT_DIR)/strip-kmod.sh" \
     PATCHELF="$(STAGING_DIR_HOST)/bin/patchelf" \
     $(SCRIPT_DIR)/rstrip.sh
 endif
+
+NINJA = \
+	MAKEFLAGS="$(MAKE_JOBSERVER)" \
+	$(STAGING_DIR_HOST)/bin/ninja \
+		$(if $(findstring c,$(OPENWRT_VERBOSE)),-v) \
+		$(if $(MAKE_JOBSERVER),,-j1)
 
 ifeq ($(CONFIG_IPV6),y)
   DISABLE_IPV6:=
@@ -348,6 +360,7 @@ ifeq ($(CONFIG_BUILD_LOG),y)
 endif
 
 export BISON_PKGDATADIR:=$(STAGING_DIR_HOST)/share/bison
+export HOST_GNULIB_SRCDIR:=$(STAGING_DIR_HOST)/share/gnulib
 export M4:=$(STAGING_DIR_HOST)/bin/m4
 
 define shvar
@@ -395,11 +408,39 @@ endef
 # $(2) => If set, recurse into subdirectories
 define sha256sums
 	(cd $(1); find . $(if $(2),,-maxdepth 1) -type f -not -name 'sha256sums' -printf "%P\n" | sort | \
-		xargs -r $(STAGING_DIR_HOST)/bin/mkhash -n sha256 | sed -ne 's!^\(.*\) \(.*\)$$!\1 *\2!p' > sha256sums)
+		xargs -r $(MKHASH) -n sha256 | sed -ne 's!^\(.*\) \(.*\)$$!\1 *\2!p' > sha256sums)
 endef
 
 # file extension
 ext=$(word $(words $(subst ., ,$(1))),$(subst ., ,$(1)))
+
+# Count Git commits of a package
+# $(1) => if non-empty: count commits since last ": [uU]pdate to " or ": [bB]ump to " in commit message
+define commitcount
+$(shell \
+  if git log -1 >/dev/null 2>/dev/null; then \
+    if [ -n "$(1)" ]; then \
+      last_bump="$$(git log --pretty=format:'%h %s' . | \
+        grep -m 1 -e ': [uU]pdate to ' -e ': [bB]ump to ' | \
+        cut -f 1 -d ' ')"; \
+    fi; \
+    if [ -n "$$last_bump" ]; then \
+      echo -n $$(($$(git rev-list --count "$$last_bump..HEAD" .) + 1)); \
+    else \
+      git rev-list --count HEAD .; \
+    fi; \
+  else \
+    secs="$$(($(SOURCE_DATE_EPOCH) % 86400))"; \
+    date="$$(date --utc --date="@$(SOURCE_DATE_EPOCH)" "+%y%m%d")"; \
+    printf '%s.%05d' "$$date" "$$secs"; \
+  fi; \
+)
+endef
+
+abi_version_str = $(subst -,,$(subst _,,$(subst .,,$(1))))
+
+COMMITCOUNT = $(if $(DUMP),0,$(call commitcount))
+AUTORELEASE = $(if $(DUMP),0,$(call commitcount,1))
 
 all:
 FORCE: ;

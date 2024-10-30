@@ -8,19 +8,20 @@
 include $(TOPDIR)/rules.mk
 
 PKG_NAME:=crelay
-PKG_VERSION:=0.13
+PKG_VERSION:=0.14.1
 PKG_RELEASE:=1
 
 PKG_SOURCE:=$(PKG_NAME)-$(PKG_VERSION).tar.gz
 PKG_SOURCE_URL:=https://codeload.github.com/ondrej1024/crelay/tar.gz/V$(PKG_VERSION)?
-PKG_HASH:=d9919fe91e8641352f0b4705a37acc7ba4b3c4286ca78a629968f16f343cfdc4
+PKG_HASH:=291f51d60c3003ad594ac2c10f75b0c5d0b40e49b298f73caf6a47afe3279fde
 
 PKG_MAINTAINER:=Ted Hess <thess@kitschensync.net>
-PKG_LICENSE:=GPL-2.0
+PKG_LICENSE:=GPL-3.0-or-later
 PKG_LICENSE_FILES:=LICENSE
 
 include $(INCLUDE_DIR)/package.mk
 include $(INCLUDE_DIR)/nls.mk
+include $(INCLUDE_DIR)/meson.mk
 
 define Package/crelay
   SECTION:=utils
@@ -44,26 +45,9 @@ define Package/crelay/description
       - HID API compatible relay card
 endef
 
-define Build/Configure
-endef
-
-TARGET_CFLAGS+= \
-	-D_GNU_SOURCE \
-	-I$(STAGING_DIR)/usr/include/libftdi1 \
-	-I$(STAGING_DIR)/usr/include/hidapi
-
-TARGET_LDFLAGS+= $(if $(ICONV_FULL),-liconv)
-
-define Build/Compile
-	$(MAKE) -C $(PKG_BUILD_DIR)/src \
-		CC="$(TARGET_CC)" \
-		CFLAGS="$(TARGET_CFLAGS) $(EXTRA_CFLAGS) $(TARGET_CPPFLAGS) $(EXTRA_CPPFLAGS)" \
-		LDFLAGS="$(TARGET_LDFLAGS) $(EXTRA_LDFLAGS)"
-endef
-
 define Package/crelay/install
 	$(INSTALL_DIR) $(1)/usr/bin
-	$(INSTALL_BIN) $(PKG_BUILD_DIR)/src/crelay $(1)/usr/bin/
+	$(INSTALL_BIN) $(PKG_INSTALL_DIR)/usr/bin/crelay $(1)/usr/bin/
 	$(INSTALL_DIR) $(1)/etc/init.d
 	$(INSTALL_BIN) ./files/crelay.init $(1)/etc/init.d/crelay
 	$(INSTALL_CONF) $(PKG_BUILD_DIR)/conf/crelay.conf $(1)/etc

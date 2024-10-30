@@ -41,7 +41,7 @@ Signed-off-by: Harshitha Prem <quic_hprem@quicinc.com>
  	u8 nss_ratio_info;
 --- a/drivers/net/wireless/ath/ath11k/mac.c
 +++ b/drivers/net/wireless/ath/ath11k/mac.c
-@@ -8826,6 +8826,28 @@ ath11k_mac_vdev_start_restart(struct ath
+@@ -8821,6 +8821,28 @@ ath11k_mac_vdev_start_restart(struct ath
  	if (ret)
                  ath11k_warn(ab, "failed to set 6G non-ht dup conf for vdev %d: %d\n",
                              arvif->vdev_id, ret);
@@ -70,7 +70,7 @@ Signed-off-by: Harshitha Prem <quic_hprem@quicinc.com>
  	return 0;
  }
  
-@@ -12046,6 +12068,80 @@ err_unlock:
+@@ -12041,6 +12063,80 @@ err_unlock:
  	return 0;
  }
  
@@ -151,7 +151,7 @@ Signed-off-by: Harshitha Prem <quic_hprem@quicinc.com>
  static const struct ieee80211_ops ath11k_ops = {
  	.tx				= ath11k_mac_op_tx,
  	.start                          = ath11k_mac_op_start,
-@@ -12108,6 +12204,7 @@ static const struct ieee80211_ops ath11k
+@@ -12103,6 +12199,7 @@ static const struct ieee80211_ops ath11k
  	.config_mesh_offload_path       = ath11k_mac_op_config_mesh_offload_path,
  #endif
  	.get_txpower                    = ath11k_mac_op_get_txpower,
@@ -159,7 +159,7 @@ Signed-off-by: Harshitha Prem <quic_hprem@quicinc.com>
  };
  
  static void ath11k_mac_update_ch_list(struct ath11k *ar,
-@@ -12692,6 +12789,11 @@ static int __ath11k_mac_register(struct
+@@ -12683,6 +12780,11 @@ static int __ath11k_mac_register(struct
  		wiphy_ext_feature_set(ar->hw->wiphy,
  				      NL80211_EXT_FEATURE_WIDE_BAND_SCAN);
  
@@ -171,7 +171,7 @@ Signed-off-by: Harshitha Prem <quic_hprem@quicinc.com>
  	ar->hw->wiphy->cipher_suites = cipher_suites;
  	ar->hw->wiphy->n_cipher_suites = ARRAY_SIZE(cipher_suites);
  
-@@ -12988,3 +13090,40 @@ int ath11k_mac_vif_set_keepalive(struct
+@@ -12975,3 +13077,33 @@ int ath11k_mac_vif_set_keepalive(struct
  
  	return 0;
  }
@@ -181,7 +181,6 @@ Signed-off-by: Harshitha Prem <quic_hprem@quicinc.com>
 +{
 +	struct ath11k_vif *arvif;
 +	bool arvif_found = false;
-+	int ret = 0;
 +
 +	list_for_each_entry(arvif, &ar->arvifs, list) {
 +		if (arvif->is_started &&
@@ -197,18 +196,12 @@ Signed-off-by: Harshitha Prem <quic_hprem@quicinc.com>
 +	if (ev == ATH11K_BGDFS_RADAR) {
 +		cfg80211_background_radar_event(ar->hw->wiphy, &ar->agile_chandef, GFP_ATOMIC);
 +		lockdep_assert_held(&ar->conf_mutex);
-+		ret = ath11k_wmi_vdev_adfs_ocac_abort_cmd_send(ar,arvif->vdev_id);
++		if (!(ath11k_wmi_vdev_adfs_ocac_abort_cmd_send(ar,arvif->vdev_id))) {
++			memset(&ar->agile_chandef, 0, sizeof(struct cfg80211_chan_def));
++			ar->agile_chandef.chan = NULL;
++		}
 +	} else if (ev == ATH11K_BGDFS_ABORT) {
 +		cfg80211_background_cac_abort(ar->hw->wiphy);
-+	}
-+
-+	if (!ret) {
-+		memset(&ar->agile_chandef, 0, sizeof(struct cfg80211_chan_def));
-+		ar->agile_chandef.chan = NULL;
-+	} else {
-+		ath11k_dbg(ar->ab, ATH11K_DBG_MAC,
-+			   "ADFS state can't be reset (ret=%d)\n",
-+			   ret);
 +	}
 +}
 +
@@ -419,7 +412,7 @@ Signed-off-by: Harshitha Prem <quic_hprem@quicinc.com>
  	else
  		ieee80211_radar_detected(ar->hw);
  
-@@ -10946,6 +11079,56 @@ static void ath11k_wmi_event_peer_rateco
+@@ -10946,6 +11079,53 @@ static void ath11k_wmi_event_peer_rateco
  	return;
  }
  
@@ -463,12 +456,9 @@ Signed-off-by: Harshitha Prem <quic_hprem@quicinc.com>
 +
 +	ath11k_dbg(ar->ab, ATH11K_DBG_WMI, "aDFS ocac complete event in vdev %d\n",
 +		   ev->vdev_id);
-+	if (ev->status) {
++	if (ev->status)
 +		ath11k_mac_background_dfs_event(ar, ATH11K_BGDFS_ABORT);
-+	} else {
-+		memset(&ar->agile_chandef, 0, sizeof(struct cfg80211_chan_def));
-+		ar->agile_chandef.chan = NULL;
-+	}
++
 +exit:
 +	kfree(tb);
 +}
@@ -476,7 +466,7 @@ Signed-off-by: Harshitha Prem <quic_hprem@quicinc.com>
  static void ath11k_wmi_tlv_op_rx(struct ath11k_base *ab, struct sk_buff *skb)
  {
  	struct wmi_cmd_hdr *cmd_hdr;
-@@ -11121,6 +11304,9 @@ static void ath11k_wmi_tlv_op_rx(struct
+@@ -11121,6 +11301,9 @@ static void ath11k_wmi_tlv_op_rx(struct
  	case WMI_PEER_RATECODE_LIST_EVENTID:
  		ath11k_wmi_event_peer_ratecode_list(ab, skb);
  		break;
@@ -486,7 +476,7 @@ Signed-off-by: Harshitha Prem <quic_hprem@quicinc.com>
  	/* TODO: Add remaining events */
  	default:
  		ath11k_dbg(ab, ATH11K_DBG_WMI, "Unknown eventid: 0x%x\n", id);
-@@ -12596,3 +12782,100 @@ ath11k_wmi_pdev_enable_smart_ant(struct
+@@ -12596,3 +12779,100 @@ ath11k_wmi_pdev_enable_smart_ant(struct
  	kfree(params);
  	return ret;
  }
@@ -589,7 +579,7 @@ Signed-off-by: Harshitha Prem <quic_hprem@quicinc.com>
 +
 --- a/drivers/net/wireless/ath/ath11k/wmi.h
 +++ b/drivers/net/wireless/ath/ath11k/wmi.h
-@@ -2362,6 +2362,19 @@ struct ath11k_ppe_threshold {
+@@ -2361,6 +2361,19 @@ struct ath11k_ppe_threshold {
  	u32 ppet16_ppet8_ru3_ru0[PSOC_HOST_MAX_NUM_SS];
  };
  
@@ -609,7 +599,7 @@ Signed-off-by: Harshitha Prem <quic_hprem@quicinc.com>
  struct ath11k_service_ext_param {
  	u32 default_conc_scan_config_bits;
  	u32 default_fw_config_bits;
-@@ -2371,6 +2384,9 @@ struct ath11k_service_ext_param {
+@@ -2370,6 +2383,9 @@ struct ath11k_service_ext_param {
  	u32 max_bssid_rx_filters;
  	u32 num_hw_modes;
  	u32 num_phy;
@@ -619,7 +609,7 @@ Signed-off-by: Harshitha Prem <quic_hprem@quicinc.com>
  };
  
  struct ath11k_hw_mode_caps {
-@@ -2610,6 +2626,17 @@ struct wmi_hw_mode_capabilities {
+@@ -2609,6 +2625,17 @@ struct wmi_hw_mode_capabilities {
  	u32 hw_mode_config_type;
  } __packed;
  
@@ -637,7 +627,7 @@ Signed-off-by: Harshitha Prem <quic_hprem@quicinc.com>
  #define WMI_MAX_HECAP_PHY_SIZE                 (3)
  #define WMI_NSS_RATIO_ENABLE_DISABLE_BITPOS    BIT(0)
  #define WMI_NSS_RATIO_ENABLE_DISABLE_GET(_val) \
-@@ -5110,6 +5137,9 @@ enum wmi_host_channel_width {
+@@ -5109,6 +5136,9 @@ enum wmi_host_channel_width {
  	WMI_HOST_CHAN_WIDTH_80    = 2,
  	WMI_HOST_CHAN_WIDTH_160   = 3,
  	WMI_HOST_CHAN_WIDTH_80P80 = 4,
@@ -647,7 +637,7 @@ Signed-off-by: Harshitha Prem <quic_hprem@quicinc.com>
  };
  
  enum wmi_dcs_interference_chan_segment {
-@@ -7407,6 +7437,60 @@ struct wmi_peer_set_smart_ant_node_confi
+@@ -7406,6 +7436,60 @@ struct wmi_peer_set_smart_ant_node_confi
  	u32 args_count;
  } __packed;
  
@@ -708,7 +698,7 @@ Signed-off-by: Harshitha Prem <quic_hprem@quicinc.com>
  int ath11k_wmi_cmd_send(struct ath11k_pdev_wmi *wmi, struct sk_buff *skb,
  			u32 cmd_id);
  struct sk_buff *ath11k_wmi_alloc_skb(struct ath11k_wmi_base *wmi_sc, u32 len);
-@@ -7635,4 +7719,6 @@ ath11k_wmi_peer_set_smart_ant_train_ant_
+@@ -7634,4 +7718,6 @@ ath11k_wmi_peer_set_smart_ant_train_ant_
  int ath11k_wmi_send_vdev_set_tpc_power(struct ath11k *ar,
  				       u32 vdev_id,
  				       struct ath11k_reg_tpc_power_info *param);

@@ -14,15 +14,19 @@ import glob
 import os
 from optparse import OptionParser
 import fileinput
+import struct
+import sys
 
 #Add path options for dump binaries, vmlinux file and modules
 parser = parser = OptionParser()
 parser.add_option('--config',dest='config',default='32',help='CONFIG is set to 32 or 64. Default is 32 bit')
 parser.add_option('--arch',dest='arch',default='ipq807x',help='arch is set to ipq807x or ipq60xx. Default is ipq807x')
 parser.add_option('--kver',dest='kver',default='4.4',help='kver is set to 4.4 or 5.4. Default is 4.4')
+parser.add_option('--kaslr',dest='kaslr',default='false',help='KASLR enabled is set to FALSE as defualt')
 parser.add_option('--vmpath',dest='vmpath',help='Path to vmlinux.elf file.')
 parser.add_option('--path',dest='path',help='Path to dump binaries.')
 parser.add_option('--modpath',dest='mpath',help='Path to load modules.')
+parser.add_option('--dump2mem',dest='dump2mem',default=False, action='store_true', help='dump2mem is set to parse the dumps from minidump2mem.bin')
 (options, args) = parser.parse_args()
 
 if options.kver == "4.4":
@@ -33,17 +37,80 @@ if options.kver == "4.4":
 	else:
 		elf = "openwrt-ipq-"+ options.arch +"-vmlinux.elf"
 else:
-	PAGE_OFFSET = "0xffffffc010000000"
-	HIGH_MEM = "0xffffffc03f000000"
-	if options.config == "64":
-		elf = "openwrt-ipq807x-generic-vmlinux.elf"
-	else:
-		elf = "openwrt-ipq807x-ipq807x_32-vmlinux.elf"
+    PAGE_OFFSET = "0xffffffc010000000"
+    HIGH_MEM = "0xffffffc03f000000"
+    if options.arch == "ipq807x":
+        if options.config == "64":
+            elf = "openwrt-ipq807x-generic-vmlinux.elf"
+        else:
+            elf = "openwrt-ipq807x-ipq807x_32-vmlinux.elf"
+    else:
+        if options.config == "64":
+            elf = "openwrt-" + options.arch + "-generic-vmlinux.elf"
+        else:
+            elf = "openwrt-" + options.arch + "-" + options.arch + "_32-vmlinux.elf"
+
+def dump2mem_extract(file_name):
+    f = open(file_name, mode="rb")
+
+    '''
+    struct memdump_hdr {
+            uint32_t magic1;
+            uint32_t magic2;
+            uint32_t nos_dumps;
+            uint32_t total_dump_sz;
+            uint64_t dumps_list_info_offset;
+            uint32_t reserved[2];
+    };
+    '''
+    memdump_hdr_fmt = 'IIIIQII'
+    memdump_hdr_struct = struct.Struct(memdump_hdr_fmt)
+    memdump_hdr_size = struct.calcsize(memdump_hdr_fmt)
+
+    memdump_hdr_pdata = f.read(memdump_hdr_size)
+    memdump_hdr_updata = (memdump_hdr_struct).unpack(memdump_hdr_pdata)
+
+    nos_dumps = memdump_hdr_updata[2]
+    dump_list_offset = memdump_hdr_updata[4]
+
+    '''
+    struct memdumps_list_info {
+            char name[20];
+            uint64_t offset;
+            uint64_t size;
+    };
+    '''
+    memdump_list_fmt = '20sQQ'
+    memdump_list_struct = struct.Struct(memdump_list_fmt)
+    memdump_list_size = struct.calcsize(memdump_list_fmt)
+
+    curr_dump_list_offset = dump_list_offset
+    for i in range(0, nos_dumps):
+        f.seek(curr_dump_list_offset)
+        memdump_list_pdata = f.read(memdump_list_size)
+        memdump_list_updata = (memdump_list_struct).unpack(memdump_list_pdata)
+
+        f.seek(memdump_list_updata[1])
+        dump_content = f.read(memdump_list_updata[2])
+        if (sys.version_info.major >= 3):
+            dump_name = memdump_list_updata[0].split(b'\x00')[0].decode("utf-8")
+        else:
+           dump_name = memdump_list_updata[0].split('\x00',1)[0]
+        dump = open(dump_name, mode="wb")
+        dump.write(dump_content)
+        dump.close()
+        curr_dump_list_offset = curr_dump_list_offset + memdump_list_size
+
+    f.close()
 
 if options.path:
-	module_input_file=open(os.path.join(options.path,"MOD_INFO.txt"))
+    if (options.dump2mem):
+        dump2mem_extract(os.path.join(options.path,"minidump2mem.bin"))
+    module_input_file=open(os.path.join(options.path,"MOD_INFO.txt"))
 else:
-	module_input_file=open("MOD_INFO.txt")
+    if (options.dump2mem):
+        dump2mem_extract("minidump2mem.bin")
+    module_input_file=open("MOD_INFO.txt")
 
 module_output_cmm=open("Load_modules.cmm","w")
 
@@ -97,9 +164,9 @@ if options.config == "64":
     "task.dtask",
     "v.v  %ASCII %STRING linux_banner"]
     if options.vmpath:
-		vmlinux =os.path.join(options.vmpath,elf)
+        vmlinux =os.path.join(options.vmpath,elf)
     else:
-		vmlinux = elf
+        vmlinux = elf
 else:
     t32commands = ["r.s M 0x13",
 	"PER.Set.simple SPR:0x30200 %Quad 0x"+PGD,
@@ -128,9 +195,9 @@ def file_base_name(file_name):
 		return file_name
 
 if options.path:
-	onlyfiles = (glob.glob(os.path.join(options.path,"*.BIN")))
+    onlyfiles = (glob.glob(os.path.join(options.path,"*.BIN")))
 else:
-	onlyfiles = (glob.glob("*.BIN"))
+    onlyfiles = (glob.glob("*.BIN"))
 
 startup_cmm=open("startup_t32.cmm","w")
 startup_cmm.write("sys.cpu CORTEXA53 " + "\n")
@@ -143,7 +210,30 @@ for i in range(len(onlyfiles)):
 		base_name = file_base_name(onlyfiles[i])
 	startup_cmm.write("data.load.binary" + " " + onlyfiles[i] + " "+ " 0x" + base_name + "\n")
 
-startup_cmm.write("data.load.elf" + " " + vmlinux + " "+ "/Nocode" + "\n")
+def read_u32(imem_path, offset):
+    try:
+        with open(imem_path, 'rb') as file:
+            file.seek(offset)
+            offset = file.read(4)
+            little_offset = int.from_bytes(offset, byteorder="little", signed=False)
+            little_offset = '{:08x}'.format(little_offset)
+            if len(little_offset) < 8:
+                little_offset += '00' * (8 - len(little_offset))
+            return little_offset
+    except IOError as e:
+            print("Error: Unable to open file or file not found. {}".format(e))
+
+# If KASLR is enabled in dump, KASLR kernel and module offset should be used for parsing.
+# Kernel and module offset details are stored in the below IMEM region
+# Module offset in 0x086006BC - 0x086006C0 (8 bytes)
+# Kernel offset in 0x086006C4 - 0x086006C8 (8 bytes)
+if options.kaslr == "true":
+    kernel_offset_former = read_u32("8600000.BIN", 0x6C4)
+    kernel_offset_latter = read_u32("8600000.BIN", 0x6C8)
+    kaslr_kernel_offset = kernel_offset_latter + kernel_offset_former
+    startup_cmm.write("data.load.elf {0}  0x{1} /nocode\n".format(vmlinux, kaslr_kernel_offset))
+else:
+    startup_cmm.write("data.load.elf" + " " + vmlinux + " "+ "/Nocode" + "\n")
 
 pgd_int = int(PGD, 16)
 

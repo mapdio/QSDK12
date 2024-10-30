@@ -47,6 +47,9 @@ class Slabinfo_summary(RamParser):
             if (self.ramdump.kernel_version <= (4, 14)):
                 mapcount = self.ramdump.read_structure_field(
                                                         page, 'struct page', '_mapcount')
+            elif (self.ramdump.kernel_version >= (6, 1, 0)):
+                mapcount = self.ramdump.read_structure_field(
+                                                        page, 'struct slab', 'counters')
             else:
                 mapcount = self.ramdump.read_structure_field(
                                                         page, 'struct page', 'counters')
@@ -68,15 +71,23 @@ class Slabinfo_summary(RamParser):
             'struct kmem_cache', 'name')
         slab_node_offset = self.ramdump.field_offset(
             'struct kmem_cache', 'node')
-        cpu_cache_page_offset = self.ramdump.field_offset(
-            'struct kmem_cache_cpu', 'page')
         cpu_slab_offset = self.ramdump.field_offset(
             'struct kmem_cache', 'cpu_slab')
         slab_partial_offset = self.ramdump.field_offset(
             'struct kmem_cache_node', 'partial')
         slab = self.ramdump.read_word(original_slab)
-        slab_lru_offset = self.ramdump.field_offset(
-                                         'struct page', 'lru')
+
+        if (self.ramdump.kernel_version >= (6, 1, 0)):
+           cpu_cache_page_offset = self.ramdump.field_offset(
+               'struct kmem_cache_cpu', 'slab')
+           slab_lru_offset = self.ramdump.field_offset(
+               'struct slab', 'slab_list')
+        else:
+           cpu_cache_page_offset = self.ramdump.field_offset(
+               'struct kmem_cache_cpu', 'page')
+           slab_lru_offset = self.ramdump.field_offset(
+               'struct page', 'lru')
+
         max_pfn_addr = self.ramdump.addr_lookup('max_pfn')
         max_pfn = self.ramdump.read_word(max_pfn_addr)
         max_page = pfn_to_page(self.ramdump, max_pfn)

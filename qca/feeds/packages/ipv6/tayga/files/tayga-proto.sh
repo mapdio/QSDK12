@@ -14,8 +14,8 @@ proto_tayga_setup() {
 	local iface="$2"
 	local link="tayga-$cfg"
 
-	local mtu ipv4_addr ipv6_addr prefix dynamic_pool ipaddr ip6addr noroutes
-	json_get_vars mtu ipv4_addr ipv6_addr prefix dynamic_pool ipaddr ip6addr noroutes
+	local ipv4_addr ipv6_addr prefix dynamic_pool ipaddr ip6addr noroutes
+	json_get_vars ipv4_addr ipv6_addr prefix dynamic_pool ipaddr ip6addr noroutes
 	[ -z "$ipv4_addr" -o -z "$prefix" ] && {
 		proto_notify_error "$cfg" "REQUIRED_PARAMETERS_MISSING"
 		proto_block_restart "$cfg"
@@ -49,7 +49,7 @@ proto_tayga_setup() {
 
 	[ -n "$ipaddr" ]  && proto_add_ipv4_address "$ipaddr" "255.255.255.255"
 	[ -n "$ip6addr" ] && proto_add_ipv6_address "$ip6addr" "128"
-	[ -n "$mtu" ] && ifconfig $link mtu $mtu
+
 	[ "$noroutes" != 1 ] && {
 		[ -n "$ipv6_addr" ] && proto_add_ipv6_route "$ipv6_addr" "128"
 		[ -n "$dynamic_pool" ] && {
@@ -89,7 +89,6 @@ proto_tayga_init_config() {
 	proto_config_add_string "ipaddr"
 	proto_config_add_string "ip6addr:ip6addr"
 	proto_config_add_boolean "noroutes"
-	proto_config_add_int "mtu"
 }
 
 [ -n "$INCLUDE_ONLY" ] || {

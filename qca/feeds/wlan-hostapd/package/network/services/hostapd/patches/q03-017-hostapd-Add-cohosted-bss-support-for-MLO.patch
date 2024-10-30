@@ -29,7 +29,7 @@ Signed-off-by: Sriram R <quic_srirrama@quicinc.com>
  }
  
  
-@@ -538,13 +539,15 @@ int hostapd_set_ssid(struct hostapd_data
+@@ -534,13 +535,15 @@ int hostapd_set_ssid(struct hostapd_data
  int hostapd_if_add(struct hostapd_data *hapd, enum wpa_driver_if_type type,
  		   const char *ifname, const u8 *addr, void *bss_ctx,
  		   void **drv_priv, char *force_ifname, u8 *if_addr,
@@ -49,7 +49,7 @@ Signed-off-by: Sriram R <quic_srirrama@quicinc.com>
  
 --- a/src/ap/ap_drv_ops.h
 +++ b/src/ap/ap_drv_ops.h
-@@ -58,7 +58,8 @@ int hostapd_set_ssid(struct hostapd_data
+@@ -56,7 +56,8 @@ int hostapd_set_ssid(struct hostapd_data
  int hostapd_if_add(struct hostapd_data *hapd, enum wpa_driver_if_type type,
  		   const char *ifname, const u8 *addr, void *bss_ctx,
  		   void **drv_priv, char *force_ifname, u8 *if_addr,
@@ -61,7 +61,7 @@ Signed-off-by: Sriram R <quic_srirrama@quicinc.com>
  		      const char *ifname);
 --- a/src/ap/hostapd.c
 +++ b/src/ap/hostapd.c
-@@ -1192,6 +1192,7 @@ static int hostapd_set_beacon(struct hos
+@@ -1190,6 +1190,7 @@ static int hostapd_set_beacon(struct hos
  	return 0;
  }
  
@@ -69,7 +69,7 @@ Signed-off-by: Sriram R <quic_srirrama@quicinc.com>
  /**
   * hostapd_setup_bss - Per-BSS setup (initialization)
   * @hapd: Pointer to BSS data
-@@ -1215,7 +1216,7 @@ static int hostapd_setup_bss(struct host
+@@ -1213,7 +1214,7 @@ static int hostapd_setup_bss(struct host
  	char force_ifname[IFNAMSIZ];
  	u8 if_addr[ETH_ALEN];
  	int flush_old_stations = 1;
@@ -78,7 +78,7 @@ Signed-off-by: Sriram R <quic_srirrama@quicinc.com>
  
  	wpa_printf(MSG_DEBUG, "%s(hapd=%p (%s), first=%d)",
  		   __func__, hapd, conf->iface, first);
-@@ -1236,6 +1237,7 @@ static int hostapd_setup_bss(struct host
+@@ -1234,6 +1235,7 @@ static int hostapd_setup_bss(struct host
  
  	if (!first || first == -1) {
  		u8 *addr = hapd->own_addr;
@@ -86,7 +86,7 @@ Signed-off-by: Sriram R <quic_srirrama@quicinc.com>
  
  		if (!is_zero_ether_addr(conf->bssid)) {
  			/* Allocate the configured BSSID. */
-@@ -1260,15 +1262,23 @@ static int hostapd_setup_bss(struct host
+@@ -1258,15 +1260,23 @@ static int hostapd_setup_bss(struct host
  
  		hapd->interface_added = 1;
  
@@ -115,7 +115,7 @@ Signed-off-by: Sriram R <quic_srirrama@quicinc.com>
  			wpa_printf(MSG_ERROR, "Failed to add BSS (BSSID="
  				   MACSTR ")", MAC2STR(hapd->own_addr));
  			hapd->interface_added = 0;
-@@ -1281,6 +1291,7 @@ static int hostapd_setup_bss(struct host
+@@ -1279,6 +1289,7 @@ static int hostapd_setup_bss(struct host
  		if (hapd->mld) {
  			struct wpa_driver_link_params params;
  
@@ -123,7 +123,7 @@ Signed-off-by: Sriram R <quic_srirrama@quicinc.com>
  			params.link_id = hapd->iface->mlo_link_id;
  			params.link_addr = conf->bssid;
  			if (hostapd_drv_add_link(hapd, &params))
-@@ -1678,37 +1689,6 @@ void hostapd_channel_list_updated(struct
+@@ -1676,37 +1687,6 @@ void hostapd_channel_list_updated(struct
  	setup_interface2(iface);
  }
  
@@ -161,7 +161,7 @@ Signed-off-by: Sriram R <quic_srirrama@quicinc.com>
  
  static int setup_interface(struct hostapd_iface *iface)
  {
-@@ -1752,8 +1732,6 @@ static int setup_interface(struct hostap
+@@ -1750,8 +1730,6 @@ static int setup_interface(struct hostap
  		else
  			wpa_printf(MSG_DEBUG, "Added Link to kernel for %d addr "MACSTR,
  				   params.link_id, MAC2STR(params.link_addr));
@@ -170,7 +170,7 @@ Signed-off-by: Sriram R <quic_srirrama@quicinc.com>
  	}
  
  	if (hostapd_validate_bssid_configuration(iface))
-@@ -2643,7 +2621,7 @@ int hostapd_setup_interface_complete(str
+@@ -2551,7 +2529,7 @@ int hostapd_setup_interface_complete(str
  		}
  	}
  
@@ -181,7 +181,7 @@ Signed-off-by: Sriram R <quic_srirrama@quicinc.com>
  		struct hostapd_data *link_bss;
 --- a/src/drivers/driver.h
 +++ b/src/drivers/driver.h
-@@ -3791,12 +3791,18 @@ struct wpa_driver_ops {
+@@ -3764,12 +3764,18 @@ struct wpa_driver_ops {
  	 * @bridge: Bridge interface to use or %NULL if no bridge configured
  	 * @use_existing: Whether to allow existing interface to be used
  	 * @setup_ap: Whether to setup AP for %WPA_IF_AP_BSS interfaces
@@ -201,7 +201,7 @@ Signed-off-by: Sriram R <quic_srirrama@quicinc.com>
  
  
  	/**
-@@ -5091,15 +5097,6 @@ struct wpa_driver_ops {
+@@ -5056,15 +5062,6 @@ struct wpa_driver_ops {
  			      const u8 *match, size_t match_len,
  			      bool multicast);
  #endif /* CONFIG_TESTING_OPTIONS */
@@ -230,7 +230,7 @@ Signed-off-by: Sriram R <quic_srirrama@quicinc.com>
  	if ((bss->drv->capa.flags2 & WPA_DRIVER_FLAGS2_CONTROL_PORT_RX) ||
  	    bss->use_nl_connect)
  		return bss->nl_connect;
-@@ -2201,8 +2197,6 @@ static int nl80211_init_connect_handle(s
+@@ -2167,8 +2163,6 @@ static int nl80211_init_connect_handle(s
  	if (!bss->nl_connect)
  		return -1;
  
@@ -239,7 +239,7 @@ Signed-off-by: Sriram R <quic_srirrama@quicinc.com>
  	nl80211_register_eloop_read(&bss->nl_connect,
  				    wpa_driver_nl80211_event_receive,
  				    bss->nl_cb, 1);
-@@ -2212,13 +2206,6 @@ static int nl80211_init_connect_handle(s
+@@ -2178,13 +2172,6 @@ static int nl80211_init_connect_handle(s
  
  static int nl80211_init_bss(struct i802_bss *bss)
  {
@@ -253,7 +253,7 @@ Signed-off-by: Sriram R <quic_srirrama@quicinc.com>
  	bss->nl_cb = nl_cb_alloc(NL_CB_DEFAULT);
  	if (!bss->nl_cb)
  		return -1;
-@@ -2236,9 +2223,6 @@ static int nl80211_init_bss(struct i802_
+@@ -2202,9 +2189,6 @@ static int nl80211_init_bss(struct i802_
  
  static void nl80211_destroy_bss(struct i802_bss *bss)
  {
@@ -263,7 +263,7 @@ Signed-off-by: Sriram R <quic_srirrama@quicinc.com>
  	nl_cb_put(bss->nl_cb);
  	bss->nl_cb = NULL;
  
-@@ -2348,7 +2332,7 @@ static void * wpa_driver_nl80211_drv_ini
+@@ -2314,7 +2298,7 @@ static void * wpa_driver_nl80211_drv_ini
  	bss->first_link_bss = first_link_bss;
  	bss->next_link_bss = bss;
  
@@ -272,52 +272,7 @@ Signed-off-by: Sriram R <quic_srirrama@quicinc.com>
  		goto failed;
  
  	if (wpa_driver_nl80211_finish_drv_init(drv, set_addr, 1, driver_params))
-@@ -2958,15 +2942,36 @@ wpa_driver_nl80211_finish_drv_init(struc
- 	struct i802_bss *bss = drv->first_bss;
- 	int send_rfkill_event = 0;
- 	enum nl80211_iftype nlmode;
-+	struct i802_bss *bss_start = NULL;
-+
-+	if (drv->mlo_link_id < 0) {
-+		drv->ifindex = if_nametoindex(bss->ifname);
-+		bss->ifindex = drv->ifindex;
-+		bss->wdev_id = drv->global->if_add_wdevid;
-+		bss->wdev_id_set = drv->global->if_add_wdevid_set;
-+
-+		bss->if_dynamic = drv->ifindex == drv->global->if_add_ifindex;
-+		bss->if_dynamic = bss->if_dynamic || drv->global->if_add_wdevid_set;
-+		drv->global->if_add_wdevid_set = 0;
-+	} else {
-+		do {
-+			drv->ifindex = if_nametoindex(bss->ifname);
-+			bss->ifindex = drv->ifindex;
-+			bss->wdev_id = drv->global->if_add_wdevid;
-+			bss->wdev_id_set = drv->global->if_add_wdevid_set;
-+
-+			bss->if_dynamic = drv->ifindex == drv->global->if_add_ifindex;
-+			bss->if_dynamic = bss->if_dynamic || drv->global->if_add_wdevid_set;
-+			drv->global->if_add_wdevid_set = 0;
-+			bss = bss->next_link_bss;
- 
--	drv->ifindex = if_nametoindex(bss->ifname);
--	bss->ifindex = drv->ifindex;
--	bss->wdev_id = drv->global->if_add_wdevid;
--	bss->wdev_id_set = drv->global->if_add_wdevid_set;
--
--	bss->if_dynamic = drv->ifindex == drv->global->if_add_ifindex;
--	bss->if_dynamic = bss->if_dynamic || drv->global->if_add_wdevid_set;
--	drv->global->if_add_wdevid_set = 0;
-+			if (bss->first_link_bss)
-+				bss_start = bss;
-+
-+		} while (bss != drv->first_bss);
-+
-+		bss = bss_start;
-+	}
- 
- 	if (!bss->if_dynamic && nl80211_get_ifmode(bss) == NL80211_IFTYPE_AP)
- 		bss->static_ap = 1;
-@@ -3070,8 +3075,8 @@ static int wpa_driver_nl80211_del_beacon
+@@ -3035,8 +3019,8 @@ static int wpa_driver_nl80211_del_beacon
  	if (!bss->beacon_set)
  		return 0;
  
@@ -328,7 +283,7 @@ Signed-off-by: Sriram R <quic_srirrama@quicinc.com>
  	bss->beacon_set = 0;
  	bss->freq = 0;
  	nl80211_put_wiphy_data_ap(bss);
-@@ -3085,6 +3090,105 @@ static int wpa_driver_nl80211_del_beacon
+@@ -3050,6 +3034,105 @@ static int wpa_driver_nl80211_del_beacon
  }
  
  
@@ -434,7 +389,7 @@ Signed-off-by: Sriram R <quic_srirrama@quicinc.com>
  /**
   * wpa_driver_nl80211_deinit - Deinitialize nl80211 driver interface
   * @bss: Pointer to private nl80211 data from wpa_driver_nl80211_init()
-@@ -3096,6 +3200,7 @@ static void wpa_driver_nl80211_deinit(st
+@@ -3061,6 +3144,7 @@ static void wpa_driver_nl80211_deinit(st
  {
  	struct wpa_driver_nl80211_data *drv = bss->drv;
  	unsigned int i;
@@ -442,7 +397,7 @@ Signed-off-by: Sriram R <quic_srirrama@quicinc.com>
  
  	wpa_printf(MSG_INFO, "nl80211: deinit ifname=%s disabled_11b_rates=%d",
  		   bss->ifname, drv->disabled_11b_rates);
-@@ -3133,8 +3238,12 @@ static void wpa_driver_nl80211_deinit(st
+@@ -3098,8 +3182,12 @@ static void wpa_driver_nl80211_deinit(st
  
  	nl80211_remove_monitor_interface(drv);
  
@@ -456,7 +411,7 @@ Signed-off-by: Sriram R <quic_srirrama@quicinc.com>
  
  	if (drv->eapol_sock >= 0) {
  		eloop_unregister_read_sock(drv->eapol_sock);
-@@ -3154,7 +3263,7 @@ static void wpa_driver_nl80211_deinit(st
+@@ -3119,7 +3207,7 @@ static void wpa_driver_nl80211_deinit(st
  
  	eloop_cancel_timeout(wpa_driver_nl80211_scan_timeout, drv, drv->ctx);
  
@@ -465,7 +420,7 @@ Signed-off-by: Sriram R <quic_srirrama@quicinc.com>
  		(void) i802_set_iface_flags(bss, 0);
  
  	if (drv->addr_changed) {
-@@ -3171,7 +3280,7 @@ static void wpa_driver_nl80211_deinit(st
+@@ -3136,7 +3224,7 @@ static void wpa_driver_nl80211_deinit(st
  	}
  
  	if (drv->nlmode != NL80211_IFTYPE_P2P_DEVICE) {
@@ -474,7 +429,7 @@ Signed-off-by: Sriram R <quic_srirrama@quicinc.com>
  			wpa_driver_nl80211_set_mode(bss,
  						    NL80211_IFTYPE_STATION);
  		nl80211_mgmt_unsubscribe(bss, "deinit");
-@@ -3180,7 +3289,8 @@ static void wpa_driver_nl80211_deinit(st
+@@ -3145,7 +3233,8 @@ static void wpa_driver_nl80211_deinit(st
  		nl80211_del_p2pdev(bss);
  	}
  
@@ -484,7 +439,7 @@ Signed-off-by: Sriram R <quic_srirrama@quicinc.com>
  
  	os_free(drv->filter_ssids);
  
-@@ -4805,6 +4915,8 @@ fail:
+@@ -4764,6 +4853,8 @@ fail:
  	nlmsg_free(msg);
  	return ret;
  }
@@ -493,7 +448,7 @@ Signed-off-by: Sriram R <quic_srirrama@quicinc.com>
  static int wpa_driver_nl80211_set_ap(void *priv,
  				     struct wpa_driver_ap_params *params)
  {
-@@ -8281,37 +8393,6 @@ static int i802_check_bridge(struct wpa_
+@@ -8228,37 +8319,6 @@ static int i802_check_bridge(struct wpa_
  	return 0;
  }
  
@@ -531,7 +486,7 @@ Signed-off-by: Sriram R <quic_srirrama@quicinc.com>
  
  static void *i802_init(struct hostapd_data *hapd,
  		       struct wpa_init_params *params)
-@@ -8344,8 +8425,10 @@ static void *i802_init(struct hostapd_da
+@@ -8291,8 +8351,10 @@ static void *i802_init(struct hostapd_da
  
  	drv = bss->drv;
  
@@ -543,7 +498,7 @@ Signed-off-by: Sriram R <quic_srirrama@quicinc.com>
  
  	if (params->mld_addr)
  		os_memcpy(bss->mld_addr, params->mld_addr, ETH_ALEN);
-@@ -8561,17 +8644,34 @@ static int wpa_driver_nl80211_if_add(voi
+@@ -8508,17 +8570,34 @@ static int wpa_driver_nl80211_if_add(voi
  				     void *bss_ctx, void **drv_priv,
  				     char *force_ifname, u8 *if_addr,
  				     const char *bridge, int use_existing,
@@ -580,7 +535,7 @@ Signed-off-by: Sriram R <quic_srirrama@quicinc.com>
  	if (nlmode == NL80211_IFTYPE_P2P_DEVICE) {
  		struct wdev_info p2pdev_info;
  
-@@ -8645,6 +8745,7 @@ static int wpa_driver_nl80211_if_add(voi
+@@ -8592,6 +8671,7 @@ static int wpa_driver_nl80211_if_add(voi
  		os_memcpy(if_addr, new_addr, ETH_ALEN);
  	}
  
@@ -588,7 +543,7 @@ Signed-off-by: Sriram R <quic_srirrama@quicinc.com>
  	if (type == WPA_IF_AP_BSS && setup_ap) {
  		struct i802_bss *new_bss = os_zalloc(sizeof(*new_bss));
  		if (new_bss == NULL) {
-@@ -8653,7 +8754,7 @@ static int wpa_driver_nl80211_if_add(voi
+@@ -8600,7 +8680,7 @@ static int wpa_driver_nl80211_if_add(voi
  			return -1;
  		}
  
@@ -597,7 +552,7 @@ Signed-off-by: Sriram R <quic_srirrama@quicinc.com>
  		    i802_check_bridge(drv, new_bss, bridge, ifname) < 0) {
  			wpa_printf(MSG_ERROR, "nl80211: Failed to add the new "
  				   "interface %s to a bridge %s",
-@@ -8664,7 +8765,8 @@ static int wpa_driver_nl80211_if_add(voi
+@@ -8611,7 +8691,8 @@ static int wpa_driver_nl80211_if_add(voi
  			return -1;
  		}
  
@@ -607,7 +562,7 @@ Signed-off-by: Sriram R <quic_srirrama@quicinc.com>
  		{
  			if (added)
  				nl80211_remove_iface(drv, ifidx);
-@@ -8680,16 +8782,27 @@ static int wpa_driver_nl80211_if_add(voi
+@@ -8627,16 +8708,27 @@ static int wpa_driver_nl80211_if_add(voi
  		new_bss->ctx = bss_ctx;
  		new_bss->added_if = added;
  		new_bss->next_link_bss = new_bss;
@@ -639,7 +594,7 @@ Signed-off-by: Sriram R <quic_srirrama@quicinc.com>
  	}
  
  	if (drv->global)
-@@ -8715,10 +8828,15 @@ static int wpa_driver_nl80211_if_remove(
+@@ -8662,10 +8754,15 @@ static int wpa_driver_nl80211_if_remove(
  {
  	struct wpa_driver_nl80211_data *drv = bss->drv;
  	int ifindex = if_nametoindex(ifname);
@@ -656,7 +611,7 @@ Signed-off-by: Sriram R <quic_srirrama@quicinc.com>
  		nl80211_remove_iface(drv, ifindex);
  	else if (ifindex > 0 && !bss->added_if) {
  		struct wpa_driver_nl80211_data *drv2;
-@@ -8755,8 +8873,10 @@ static int wpa_driver_nl80211_if_remove(
+@@ -8702,8 +8799,10 @@ static int wpa_driver_nl80211_if_remove(
  				tbss->next = bss->next;
  				/* Unsubscribe management frames */
  				nl80211_teardown_ap(bss);
@@ -669,7 +624,7 @@ Signed-off-by: Sriram R <quic_srirrama@quicinc.com>
  					i802_set_iface_flags(bss, 0);
  				os_free(bss);
  				bss = NULL;
-@@ -8769,8 +8889,10 @@ static int wpa_driver_nl80211_if_remove(
+@@ -8716,8 +8815,10 @@ static int wpa_driver_nl80211_if_remove(
  	} else {
  		wpa_printf(MSG_DEBUG, "nl80211: First BSS - reassign context");
  		nl80211_teardown_ap(bss);
@@ -682,7 +637,7 @@ Signed-off-by: Sriram R <quic_srirrama@quicinc.com>
  			i802_set_iface_flags(bss, 0);
  		if (drv->first_bss->next) {
  			drv->first_bss = drv->first_bss->next;
-@@ -13554,5 +13676,4 @@ const struct wpa_driver_ops wpa_driver_n
+@@ -13500,5 +13601,4 @@ const struct wpa_driver_ops wpa_driver_n
  	.radio_disable = testing_nl80211_radio_disable,
  #endif /* CONFIG_TESTING_OPTIONS */
  	.set_6gclient_type = nl80211_set_6gclient_type,
@@ -739,7 +694,7 @@ Signed-off-by: Sriram R <quic_srirrama@quicinc.com>
  		params.mld_addr = NULL;
 --- a/src/ap/hostapd.h
 +++ b/src/ap/hostapd.h
-@@ -506,10 +506,9 @@ struct hostapd_mld {
+@@ -504,10 +504,9 @@ struct hostapd_mld {
  	char name[IFNAMSIZ + 1];
  	u8 addr[ETH_ALEN];
  	u8 mld_id;

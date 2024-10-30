@@ -1,6 +1,6 @@
 /*
  * Copyright (c) 2017-2019, The Linux Foundation. All rights reserved.
- * Copyright (c) 2021-2023 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2021-2024 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for any
  * purpose with or without fee is hereby granted, provided that the above
@@ -46,6 +46,8 @@
 #include <linux/clk.h>
 #include <linux/delay.h>
 #include <linux/string.h>
+#include <linux/bitops.h>
+#include <linux/mdio-bitbang.h>
 
 #if defined(ISIS) ||defined(ISISC) ||defined(GARUDA)
 #include <f1_phy.h>
@@ -57,21 +59,6 @@
 #include <malibu_phy.h>
 #endif
 /*qca808x_start*/
-#if defined(CONFIG_OF) && (LINUX_VERSION_CODE >= KERNEL_VERSION(4,1,0))
-#include <linux/of.h>
-#include <linux/of_mdio.h>
-#include <linux/of_platform.h>
-#elif defined(CONFIG_OF) && (LINUX_VERSION_CODE >= KERNEL_VERSION(3,14,0))
-#include <linux/of.h>
-#include <linux/of_mdio.h>
-#include <drivers/leds/leds-ipq40xx.h>
-#include <linux/of_platform.h>
-#include <linux/reset.h>
-#else
-#include <linux/ar8216_platform.h>
-#include <drivers/net/phy/ar8216.h>
-#include <drivers/net/ethernet/atheros/ag71xx/ag71xx.h>
-#endif
 #include "ssdk_plat.h"
 #include "hsl_phy.h"
 /*qca808x_end*/
@@ -83,9 +70,6 @@
 #include "ref_misc.h"
 #include "ref_uci.h"
 #include "shell.h"
-#ifdef BOARD_AR71XX
-#include "ssdk_uci.h"
-#endif
 #ifdef IN_IP
 #if defined (CONFIG_NF_FLOW_COOKIE)
 #include "fal_flowcookie.h"
@@ -113,6 +97,7 @@
 
 #ifdef IN_LINUX_STD_PTP
 #include "hsl_ptp.h"
+#include "qca808x.h"
 #endif
 #include "hsl_port_prop.h"
 /*qca808x_start*/
@@ -122,10 +107,6 @@ extern struct qca_phy_priv **qca_phy_priv_global;
 
 #ifdef BOARD_IPQ806X
 #define PLATFORM_MDIO_BUS_NAME		"mdio-gpio"
-#endif
-
-#ifdef BOARD_AR71XX
-#define PLATFORM_MDIO_BUS_NAME		"ag71xx-mdio"
 #endif
 /*qca808x_start*/
 #define MDIO_BUS_0					0
@@ -139,140 +120,82 @@ extern struct qca_phy_priv **qca_phy_priv_global;
 #define SHIVA_CHIP_REG 0x10
 #define HIGH_ADDR_DFLT	0x200
 
-/*
- * Using ISIS's address as default
-  */
-static int switch_chip_id = ISIS_CHIP_ID;
-static int switch_chip_reg = ISIS_CHIP_REG;
-
 static int ssdk_dev_id = 0;
 /*qca808x_start*/
 a_uint32_t ssdk_log_level = SSDK_LOG_LEVEL_DEFAULT;
 /*qca808x_end*/
 
-#if defined(CONFIG_OF) && (LINUX_VERSION_CODE >= KERNEL_VERSION(3,14,0))
-struct ag71xx_mdio {
-	struct mii_bus		*mii_bus;
-	int			mii_irq[PHY_MAX_ADDR];
-	void __iomem		*mdio_base;
-};
-#endif
-
-#ifdef BOARD_AR71XX
-static uint32_t switch_chip_id_adjuest(a_uint32_t dev_id)
+sw_error_t qca_mii_bus_lock(a_uint32_t dev_id, a_bool_t enable)
 {
-	uint32_t chip_version = 0;
-	chip_version = (qca_ar8216_mii_read(dev_id, 0)&0xff00)>>8;
-	if((chip_version !=0) && (chip_version !=0xff))
-		return 0;
+	struct mii_bus *miibus = ssdk_miibus_get(dev_id, SSDK_MII_DEFAULT_BUS_ID);
 
-	switch_chip_id = SHIVA_CHIP_ID;
-	switch_chip_reg = SHIVA_CHIP_REG;
+	SW_RTN_ON_NULL(miibus);
+	if(enable)
+		mutex_lock(&miibus->mdio_lock);
+	else
+		mutex_unlock(&miibus->mdio_lock);
 
-	chip_version = (qca_ar8216_mii_read(dev_id, 0)&0xff00)>>8;
-	printk("chip_version:0x%x\n", chip_version);
-	return 1;
-}
-#endif
-
-static inline void
-mht_split_addr(uint32_t regaddr, uint16_t *r1, uint16_t *r2, uint16_t *page,
-		uint16_t *switch_phy_id)
-{
-	*r1 = regaddr & 0x1c;
-
-	regaddr >>= 5;
-	*r2 = regaddr & 0x7;
-
-	regaddr >>= 3;
-	*page = regaddr & 0xffff;
-
-	regaddr >>= 16;
-	*switch_phy_id = regaddr & 0xff;
-}
-
-a_uint32_t
-qca_mht_mii_read(a_uint32_t dev_id, a_uint32_t reg)
-{
-	struct mii_bus *bus;
-	uint16_t r1, r2, page, switch_phy_id;
-	uint16_t lo, hi;
-
-	bus = qca_phy_priv_global[dev_id]->miibus;
-
-	mht_split_addr((uint32_t) reg, &r1, &r2, &page, &switch_phy_id);
-	mutex_lock(&bus->mdio_lock);
-	__mdiobus_write(bus, 0x18 | (switch_phy_id >> 5), switch_phy_id & 0x1f, page);
-	udelay(100);
-	lo = __mdiobus_read(bus, 0x10 | r2, r1);
-	hi = __mdiobus_read(bus, 0x10 | r2, r1 + 2);
-	mutex_unlock(&bus->mdio_lock);
-	return (hi << 16) | lo;
-}
-
-void
-qca_mht_mii_write(a_uint32_t dev_id, a_uint32_t reg, a_uint32_t val)
-{
-	struct mii_bus *bus;
-	uint16_t r1, r2, page, switch_phy_id;
-	uint16_t lo, hi;
-
-	bus = qca_phy_priv_global[dev_id]->miibus;
-
-	mht_split_addr((uint32_t) reg, &r1, &r2, &page, &switch_phy_id);
-	lo = val & 0xffff;
-	hi = (a_uint16_t) (val >> 16);
-
-	mutex_lock(&bus->mdio_lock);
-	__mdiobus_write(bus, 0x18 | (switch_phy_id >> 5), switch_phy_id & 0x1f, page);
-	udelay(100);
-	__mdiobus_write(bus, 0x10 | r2, r1, lo);
-	__mdiobus_write(bus, 0x10 | r2, r1 + 2, hi);
-	mutex_unlock(&bus->mdio_lock);
-}
-
-void
-qca_mht_mii_update(a_uint32_t dev_id, a_uint32_t reg, a_uint32_t mask, a_uint32_t val)
-{
-	a_uint32_t new_val = 0, org_val = 0;
-
-	org_val = qca_mht_mii_read(dev_id, reg);
-
-	new_val = org_val & ~mask;
-	new_val |= val & mask;
-
-	if (new_val != org_val)
-		qca_mht_mii_write(dev_id, reg, new_val);
-
-	return;
+	return SW_OK;
 }
 
 sw_error_t
-qca_mht_mii_field_get(a_uint32_t dev_id, a_uint32_t reg_addr,
+__qca_mii_reg_get(a_uint32_t dev_id, a_uint32_t reg_addr,
+                   a_uint8_t value[], a_uint32_t value_len)
+{
+	a_uint32_t reg_val = 0;
+
+	if (value_len != sizeof (a_uint32_t))
+		return SW_BAD_LEN;
+
+	reg_val = __qca_mii_read(dev_id, reg_addr);
+
+	aos_mem_copy(value, &reg_val, sizeof (a_uint32_t));
+
+	return SW_OK;
+}
+
+sw_error_t
+__qca_mii_reg_set(a_uint32_t dev_id, a_uint32_t reg_addr, a_uint8_t value[],
+                   a_uint32_t value_len)
+{
+	a_uint32_t reg_val = 0;
+
+	if (value_len != sizeof (a_uint32_t))
+		return SW_BAD_LEN;
+
+	aos_mem_copy(&reg_val, value, sizeof (a_uint32_t));
+
+	__qca_mii_write(dev_id, reg_addr, reg_val);
+
+	return SW_OK;
+}
+
+sw_error_t
+__qca_mii_field_get(a_uint32_t dev_id, a_uint32_t reg_addr,
                     a_uint32_t bit_offset, a_uint32_t field_len,
                     a_uint8_t value[], a_uint32_t value_len)
 {
-    a_uint32_t reg_val = 0;
+	a_uint32_t reg_val = 0;
 
-    if ((bit_offset >= 32 || (field_len > 32)) || (field_len == 0))
-        return SW_OUT_OF_RANGE;
+	if ((bit_offset >= 32 || (field_len > 32)) || (field_len == 0))
+		return SW_OUT_OF_RANGE;
 
-    if (value_len != sizeof (a_uint32_t))
-        return SW_BAD_LEN;
+	if (value_len != sizeof (a_uint32_t))
+		return SW_BAD_LEN;
 
-    reg_val = qca_mht_mii_read(dev_id, reg_addr);
+	reg_val = __qca_mii_read(dev_id, reg_addr);
 
-    if(32 == field_len) {
-        *((a_uint32_t *) value) = reg_val;
-    } else  {
-        *((a_uint32_t *) value) = SW_REG_2_FIELD(reg_val, bit_offset, field_len);
-    }
+	if(32 == field_len) {
+		*((a_uint32_t *) value) = reg_val;
+	} else  {
+		*((a_uint32_t *) value) = SW_REG_2_FIELD(reg_val, bit_offset, field_len);
+	}
 
-    return SW_OK;
+	return SW_OK;
 }
 
 sw_error_t
-qca_mht_mii_field_set(a_uint32_t dev_id, a_uint32_t reg_addr,
+__qca_mii_field_set(a_uint32_t dev_id, a_uint32_t reg_addr,
                    a_uint32_t bit_offset, a_uint32_t field_len,
                    const a_uint8_t value[], a_uint32_t value_len)
 {
@@ -285,7 +208,7 @@ qca_mht_mii_field_set(a_uint32_t dev_id, a_uint32_t reg_addr,
 	if (value_len != sizeof (a_uint32_t))
 		return SW_BAD_LEN;
 
-	reg_val = qca_mht_mii_read(dev_id, reg_addr);
+	reg_val = __qca_mii_read(dev_id, reg_addr);
 
 	if(32 == field_len) {
 		reg_val = field_val;
@@ -293,251 +216,287 @@ qca_mht_mii_field_set(a_uint32_t dev_id, a_uint32_t reg_addr,
 		SW_REG_SET_BY_FIELD_U32(reg_val, field_val, bit_offset, field_len);
 	}
 
-	qca_mht_mii_write(dev_id, reg_addr, reg_val);
+	__qca_mii_write(dev_id, reg_addr, reg_val);
 
 	return SW_OK;
 }
 
-static inline void
-split_addr(uint32_t regaddr, uint16_t *r1, uint16_t *r2, uint16_t *page)
+sw_error_t
+qca_mii_reg_get(a_uint32_t dev_id, a_uint32_t reg_addr,
+                   a_uint8_t value[], a_uint32_t value_len)
 {
-	regaddr >>= 1;
-	*r1 = regaddr & 0x1e;
+	sw_error_t rv = SW_OK;
 
-	regaddr >>= 5;
-	*r2 = regaddr & 0x7;
+	qca_mii_bus_lock(dev_id, A_TRUE);
+	rv = __qca_mii_reg_get(dev_id, reg_addr, value, value_len);
+	qca_mii_bus_lock(dev_id, A_FALSE);
 
-	regaddr >>= 3;
-	*page = regaddr & 0x3ff;
+	return rv;
 }
 
-a_uint32_t
-qca_ar8216_mii_read(a_uint32_t dev_id, a_uint32_t reg)
+sw_error_t
+qca_mii_reg_set(a_uint32_t dev_id, a_uint32_t reg_addr, a_uint8_t value[],
+                   a_uint32_t value_len)
 {
-	struct mii_bus *bus;
-	uint16_t r1, r2, page;
-	uint16_t lo, hi;
+	sw_error_t rv = SW_OK;
 
-	bus = qca_phy_priv_global[dev_id]->miibus;
+	qca_mii_bus_lock(dev_id, A_TRUE);
+	rv = __qca_mii_reg_set(dev_id, reg_addr, value, value_len);
+	qca_mii_bus_lock(dev_id, A_FALSE);
 
-	split_addr((uint32_t) reg, &r1, &r2, &page);
-	mutex_lock(&bus->mdio_lock);
-	__mdiobus_write(bus, switch_chip_id, switch_chip_reg, page);
-	udelay(100);
-	lo = __mdiobus_read(bus, 0x10 | r2, r1);
-	hi = __mdiobus_read(bus, 0x10 | r2, r1 + 1);
-	__mdiobus_write(bus, switch_chip_id, switch_chip_reg, HIGH_ADDR_DFLT);
-	mutex_unlock(&bus->mdio_lock);
-	return (hi << 16) | lo;
+	return rv;
 }
 
-void
-qca_ar8216_mii_write(a_uint32_t dev_id, a_uint32_t reg, a_uint32_t val)
+sw_error_t
+qca_mii_field_get(a_uint32_t dev_id, a_uint32_t reg_addr,
+                    a_uint32_t bit_offset, a_uint32_t field_len,
+                    a_uint8_t value[], a_uint32_t value_len)
 {
-	struct mii_bus *bus;
-	uint16_t r1, r2, r3;
-	uint16_t lo, hi;
+	sw_error_t rv = SW_OK;
+
+	qca_mii_bus_lock(dev_id, A_TRUE);
+	rv = __qca_mii_field_get(dev_id, reg_addr, bit_offset, field_len, value, value_len);
+	qca_mii_bus_lock(dev_id, A_FALSE);
+
+	return rv;
+}
+
+sw_error_t
+qca_mii_field_set(a_uint32_t dev_id, a_uint32_t reg_addr,
+                   a_uint32_t bit_offset, a_uint32_t field_len,
+                   const a_uint8_t value[], a_uint32_t value_len)
+{
+	sw_error_t rv = SW_OK;
+
+	qca_mii_bus_lock(dev_id, A_TRUE);
+	rv = __qca_mii_field_set(dev_id, reg_addr, bit_offset, field_len, value, value_len);
+	qca_mii_bus_lock(dev_id, A_FALSE);
+
+	return rv;
+}
+
+static void qca_mii_reg_convert(a_uint32_t dev_id, a_uint32_t *reg)
+{
 	ssdk_chip_type chip_type = hsl_get_current_chip_type(dev_id);
 
-	bus = qca_phy_priv_global[dev_id]->miibus;
-
-	split_addr((a_uint32_t) reg, &r1, &r2, &r3);
-	lo = val & 0xffff;
-	hi = (a_uint16_t) (val >> 16);
-
-	mutex_lock(&bus->mdio_lock);
-	__mdiobus_write(bus, switch_chip_id, switch_chip_reg, r3);
-	udelay(100);
-	if(chip_type != CHIP_SHIVA) {
-		__mdiobus_write(bus, 0x10 | r2, r1, lo);
-		__mdiobus_write(bus, 0x10 | r2, r1 + 1, hi);
-	} else {
-		__mdiobus_write(bus, 0x10 | r2, r1 + 1, hi);
-		__mdiobus_write(bus, 0x10 | r2, r1, lo);
+	switch (chip_type) {
+		case CHIP_ISISC:
+			*reg |= SSDK_SWITCH_REG_TYPE_QCA8337;
+			break;
+		default:
+			*reg |= SSDK_SWITCH_REG_TYPE_QCA8386;
+			break;
 	}
-	__mdiobus_write(bus, switch_chip_id, switch_chip_reg, HIGH_ADDR_DFLT);
-	mutex_unlock(&bus->mdio_lock);
+}
+
+#if IS_ENABLED(CONFIG_MDIO_BITBANG)
+sw_error_t qca_bitbang_mii_raw_read_try(struct mii_bus *bus,
+				     a_uint32_t reg, a_uint32_t *val)
+{
+	struct mdiobb_ctrl *gpio_priv = bus->priv;
+
+	if (strncmp(bus->id, "gpio", strlen("gpio")))
+		return SW_NOT_FOUND;
+
+	if (gpio_priv && gpio_priv->sw_read) {
+		*val = gpio_priv->sw_read(bus, reg);
+		return SW_OK;
+	}
+
+	return SW_FAIL;
+}
+
+sw_error_t qca_bitbang_mii_raw_write_try(struct mii_bus *bus,
+				      a_uint32_t reg, a_uint32_t val)
+{
+	struct mdiobb_ctrl *gpio_priv = bus->priv;
+
+	if (strncmp(bus->id, "gpio", strlen("gpio")))
+		return SW_NOT_FOUND;
+
+	if (gpio_priv && gpio_priv->sw_write) {
+		gpio_priv->sw_write(bus, reg, val);
+		return SW_OK;
+	}
+
+	return SW_FAIL;
+}
+
+sw_error_t qca_bitbang_mii_raw_update_try(struct mii_bus *bus, a_uint32_t reg,
+					  a_uint32_t clear, a_uint32_t set)
+{
+	struct mdiobb_ctrl *gpio_priv = bus->priv;
+
+	if (strncmp(bus->id, "gpio", strlen("gpio")))
+		return SW_NOT_FOUND;
+
+	if (gpio_priv && gpio_priv->sw_read && gpio_priv->sw_write) {
+		a_uint32_t val;
+
+		val = gpio_priv->sw_read(bus, reg);
+		val &= ~clear;
+		val |= set;
+		gpio_priv->sw_write(bus, reg, val);
+
+		return SW_OK;
+	}
+
+	return SW_FAIL;
+}
+#endif
+
+sw_error_t qca_mii_raw_read(struct mii_bus *bus, a_uint32_t reg, a_uint32_t *val)
+{
+	struct qca_mdio_data *mdio_priv = bus->priv;
+
+#if IS_ENABLED(CONFIG_MDIO_BITBANG)
+	sw_error_t rv = SW_OK;
+
+	rv = qca_bitbang_mii_raw_read_try(bus, reg, val);
+	if (rv == SW_OK)
+		return rv;
+#endif
+
+	if (mdio_priv && mdio_priv->sw_read) {
+		*val = mdio_priv->sw_read(bus, reg);
+		return SW_OK;
+	}
+
+	return SW_FAIL;
+}
+
+sw_error_t qca_mii_raw_write(struct mii_bus *bus, a_uint32_t reg, a_uint32_t val)
+{
+	struct qca_mdio_data *mdio_priv = bus->priv;
+
+#if IS_ENABLED(CONFIG_MDIO_BITBANG)
+	sw_error_t rv = SW_OK;
+
+	rv = qca_bitbang_mii_raw_write_try(bus, reg, val);
+	if (rv == SW_OK)
+		return rv;
+#endif
+
+	if (mdio_priv && mdio_priv->sw_write) {
+		mdio_priv->sw_write(bus, reg, val);
+		return SW_OK;
+	}
+
+	return SW_FAIL;
+}
+
+sw_error_t qca_mii_raw_update(struct mii_bus *bus, a_uint32_t reg,
+		a_uint32_t clear, a_uint32_t set)
+{
+	struct qca_mdio_data *mdio_priv = bus->priv;
+
+#if IS_ENABLED(CONFIG_MDIO_BITBANG)
+	sw_error_t rv = SW_OK;
+
+	rv = qca_bitbang_mii_raw_update_try(bus, reg, clear, set);
+	if (rv == SW_OK)
+		return rv;
+#endif
+
+	if (mdio_priv && mdio_priv->sw_read && mdio_priv->sw_write) {
+		a_uint32_t val;
+
+		val = mdio_priv->sw_read(bus, reg);
+		val &= ~clear;
+		val |= set;
+		mdio_priv->sw_write(bus, reg, val);
+
+		return SW_OK;
+	}
+
+	return SW_FAIL;
+}
+
+a_uint32_t __qca_mii_read(a_uint32_t dev_id, a_uint32_t reg)
+{
+	a_uint32_t val = 0xffffffff;
+	struct mii_bus *bus = NULL;
+
+	bus = ssdk_miibus_get(dev_id, SSDK_MII_DEFAULT_BUS_ID);
+	if (!bus)
+		return val;
+
+	qca_mii_reg_convert(dev_id, &reg);
+	qca_mii_raw_read(bus, reg, &val);
+	return val;
+}
+
+void __qca_mii_write(a_uint32_t dev_id, a_uint32_t reg, a_uint32_t val)
+{
+	struct mii_bus *bus = NULL;
+
+	bus = ssdk_miibus_get(dev_id, SSDK_MII_DEFAULT_BUS_ID);
+	if (!bus)
+		return;
+
+	qca_mii_reg_convert(dev_id, &reg);
+	qca_mii_raw_write(bus, reg, val);
+}
+
+int __qca_mii_update(a_uint32_t dev_id, a_uint32_t reg, a_uint32_t mask, a_uint32_t val)
+{
+	struct mii_bus *bus = NULL;
+
+	bus = ssdk_miibus_get(dev_id, SSDK_MII_DEFAULT_BUS_ID);
+	if (!bus)
+		return -1;
+
+	qca_mii_reg_convert(dev_id, &reg);
+	qca_mii_raw_update(bus, reg, mask, val);
+	return 0;
 }
 
 a_uint32_t qca_mii_read(a_uint32_t dev_id, a_uint32_t reg)
 {
 	a_uint32_t val = 0xffffffff;
-	ssdk_chip_type chip_type = hsl_get_current_chip_type(dev_id);
+	struct mii_bus *bus = NULL;
 
-	switch (chip_type) {
-		case CHIP_MHT:
-			val = qca_mht_mii_read(dev_id, reg);
-			break;
-		default:
-			val = qca_ar8216_mii_read(dev_id, reg);
-			break;
-	}
+	bus = ssdk_miibus_get(dev_id, SSDK_MII_DEFAULT_BUS_ID);
+	if (!bus)
+		return val;
+
+	mutex_lock(&bus->mdio_lock);
+	qca_mii_reg_convert(dev_id, &reg);
+	qca_mii_raw_read(bus, reg, &val);
+	mutex_unlock(&bus->mdio_lock);
+
 	return val;
 }
 
 void qca_mii_write(a_uint32_t dev_id, a_uint32_t reg, a_uint32_t val)
 {
-	ssdk_chip_type chip_type = hsl_get_current_chip_type(dev_id);
+	struct mii_bus *bus = NULL;
 
-	switch (chip_type) {
-		case CHIP_MHT:
-			qca_mht_mii_write(dev_id, reg, val);
-			break;
-		default:
-			qca_ar8216_mii_write(dev_id, reg, val);
-			break;
-	}
+	bus = ssdk_miibus_get(dev_id, SSDK_MII_DEFAULT_BUS_ID);
+	if (!bus)
+		return;
+
+	mutex_lock(&bus->mdio_lock);
+	qca_mii_reg_convert(dev_id, &reg);
+	qca_mii_raw_write(bus, reg, val);
+	mutex_unlock(&bus->mdio_lock);
 }
 
-/*qca808x_start*/
-a_bool_t
-phy_addr_validation_check(a_uint32_t phy_addr)
-{
-
-	if ((phy_addr > SSDK_PHY_BCAST_ID) || (phy_addr < SSDK_PHY_MIN_ID))
-		return A_FALSE;
-	else
-		return A_TRUE;
-}
-
-sw_error_t
-qca_ar8327_phy_read(a_uint32_t dev_id, a_uint32_t phy_addr,
-                           a_uint32_t reg, a_uint16_t* data)
+int qca_mii_update(a_uint32_t dev_id, a_uint32_t reg, a_uint32_t mask, a_uint32_t val)
 {
 	struct mii_bus *bus = NULL;
 
-	if (A_TRUE != phy_addr_validation_check (phy_addr))
-	{
-		return SW_BAD_PARAM;
-	}
-
-	bus = hsl_phy_miibus_get(dev_id, phy_addr);
+	bus = ssdk_miibus_get(dev_id, SSDK_MII_DEFAULT_BUS_ID);
 	if (!bus)
-		return SW_NOT_SUPPORTED;
+		return -1;
 
 	mutex_lock(&bus->mdio_lock);
-	*data = __mdiobus_read(bus, phy_addr, reg);
+	qca_mii_reg_convert(dev_id, &reg);
+	qca_mii_raw_update(bus, reg, mask, val);
 	mutex_unlock(&bus->mdio_lock);
 
 	return 0;
 }
-
-sw_error_t
-qca_ar8327_phy_write(a_uint32_t dev_id, a_uint32_t phy_addr,
-                            a_uint32_t reg, a_uint16_t data)
-{
-	struct mii_bus *bus = NULL;
-
-	if (A_TRUE != phy_addr_validation_check (phy_addr))
-	{
-		return SW_BAD_PARAM;
-	}
-
-	bus = hsl_phy_miibus_get(dev_id, phy_addr);
-	if (!bus)
-		return SW_NOT_SUPPORTED;
-
-	mutex_lock(&bus->mdio_lock);
-	__mdiobus_write(bus, phy_addr, reg, data);
-	mutex_unlock(&bus->mdio_lock);
-
-	return 0;
-}
-
-void
-qca_ar8327_phy_dbg_write(a_uint32_t dev_id, a_uint32_t phy_addr,
-                                a_uint16_t dbg_addr, a_uint16_t dbg_data)
-{
-	struct mii_bus *bus = NULL;
-
-	if (A_TRUE != phy_addr_validation_check (phy_addr))
-	{
-		return;
-	}
-
-	bus = hsl_phy_miibus_get(dev_id, phy_addr);
-	if (!bus)
-		return;
-
-	mutex_lock(&bus->mdio_lock);
-	__mdiobus_write(bus, phy_addr, QCA_MII_DBG_ADDR, dbg_addr);
-	__mdiobus_write(bus, phy_addr, QCA_MII_DBG_DATA, dbg_data);
-	mutex_unlock(&bus->mdio_lock);
-}
-
-void
-qca_ar8327_phy_dbg_read(a_uint32_t dev_id, a_uint32_t phy_addr,
-		                a_uint16_t dbg_addr, a_uint16_t *dbg_data)
-{
-	struct mii_bus *bus = NULL;
-
-	if (A_TRUE != phy_addr_validation_check (phy_addr))
-	{
-		return;
-	}
-
-	bus = hsl_phy_miibus_get(dev_id, phy_addr);
-	if (!bus)
-		return;
-
-	mutex_lock(&bus->mdio_lock);
-	__mdiobus_write(bus, phy_addr, QCA_MII_DBG_ADDR, dbg_addr);
-	*dbg_data = __mdiobus_read(bus, phy_addr, QCA_MII_DBG_DATA);
-	mutex_unlock(&bus->mdio_lock);
-}
-
-
-void
-qca_ar8327_mmd_write(a_uint32_t dev_id, a_uint32_t phy_addr,
-                          a_uint16_t addr, a_uint16_t data)
-{
-	struct mii_bus *bus = NULL;
-
-	if (A_TRUE != phy_addr_validation_check (phy_addr))
-	{
-		return;
-	}
-
-	bus = hsl_phy_miibus_get(dev_id, phy_addr);
-	if (!bus)
-		return;
-
-	mutex_lock(&bus->mdio_lock);
-	__mdiobus_write(bus, phy_addr, QCA_MII_MMD_ADDR, addr);
-	__mdiobus_write(bus, phy_addr, QCA_MII_MMD_DATA, data);
-	mutex_unlock(&bus->mdio_lock);
-}
-
-void qca_phy_mmd_write(u32 dev_id, u32 phy_id,
-                     u16 mmd_num, u16 reg_id, u16 reg_val)
-{
-	qca_ar8327_phy_write(dev_id, phy_id,
-			QCA_MII_MMD_ADDR, mmd_num);
-	qca_ar8327_phy_write(dev_id, phy_id,
-			QCA_MII_MMD_DATA, reg_id);
-	qca_ar8327_phy_write(dev_id, phy_id,
-			QCA_MII_MMD_ADDR,
-			0x4000 | mmd_num);
-	qca_ar8327_phy_write(dev_id, phy_id,
-		QCA_MII_MMD_DATA, reg_val);
-}
-
-u16 qca_phy_mmd_read(u32 dev_id, u32 phy_id,
-		u16 mmd_num, u16 reg_id)
-{
-	u16 value = 0;
-	qca_ar8327_phy_write(dev_id, phy_id,
-			QCA_MII_MMD_ADDR, mmd_num);
-	qca_ar8327_phy_write(dev_id, phy_id,
-			QCA_MII_MMD_DATA, reg_id);
-	qca_ar8327_phy_write(dev_id, phy_id,
-			QCA_MII_MMD_ADDR,
-			0x4000 | mmd_num);
-	qca_ar8327_phy_read(dev_id, phy_id,
-			QCA_MII_MMD_DATA, &value);
-	return value;
-}
-/*qca808x_end*/
 
 #if defined(SSDK_PCIE_BUS)
 extern u32 ppe_mem_read(u32 reg);
@@ -724,174 +683,74 @@ qca_uniphy_reg_write(a_uint32_t dev_id, a_uint32_t uniphy_index,
 #endif
 	return 0;
 }
-#ifndef BOARD_AR71XX
 /*qca808x_start*/
-static int miibus_get(a_uint32_t dev_id)
+struct mii_bus *ssdk_miibus_get(a_uint32_t dev_id, a_uint32_t index)
 {
-/*qca808x_end*/
-#if defined(CONFIG_OF) && (LINUX_VERSION_CODE >= KERNEL_VERSION(3,14,0))
-/*qca808x_start*/
-	struct device_node *mdio_node = NULL;
-	struct device_node *switch_node = NULL;
-	struct platform_device *mdio_plat = NULL;
-	struct qca_phy_priv *priv;
-	hsl_reg_mode reg_mode = HSL_REG_LOCAL_BUS;
-	priv = qca_phy_priv_global[dev_id];
-	switch_node = qca_phy_priv_global[dev_id]->of_node;
-	if (switch_node) {
-		mdio_node = of_parse_phandle(switch_node, "mdio-bus", 0);
-		if (mdio_node) {
-			priv->miibus = of_mdio_find_bus(mdio_node);
-			return 0;
-		}
-	}
-/*qca808x_end*/
-	reg_mode=ssdk_switch_reg_access_mode_get(dev_id);
-/*qca808x_start*/
-	if (reg_mode == HSL_REG_LOCAL_BUS) {
-		mdio_node = of_find_compatible_node(NULL, NULL, "qcom,ipq40xx-mdio");
-		if (!mdio_node)
-			mdio_node = of_find_compatible_node(NULL, NULL, "qcom,qca-mdio");
-	} else
-		mdio_node = of_find_compatible_node(NULL, NULL, "virtual,mdio-gpio");
+	return qca_phy_priv_global[dev_id]->miibus[index];
+}
 
-	if (!mdio_node) {
-		SSDK_ERROR("No MDIO node found in DTS!\n");
-		return 1;
-	}
+struct mii_bus *ssdk_phy_miibus_get(a_uint32_t dev_id, a_uint32_t phy_addr_e)
+{
+	a_uint32_t index = 0;
 
-	mdio_plat = of_find_device_by_node(mdio_node);
-	if (!mdio_plat) {
-		SSDK_ERROR("cannot find platform device from mdio node\n");
-		return 1;
-	}
+	index = TO_MIIBUS_INDEX(phy_addr_e);
+	if(index >= SSDK_MII_INVALID_BUS_ID)
+		return NULL;
 
-	if(reg_mode == HSL_REG_LOCAL_BUS)
+	return ssdk_miibus_get(dev_id, index);
+}
+
+struct mii_bus *ssdk_port_miibus_get(a_uint32_t dev_id, a_uint32_t port_id)
+{
+	a_uint32_t phy_addr_e = 0;
+
+	phy_addr_e = qca_ssdk_port_to_phy_addr(dev_id, port_id);
+
+	return ssdk_phy_miibus_get(dev_id, phy_addr_e);
+}
+
+sw_error_t ssdk_miibus_add(a_uint32_t dev_id, struct mii_bus *miibus,
+	a_uint32_t *index)
+{
+	a_uint32_t i = 0;
+
+	if(!miibus)
+		return SW_BAD_PTR;
+
+	for(i = 0; i < SSDK_MII_BUS_MAX; i++)
 	{
-#if (LINUX_VERSION_CODE >= KERNEL_VERSION(6,1,0))
-		priv->miibus = dev_get_drvdata(&mdio_plat->dev);
-#else
-		struct qca_mdio_data *mdio_data = NULL;
-		mdio_data = dev_get_drvdata(&mdio_plat->dev);
-		if (!mdio_data) {
-			SSDK_ERROR("cannot get mdio_data reference from device data\n");
-			return 1;
+		if(qca_phy_priv_global[dev_id]->miibus[i] == miibus ||
+			qca_phy_priv_global[dev_id]->miibus[i] == NULL)
+		{
+			*index = i;
+			qca_phy_priv_global[dev_id]->miibus[i] = miibus;
+			return SW_OK;
 		}
-		priv->miibus = mdio_data->mii_bus;
-#endif
-	}
-	else
-		priv->miibus = dev_get_drvdata(&mdio_plat->dev);
-
-	if (!priv->miibus) {
-		SSDK_ERROR("cannot get mii bus reference from device data\n");
-		return 1;
-	}
-/*qca808x_end*/
-#else
-	struct device *miidev;
-	char busid[MII_BUS_ID_SIZE];
-	struct qca_phy_priv *priv;
-
-	priv = qca_phy_priv_global[dev_id];
-	snprintf(busid, MII_BUS_ID_SIZE, "%s.%d",
-		PLATFORM_MDIO_BUS_NAME, PLATFORM_MDIO_BUS_NUM);
-
-	miidev = bus_find_device_by_name(&platform_bus_type, NULL, busid);
-	if (!miidev) {
-		SSDK_ERROR("Failed to get miidev\n");
-		return 1;
 	}
 
-	priv->miibus = dev_get_drvdata(miidev);
-
-	if(!priv->miibus){
-		SSDK_ERROR("mdio bus '%s' get FAIL\n", busid);
-		return 1;
-	}
-#endif
-/*qca808x_start*/
-	return 0;
+	return SW_OUT_OF_RANGE;
 }
-/*qca808x_end*/
-#else
-static int miibus_get(a_uint32_t dev_id)
+
+a_uint32_t ssdk_miibus_index_get(a_uint32_t dev_id, struct mii_bus *miibus)
 {
-	struct ag71xx_mdio *am;
-	struct qca_phy_priv *priv = qca_phy_priv_global[dev_id];
-#if defined(CONFIG_OF) && (LINUX_VERSION_CODE >= KERNEL_VERSION(3,14,0))
-	struct device_node *mdio_node = NULL;
-	struct platform_device *mdio_plat = NULL;
+	a_uint32_t index = 0;
 
-	mdio_node = of_find_compatible_node(NULL, NULL, "qca,ag71xx-mdio");
-	if (!mdio_node) {
-		SSDK_ERROR("No MDIO node found in DTS!\n");
-		return 1;
-	}
-	mdio_plat = of_find_device_by_node(mdio_node);
-	if (!mdio_plat) {
-		SSDK_ERROR("cannot find platform device from mdio node\n");
-		return 1;
-	}
-	am = dev_get_drvdata(&mdio_plat->dev);
-	if (!am) {
-                	SSDK_ERROR("cannot get mdio_data reference from device data\n");
-                	return 1;
-	}
-	priv->miibus = am->mii_bus;
-
-	switch_chip_id_adjuest(dev_id);
-#else
-	struct device *miidev;
-	char busid[MII_BUS_ID_SIZE];
-
-	snprintf(busid, MII_BUS_ID_SIZE, "%s.%d",
-		PLATFORM_MDIO_BUS_NAME, PLATFORM_MDIO_BUS_NUM);
-
-	miidev = bus_find_device_by_name(&platform_bus_type, NULL, busid);
-	if (!miidev) {
-		SSDK_ERROR("Failed to get miidev!\n");
-		return 1;
-	}
-	am = dev_get_drvdata(miidev);
-	priv->miibus = am->mii_bus;
-
-	if(switch_chip_id_adjuest(dev_id)) {
-		snprintf(busid, MII_BUS_ID_SIZE, "%s.%d",
-		PLATFORM_MDIO_BUS_NAME, MDIO_BUS_1);
-
-		miidev = bus_find_device_by_name(&platform_bus_type, NULL, busid);
-		if (!miidev) {
-			SSDK_ERROR("Failed get mii bus\n");
-			return 1;
-		}
-
-		am = dev_get_drvdata(miidev);
-		priv->miibus = am->mii_bus;
-		SSDK_INFO("chip_version:0x%x\n", (qca_ar8216_mii_read(dev_id, 0)&0xff00)>>8);
+	for(index = 0; index < SSDK_MII_BUS_MAX; index++)
+	{
+		if(qca_phy_priv_global[dev_id]->miibus[index] == miibus)
+			return index;
 	}
 
-	if(!miidev){
-		SSDK_ERROR("mdio bus '%s' get FAIL\n", busid);
-		return 1;
-	}
-#endif
-
-	return 0;
-}
-#endif
-/*qca808x_start*/
-struct mii_bus *ssdk_miibus_get_by_device(a_uint32_t dev_id)
-{
-	return qca_phy_priv_global[dev_id]->miibus;
+	return SSDK_MII_INVALID_BUS_ID;
 }
 /*qca808x_end*/
-sw_error_t ssdk_miibus_freq_get(a_uint32_t dev_id, a_uint32_t *freq)
+sw_error_t ssdk_miibus_freq_get(a_uint32_t dev_id, a_uint32_t index,
+	a_uint32_t *freq)
 {
 	struct mii_bus *bus = NULL;
 	struct qca_mdio_data *mdio_priv = NULL;
 
-	bus = ssdk_miibus_get_by_device(dev_id);
+	bus = ssdk_miibus_get(dev_id, index);
 	if (!bus) {
 		SSDK_ERROR("Can't get MDIO bus of device id %d\n", dev_id);
 		return SW_BAD_PTR;
@@ -907,12 +766,13 @@ sw_error_t ssdk_miibus_freq_get(a_uint32_t dev_id, a_uint32_t *freq)
 	return SW_OK;
 }
 
-sw_error_t ssdk_miibus_freq_set(a_uint32_t dev_id, a_uint32_t freq)
+sw_error_t ssdk_miibus_freq_set(a_uint32_t dev_id, a_uint32_t index,
+	a_uint32_t freq)
 {
 	struct mii_bus *bus = NULL;
 	struct qca_mdio_data *mdio_priv = NULL;
 
-	bus = ssdk_miibus_get_by_device(dev_id);
+	bus = ssdk_miibus_get(dev_id, index);
 	if (!bus) {
 		SSDK_ERROR("Can't get MDIO bus of device id %d\n", dev_id);
 		return SW_BAD_PTR;
@@ -1214,7 +1074,7 @@ void ssdk_dts_phyinfo_dump(a_uint32_t dev_id)
 	for (i = 0; i <= SSDK_MAX_PORT_NUM; i++) {
 		if (A_TRUE == hsl_port_prop_check(dev_id, i, HSL_PP_PHY)) {
 			printk("%6d%13d%*s", i,
-					phy_info->phy_address[i], 5, "");
+					TO_PHY_ADDR(phy_info->phy_address[i]), 5, "");
 			for (j = 0; j < QCA_PHY_FEATURE_MAX; j++) {
 				if (phy_info->phy_features[i] & BIT(j) && BIT(j) != PHY_F_INIT) {
 					printk(KERN_CONT "%s ", qca_phy_feature_str[j]);
@@ -1323,6 +1183,7 @@ static ssize_t ssdk_phy_write_reg_set(struct device *dev,
 	char *this_opt;
 	char *options = phy_buf;
 	unsigned int phy_addr, reg_addr, reg_value;
+	int ret;
 
 	if (count >= sizeof(phy_buf))
 		return 0;
@@ -1333,7 +1194,10 @@ static ssize_t ssdk_phy_write_reg_set(struct device *dev,
 	if (!this_opt)
 		goto fail;
 
-	kstrtouint(this_opt, 0, &phy_addr);
+	ret = kstrtouint(this_opt, 0, &phy_addr);
+	if (ret)
+		goto fail;
+
 	if ((options - phy_buf) >= (count - 1))
 		goto fail;
 
@@ -1341,7 +1205,10 @@ static ssize_t ssdk_phy_write_reg_set(struct device *dev,
 	if (!this_opt)
 		goto fail;
 
-	kstrtouint(this_opt, 0, &reg_addr);
+	ret = kstrtouint(this_opt, 0, &reg_addr);
+	if (ret)
+		goto fail;
+
 	if ((options - phy_buf) >= (count - 1))
 		goto fail;
 
@@ -1349,9 +1216,11 @@ static ssize_t ssdk_phy_write_reg_set(struct device *dev,
 	if (!this_opt)
 		goto fail;
 
-	kstrtouint(this_opt, 0, &reg_value);
+	ret = kstrtouint(this_opt, 0, &reg_value);
+	if (ret)
+		goto fail;
 
-	qca_ar8327_phy_write(0, phy_addr, reg_addr, reg_value);
+	hsl_phy_mii_reg_write(0, phy_addr, reg_addr, reg_value);
 
 	return count;
 
@@ -1378,6 +1247,7 @@ static ssize_t ssdk_phy_read_reg_set(struct device *dev,
 	char *this_opt;
 	char *options = phy_buf;
 	unsigned int phy_addr, reg_addr;
+	int ret;
 
 	if (count >= sizeof(phy_buf))
 		return 0;
@@ -1388,7 +1258,10 @@ static ssize_t ssdk_phy_read_reg_set(struct device *dev,
 	if (!this_opt)
 		goto fail;
 
-	kstrtouint(this_opt, 0, &phy_addr);
+	ret = kstrtouint(this_opt, 0, &phy_addr);
+	if (ret)
+		goto fail;
+
 	if ((options - phy_buf) >= (count - 1))
 		goto fail;
 
@@ -1396,9 +1269,11 @@ static ssize_t ssdk_phy_read_reg_set(struct device *dev,
 	if (!this_opt)
 		goto fail;
 
-	kstrtouint(this_opt, 0, &reg_addr);
+	ret = kstrtouint(this_opt, 0, &reg_addr);
+	if (ret)
+		goto fail;
 
-	qca_ar8327_phy_read(0, phy_addr, reg_addr, &phy_reg_val);
+	phy_reg_val = hsl_phy_mii_reg_read(0, phy_addr, reg_addr);
 
 	return count;
 
@@ -1415,7 +1290,7 @@ static ssize_t ssdk_ptp_counter_get(struct device *dev,
 	ssize_t count = 0;
 
 	snprintf(buf + PAGE_SIZE - 5, 5, "%zd", count);
-	hsl_ptp_event_stat_operation("QCA808X ethernet", buf);
+	hsl_ptp_event_stat_operation(QCA808X_SSDK_PHY_DRIVER_NAME, buf);
 
 	/* the last 5 bytes save the length of data bytes */
 	sscanf(buf + PAGE_SIZE - 5, "%zd", &count);
@@ -1428,7 +1303,7 @@ static ssize_t ssdk_ptp_counter_set(struct device *dev,
 		const char *buf, size_t count)
 {
 	char *op_set = "set";
-	hsl_ptp_event_stat_operation("QCA808X ethernet", op_set);
+	hsl_ptp_event_stat_operation(QCA808X_SSDK_PHY_DRIVER_NAME, op_set);
 
 	return count;
 }
@@ -1700,16 +1575,7 @@ ssdk_plat_init(ssdk_init_cfg *cfg, a_uint32_t dev_id)
 	ssdk_reg_map_info map;
 	struct clk *  ess_clk;
 	struct clk *  cmn_clk;
-	#ifdef BOARD_AR71XX
-	int rv = 0;
-	#endif
 
-	if(!ssdk_is_emulation(dev_id)){
-/*qca808x_start*/
-		if(miibus_get(dev_id))
-			return -ENODEV;
-/*qca808x_end*/
-	}
 #ifdef IN_UNIPHY
 	reg_mode = ssdk_uniphy_reg_access_mode_get(dev_id);
 	if(reg_mode == HSL_REG_LOCAL_BUS) {
@@ -1749,13 +1615,6 @@ ssdk_plat_init(ssdk_init_cfg *cfg, a_uint32_t dev_id)
 		}
 
 		cfg->reg_mode = HSL_HEADER;
-#if defined(MHT)
-		/* when manhattan works in PHY mode, the clock mode will be defined in dts,
-		 * the registers of manhattan need to be accessed, mii_reg_set/mii_reg_get
-		 * can be leveraged for this purpose. */
-		cfg->reg_func.mii_reg_set = qca_mht_mii_write;
-		cfg->reg_func.mii_reg_get = qca_mht_mii_read;
-#endif
 	} else if (reg_mode == HSL_REG_MDIO) {
 		cfg->reg_mode = HSL_MDIO;
 	}
@@ -1801,8 +1660,17 @@ ssdk_plat_exit(a_uint32_t dev_id)
 /*qca808x_end*/
 	reg_mode = ssdk_switch_reg_access_mode_get(dev_id);
 	if (reg_mode == HSL_REG_LOCAL_BUS) {
+		struct clk *cmn_clk = NULL;
+
 		iounmap(qca_phy_priv_global[dev_id]->hw_addr);
+		cmn_clk = ssdk_dts_cmnclk_get(dev_id);
+		if (!IS_ERR(cmn_clk)) {
+#if defined(HPPE) || defined(MP)
+			ssdk_gcc_clock_exit();
+#endif
+		}
 	}
+
 #ifdef DESS
 	reg_mode = ssdk_psgmii_reg_access_mode_get(dev_id);
 	if (reg_mode == HSL_REG_LOCAL_BUS) {
@@ -1822,3 +1690,151 @@ ssdk_plat_exit(a_uint32_t dev_id)
 }
 /*qca808x_end*/
 
+int ssdk_uniphy_valid_check(a_uint32_t dev_id,
+		a_uint32_t index, a_uint32_t mode)
+{
+	int ret = A_TRUE;
+#if defined(CONFIG_OF) && (LINUX_VERSION_CODE >= KERNEL_VERSION(6,1,0))
+	a_uint32_t soc_id = 0;
+	int rv = 0;
+#endif
+	if (ssdk_is_emulation(dev_id))
+		return A_TRUE;
+
+	if (index > SSDK_UNIPHY_INSTANCE2)
+		return A_FALSE;
+#if defined(CONFIG_OF) && (LINUX_VERSION_CODE >= KERNEL_VERSION(6,1,0))
+	rv = qcom_smem_get_soc_id(&soc_id);
+	if (rv)
+		return A_FALSE;
+	switch(soc_id) {
+		case QCOM_ID_IPQ8070:
+		case QCOM_ID_IPQ8071:
+		case QCOM_ID_IPQ8072:
+		case QCOM_ID_IPQ8074:
+		case QCOM_ID_IPQ8076:
+		case QCOM_ID_IPQ8078:
+		case QCOM_ID_IPQ8070A:
+		case QCOM_ID_IPQ8071A:
+		case QCOM_ID_IPQ8072A:
+		case QCOM_ID_IPQ8074A:
+		case QCOM_ID_IPQ8076A:
+		case QCOM_ID_IPQ8078A:
+			if (index == SSDK_UNIPHY_INSTANCE0) {
+				if ((mode == PORT_WRAPPER_USXGMII) ||
+					(mode == PORT_WRAPPER_10GBASE_R))
+					ret = A_FALSE;
+			}
+			if ((mode == PORT_WRAPPER_UQXGMII) ||
+				(mode == PORT_WRAPPER_UDXGMII))
+				ret = A_FALSE;
+			break;
+		case QCOM_ID_IPQ6000:
+		case QCOM_ID_IPQ6005:
+		case QCOM_ID_IPQ6010:
+		case QCOM_ID_IPQ6018:
+		case QCOM_ID_IPQ6028:
+			if (index == SSDK_UNIPHY_INSTANCE0) {
+				if ((mode == PORT_WRAPPER_USXGMII) ||
+					(mode == PORT_WRAPPER_10GBASE_R))
+					ret = A_FALSE;
+			}
+			if (index > SSDK_UNIPHY_INSTANCE1)
+				ret = A_FALSE;
+			if ((mode == PORT_WRAPPER_UQXGMII) ||
+				(mode == PORT_WRAPPER_UDXGMII))
+				ret = A_FALSE;
+			break;
+		case QCOM_ID_IPQ9570:
+		case QCOM_ID_IPQ9574:
+			break;
+		case QCOM_ID_IPQ9550:
+		case QCOM_ID_IPQ9554:
+			if (index == SSDK_UNIPHY_INSTANCE1)
+				ret = A_FALSE;
+			break;
+		case QCOM_ID_IPQ9510:
+		case QCOM_ID_IPQ9514:
+			if ((index == SSDK_UNIPHY_INSTANCE1) ||
+				(index == SSDK_UNIPHY_INSTANCE2))
+				ret = A_FALSE;
+			break;
+		case QCOM_ID_IPQ5302:
+		case QCOM_ID_IPQ5312:
+			if (index == SSDK_UNIPHY_INSTANCE2)
+				ret = A_FALSE;
+			if ((mode == PORT_WRAPPER_USXGMII) ||
+				(mode == PORT_WRAPPER_10GBASE_R) ||
+				(mode == PORT_WRAPPER_UQXGMII) ||
+				(mode == PORT_WRAPPER_UDXGMII))
+				ret = A_FALSE;
+			break;
+		case QCOM_ID_IPQ5300:
+		case QCOM_ID_IPQ5322:
+		case QCOM_ID_IPQ5332:
+		case QCOM_ID_IPQ5321:
+			if (index == SSDK_UNIPHY_INSTANCE2)
+				ret = A_FALSE;
+			break;
+		default:
+			ret = A_FALSE;
+			break;
+	}
+#else
+	switch(index) {
+		case SSDK_UNIPHY_INSTANCE0:
+			if ((cpu_is_ipq807x() == A_TRUE) ||
+				(cpu_is_ipq60xx() == A_TRUE)) {
+				if ((mode == PORT_WRAPPER_USXGMII) ||
+					(mode == PORT_WRAPPER_10GBASE_R) ||
+					(mode == PORT_WRAPPER_UQXGMII) ||
+					(mode == PORT_WRAPPER_UDXGMII))
+					ret = A_FALSE;
+			}
+			if (cpu_is_ipq53xx() == A_TRUE) {
+				if ((mode == PORT_WRAPPER_UQXGMII) ||
+				(mode == PORT_WRAPPER_UDXGMII)) {
+					ret = A_FALSE;
+				}
+				if ((cpu_is_ipq5302() == A_TRUE) ||
+					(cpu_is_ipq5312() == A_TRUE)) {
+					if ((mode == PORT_WRAPPER_10GBASE_R) ||
+						(mode == PORT_WRAPPER_USXGMII))
+						ret = A_FALSE;
+				}
+			}
+			break;
+		case SSDK_UNIPHY_INSTANCE1:
+			ret = cpu_is_uniphy1_enabled();
+			if ((cpu_is_ipq807x() == A_TRUE) ||
+				(cpu_is_ipq60xx() == A_TRUE) ||
+				(cpu_is_ipq53xx() == A_TRUE) ||
+				(cpu_is_ipq95xx() == A_TRUE)) {
+				if ((mode == PORT_WRAPPER_UQXGMII) ||
+				(mode == PORT_WRAPPER_UDXGMII))
+					ret = A_FALSE;
+			}
+			if ((cpu_is_ipq5302() == A_TRUE) ||
+				(cpu_is_ipq5312() == A_TRUE)) {
+				if ((mode == PORT_WRAPPER_10GBASE_R) ||
+					(mode == PORT_WRAPPER_USXGMII))
+					ret = A_FALSE;
+			}
+			break;
+		case SSDK_UNIPHY_INSTANCE2:
+			ret = cpu_is_uniphy2_enabled();
+			if ((cpu_is_ipq807x() == A_TRUE) ||
+				(cpu_is_ipq60xx() == A_TRUE) ||
+				(cpu_is_ipq95xx() == A_TRUE)) {
+				if ((mode == PORT_WRAPPER_UQXGMII) ||
+				(mode == PORT_WRAPPER_UDXGMII))
+					ret = A_FALSE;
+			}
+			break;
+		default:
+			ret = A_FALSE;
+			break;
+	}
+#endif
+	return ret;
+}

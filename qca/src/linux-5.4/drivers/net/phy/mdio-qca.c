@@ -27,34 +27,34 @@
 #include <linux/bitfield.h>
 #include <soc/qcom/socinfo.h>
 
-#define MDIO_CTRL_0_REG		0x40
-#define MDIO_CTRL_1_REG		0x44
-#define MDIO_CTRL_2_REG		0x48
-#define MDIO_CTRL_3_REG		0x4c
-#define MDIO_CTRL_4_REG		0x50
-#define MDIO_CTRL_4_ACCESS_BUSY		BIT(16)
-#define MDIO_CTRL_4_ACCESS_START	BIT(8)
-#define MDIO_CTRL_4_ACCESS_CODE_READ	0
-#define MDIO_CTRL_4_ACCESS_CODE_WRITE	1
+#define MDIO_CTRL_0_REG				0x40
+#define MDIO_CTRL_1_REG				0x44
+#define MDIO_CTRL_2_REG				0x48
+#define MDIO_CTRL_3_REG				0x4c
+#define MDIO_CTRL_4_REG				0x50
+#define MDIO_CTRL_4_ACCESS_BUSY			BIT(16)
+#define MDIO_CTRL_4_ACCESS_START		BIT(8)
+#define MDIO_CTRL_4_ACCESS_CODE_READ		0
+#define MDIO_CTRL_4_ACCESS_CODE_WRITE		1
 #define MDIO_CTRL_4_ACCESS_CODE_C45_ADDR	0
 #define MDIO_CTRL_4_ACCESS_CODE_C45_WRITE	1
 #define MDIO_CTRL_4_ACCESS_CODE_C45_READ	2
 #define CTRL_0_REG_DEFAULT_VALUE(div)		(0x15000 | (div & 0xff))
 #define CTRL_0_REG_C45_DEFAULT_VALUE(div)	(0x15100 | (div & 0xff))
 
-#define QCA_MDIO_RETRY	1000
-#define QCA_MDIO_DELAY	10
+#define QCA_MDIO_RETRY				1000
+#define QCA_MDIO_DELAY				10
 
-#define QCA_MDIO_CLK_RATE		100000000
-#define UNIPHY_AHB_CLK_RATE		100000000
-#define UNIPHY_SYS_CLK_RATE	24000000
+#define QCA_MDIO_CLK_RATE			100000000
+#define UNIPHY_AHB_CLK_RATE			100000000
+#define UNIPHY_SYS_CLK_RATE			24000000
 
-#define TCSR_LDO_ADDR		0x19475C4
-#define GCC_GEPHY_ADDR	0x1856004
-#define REG_SIZE		4
+#define TCSR_LDO_ADDR				0x19475C4
+#define GCC_GEPHY_ADDR				0x1856004
+#define REG_SIZE				4
 
-#define PHY_CLK_REG_ADDR	0x7a00610
-#define PHY_CLK_REG_SIZE	0x20000
+#define PHY_CLK_REG_ADDR			0x7a00610
+#define PHY_CLK_REG_SIZE			0x20000
 
 /* macro for mht chipset start */
 #define EPHY_CFG				0xC90F018
@@ -66,7 +66,7 @@
 #define EPHY2_SYS_CBCR				0xC8001B8
 #define EPHY3_SYS_CBCR				0xC8001BC
 #define GCC_GEPHY_MISC				0xC800304
-#define QFPROM_RAW_PTE_ROW2_MSB		0xC900014
+#define QFPROM_RAW_PTE_ROW2_MSB			0xC900014
 #define QFPROM_RAW_CALIBRATION_ROW4_LSB 	0xC900048
 #define QFPROM_RAW_CALIBRATION_ROW7_LSB 	0xC900060
 #define QFPROM_RAW_CALIBRATION_ROW8_LSB 	0xC900068
@@ -75,20 +75,30 @@
 #define PHY_DEBUG_PORT_DATA			0x1e
 #define PHY_LDO_EFUSE_REG			0x180
 #define PHY_ICC_EFUSE_REG			0x280
-#define PHY_10BT_SG_THRESH_REG		0x3380
+#define PHY_10BT_SG_THRESH_REG			0x3380
 #define PHY_MMD1_CTRL2ANA_OPTION2_REG		0x40018102
-#define PHY_ADDR_LENGTH			5
+#define PHY_ADDR_LENGTH				5
 #define PHY_ADDR_NUM				4
-#define UNIPHY_ADDR_NUM			3
+#define UNIPHY_ADDR_NUM				3
 #define MII_HIGH_ADDR_PREFIX			0x18
 #define MII_LOW_ADDR_PREFIX			0x10
+#define SWITCH_REG_TYPE_MASK			GENMASK(31, 28)
+#define SWITCH_REG_TYPE_QCA8386			0
+#define SWITCH_REG_TYPE_QCA8337			1
+#define SWITCH_HIGH_ADDR_DFLT			0x200
 
-#define CMN_PLL_REFCLK_INDEX	GENMASK(3, 0)
-#define CMN_PLL_REFCLK_EXTERNAL	BIT(9)
-#define CMN_ANA_EN_SW_RSTN	BIT(6)
+#define CMN_PLL_REFERENCE_CLOCK			0x784
+#define CMN_PLL_REFCLK_INDEX			GENMASK(3, 0)
+#define CMN_PLL_REFCLK_EXTERNAL			BIT(9)
 
-static DEFINE_MUTEX(switch_mdio_lock);
-/* macro for mht chipset end */
+#define CMN_PLL_POWER_ON_AND_RESET		0x780
+#define CMN_ANA_EN_SW_RSTN			BIT(6)
+
+#define CMN_PLL_OUTPUT_RELATED_1		0x79c
+#define CMN_PLL_CLK25M_EN			BIT(15)
+#define CMN_PLL_CMN_PLL_CLK50M_62P5M_EN		BIT(11)
+#define CMN_PLL_CMN_PLL_CLK50M_62P5M_EN1	BIT(10)
+#define CMN_PLL_CMN_PLL_CLK50M_62P5M_EN2	BIT(14)
 
 struct qca_mdio_data {
 	struct mii_bus *mii_bus;
@@ -96,7 +106,10 @@ struct qca_mdio_data {
 	void __iomem *membase;
 	int phy_irq[PHY_MAX_ADDR];
 	int clk_div;
+	bool force_c22;
 	void (*preinit)(struct mii_bus *bus);
+	u32 (*sw_read)(struct mii_bus *bus, u32 reg);
+	void (*sw_write)(struct mii_bus *bus, u32 reg, u32 val);
 };
 
 static int qca_mdio_wait_busy(struct qca_mdio_data *am)
@@ -119,7 +132,7 @@ static int qca_mdio_wait_busy(struct qca_mdio_data *am)
 	return -ETIMEDOUT;
 }
 
-static int qca_mdio_read(struct mii_bus *bus, int mii_id, int regnum)
+static int _qca_mdio_read(struct mii_bus *bus, int mii_id, int regnum)
 {
 	struct qca_mdio_data *am = bus->priv;
 	int value = 0;
@@ -168,7 +181,7 @@ static int qca_mdio_read(struct mii_bus *bus, int mii_id, int regnum)
 	return value;
 }
 
-static int qca_mdio_write(struct mii_bus *bus, int mii_id, int regnum,
+static int _qca_mdio_write(struct mii_bus *bus, int mii_id, int regnum,
 			  u16 value)
 {
 	struct qca_mdio_data *am = bus->priv;
@@ -214,6 +227,43 @@ static int qca_mdio_write(struct mii_bus *bus, int mii_id, int regnum,
 		return -ETIMEDOUT;
 
 	return 0;
+}
+
+static int qca_mdio_read(struct mii_bus *bus, int mii_id, int regnum)
+{
+	struct qca_mdio_data *priv = bus->priv;
+
+	if (priv && priv->force_c22 && (regnum & MII_ADDR_C45)) {
+		unsigned int mmd = (regnum >> 16) & 0x1F;
+		unsigned int reg = regnum & 0xFFFF;
+
+		_qca_mdio_write(bus, mii_id, MII_MMD_CTRL, mmd);
+		_qca_mdio_write(bus, mii_id, MII_MMD_DATA, reg);
+		_qca_mdio_write(bus, mii_id, MII_MMD_CTRL, mmd | MII_MMD_CTRL_NOINCR);
+
+		return  _qca_mdio_read(bus, mii_id, MII_MMD_DATA);
+	}
+
+	return _qca_mdio_read(bus, mii_id, regnum);
+}
+
+static int qca_mdio_write(struct mii_bus *bus, int mii_id, int regnum,
+			  u16 value)
+{
+	struct qca_mdio_data *priv = bus->priv;
+
+	if (priv && priv->force_c22 && (regnum & MII_ADDR_C45)) {
+		unsigned int mmd = (regnum >> 16) & 0x1F;
+		unsigned int reg = regnum & 0xFFFF;
+
+		_qca_mdio_write(bus, mii_id, MII_MMD_CTRL, mmd);
+		_qca_mdio_write(bus, mii_id, MII_MMD_DATA, reg);
+		_qca_mdio_write(bus, mii_id, MII_MMD_CTRL, mmd | MII_MMD_CTRL_NOINCR);
+
+		return _qca_mdio_write(bus, mii_id, MII_MMD_DATA, value);
+	}
+
+	return _qca_mdio_write(bus, mii_id, regnum, value);
 }
 
 static int qca_phy_gpio_set(struct platform_device *pdev, int number)
@@ -295,6 +345,49 @@ static void qca_tcsr_ldo_rdy_set(bool ready)
 	iounmap(tcsr_base);
 }
 
+static inline void qca8337_split_addr(u32 regaddr, u16 *r1, u16 *r2, u16 *page)
+{
+	regaddr >>= 1;
+	*r1 = regaddr & 0x1e;
+
+	regaddr >>= 5;
+	*r2 = regaddr & 0x7;
+
+	regaddr >>= 3;
+	*page = regaddr & 0x3ff;
+}
+
+u32 qca8337_read(struct mii_bus *mii_bus, u32 reg)
+{
+	u16 r1, r2, page;
+	u16 lo, hi;
+
+	qca8337_split_addr(reg, &r1, &r2, &page);
+	mii_bus->write(mii_bus, MII_HIGH_ADDR_PREFIX, 0, page);
+	udelay(100);
+
+	lo = mii_bus->read(mii_bus, MII_LOW_ADDR_PREFIX | r2, r1);
+	hi = mii_bus->read(mii_bus, MII_LOW_ADDR_PREFIX | r2, r1 + 1);
+
+	mii_bus->write(mii_bus, MII_HIGH_ADDR_PREFIX, 0, SWITCH_HIGH_ADDR_DFLT);
+	return (hi << 16) | lo;
+}
+
+void qca8337_write(struct mii_bus *mii_bus, u32 reg, u32 val)
+{
+	u16 r1, r2, page;
+
+	qca8337_split_addr(reg, &r1, &r2, &page);
+	mii_bus->write(mii_bus, MII_HIGH_ADDR_PREFIX, 0, page);
+	udelay(100);
+
+	mii_bus->write(mii_bus, MII_LOW_ADDR_PREFIX | r2, r1, val & 0xffff);
+	mii_bus->write(mii_bus, MII_LOW_ADDR_PREFIX | r2, r1 + 1, (u16)(val >> 16));
+
+	mii_bus->write(mii_bus, MII_HIGH_ADDR_PREFIX , 0, SWITCH_HIGH_ADDR_DFLT);
+}
+
+
 static inline void split_addr(u32 regaddr, u16 *r1, u16 *r2, u16 *page, u16 *switch_phy_id)
 {
 	*r1 = regaddr & 0x1c;
@@ -309,25 +402,23 @@ static inline void split_addr(u32 regaddr, u16 *r1, u16 *r2, u16 *page, u16 *swi
 	*switch_phy_id = regaddr & 0xff;
 }
 
-u32 qca_mii_read(struct mii_bus *mii_bus, u32 reg)
+u32 qca8386_read(struct mii_bus *mii_bus, u32 reg)
 {
 	u16 r1, r2, page, switch_phy_id;
 	int lo, hi;
 
 	split_addr(reg, &r1, &r2, &page, &switch_phy_id);
 
-	mutex_lock(&switch_mdio_lock);
 	mii_bus->write(mii_bus, MII_HIGH_ADDR_PREFIX | (switch_phy_id >> 5),
 			switch_phy_id & 0x1f, page);
 	udelay(100);
 	lo = mii_bus->read(mii_bus, MII_LOW_ADDR_PREFIX | r2, r1);
 	hi = mii_bus->read(mii_bus, MII_LOW_ADDR_PREFIX | r2, r1 | BIT(1));
-	mutex_unlock(&switch_mdio_lock);
 
 	return (hi << 16) | lo;
 }
 
-void qca_mii_write(struct mii_bus *mii_bus, u32 reg, u32 val)
+void qca8386_write(struct mii_bus *mii_bus, u32 reg, u32 val)
 {
 	u16 r1, r2, page, switch_phy_id;
 	u16 lo, hi;
@@ -336,14 +427,43 @@ void qca_mii_write(struct mii_bus *mii_bus, u32 reg, u32 val)
 	lo = val & 0xffff;
 	hi = val >> 16;
 
-	mutex_lock(&switch_mdio_lock);
 	mii_bus->write(mii_bus, MII_HIGH_ADDR_PREFIX | (switch_phy_id >> 5),
 			switch_phy_id & 0x1f, page);
 	udelay(100);
 	mii_bus->write(mii_bus, MII_LOW_ADDR_PREFIX | r2, r1, lo);
 	mii_bus->write(mii_bus, MII_LOW_ADDR_PREFIX | r2, r1 | BIT(1), hi);
-	mutex_unlock(&switch_mdio_lock);
 }
+
+u32 qca_mii_read(struct mii_bus *mii_bus, u32 reg)
+{
+	u32 val = 0xffffffff;
+	switch (FIELD_GET(SWITCH_REG_TYPE_MASK, reg)) {
+		case SWITCH_REG_TYPE_QCA8337:
+			val = qca8337_read(mii_bus, reg);
+			break;
+		case SWITCH_REG_TYPE_QCA8386:
+		default:
+			val = qca8386_read(mii_bus, reg);
+			break;
+	}
+
+	return val;
+}
+EXPORT_SYMBOL_GPL(qca_mii_read);
+
+void qca_mii_write(struct mii_bus *mii_bus, u32 reg, u32 val)
+{
+	switch (FIELD_GET(SWITCH_REG_TYPE_MASK, reg)) {
+		case SWITCH_REG_TYPE_QCA8337:
+			qca8337_write(mii_bus, reg, val);
+			break;
+		case SWITCH_REG_TYPE_QCA8386:
+		default:
+			qca8386_write(mii_bus, reg, val);
+			break;
+	}
+}
+EXPORT_SYMBOL_GPL(qca_mii_write);
 
 static inline void qca_mht_clk_enable(struct mii_bus *mii_bus, u32 reg)
 {
@@ -663,7 +783,7 @@ void qca_mht_preinit(struct mii_bus *mii_bus)
 	return;
 }
 
-void qca_cmn_clk_reset(struct platform_device *pdev)
+void qca_cmn_clk_config(struct platform_device *pdev)
 {
 	struct resource *res;
 	void __iomem *cmn_clk_base;
@@ -672,10 +792,13 @@ void qca_cmn_clk_reset(struct platform_device *pdev)
 
 	res = platform_get_resource(pdev, IORESOURCE_MEM, 1);
 	if (res) {
+		struct device_node *child;
+		u32 clk_en;
+
 		cmn_clk_base = devm_ioremap_resource(&pdev->dev, res);
 		if (!IS_ERR(cmn_clk_base)) {
 			/* Select reference clock source */
-			reg_val = readl(cmn_clk_base + 4);
+			reg_val = readl(cmn_clk_base + CMN_PLL_REFERENCE_CLOCK);
 			reg_val &= ~(CMN_PLL_REFCLK_EXTERNAL | CMN_PLL_REFCLK_INDEX);
 
 			cmn_ref_clk = of_get_property(pdev->dev.of_node, "cmn_clk", NULL);
@@ -702,19 +825,45 @@ void qca_cmn_clk_reset(struct platform_device *pdev)
 					reg_val |= FIELD_PREP(CMN_PLL_REFCLK_INDEX, 7);
 			}
 
-			writel(reg_val, cmn_clk_base + 4);
+			writel(reg_val, cmn_clk_base + CMN_PLL_REFERENCE_CLOCK);
 
 			/* Do the cmn clock reset */
-			reg_val = readl(cmn_clk_base);
+			reg_val = readl(cmn_clk_base + CMN_PLL_POWER_ON_AND_RESET);
 			reg_val &= ~CMN_ANA_EN_SW_RSTN;
-			writel(reg_val, cmn_clk_base);
+			writel(reg_val, cmn_clk_base + CMN_PLL_POWER_ON_AND_RESET);
 			msleep(1);
 
 			reg_val |= CMN_ANA_EN_SW_RSTN;
-			writel(reg_val, cmn_clk_base);
+			writel(reg_val, cmn_clk_base + CMN_PLL_POWER_ON_AND_RESET);
 			msleep(1);
 
 			dev_info(&pdev->dev, "CMN clock reset done\n");
+
+			clk_en = 0;
+			for_each_available_child_of_node(pdev->dev.of_node, child) {
+				if (of_find_property(child, "ref_clk_25m", NULL))
+					clk_en |= CMN_PLL_CLK25M_EN;
+				else if (of_find_property(child, "ref_clk_50m", NULL))
+					clk_en |= CMN_PLL_CMN_PLL_CLK50M_62P5M_EN;
+				else if (of_find_property(child, "ref_clk_50m_1", NULL))
+					clk_en |= CMN_PLL_CMN_PLL_CLK50M_62P5M_EN1;
+				else if (of_find_property(child, "ref_clk_50m_2", NULL))
+					clk_en |= CMN_PLL_CMN_PLL_CLK50M_62P5M_EN2;
+			}
+
+			if (clk_en) {
+				reg_val = readl(cmn_clk_base + CMN_PLL_OUTPUT_RELATED_1);
+				reg_val &= ~(CMN_PLL_CLK25M_EN | CMN_PLL_CMN_PLL_CLK50M_62P5M_EN |
+						CMN_PLL_CMN_PLL_CLK50M_62P5M_EN1 |
+						CMN_PLL_CMN_PLL_CLK50M_62P5M_EN2);
+
+				reg_val |= clk_en;
+				writel(reg_val, cmn_clk_base + CMN_PLL_OUTPUT_RELATED_1);
+
+				dev_info(&pdev->dev, "CMN output clock select %x\n", clk_en);
+			}
+
+			devm_iounmap(&pdev->dev, cmn_clk_base);
 		}
 	}
 }
@@ -725,7 +874,7 @@ static int qca_mdio_probe(struct platform_device *pdev)
 	int ret, i;
 	struct reset_control *rst = ERR_PTR(-EINVAL);
 
-	qca_cmn_clk_reset(pdev);
+	qca_cmn_clk_config(pdev);
 
 	if (of_machine_is_compatible("qcom,ipq5018")) {
 		qca_tcsr_ldo_rdy_set(true);
@@ -783,6 +932,8 @@ static int qca_mdio_probe(struct platform_device *pdev)
 	}
 
 	am->clk_div = 0xf;
+	am->force_c22 = of_property_read_bool(pdev->dev.of_node, "force_clause22");
+
 	writel(CTRL_0_REG_DEFAULT_VALUE(am->clk_div), am->membase + MDIO_CTRL_0_REG);
 
 	am->mii_bus->name = "qca_mdio";
@@ -791,6 +942,8 @@ static int qca_mdio_probe(struct platform_device *pdev)
 	am->mii_bus->priv = am;
 	am->mii_bus->parent = &pdev->dev;
 	am->preinit = qca_mht_preinit;
+	am->sw_read = qca_mii_read;
+	am->sw_write = qca_mii_write;
 	snprintf(am->mii_bus->id, MII_BUS_ID_SIZE, "%s", dev_name(&pdev->dev));
 
 	for (i = 0; i < PHY_MAX_ADDR; i++) {

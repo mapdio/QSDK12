@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2022-2023 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2024 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for any
  * purpose with or without fee is hereby granted, provided that the above
@@ -36,19 +36,36 @@
 					/* QoS valid */
 #define PPE_DRV_V6_CONN_FLOW_FLAG_INLINE_IPSEC 0x00000020
 					/* Inline IPSec flow */
-#define PPE_DRV_V6_CONN_FLAG_FLOW_PPE_ASSIST 0x00000040
+#define PPE_DRV_V6_CONN_FLAG_FLOW_RFS_PPE_ASSIST 0x00000040
 					/* Flow needs PPE assistance for RFS */
-#define PPE_DRV_V6_CONN_FLOW_METADATA_TYPE_SAWF 0x00000080
+#define PPE_DRV_V6_CONN_FLOW_METADATA_TYPE_WIFI_INFO 0x00000080
 					/* SAWF marking is valid for the flow */
 #define PPE_DRV_V6_CONN_FLOW_FLAG_FSE 0x00000100
 					/* Flow is also pushed to FSE HW in Wifi */
 #define PPE_DRV_V6_CONN_FLAG_FLOW_VP_VALID 0x00000200
 					/* Flow is VP valid when VP rule comes in DS user type */
+#define PPE_DRV_V6_CONN_FLAG_BRIDGE_VLAN_NETDEV 0x00000400
+					/* Flow is via bridge VLAN netdev */
+
 #ifdef NSS_PPE_IPQ53XX
 #define PPE_DRV_V6_CONN_FLOW_FLAG_SRC_INTERFACE_CHECK 0x00000400
 					/* source interface check */
 #endif
 #define PPE_DRV_V6_CONN_FLAG_FLOW_IGMAC_VALID 0x00000800
+#define PPE_DRV_V6_CONN_FLAG_FLOW_OFFLOAD_DISABLED 0x00001000
+					/* Flow has the PPE offload disabled */
+
+#define PPE_DRV_V6_CONN_FLAG_FLOW_ACL_VALID 0x00001000
+					/* Flow + ACL combination match */
+#define PPE_DRV_V6_CONN_FLAG_FLOW_POLICER_VALID 0x00002000
+#define PPE_DRV_V6_CONN_FLAG_FLOW_PPE_POLICER_ASSIST 0x00004000
+					/* Policer for NoEdit */
+#define PPE_DRV_V6_CONN_FLAG_FLOW_PRIORITY_PPE_ASSIST 0x00008000
+					/* Flow needs PPE assistance for Priority setting */
+#define PPE_DRV_V6_CONN_FLAG_FLOW_NO_EDIT_RULE 0x00010000
+					/* Flow is noedit rule */
+#define PPE_DRV_V6_CONN_FLAG_FLOW_WIFI_DS	0x00020000
+					/* Flow + MLO DS node */
 
 /*
  * ppe_drv_v6_conn_flow
@@ -64,6 +81,12 @@ struct ppe_drv_v6_conn_flow {
 	uint32_t match_src_ident;		/* Source port/connection ident */
 	uint32_t match_dest_ident;		/* Destination port/connection ident */
 	uint8_t xmit_dest_mac_addr[ETH_ALEN];	/* Destination MAC address after forwarding */
+
+	/*
+	 * Host order
+	 */
+	uint32_t dump_match_src_ip[4];		/* Source IP address */
+	uint32_t dump_match_dest_ip[4];		/* Destination IP address */
 
 	/*
 	 * PPE to and from port
@@ -112,6 +135,16 @@ struct ppe_drv_v6_conn_flow {
 	struct ppe_drv_iface *in_l3_if;
 
 	/*
+	 * Flow + ACL info
+	 */
+	ppe_drv_sc_t acl_sc;
+	uint16_t acl_id;
+	uint16_t policer_hw_id;		/* HW policer index */
+	uint16_t policer_id;		/* User policer index */
+
+	uint8_t wifi_rule_ds_metadata;		/* Wi-Fi rule DS metadata */
+
+	/*
 	 * Statistics for this flow entry
 	 */
 	atomic_t rx_packets;			/* Number of Rx packets */
@@ -143,6 +176,21 @@ static inline bool ppe_drv_v6_addr_equal(uint32_t *a1, uint32_t *a2)
 		(a1[2] ^ a2[2]) |
 		(a1[3] ^ a2[3])) == 0;
 }
+
+/**
+ * ppe_drv_v6_assist_stats_type
+ * 	PPE ASSIST Stats type
+ */
+enum ppe_drv_v6_assist_stats_type {
+	PPE_DRV_V6_ASSIST_CREATE_REQ,
+	PPE_DRV_V6_ASSIST_CREATE_MEM_FAIL,
+	PPE_DRV_V6_ASSIST_CREATE_CONN_FAIL,
+	PPE_DRV_V6_ASSIST_CREATE_FLOW_COLL,
+	PPE_DRV_V6_ASSIST_CREATE_FLOW_FAIL,
+	PPE_DRV_V6_ASSIST_DESTROY_REQ,
+	PPE_DRV_V6_ASSIST_DESTROY_FLOW_NOT_FOUND,
+	PPE_DRV_V6_ASSIST_DESTROY_FLOW_FAIL,
+};
 
 /*
  * ppe_drv_v6_conn_alloc()
@@ -499,6 +547,18 @@ static inline void ppe_drv_v6_conn_flow_match_src_ip_set(struct ppe_drv_v6_conn_
 }
 
 /*
+ * ppe_drv_v6_conn_flow_dump_match_src_ip_set()
+ *	Sets flow source IP in Host order.
+ */
+static inline void ppe_drv_v6_conn_flow_dump_match_src_ip_set(struct ppe_drv_v6_conn_flow *pcf, uint32_t match_src_ip[4])
+{
+        pcf->dump_match_src_ip[0] = htonl(match_src_ip[0]);
+        pcf->dump_match_src_ip[1] = htonl(match_src_ip[1]);
+        pcf->dump_match_src_ip[2] = htonl(match_src_ip[2]);
+        pcf->dump_match_src_ip[3] = htonl(match_src_ip[3]);
+}
+
+/*
  * ppe_drv_v6_conn_flow_match_dest_ip_set()
  *	Sets flow destination IP.
  */
@@ -508,6 +568,18 @@ static inline void ppe_drv_v6_conn_flow_match_dest_ip_set(struct ppe_drv_v6_conn
         pcf->match_dest_ip[1] = match_dest_ip[1];
         pcf->match_dest_ip[2] = match_dest_ip[2];
         pcf->match_dest_ip[3] = match_dest_ip[3];
+}
+
+/*
+ * ppe_drv_v6_conn_flow_dump_match_dest_ip_set()
+ *	Sets flow destination IP.
+ */
+static inline void ppe_drv_v6_conn_flow_dump_match_dest_ip_set(struct ppe_drv_v6_conn_flow *pcf, uint32_t match_dest_ip[4])
+{
+        pcf->dump_match_dest_ip[0] = htonl(match_dest_ip[0]);
+        pcf->dump_match_dest_ip[1] = htonl(match_dest_ip[1]);
+        pcf->dump_match_dest_ip[2] = htonl(match_dest_ip[2]);
+        pcf->dump_match_dest_ip[3] = htonl(match_dest_ip[3]);
 }
 
 /*
@@ -638,12 +710,13 @@ static inline void ppe_drv_v6_conn_flow_in_port_if_set(struct ppe_drv_v6_conn_fl
 }
 
 /*
- * ppe_drv_v6_conn_flow_in_l3_if_set()
- *	Sets ingress L3_IF interface.
+ * ppe_drv_v6_conn_flow_in_l3_if_set_and_ref()
+ *	Sets ingress L3_IF interface and take ref on iface
  */
-static inline void ppe_drv_v6_conn_flow_in_l3_if_set(struct ppe_drv_v6_conn_flow *pcf, struct ppe_drv_iface *in_l3_if)
+static inline void ppe_drv_v6_conn_flow_in_l3_if_set_and_ref(struct ppe_drv_v6_conn_flow *pcf, struct ppe_drv_iface *in_l3_if)
 {
-        pcf->in_l3_if = in_l3_if;
+	kref_get(&in_l3_if->ref);
+	pcf->in_l3_if = in_l3_if;
 }
 
 /*
@@ -760,3 +833,6 @@ void ppe_drv_v6_flow_vlan_set(struct ppe_drv_v6_conn_flow *pcf,
 void ppe_drv_v6_if_walk_release(struct ppe_drv_v6_conn_flow *pcf);
 bool ppe_drv_v6_if_walk(struct ppe_drv_v6_conn_flow *pcf, struct ppe_drv_top_if_rule *top_if,
 						ppe_drv_iface_t tx_if, ppe_drv_iface_t rx_if);
+bool ppe_drv_v6_fse_flow_configure(struct ppe_drv_v6_rule_create *create, struct ppe_drv_v6_conn_flow *pcf, struct ppe_drv_v6_conn_flow *pcr);
+void ppe_drv_fill_fse_v6_tuple_info(struct ppe_drv_v6_conn_flow *conn, struct ppe_drv_fse_rule_info *fse_info, bool is_ds);
+bool ppe_drv_v6_fse_interface_check(struct ppe_drv_v6_conn_flow *pcf);

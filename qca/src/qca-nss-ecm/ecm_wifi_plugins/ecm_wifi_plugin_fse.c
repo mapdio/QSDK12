@@ -28,8 +28,13 @@
  * ecm_wifi_plugin_fill_fse_wlan_info()
  *	Fill the FSE info for wlan FSE rule add / delete.
  */
+#ifdef ECM_WIFI_PLUGIN_OPEN_PROFILE_ENABLE
+static inline void ecm_wifi_plugin_fill_fse_wlan_info(struct ecm_front_end_fse_info *fse_info,
+						      struct ath_fse_flow_info *fse_wlan_info)
+#else
 static inline void ecm_wifi_plugin_fill_fse_wlan_info(struct ecm_front_end_fse_info *fse_info,
 						      struct qca_fse_flow_info *fse_wlan_info)
+#endif
 {
 	/*
 	 * Fill the wlan tuple info.
@@ -41,7 +46,12 @@ static inline void ecm_wifi_plugin_fill_fse_wlan_info(struct ecm_front_end_fse_i
 	fse_wlan_info->src_port = fse_info->src_port;
 	fse_wlan_info->dest_port = fse_info->dest_port;
 	fse_wlan_info->protocol = fse_info->protocol;
+	fse_wlan_info->protocol = fse_info->protocol;
 	fse_wlan_info->version = fse_info->ip_version;
+	fse_wlan_info->src_mac = fse_info->src_mac;
+	fse_wlan_info->dest_mac = fse_info->dest_mac;
+	fse_wlan_info->fw_svc_id = ECM_CLASSIFIER_EMESH_SAWF_INVALID_SVID;
+	fse_wlan_info->rv_svc_id = ECM_CLASSIFIER_EMESH_SAWF_INVALID_SVID;
 }
 
 /*
@@ -50,13 +60,21 @@ static inline void ecm_wifi_plugin_fill_fse_wlan_info(struct ecm_front_end_fse_i
  */
 bool ecm_wifi_plugin_fse_create_rule(struct ecm_front_end_fse_info *fse_info)
 {
+#ifdef ECM_WIFI_PLUGIN_OPEN_PROFILE_ENABLE
+	struct ath_fse_flow_info fse_wlan_info = {0};
+#else
 	struct qca_fse_flow_info fse_wlan_info = {0};
-
+#endif
 	/*
 	 * Fill the wlan tuple info and call wlan callback.
 	 */
 	ecm_wifi_plugin_fill_fse_wlan_info(fse_info, &fse_wlan_info);
+
+#ifdef ECM_WIFI_PLUGIN_OPEN_PROFILE_ENABLE
+	return ath_fse_add_rule(&fse_wlan_info);
+#else
 	return qca_fse_add_rule(&fse_wlan_info);
+#endif
 }
 
 /*
@@ -65,13 +83,21 @@ bool ecm_wifi_plugin_fse_create_rule(struct ecm_front_end_fse_info *fse_info)
  */
 bool ecm_wifi_plugin_fse_destroy_rule(struct ecm_front_end_fse_info *fse_info)
 {
+#ifdef ECM_WIFI_PLUGIN_OPEN_PROFILE_ENABLE
+	struct ath_fse_flow_info fse_wlan_info = {0};
+#else
 	struct qca_fse_flow_info fse_wlan_info = {0};
-
+#endif
 	/*
 	 * Fill the wlan tuple info and call wlan callback.
 	 */
 	ecm_wifi_plugin_fill_fse_wlan_info(fse_info, &fse_wlan_info);
+
+#ifdef ECM_WIFI_PLUGIN_OPEN_PROFILE_ENABLE
+	return ath_fse_delete_rule(&fse_wlan_info);
+#else
 	return qca_fse_delete_rule(&fse_wlan_info);
+#endif
 }
 
 /*

@@ -18,6 +18,7 @@
 
 #include <linux/module.h>
 #include <linux/netdevice.h>
+#include <linux/version.h>
 #include <net/genetlink.h>
 #include <net/netlink.h>
 #include "exports/nsm_nl_fam.h"
@@ -158,7 +159,11 @@ static int nsm_nl_get_latency(struct sk_buff *skb, struct genl_info *info)
 		return -1;
 	}
 
+#if (LINUX_VERSION_CODE < KERNEL_VERSION(6, 1, 0))
 	nla_strlcpy(netdev_name, nla, IFNAMSIZ);
+#else
+	nla_strscpy(netdev_name, nla, IFNAMSIZ);
+#endif
 
 	nla = info->attrs[NSM_NL_ATTR_SERVICE_ID];
 	if (!nla) {

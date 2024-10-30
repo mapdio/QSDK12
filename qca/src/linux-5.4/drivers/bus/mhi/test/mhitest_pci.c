@@ -27,6 +27,10 @@
 
 #define MHITEST_MHI_SEG_LEN			SZ_512K
 #define MHITEST_DUMP_DESC_TOLERANCE		64
+#define MAX_RAMDUMP_TABLE_SIZE			6
+#define COREDUMP_DESC				"Q6-COREDUMP"
+#define Q6_SFR_DESC				"Q6-SFR"
+
 
 static struct mhi_channel_config mhitest_mhi_channels[] = {
 	{
@@ -163,10 +167,85 @@ static struct mhitest_msi_config msi_config = {
 	},
 };
 
+struct ramdump_entry {
+	__le64 base_address;
+	__le64 actual_phys_address;
+	__le64 size;
+	char description[20];
+	char file_name[20];
+};
+
+struct ramdump_header {
+	__le32 version;
+	__le32 header_size;
+	struct ramdump_entry ramdump_table[MAX_RAMDUMP_TABLE_SIZE];
+};
+
 irqreturn_t mhitest_msi_handlr(int irq_number, void *dev)
 {
 	printk("mhitest_msi_handlr irq_number==%d\n",irq_number);
 	return IRQ_HANDLED;
+}
+
+void mhitest_get_crash_reason(struct mhi_controller *mhi_cntrl)
+{
+	struct ramdump_header *ramdump_header;
+	struct ramdump_entry *ramdump_table;
+	char *msg = ERR_PTR(-EPROBE_DEFER);
+	struct image_info *rddm_image;
+	u64 coredump_offset = 0;
+	struct mhi_buf *mhi_buf;
+	struct pci_dev *pdev;
+	struct device *dev;
+	int i;
+
+	rddm_image = mhi_cntrl->rddm_image;
+	mhi_buf = rddm_image->mhi_buf;
+
+	dev = &mhi_cntrl->mhi_dev->dev;
+	pdev = to_pci_dev(mhi_cntrl->cntrl_dev);
+	dev_err(dev, "CRASHED - [DID:DOMAIN:BUS:SLOT] - %x:%04u:%02u:%02u\n",
+		pdev->device, pdev->bus->domain_nr, pdev->bus->number,
+		PCI_SLOT(pdev->devfn));
+
+	/* Get RDDM header size */
+	ramdump_header = (struct ramdump_header *)mhi_buf[0].buf;
+	ramdump_table = ramdump_header->ramdump_table;
+	coredump_offset += le32_to_cpu(ramdump_header->header_size);
+
+	/* Traverse ramdump table to get coredump offset */
+	i = 0;
+	while (i < MAX_RAMDUMP_TABLE_SIZE) {
+		if (!strncmp(ramdump_table->description, COREDUMP_DESC,
+			     sizeof(COREDUMP_DESC)) ||
+			!strncmp(ramdump_table->description, Q6_SFR_DESC,
+			     sizeof(Q6_SFR_DESC))) {
+			break;
+		}
+		coredump_offset += cpu_to_le64(ramdump_table->size);
+		ramdump_table++;
+		i++;
+	}
+
+	if (i == MAX_RAMDUMP_TABLE_SIZE) {
+		dev_err(dev, "Cannot find '%s' entry in ramdump\n",
+			COREDUMP_DESC);
+		return;
+	}
+
+	/* Locate coredump data from the ramdump segments */
+	for (i = 0; i < rddm_image->entries; i++) {
+		if (coredump_offset < mhi_buf[i].len) {
+			msg = mhi_buf[i].buf + coredump_offset;
+			break;
+		}
+
+		coredump_offset -= mhi_buf[i].len;
+	}
+
+	if (!IS_ERR(msg) && msg && msg[0])
+		dev_err(dev, "Fatal error received from wcss software!\n%s\n",
+			msg);
 }
 
 int mhitest_dump_info(struct mhitest_platform *mplat, bool in_panic)
@@ -192,6 +271,8 @@ int mhitest_dump_info(struct mhitest_platform *mplat, bool in_panic)
 									ret);
 		return ret;
 	}
+
+	mhitest_get_crash_reason(mhi_ctrl);
 
 	MHITEST_VERB("Let's dump some more things...\n");
 	mhi_debug_reg_dump(mhi_ctrl);
@@ -640,7 +721,7 @@ int mhitest_pci_register_mhi(struct mhitest_platform *mplat)
 	dev_set_drvdata(&pci_dev->dev, mplat);
 	mhi_ctrl->cntrl_dev = &pci_dev->dev;
 
-	if (!mplat->fw_name) {
+	if (!mplat->fw_name[0]) {
 		MHITEST_ERR("fw_name is NULLL\n");
 		return -EINVAL;
 	}
@@ -1224,30 +1305,9 @@ out:
 	return ret;
 }
 
-int mhitest_pci_probe(struct pci_dev *pci_dev, const struct pci_device_id *id)
-{
-	struct mhitest_platform *temp = get_mhitest_mplat(id->device);
-
-	MHITEST_VERB("Enter\n");
-
-	if (!temp) {
-		MHITEST_ERR("temp is null..\n");
-		return -ENOMEM;
-	}
-	MHITEST_LOG("Vendor:0x%x Device:0x%x probed id:0x%x d_instance:%d\n",
-			pci_dev->vendor, pci_dev->device, id->device,
-					temp->d_instance);
-	/* store this tho main struct*/
-	temp->pci_dev = pci_dev;
-	temp->device_id = pci_dev->device;
-	temp->pci_dev_id = id;
-	MHITEST_VERB("Exit\n");
-	return 0;
-}
-
 extern int debug_lvl;
 extern int domain;
-int mhitest_pci_probe2(struct pci_dev *pci_dev, const struct pci_device_id *id)
+int mhitest_pci_probe(struct pci_dev *pci_dev, const struct pci_device_id *id)
 {
 	struct mhitest_platform *mplat;
 	struct platform_device *plat_dev = get_plat_device();
@@ -1280,19 +1340,17 @@ int mhitest_pci_probe2(struct pci_dev *pci_dev, const struct pci_device_id *id)
 	mplat->pci_dev = pci_dev;
 	mplat->device_id = pci_dev->device;
 	mplat->pci_dev_id = id;
+	mplat->d_instance = pci_domain_nr(pci_dev->bus);
 
-	MHITEST_LOG("Vendor ID:0x%x Device ID:0x%x Probed Device ID:0x%x\n",
-			pci_dev->vendor, pci_dev->device, id->device);
+	MHITEST_LOG("Vendor ID:0x%x Device ID:0x%x Probed Device ID:0x%x Instance ID:0x%x\n",
+		    pci_dev->vendor, pci_dev->device,
+		    id->device, mplat->d_instance);
 
 	ret = mhitest_event_work_init(mplat);
 	if (ret)
 		goto free_mplat;
 
-	ret = mhitest_store_mplat(mplat);
-	if (ret) {
-		MHITEST_ERR("Error ret:%d\n", ret);
-		goto work_deinit;
-	}
+	mhitest_store_mplat(mplat);
 
 	ret = mhitest_subsystem_register(mplat);
 	if (ret) {
@@ -1308,7 +1366,6 @@ pci_deinit:
 	mhitest_pci_remove_all(mplat);
 	pci_load_and_free_saved_state(pci_dev, &mplat->pci_dev_default_state);
 	mhitest_remove_mplat(mplat);
-work_deinit:
 	mhitest_event_work_deinit(mplat);
 free_mplat:
 	devm_kfree(&mplat->plat_dev->dev, mplat);
@@ -1346,7 +1403,7 @@ static const struct pci_device_id mhitest_pci_id_table[] = {
 
 struct pci_driver mhitest_pci_driver = {
 	.name	  = "mhitest_pci",
-	.probe	  = mhitest_pci_probe2,
+	.probe	  = mhitest_pci_probe,
 	.remove	  = mhitest_pci_remove,
 	.id_table = mhitest_pci_id_table,
 };

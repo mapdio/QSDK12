@@ -53,6 +53,20 @@
 				output-low;
 			};
 
+			pcie0_wake_pins: pcie0_wake_gpio {
+				pins = "gpio24";
+				function = "pcie0_wake";
+				drive-strength = <8>;
+				bias-pull-up;
+			};
+
+			pcie2_wake_pins: pcie2_wake_gpio {
+				pins = "gpio30";
+				function = "pcie2_wake";
+				drive-strength = <8>;
+				bias-pull-up;
+			};
+
 			blsp1_uart2_pins: blsp1_uart2_pinmux {
 				pins = "gpio34", "gpio35";
 				function = "blsp2_uart";
@@ -226,6 +240,7 @@
 			local-mac-address = [000000000000];
 			qcom,phy-mdio-addr = <16>;
 			phy-mode = "sgmii";
+			qcom,ppe-offload-disabled = <1>;
 		};
 
 		dp2 {
@@ -238,6 +253,7 @@
 			local-mac-address = [000000000000];
 			qcom,phy-mdio-addr = <17>;
 			phy-mode = "sgmii";
+			qcom,ppe-offload-disabled = <1>;
 		};
 
 		dp3 {
@@ -250,6 +266,7 @@
 			local-mac-address = [000000000000];
 			qcom,phy-mdio-addr = <18>;
 			phy-mode = "sgmii";
+			qcom,ppe-offload-disabled = <1>;
 		};
 
 		dp4 {
@@ -262,6 +279,7 @@
 			local-mac-address = [000000000000];
 			qcom,phy-mdio-addr = <19>;
 			phy-mode = "sgmii";
+			qcom,ppe-offload-disabled = <1>;
 		};
 
 		dp5 {
@@ -286,11 +304,6 @@
 			local-mac-address = [000000000000];
 			qcom,phy-mdio-addr = <0>;
 			phy-mode = "sgmii";
-		};
-
-		license_manager {
-			compatible = "qti,license-manager-service";
-			device-license-termination;
 		};
 
 		qpic_bam: dma@7984000 {
@@ -368,8 +381,11 @@
 		};
 
 		pcie0_x1: pci@28000000 {
-			pinctrl-0 = <&pci0_pin>;
+			pinctrl-0 = <&pcie0_wake_pins &pci0_pin>;
 			pinctrl-names = "default";
+			interrupts-extended = <&tlmm 24 IRQ_TYPE_LEVEL_HIGH>,
+					      <&intc GIC_SPI 51 IRQ_TYPE_LEVEL_HIGH>;
+			interrupt-names = "wake_gpio", "global_irq";
 			perst-gpio = <&tlmm 23 1>;
 			max-payload-size = <1>; // 1-256 TLP bytes for WKK
 			status = "ok";
@@ -403,8 +419,11 @@
 		};
 
 		pcie2_x2: pci@20000000 {
-			pinctrl-0 = <&pci2_pin>;
+			pinctrl-0 = <&pcie2_wake_pins &pci2_pin>;
 			pinctrl-names = "default";
+			interrupts-extended = <&tlmm 30 IRQ_TYPE_LEVEL_HIGH>,
+					      <&intc GIC_SPI 125 IRQ_TYPE_LEVEL_HIGH>;
+			interrupt-names = "wake_gpio", "global_irq";
 			perst-gpio = <&tlmm 29 1>;
 			max-payload-size = <1>; // 1-256 TLP bytes for WKK
 			status = "ok";
@@ -582,7 +601,7 @@
 				   <0 352 4>,			/* Rx desc ring id #21 IRQ info */
 				   <0 353 4>,			/* Rx desc ring id #22 IRQ info */
 				   <0 354 4>,			/* Rx desc ring id #23 IRQ info */
-				   <0 261 4>,			/* Misc error IRQ info */
+				   <0 499 4>,			/* Misc error IRQ info */
 				   <0 364 4>,			/* PPEDS Node #1(TxComp ring id #1) TxComplete IRQ info */
 				   <0 332 4>,			/* PPEDS Node #1(Rx Desc ring id #1) Rx Desc IRQ info */
 				   <0 356 4>,			/* PPEDS Node #1(RxFill Desc ring id #1) Rx Fill IRQ info */

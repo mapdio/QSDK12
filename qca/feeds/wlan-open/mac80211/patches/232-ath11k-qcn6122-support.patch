@@ -290,7 +290,7 @@ Signed-off-by: Sowmiya Sree Elavalagan <ssreeela@codeaurora.org>
  #define CE_ATTR_BYTE_SWAP_DATA 2
 --- a/drivers/net/wireless/ath/ath11k/core.c
 +++ b/drivers/net/wireless/ath/ath11k/core.c
-@@ -580,6 +580,8 @@ static const struct ath11k_hw_params ath
+@@ -583,6 +583,8 @@ static const struct ath11k_hw_params ath
  		.hybrid_bus_type = true,
  		.fixed_fw_mem = true,
  		.support_off_channel_tx = false,
@@ -299,16 +299,7 @@ Signed-off-by: Sowmiya Sree Elavalagan <ssreeela@codeaurora.org>
  	},
  	{
  		.hw_rev = ATH11K_HW_IPQ5018,
-@@ -595,7 +597,7 @@ static const struct ath11k_hw_params ath
- 		.hal_desc_sz = sizeof(struct hal_rx_desc_qcn9074),
- 		.hw_ops = &ipq5018_ops,
- 		.qmi_service_ins_id = ATH11K_QMI_WLFW_SERVICE_INS_ID_V01_IPQ8074,
--		.ring_mask = &ath11k_hw_ring_mask_ipq8074,
-+		.ring_mask = &ath11k_hw_ring_mask_qcn6122,
- 		.regs = &ipq5018_regs,
- 		.m3_addr = ATH11K_QMI_IPQ5018_M3_DUMP_ADDRESS,
- 		.credit_flow = false,
-@@ -647,6 +649,76 @@ static const struct ath11k_hw_params ath
+@@ -650,6 +652,76 @@ static const struct ath11k_hw_params ath
  		.fixed_fw_mem = false,
  		.support_off_channel_tx = false,
  	},
@@ -536,7 +527,7 @@ Signed-off-by: Sowmiya Sree Elavalagan <ssreeela@codeaurora.org>
  #define ATH11K_TX_RING_MASK_0 0x1
  #define ATH11K_TX_RING_MASK_1 0x2
  #define ATH11K_TX_RING_MASK_2 0x4
-@@ -2095,6 +2138,43 @@ const struct service_to_pipe ath11k_targ
+@@ -2095,6 +2138,41 @@ const struct service_to_pipe ath11k_targ
  	},
  };
  
@@ -558,11 +549,9 @@ Signed-off-by: Sowmiya Sree Elavalagan <ssreeela@codeaurora.org>
 +		ATH11K_RX_RING_MASK_3,
 +	},
 +	.rx_err = {
-+		0, 0, 0, 0, 0, 0, 0, 0,
 +		ATH11K_RX_ERR_RING_MASK_0,
 +	},
 +	.rx_wbm_rel = {
-+		0, 0, 0, 0, 0, 0, 0, 0, 0,
 +		ATH11K_RX_WBM_REL_RING_MASK_0,
 +	},
 +       .reo_status = {
@@ -580,7 +569,7 @@ Signed-off-by: Sowmiya Sree Elavalagan <ssreeela@codeaurora.org>
  /* Target firmware's Copy Engine configuration for IPQ5018 */
  const struct ce_pipe_config ath11k_target_ce_config_wlan_ipq5018[] = {
  	/* CE0: host->target HTC control and raw streams */
-@@ -2855,6 +2935,81 @@ const struct ath11k_hw_regs wcn6750_regs
+@@ -2855,6 +2933,81 @@ const struct ath11k_hw_regs wcn6750_regs
  	.hal_reo1_misc_ctl = 0x000005d8,
  };
  

@@ -12,15 +12,15 @@ PKG_RELEASE:=1
 
 PKG_SOURCE_PROTO:=git
 PKG_SOURCE_URL=$(PROJECT_GIT)/project/rpcd.git
-PKG_SOURCE_DATE:=2020-05-26
-PKG_SOURCE_VERSION:=67c8a3fda26e441d3ec4a19f50ac72eca8deb14b
+PKG_MIRROR_HASH:=76467ff072b50190f93d071b7792ade7c717674397a2547e995a8f819a48954e
+PKG_SOURCE_DATE:=2023-07-01
+PKG_SOURCE_VERSION:=c07ab2f91061ad64209e9aaa1fb1b77061a1af25
 PKG_MAINTAINER:=Jo-Philipp Wich <jo@mein.io>
-PKG_MIRROR_HASH:=cfe44e600093a424d1133b55a141c5becb708f48ee4fc8b7a98a82495ced7c72
 
 PKG_LICENSE:=ISC
 PKG_LICENSE_FILES:=
 
-PKG_BUILD_PARALLEL:=1
+PKG_ASLR_PIE_REGULAR:=1
 
 include $(INCLUDE_DIR)/package.mk
 include $(INCLUDE_DIR)/cmake.mk
@@ -62,24 +62,33 @@ define Package/rpcd/install
 	$(INSTALL_DATA) $(PKG_BUILD_DIR)/unauthenticated.json $(1)/usr/share/rpcd/acl.d/unauthenticated.json
 	$(INSTALL_DIR) $(1)/etc/config
 	$(INSTALL_CONF) ./files/rpcd.config $(1)/etc/config/rpcd
+	$(INSTALL_DIR) $(1)/etc/uci-defaults
+	$(INSTALL_BIN) ./files/50-migrate-rpcd-ubus-sock.sh $(1)/etc/uci-defaults
 endef
 
 
 # 1: plugin name
-# 2: extra dependencies
+# 2: additional dependencies
 # 3: plugin title/description
+# 4: extra dependencies
 define BuildPlugin
 
-  PKG_CONFIG_DEPENDS += CONFIG_PACKAGE_luci-rpc-mod-$(1)
+  PKG_CONFIG_DEPENDS += CONFIG_PACKAGE_rpcd-mod-$(1)
 
   define Package/rpcd-mod-$(1)
     $(Package/rpcd/default)
     TITLE+= ($(1) plugin)
     DEPENDS+=rpcd $(2)
+    EXTRA_DEPENDS:=$(4)
   endef
 
   define Package/rpcd-mod-$(1)/description
     $(3)
+  endef
+
+  define Package/rpcd-mod-$(1)/postinst
+#!/bin/sh
+[ -n "$$$${IPKG_INSTROOT}" ] || /etc/init.d/rpcd reload
   endef
 
   define Package/rpcd-mod-$(1)/install
@@ -94,4 +103,5 @@ endef
 $(eval $(call BuildPackage,rpcd))
 $(eval $(call BuildPlugin,file,,Provides ubus calls for file and directory operations.))
 $(eval $(call BuildPlugin,rpcsys,,Provides ubus calls for sysupgrade and password changing.))
-$(eval $(call BuildPlugin,iwinfo,+libiwinfo,Provides ubus calls for accessing iwinfo data.))
+$(eval $(call BuildPlugin,iwinfo,+libiwinfo,Provides ubus calls for accessing iwinfo data.,libiwinfo (>= 2023-01-21)))
+$(eval $(call BuildPlugin,ucode,+libucode,Allows implementing plugins using ucode scripts.))

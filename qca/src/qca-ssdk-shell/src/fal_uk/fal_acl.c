@@ -1,7 +1,7 @@
 /*
  * Copyright (c) 2014, 2016-2017, The Linux Foundation. All rights reserved.
  *
- * Copyright (c) 2022, Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2023, Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
@@ -303,5 +303,14 @@ fal_acl_mac_entry_dump(a_uint32_t dev_id)
     sw_error_t rv;
 
     rv = sw_uk_exec(SW_API_ACL_MAC_ENTRY_DUMP, dev_id);
+    return rv;
+}
+
+sw_error_t
+fal_acl_counter_get(a_uint32_t dev_id, a_uint32_t entry_index, fal_entry_counter_t *acl_counter)
+{
+    sw_error_t rv = SW_OK;
+
+    rv = sw_uk_exec(SW_API_ACL_COUNTER_GET, dev_id, entry_index, acl_counter);
     return rv;
 }

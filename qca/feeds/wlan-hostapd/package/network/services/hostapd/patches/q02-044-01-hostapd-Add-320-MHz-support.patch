@@ -42,10 +42,11 @@ Signed-off-by: Ramya Gnanasekar <quic_rgnanase@quicinc.com>
  	u32 start_freq;
  
  	if (is_6ghz_freq(params->freq)) {
-@@ -2531,6 +2531,38 @@ static int hostapd_ctrl_check_freq_param
+@@ -2530,6 +2530,34 @@ static int hostapd_ctrl_check_freq_param
+ 				return -1;
  			break;
  		default:
- 			return -1;
++			return -1;
 +		}
 +		break;
 +	case 320:
@@ -54,33 +55,28 @@ Signed-off-by: Ramya Gnanasekar <quic_rgnanase@quicinc.com>
 +			return -1;
 +
 +		switch (params->sec_channel_offset) {
-+                case 1:
-+                        if (params->freq + 150 != params->center_freq1 &&
-+                            params->freq + 110 != params->center_freq1 &&
-+                            params->freq + 70  != params->center_freq1 &&
-+                            params->freq + 30  != params->center_freq1 &&
-+                            params->freq - 10  != params->center_freq1 &&
-+                            params->freq - 50  != params->center_freq1 &&
-+                            params->freq - 90  != params->center_freq1 &&
-+                            params->freq - 130 != params->center_freq1)
-+                                return -1;
-+                        break;
-+                case -1:
-+                        if (params->freq + 130 != params->center_freq1 &&
-+                            params->freq + 90  != params->center_freq1 &&
-+                            params->freq + 50  != params->center_freq1 &&
-+                            params->freq + 10  != params->center_freq1 &&
-+                            params->freq - 30  != params->center_freq1 &&
-+                            params->freq - 70  != params->center_freq1 &&
-+                            params->freq - 110 != params->center_freq1 &&
-+                            params->freq - 150 != params->center_freq1)
-+                                return -1;
++		case 1:
++			if (params->freq + 150 != params->center_freq1 &&
++			    params->freq + 70 != params->center_freq1 &&
++			    params->freq + 30 != params->center_freq1 &&
++			    params->freq - 10 != params->center_freq1 &&
++			    params->freq - 50 != params->center_freq1 &&
++			    params->freq - 130 != params->center_freq1)
++				return -1;
++			break;
++		case -1:
++			if (params->freq + 130 != params->center_freq1 &&
++			    params->freq + 50 != params->center_freq1 &&
++			    params->freq + 10 != params->center_freq1 &&
++			    params->freq - 30 != params->center_freq1 &&
++			    params->freq - 70 != params->center_freq1 &&
++			    params->freq - 150 != params->center_freq1)
++				return -1;
 +			break;
 +		default:
-+			return -1;
+ 			return -1;
  		}
  		break;
- 	default:
 --- a/src/ap/drv_callbacks.c
 +++ b/src/ap/drv_callbacks.c
 @@ -978,7 +978,8 @@ void hostapd_event_ch_switch(struct host
@@ -95,7 +91,7 @@ Signed-off-by: Ramya Gnanasekar <quic_rgnanase@quicinc.com>
  		hapd->iconf->ht_capab &= ~HT_CAP_INFO_SUPP_CHANNEL_WIDTH_SET;
 --- a/src/ap/hostapd.c
 +++ b/src/ap/hostapd.c
-@@ -3569,6 +3569,7 @@ static int hostapd_change_config_freq(st
+@@ -3566,6 +3566,7 @@ static int hostapd_change_config_freq(st
  	case 40:
  	case 80:
  	case 160:
@@ -103,7 +99,7 @@ Signed-off-by: Ramya Gnanasekar <quic_rgnanase@quicinc.com>
  		conf->ht_capab |= HT_CAP_INFO_SUPP_CHANNEL_WIDTH_SET;
  		break;
  	default:
-@@ -3643,6 +3644,9 @@ static int hostapd_fill_csa_settings(str
+@@ -3640,6 +3641,9 @@ static int hostapd_fill_csa_settings(str
  	case 160:
  		bandwidth = CONF_OPER_CHWIDTH_160MHZ;
  		break;
@@ -115,7 +111,7 @@ Signed-off-by: Ramya Gnanasekar <quic_rgnanase@quicinc.com>
  		break;
 --- a/src/common/ieee802_11_defs.h
 +++ b/src/common/ieee802_11_defs.h
-@@ -2219,6 +2219,7 @@ enum phy_type {
+@@ -2229,6 +2229,7 @@ enum phy_type {
  /*
   * IEEE P802.11-REVmc/D5.0 Table 9-152 - HT/VHT Operation Information
   * subfields.
@@ -147,7 +143,7 @@ Signed-off-by: Ramya Gnanasekar <quic_rgnanase@quicinc.com>
  	__NL80211_FREQUENCY_ATTR_AFTER_LAST,
 --- a/src/ap/ap_config.h
 +++ b/src/ap/ap_config.h
-@@ -1195,7 +1195,8 @@ hostapd_set_oper_chwidth(struct hostapd_
+@@ -1191,7 +1191,8 @@ hostapd_set_oper_chwidth(struct hostapd_
  		oper_chwidth = CONF_OPER_CHWIDTH_160MHZ;
  #endif /* CONFIG_IEEE80211BE */
  #ifdef CONFIG_IEEE80211AX

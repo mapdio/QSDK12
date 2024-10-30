@@ -7,6 +7,10 @@ config globals 'globals'
 #	option TypesDB '/usr/share/collectd/types.db'
 #	option Interval '30'
 #	option ReadThreads '2'
+#	option WriteThreads '2'
+#	option WriteQueueLimitLow '0'
+#	option WriteQueueLimitHigh '0'
+#	option CollectInternalStats '0'
 
 #config plugin 'apcups'
 #	option enable '0'
@@ -174,9 +178,18 @@ config globals 'globals'
 #config plugin 'sensors'
 #	option enable '0'
 
+#config plugin 'swap'
+#	option enable '0'
+#	option ReportByDevice '1'
+#	option ValuesAbsolute '1'
+#	option ValuesPercentage '0'
+#	option ReportIO '1'
+#	option ReportBytes '1'
+
 #config plugin 'tcpconns'
 #	option enable '0'
-#	list ListeningPort '0'
+#	option ListeningPorts '0'
+#	option AllPortsSummary '0'
 #	list LocalPort '22'
 #	list LocalPort '80'
 
@@ -201,3 +214,19 @@ config globals 'globals'
 #config plugin 'vmem'
 #	option enable '0'
 #	option Verbose '0'
+#
+#config plugin 'write_http'
+#	option enable '0'
+#
+#config write_http_node
+#	option name 'foo'
+#	option URL 'http://example.org/post-collectd'
+#
+#config plugin 'mqtt'
+#	option enable '1'
+#
+#config mqtt_block
+#	option name 'foo'
+#	option blocktype 'Subscribe'
+#	option Host 'localhost'
+#	option Topic 'collectd/#'

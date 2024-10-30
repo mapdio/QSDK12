@@ -17,6 +17,7 @@ include $(INCLUDE_DIR)/kernel.mk
 PKG_NAME:=linux
 PKG_VERSION:=$(LINUX_VERSION)
 PKG_SOURCE:=$(LINUX_SOURCE)
+PKG_CPE_ID:=cpe:/o:linux:linux_kernel
 ifneq ($(call qstrip,$(CONFIG_KERNEL_GIT_CLONE_URI)),)
   PKG_SOURCE_PROTO:=git
   PKG_SOURCE_URL:=$(call qstrip,$(CONFIG_KERNEL_GIT_CLONE_URI))
@@ -35,8 +36,13 @@ endif
 HOST_BUILD_DIR:=$(KERNEL_BUILD_DIR)/linux-$(LINUX_VERSION)
 PKG_HASH:=$(LINUX_KERNEL_HASH)
 LINUX_DIR := $(HOST_BUILD_DIR)
-FILES_DIR := 
+FILES_DIR :=
 PATCH_DIR := ./patches$(if $(wildcard ./patches-$(LINUX_VERSION)),-$(LINUX_VERSION))
+
+ifeq ($(CONFIG_TARGET_x86),)
+  FILES_DIR = $(PLATFORM_DIR)/files-$(LINUX_SRC_VERSION)
+  PATCH_DIR = $(PLATFORM_DIR)/patches$(if $(wildcard $(PLATFORM_DIR)/patches-$(KERNEL_PATCHVER)),-$(KERNEL_PATCHVER))
+endif
 
 include $(INCLUDE_DIR)/toolchain-build.mk
 include $(INCLUDE_DIR)/kernel-defaults.mk
@@ -49,14 +55,14 @@ HOST_EXTRACFLAGS=
 
 LINUX_HAS_HEADERS_INSTALL:=y
 
-KMAKE := $(MAKE) -C $(HOST_BUILD_DIR) \
+HOST_KMAKE := $(MAKE) -C $(HOST_BUILD_DIR) \
 	$(KERNEL_MAKE_FLAGS) \
 	CC="$(KERNEL_CC)" \
-	CFLAGS="$(TARGET_CFLAGS)"
+	HOSTCFLAGS="$(HOST_CFLAGS)"
 
 define Host/Configure/all
 	mkdir -p $(BUILD_DIR_TOOLCHAIN)/linux-dev
-	$(KMAKE) \
+	$(HOST_KMAKE) \
 		INSTALL_HDR_PATH="$(BUILD_DIR_TOOLCHAIN)/linux-dev/" \
 		headers_install
 endef
@@ -90,7 +96,7 @@ endef
 
 define Host/Configure
 	env
-	yes '' | $(KMAKE) oldconfig
+	yes '' | $(HOST_KMAKE) oldconfig
 	$(call Host/Configure/all)
 	$(call Host/Configure/post/$(ARCH))
 endef

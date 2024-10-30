@@ -24,10 +24,16 @@
 #define QTI_TRYBIT     			BIT(12)
 
 #define MAX_FUSE_ADDR_SIZE		0x8
+#define IPQ9574_MAX_FUSE_ADDR_SIZE	0x10
 struct fuse_payload {
 	uint32_t fuse_addr;
 	uint32_t lsb_val;
 	uint32_t msb_val;
+};
+
+struct fuse_payload_ipq9574 {
+	uint32_t fuse_addr;
+	uint32_t val;
 };
 
 enum qseecom_qceos_cmd_id {
@@ -234,6 +240,7 @@ extern bool qti_scm_sec_auth_available(unsigned int scm_cmd_id);
 extern int qti_fuseipq_scm_call(struct device *dev, u32 svc_id, u32 cmd_id,
 					void *cmd_buf, size_t size);
 extern int qti_scm_qseecom_remove_xpu(void);
+extern long qti_scm_is_feature_available(u32 svc_id, u32 cmd_id, u32 feature_id);
 extern int qti_scm_qseecom_notify(struct qsee_notify_app *req,
 				  size_t req_size,
 				  struct qseecom_command_scm_resp *resp,
@@ -260,8 +267,8 @@ extern int qti_scm_tls_hardening(uint32_t req_addr, uint32_t req_size,
 				 uint32_t resp_addr, uint32_t resp_size,
 				 u32 cmd_id);
 extern int qti_scm_aes(uint32_t req_addr, uint32_t req_size, u32 cmd_id);
-extern int qti_scm_get_ipq5332_fuse_list(u32 svc_id, u32 cmd_id,
-					struct fuse_payload *fuse, size_t size);
+extern int qti_scm_get_ipq_fuse_list(u32 svc_id, u32 cmd_id,
+				 void *fuse, size_t size);
 extern int qti_scm_aes_clear_key_handle(uint32_t key_handle, u32 cmd_id);
 extern int qti_scm_dload(u32 svc_id, u32 cmd_id, void *cmd_buf);
 extern int qti_scm_sdi(u32 svc_id, u32 cmd_id);
@@ -292,6 +299,8 @@ extern int qti_scm_pil_cfg(u32 peripheral, u32 args);
 extern int qti_scm_toggle_bt_eco(u32 peripheral, u32 args);
 extern int qti_scm_get_device_attestation_ephimeral_key(u32 svc_id,
 		u32 cmd_id, void *key_buf, u32 key_buf_len, u32 *key_len);
+extern long __qti_scm_is_feature_available(struct device *dev, u32 svc_id,
+		u32 cmd_id, u32 feature_id);
 extern int __qti_scm_get_device_attestation_ephimeral_key(struct device *dev,
 		u32 svc_id, u32 cmd_id, void *key_buf, u32 key_buf_len, u32 *key_len);
 extern int qti_scm_get_device_attestation_response(u32 svc_id, u32 cmd_id,
@@ -456,5 +465,5 @@ extern int qti_scm_int_radio_powerup(u32 peripheral);
 extern int qti_scm_int_radio_powerdown(u32 peripheral);
 extern int __qti_scm_set_trybit(struct device *dev, u32 svc_id, u32 val, u64 dload_mode_addr);
 extern int qti_scm_set_trybit(u32 svc_id);
-extern int qti_read_dload_reg(void);
+extern int qti_read_dload_reg(uint32_t *val);
 #endif

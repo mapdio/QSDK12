@@ -8,12 +8,12 @@
 include $(TOPDIR)/rules.mk
 
 PKG_NAME:=gpsd
-PKG_VERSION:=3.23
+PKG_VERSION:=3.25
 PKG_RELEASE:=1
 
 PKG_SOURCE:=$(PKG_NAME)-$(PKG_VERSION).tar.xz
 PKG_SOURCE_URL:=@SAVANNAH/$(PKG_NAME)
-PKG_HASH:=e36429b9f6fc42004894dff3dc4453f5b43f95af8533b96d3d135987418da9df
+PKG_HASH:=7e5e53e5ab157dce560a2f22e20322ef1136d3ebde99162def833a3306de01e5
 
 PKG_MAINTAINER:=Pushpal Sidhu <psidhu.devel@gmail.com>
 PKG_LICENSE:=BSD-3-Clause
@@ -23,7 +23,7 @@ PKG_CPE_ID:=cpe:/a:berlios:gps_daemon
 PKG_BUILD_DEPENDS:=scons/host
 
 include $(INCLUDE_DIR)/package.mk
-include $(INCLUDE_DIR)/scons.mk
+include ../../devel/scons/scons.mk
 
 define Package/gpsd/Default
   DEPENDS+= +libusb-1.0
@@ -87,7 +87,7 @@ define Package/libgps
   SECTION:=libs
   CATEGORY:=Libraries
   TITLE:=C service library for communicating with the GPS daemon
-  ABI_VERSION:=29
+  ABI_VERSION:=30
 endef
 
 define Package/libgps/description
@@ -100,6 +100,7 @@ SCONS_VARS += \
 	LINKFLAGS="$(TARGET_LDFLAGS)"
 
 SCONS_OPTIONS += \
+	target_platform=linux \
 	dbus_export=no \
 	tsip=no \
 	fv18=no \

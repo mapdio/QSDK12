@@ -1,0 +1,238 @@
+From f58df7eedd5dbca0a4155654593eadcf0b919855 Mon Sep 17 00:00:00 2001
+From: Urvishkumar Pandya <quic_urvishku@quicinc.com>
+Date: Mon, 8 Jan 2024 20:28:19 +0530
+Subject: [PATCH] fix-mld-vap-bringup-ezmesh
+
+---
+ .built  |  0
+ event.c |  3 +++
+ info.c  |  2 ++
+ phy.c   |  2 --
+ scan.c  | 16 ++++++++++++++--
+ util.c  |  2 +-
+ 6 files changed, 20 insertions(+), 5 deletions(-)
+ delete mode 100644 .built
+
+diff --git a/.built b/.built
+deleted file mode 100644
+index e69de29..0000000
+diff --git a/event.c b/event.c
+index d41acc7..8aba40d 100644
+--- a/event.c
++++ b/event.c
+@@ -946,8 +946,11 @@ static int print_event(struct nl_msg *msg, void *arg)
+ 	__u8 reg_type;
+ 	struct ieee80211_beacon_channel chan_before_beacon,  chan_after_beacon;
+ 	__u32 wiphy_idx = 0;
++#ifdef IW_FULL
++	struct nlattr *nst;
+ 	int rem_nst;
+ 	__u16 status;
++#endif
+ 
+ 	if (args->time || args->reltime || args->ctime) {
+ 		unsigned long long usecs, previous, tvusec;
+diff --git a/info.c b/info.c
+index 4ea6a53..4db8840 100644
+--- a/info.c
++++ b/info.c
+@@ -19,6 +19,7 @@ static void print_flag(const char *name, int *open)
+ 	*open = 1;
+ }
+ 
++#ifdef IW_FULL
+ static char *cipher_name(__u32 c)
+ {
+ 	static char buf[20];
+@@ -56,6 +57,7 @@ static char *cipher_name(__u32 c)
+ 		return buf;
+ 	}
+ }
++#endif
+ 
+ static int ext_feature_isset(const unsigned char *ext_features, int ext_features_len,
+ 			     enum nl80211_ext_feature_index ftidx)
+diff --git a/phy.c b/phy.c
+index 3b0903c..c8975d8 100644
+--- a/phy.c
++++ b/phy.c
+@@ -369,7 +369,6 @@ err_out:
+ 		free(cac_trigger_argv);
+ 	return err;
+ }
+-#ifdef IW_FULL
+ TOPLEVEL(cac, "channel <channel> [NOHT|HT20|HT40+|HT40-|5MHz|10MHz|80MHz]\n"
+ 	      "freq <freq> [NOHT|HT20|HT40+|HT40-|5MHz|10MHz|80MHz]\n"
+ 	      "freq <control freq> [5|10|20|40|80|80+80|160] [<center1_freq> [<center2_freq>]]",
+@@ -381,7 +380,6 @@ COMMAND(cac, trigger,
+ 	NL80211_CMD_RADAR_DETECT, 0, CIB_NETDEV, handle_cac_trigger,
+ 	"Start or trigger a channel availability check (CAC) looking to look for\n"
+ 	"radars on the given channel.");
+-#endif
+ 
+ static int handle_fragmentation(struct nl80211_state *state,
+ 				struct nl_msg *msg,
+diff --git a/scan.c b/scan.c
+index 3eb047b..dca44a5 100644
+--- a/scan.c
++++ b/scan.c
+@@ -568,6 +568,7 @@ static void print_ssid(const uint8_t type, uint8_t len, const uint8_t *data,
+ #define BSS_MEMBERSHIP_SELECTOR_VHT_PHY 126
+ #define BSS_MEMBERSHIP_SELECTOR_HT_PHY 127
+ 
++#ifdef IW_FULL
+ static void print_supprates(const uint8_t type, uint8_t len,
+ 			    const uint8_t *data,
+ 			    const struct print_ies_data *ie_buffer)
+@@ -590,6 +591,7 @@ static void print_supprates(const uint8_t type, uint8_t len,
+ 	}
+ 	printf("\n");
+ }
++#endif
+ 
+ static void print_rm_enabled_capabilities(const uint8_t type, uint8_t len,
+ 			    const uint8_t *data,
+@@ -1074,12 +1076,14 @@ static void print_rsn_ie(const char *defcipher, const char *defauth,
+ 	_print_rsn_ie(defcipher, defauth, len, data, 0);
+ }
+ 
++#ifdef IW_FULL
+ static void print_osen_ie(const char *defcipher, const char *defauth,
+ 			  uint8_t len, const uint8_t *data)
+ {
+ 	printf("\n\t");
+ 	_print_rsn_ie(defcipher, defauth, len, data, 1);
+ }
++#endif
+ 
+ static void print_rsn(const uint8_t type, uint8_t len, const uint8_t *data,
+ 		      const struct print_ies_data *ie_buffer)
+@@ -1097,6 +1101,7 @@ static void print_ht_capa(const uint8_t type, uint8_t len, const uint8_t *data,
+ 	print_ht_mcs(data + 3);
+ }
+ 
++#ifdef IW_FULL
+ static const char* ntype_11u(uint8_t t)
+ {
+ 	switch (t) {
+@@ -1111,6 +1116,7 @@ static const char* ntype_11u(uint8_t t)
+ 	default: return "Reserved";
+ 	}
+ }
++#endif
+ 
+ static const char* vgroup_11u(uint8_t t)
+ {
+@@ -1140,8 +1146,10 @@ static void print_interworking(const uint8_t type, uint8_t len,
+ 	if (len >= 1) {
+ 		uint8_t ano = data[0];
+ 		printf("\t\tNetwork Options: 0x%hx\n", (unsigned short)(ano));
++#ifdef IW_FULL
+ 		printf("\t\t\tNetwork Type: %i (%s)\n",
+ 		       (int)(ano & 0xf), ntype_11u(ano & 0xf));
++#endif
+ 		if (ano & (1<<4))
+ 			printf("\t\t\tInternet\n");
+ 		if (ano & (1<<5))
+@@ -1321,6 +1329,7 @@ static void print_ht_op(const uint8_t type, uint8_t len, const uint8_t *data,
+ 	printf("\t\t * PCO phase: %d\n", (data[5] & 0x8) >> 3);
+ }
+ 
++#ifdef IW_FULL
+ static void print_capabilities(const uint8_t type, uint8_t len,
+ 			       const uint8_t *data,
+ 			       const struct print_ies_data *ie_buffer)
+@@ -1481,6 +1490,7 @@ static void print_capabilities(const uint8_t type, uint8_t len,
+ 
+ 	printf("\n");
+ }
++#endif
+ 
+ static void print_tim(const uint8_t type, uint8_t len, const uint8_t *data,
+ 		      const struct print_ies_data *ie_buffer)
+@@ -1526,6 +1536,7 @@ static void print_vht_oper(const uint8_t type, uint8_t len, const uint8_t *data,
+ 	printf("\t\t * VHT basic MCS set: 0x%.2x%.2x\n", data[4], data[3]);
+ }
+ 
++#ifdef IW_FULL
+ static void print_supp_op_classes(const uint8_t type, uint8_t len,
+ 				  const uint8_t *data,
+ 				  const struct print_ies_data *ie_buffer)
+@@ -1559,6 +1570,7 @@ static void print_supp_op_classes(const uint8_t type, uint8_t len,
+ 				break;
+ 		}
+ }
++#endif
+ 
+ static void print_measurement_pilot_tx(const uint8_t type, uint8_t len,
+ 				       const uint8_t *data,
+@@ -1769,7 +1781,9 @@ static void print_wifi_osen(const uint8_t type, uint8_t len,
+ 			    const uint8_t *data,
+ 			    const struct print_ies_data *ie_buffer)
+ {
++#ifdef IW_FULL
+ 	print_osen_ie("OSEN", "OSEN", len, data);
++#endif
+ }
+ 
+ static bool print_wifi_wmm_param(const uint8_t *data, uint8_t len)
+@@ -2092,10 +2106,8 @@ static void print_wifi_wps(const uint8_t type, uint8_t len, const uint8_t *data,
+ 
+ static const struct ie_print wifiprinters[] = {
+ 	[1] = { "WPA", print_wifi_wpa, 2, 255, BIT(PRINT_SCAN), },
+-#ifdef IW_FULL
+ 	[2] = { "WMM", print_wifi_wmm, 1, 255, BIT(PRINT_SCAN), },
+ 	[4] = { "WPS", print_wifi_wps, 0, 255, BIT(PRINT_SCAN), },
+-#endif
+ };
+ 
+ static inline void print_p2p(const uint8_t type, uint8_t len,
+@@ -2192,6 +2204,7 @@ static inline void print_hs20_ind(const uint8_t type, uint8_t len,
+ 		printf("\t\tUnexpected length: %i\n", len);
+ }
+ 
++#ifdef IW_FULL
+ static void print_wifi_owe_tarns(const uint8_t type, uint8_t len,
+ 				 const uint8_t *data,
+ 				 const struct print_ies_data *ie_buffer)
+@@ -2289,6 +2302,7 @@ static void print_vendor(unsigned char len, unsigned char *data,
+ 		printf(" %.2x", data[i]);
+ 	printf("\n");
+ }
++#endif
+ 
+ static void print_he_capa(const uint8_t type, uint8_t len, const uint8_t *data,
+ 			  const struct print_ies_data *ie_buffer)
+@@ -2419,8 +2433,10 @@ void print_ies(unsigned char *ie, int ielen, bool unknown,
+ 			}
+ 			print_ie(&ieprinters[ie[0]],
+ 				 ie[0], ie[1], ie + 2, &ie_buffer);
++#ifdef IW_FULL
+ 		} else if (ie[0] == 221 /* vendor */) {
+ 			print_vendor(ie[1], ie + 2, unknown, ptype);
++#endif
+ 		} else if (ie[0] == 255 /* extension */) {
+ 			print_extension(ie[1], ie + 2, unknown, ptype);
+ 		} else if (unknown) {
+diff --git a/util.c b/util.c
+index c6d2d2b..740761a 100644
+--- a/util.c
++++ b/util.c
+@@ -147,13 +147,13 @@ const char *iftype_name(enum nl80211_iftype iftype)
+ 	return modebuf;
+ }
+ 
++#ifdef IW_FULL
+ static const char *commands[NL80211_CMD_MAX + 1] = {
+ #include "nl80211-commands.inc"
+ };
+ 
+ static char cmdbuf[100];
+ 
+-#ifdef IW_FULL
+ const char *command_name(enum nl80211_commands cmd)
+ {
+ 	if (cmd <= NL80211_CMD_MAX && commands[cmd])
+-- 
+2.17.1
+

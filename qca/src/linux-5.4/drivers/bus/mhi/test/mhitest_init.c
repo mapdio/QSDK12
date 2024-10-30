@@ -41,8 +41,7 @@ int timeout_ms = MHI_TIMEOUT_DEFAULT;
 module_param(timeout_ms, int, 0);
 MODULE_PARM_DESC(timeout_ms, "timeout mhi test");
 
-static int d_instance;
-static struct mhitest_platform *mplat_g[MHI_MAX_DEVICE];
+static LIST_HEAD(mplat_g);
 static struct platform_device *m_plat_dev;
 
 struct platform_device *get_plat_device(void)
@@ -50,26 +49,14 @@ struct platform_device *get_plat_device(void)
 	return m_plat_dev;
 }
 
-int mhitest_store_mplat(struct mhitest_platform *temp)
+void mhitest_store_mplat(struct mhitest_platform *temp)
 {
-	if (d_instance < MHI_MAX_DEVICE) {
-		mplat_g[d_instance] = temp;
-		mplat_g[d_instance]->d_instance = d_instance;
-		MHITEST_VERB("mplat_g[%d]:%p temp:%p same ? d_instance:%d\n",
-			d_instance, mplat_g[d_instance], temp, d_instance);
-		d_instance++;
-		return 0;
-	}
-	MHITEST_ERR("Error Max device support count exceeds\n");
-	return 1;
+	list_add(&temp->node, &mplat_g);
 }
 
 void mhitest_remove_mplat(struct mhitest_platform *temp)
 {
-	if (d_instance > 0 && d_instance < MHI_MAX_DEVICE) {
-		d_instance--;
-		mplat_g[d_instance] = NULL;
-	}
+	list_del(&temp->node);
 }
 
 void mhitest_free_mplat(struct mhitest_platform *temp)
@@ -78,18 +65,13 @@ void mhitest_free_mplat(struct mhitest_platform *temp)
 	mhitest_remove_mplat(temp);
 }
 
-struct mhitest_platform *get_mhitest_mplat(int id)
-{
-	return mplat_g[id];
-}
-
 struct mhitest_platform *get_mhitest_mplat_by_pcidev(struct pci_dev *pci_dev)
 {
-	int i;
+	struct mhitest_platform *temp;
 
-	for (i = 0; i < MHI_MAX_DEVICE; i++) {
-		if (mplat_g[i]->pci_dev == pci_dev)
-			return mplat_g[i];
+	list_for_each_entry(temp, &mplat_g, node) {
+		if (temp->pci_dev == pci_dev)
+			return temp;
 	}
 
 	return NULL;

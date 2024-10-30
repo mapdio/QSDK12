@@ -1,13 +1,13 @@
+# SPDX-License-Identifier: GPL-2.0-only
 #
-# Copyright (C) 2007 OpenWrt.org
-#
-# This is free software, licensed under the GNU General Public License v2.
-# See /LICENSE for more information.
-#
+# Copyright (C) 2007-2020 OpenWrt.org
 
 ifeq ($(MAKECMDGOALS),prereq)
   SUBTARGETS:=prereq
   PREREQ_ONLY:=1
+# For target/linux related target add dtb to selectively compile dtbs
+else ifneq ($(filter target/linux/%,$(MAKECMDGOALS)),)
+  SUBTARGETS:=$(DEFAULT_SUBDIR_TARGETS) dtb
 else
   SUBTARGETS:=$(DEFAULT_SUBDIR_TARGETS)
 endif
@@ -23,26 +23,29 @@ define subtarget
 endef
 
 define ERROR
-	($(call MESSAGE, $(2)); $(if $(BUILD_LOG), echo "$(2)" >> $(BUILD_LOG_DIR)/$(1)/error.txt))
+	($(call MESSAGE, $(2)); $(if $(BUILD_LOG), echo "$(2)" >> $(BUILD_LOG_DIR)/$(1)/error.txt;) $(if $(3),, exit 1;))
 endef
 
 lastdir=$(word $(words $(subst /, ,$(1))),$(subst /, ,$(1)))
 diralias=$(if $(findstring $(1),$(call lastdir,$(1))),,$(call lastdir,$(1)))
 
 subdir_make_opts = \
-	-r -C $(1) \
+	$(if $(SUBDIR_MAKE_DEBUG),-d) -r -C $(1) \
 		BUILD_SUBDIR="$(1)" \
-		BUILD_VARIANT="$(4)"
+		BUILD_VARIANT="$(4)" \
+		ALL_VARIANTS="$(5)"
 
 subdir_make_opts_V_e = \
-	-r -C $(1)/$(bd) $(target) \
+	$(if $(SUBDIR_MAKE_DEBUG),-d) -r -C $(1)/$(bd) $(target) \
 		BUILD_SUBDIR="$(1)" \
-		BUILD_VARIANT="$(filter-out __default,$(variant))"
+		BUILD_VARIANT="$(filter-out __default,$(variant))" \
+		ALL_VARIANTS="$(5)"
 
 # 1: subdir
 # 2: target
 # 3: build type
 # 4: build variant
+# 5: all variants
 log_make = \
 	 $(if $(call debug,$(1),v),,@)+ \
 	 $(if $(BUILD_LOG), \
@@ -70,16 +73,18 @@ define subdir
     $(foreach target,$(SUBTARGETS) $($(1)/subtargets),
       $(foreach btype,$(buildtypes-$(bd)),
         $(call warn_eval,$(1)/$(bd),t,T,$(1)/$(bd)/$(btype)/$(target): $(if $(NO_DEPS)$(QUILT),,$($(1)/$(bd)/$(btype)/$(target)) $(call $(1)//$(btype)/$(target),$(1)/$(bd)/$(btype))))
-		  $(call log_make,$(1)/$(bd),$(target),$(btype),$(filter-out __default,$(variant))) $(if $(findstring e,$(OPENWRT_VERBOSE)),&& $(call SUCCESS_MESSAGE, make $(subdir_make_opts_V_e) finished) || { $(call ERROR_MESSAGE, make $(subdir_make_opts_V_e) failed); fail; }) \
-			$(if $(findstring $(bd),$($(1)/builddirs-ignore-$(btype)-$(target))), || $(call ERROR,$(1),   ERROR: $(1)/$(bd) [$(btype)] failed to build.))
+		  $(call log_make,$(1)/$(bd),$(target),$(btype),$(filter-out __default,$(variant)),$($(1)/$(bd)/variants)) \
+			  $(if $(findstring e,$(OPENWRT_VERBOSE)),&& $(call SUCCESS_MESSAGE, make $(subdir_make_opts_V_e) finished) || { $(call ERROR_MESSAGE, make $(subdir_make_opts_V_e) failed); fail; }) \
+			|| $(call ERROR,$(2),   ERROR: $(1)/$(bd) [$(btype)] failed to build.,$(findstring $(bd),$($(1)/builddirs-ignore-$(btype)-$(target))))
         $(if $(call diralias,$(bd)),$(call warn_eval,$(1)/$(bd),l,T,$(1)/$(call diralias,$(bd))/$(btype)/$(target): $(1)/$(bd)/$(btype)/$(target)))
       )
       $(call warn_eval,$(1)/$(bd),t,T,$(1)/$(bd)/$(target): $(if $(NO_DEPS)$(QUILT),,$($(1)/$(bd)/$(target)) $(call $(1)//$(target),$(1)/$(bd))))
-        $(foreach variant,$(if $(BUILD_VARIANT),$(BUILD_VARIANT),$(if $(strip $($(1)/$(bd)/variants)),$($(1)/$(bd)/variants),$(if $($(1)/$(bd)/default-variant),$($(1)/$(bd)/default-variant),__default))),
+        $(foreach variant,$(filter-out *,$(if $(BUILD_VARIANT),$(BUILD_VARIANT),$(if $(strip $($(1)/$(bd)/variants)),$($(1)/$(bd)/variants),$(if $($(1)/$(bd)/default-variant),$($(1)/$(bd)/default-variant),__default)))),
 			$(if $(BUILD_LOG),@mkdir -p $(BUILD_LOG_DIR)/$(1)/$(bd)/$(filter-out __default,$(variant)))
-			$(if $($(1)/autoremove),$(call rebuild_check,$(1)/$(bd),$(target),,$(filter-out __default,$(variant))))
-			$(call log_make,$(1)/$(bd),$(target),,$(filter-out __default,$(variant))) $(if $(findstring e,$(OPENWRT_VERBOSE)),&& $(call SUCCESS_MESSAGE, make $(subdir_make_opts_V_e) finished) || { $(call ERROR_MESSAGE, make $(subdir_make_opts_V_e) failed); fail; }) \
-				$(if $(findstring $(bd),$($(1)/builddirs-ignore-$(target))), || $(call ERROR,$(1),   ERROR: $(1)/$(bd) failed to build$(if $(filter-out __default,$(variant)), (build variant: $(variant))).))
+			$(if $($(1)/autoremove),$(call rebuild_check,$(1)/$(bd),$(target),,$(filter-out __default,$(variant)),$($(1)/$(bd)/variants)))
+			$(call log_make,$(1)/$(bd),$(target),,$(filter-out __default,$(variant)),$($(1)/$(bd)/variants)) \
+			  $(if $(findstring e,$(OPENWRT_VERBOSE)),&& $(call SUCCESS_MESSAGE, make $(subdir_make_opts_V_e) finished) || { $(call ERROR_MESSAGE, make $(subdir_make_opts_V_e) failed); fail; }) \
+				|| $(call ERROR,$(1),   ERROR: $(1)/$(bd) failed to build$(if $(filter-out __default,$(variant)), (build variant: $(variant))).,$(findstring $(bd),$($(1)/builddirs-ignore-$(target))))
         )
       $(if $(PREREQ_ONLY)$(DUMP_TARGET_DB),,
         # aliases

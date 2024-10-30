@@ -3,7 +3,7 @@
  *	Shortcut forwarding engine file for IPv6 UDP
  *
  * Copyright (c) 2015-2016, 2019-2020, The Linux Foundation. All rights reserved.
- * Copyright (c) 2021-2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2021-2023 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for any
  * purpose with or without fee is hereby granted, provided that the above
@@ -33,6 +33,7 @@
 #include "sfe_vlan.h"
 #include "sfe_trustsec.h"
 #include "sfe_ipv6_multicast.h"
+#include "sfe_ipv6_frag.h"
 
 /*
  * sfe_ipv6_udp_sk_deliver()
@@ -127,7 +128,7 @@ static int sfe_ipv6_udp_sk_deliver(struct sk_buff *skb, struct sfe_ipv6_connecti
  *	Handle UDP packet receives and forwarding.
  */
 int sfe_ipv6_recv_udp(struct sfe_ipv6 *si, struct sk_buff *skb, struct net_device *dev,
-			     unsigned int len, struct ipv6hdr *iph, unsigned int ihl, bool sync_on_find, struct sfe_l2_info *l2_info, bool tun_outer)
+			     unsigned int len, struct ipv6hdr *iph, unsigned int ihl, bool sync_on_find, struct sfe_l2_info *l2_info, bool tun_outer, bool is_frag, struct frag_hdr * fhdr)
 {
 	struct udphdr *udph;
 	struct sfe_ipv6_addr *src_ip;
@@ -144,8 +145,16 @@ int sfe_ipv6_recv_udp(struct sfe_ipv6 *si, struct sk_buff *skb, struct net_devic
 	netdev_features_t features;
 	u8 ingress_flags = 0;
 	sfe_fls_conn_stats_update_t update_cb;
+	bool vlan_passthrough = false;
 
 	DEBUG_TRACE("%px: sfe: sfe_ipv6_recv_udp called.\n", skb);
+
+	/*
+	 * If fragment handling is enabled, forward the fragments.
+	 */
+	if (si->fragment_forwarding_enable && is_frag) {
+		return sfe_ipv6_recv_udp_frag(si, skb, dev, len, iph, ihl, sync_on_find, l2_info, tun_outer, fhdr);
+	}
 
 	/*
 	 * Is our packet too short to contain a valid UDP header?
@@ -204,10 +213,14 @@ int sfe_ipv6_recv_udp(struct sfe_ipv6 *si, struct sk_buff *skb, struct net_devic
 	ingress_flags = cm->vlan_filter_rule.ingress_flags;
 #endif
 	if (unlikely(!sfe_vlan_validate_ingress_tag(skb, cm->ingress_vlan_hdr_cnt, cm->ingress_vlan_hdr, l2_info, ingress_flags))) {
-		rcu_read_unlock();
-		sfe_ipv6_exception_stats_inc(si, SFE_IPV6_EXCEPTION_EVENT_INGRESS_VLAN_TAG_MISMATCH);
-		DEBUG_TRACE("VLAN tag mismatch. skb=%px\n", skb);
-		return 0;
+		if (!(cm->flags & SFE_IPV6_CONNECTION_MATCH_FLAG_BRIDGE_VLAN_PASSTHROUGH)) {
+			rcu_read_unlock();
+			sfe_ipv6_exception_stats_inc(si, SFE_IPV6_EXCEPTION_EVENT_INGRESS_VLAN_TAG_MISMATCH);
+			DEBUG_TRACE("VLAN tag mismatch. skb=%px\n", skb);
+			return 0;
+		}
+		vlan_passthrough = true;
+		this_cpu_inc(si->stats_pcpu->bridge_vlan_passthorugh_forwarded64);
 	}
 
 	/*
@@ -241,9 +254,11 @@ int sfe_ipv6_recv_udp(struct sfe_ipv6 *si, struct sk_buff *skb, struct net_devic
 		return 0;
 	}
 
-	update_cb = rcu_dereference(sfe_fls_info.stats_update_cb);
-	if (cm->fls_conn && update_cb) {
-		update_cb(cm->fls_conn, skb);
+	if (unlikely(cm->fls_conn && !(cm->flags & SFE_IPV6_CONNECTION_MATCH_FLAG_FLS_DISABLED))){
+		update_cb = rcu_dereference(sfe_fls_info.stats_update_cb);
+		if (likely(update_cb && !update_cb(cm->fls_conn, skb))) {
+			cm->flags |= SFE_IPV6_CONNECTION_MATCH_FLAG_FLS_DISABLED;
+		}
 	}
 
 	/*
@@ -251,7 +266,7 @@ int sfe_ipv6_recv_udp(struct sfe_ipv6 *si, struct sk_buff *skb, struct net_devic
 	 * forward it in the fast path, but now that we've found an associated
 	 * connection we need sync its status before exception it to slow path.
 	 */
-	if (unlikely(sync_on_find)) {
+	if (unlikely(sync_on_find || is_frag)) {
 		sfe_ipv6_sync_status(si, cm->connection, SFE_SYNC_REASON_STATS);
 		rcu_read_unlock();
 
@@ -383,6 +398,17 @@ int sfe_ipv6_recv_udp(struct sfe_ipv6 *si, struct sk_buff *skb, struct net_devic
 	}
 
 	/*
+	 * For bridged flows when packet contains the VLan header, restore the header back and forward
+	 * we do this here, to make sure PPPOE header is restored before VLAN header(s) is restored for pppoe over vlan passthrough use cases
+	 */
+	if (unlikely(vlan_passthrough)) {
+		struct ethhdr *eth = eth_hdr(skb);
+		__skb_push(skb, l2_info->vlan_hdr_cnt * VLAN_HLEN);
+		skb_reset_network_header(skb);
+		skb->protocol = eth->h_proto;
+	}
+
+	/*
 	 * From this point on we're good to modify the packet.
 	 */
 
@@ -391,9 +417,9 @@ int sfe_ipv6_recv_udp(struct sfe_ipv6 *si, struct sk_buff *skb, struct net_devic
 	 * divert.
 	 */
 	if (unlikely(cm->flags & SFE_IPV6_CONNECTION_MATCH_FLAG_MULTICAST)) {
-		sfe_ipv6_recv_multicast(si, skb, ihl, len, cm, l2_info, tun_outer);
+		ret = sfe_ipv6_recv_multicast(si, skb, ihl, len, cm, l2_info, tun_outer, true);
 		rcu_read_unlock();
-		return 1;
+		return ret;
 	}
 
 	/*
@@ -499,9 +525,26 @@ int sfe_ipv6_recv_udp(struct sfe_ipv6 *si, struct sk_buff *skb, struct net_devic
 		if (unlikely(!hw_csum)) {
 			udp_csum = udph->check;
 			if (likely(udp_csum)) {
-				u32 sum = udp_csum + cm->xlate_src_csum_adjustment;
+				u32 sum;
+
+				/*
+				 * Get the 1's compliment of csum here
+				 * instead of inline in the next step to prevent
+				 * compilier from doing a 32bit 1's compliment.
+				 */
+				udp_csum = ~udp_csum;
+				sum = udp_csum + cm->xlate_src_csum_adjustment;
+
+				/*
+				 * Since we used 32bits to store the 1's compliment sum,
+				 * when converting it back to 16bits, we need to add the
+				 * carry to lsb as well. This is taken care by the 2nd
+				 * iteration of sum.
+				 */
 				sum = (sum & 0xffff) + (sum >> 16);
-				udph->check = (u16)sum;
+				sum = (sum & 0xffff) + (sum >> 16);
+
+				udph->check = (u16)~sum;
 			}
 		}
 	}
@@ -525,9 +568,26 @@ int sfe_ipv6_recv_udp(struct sfe_ipv6 *si, struct sk_buff *skb, struct net_devic
 		if (unlikely(!hw_csum)) {
 			udp_csum = udph->check;
 			if (likely(udp_csum)) {
-				u32 sum = udp_csum + cm->xlate_dest_csum_adjustment;
+				u32 sum;
+
+				/*
+				 * Get the 1's compliment of csum here
+				 * instead of inline in the next step to prevent
+				 * compilier from doing a 32bit 1's compliment.
+				 */
+				udp_csum = ~udp_csum;
+				sum = udp_csum + cm->xlate_dest_csum_adjustment;
+
+				/*
+				 * Since we used 32bits to store the 1's compliment sum,
+				 * when converting it back to 16bits, we need to add the
+				 * carry to lsb as well. This is taken care by the 2nd
+				 * iteration of sum.
+				 */
 				sum = (sum & 0xffff) + (sum >> 16);
-				udph->check = (u16)sum;
+				sum = (sum & 0xffff) + (sum >> 16);
+
+				udph->check = (u16)~sum;
 			}
 		}
 	}
@@ -583,10 +643,13 @@ int sfe_ipv6_recv_udp(struct sfe_ipv6 *si, struct sk_buff *skb, struct net_devic
 	}
 
 	/*
-	 * Update priority of skb.
+	 * Update priority and int_pri of skb.
 	 */
 	if (unlikely(cm->flags & SFE_IPV6_CONNECTION_MATCH_FLAG_PRIORITY_REMARK)) {
 		skb->priority = cm->priority;
+#if defined(SFE_PPE_QOS_SUPPORTED)
+		skb_set_int_pri(skb, cm->int_pri);
+#endif
 	}
 
 	/*
@@ -598,7 +661,7 @@ int sfe_ipv6_recv_udp(struct sfe_ipv6 *si, struct sk_buff *skb, struct net_devic
 		 * Update service class stats if SAWF is valid.
 		 */
 		if (likely(cm->sawf_valid)) {
-			service_class_id = SFE_GET_SAWF_SERVICE_CLASS(cm->mark);
+			service_class_id = cm->svc_id;
 			sfe_ipv6_service_class_stats_inc(si, service_class_id, len);
 		}
 	}

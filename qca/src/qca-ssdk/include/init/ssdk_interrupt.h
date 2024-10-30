@@ -1,5 +1,7 @@
 /*
  * Copyright (c) 2017, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2023-2024, Qualcomm Innovation Center, Inc. All rights reserved.
+ *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
  * above copyright notice and this permission notice appear in all copies.
@@ -20,8 +22,10 @@
 #ifdef __cplusplus
 extern "C" {
 #endif                          /* __cplusplus */
-int qca_mac_enable_intr(struct qca_phy_priv *priv);
+int qca_switch_enable_intr(struct qca_phy_priv *priv, a_uint32_t intr_mask);
 int qca_intr_init(struct qca_phy_priv *priv);
+void qca_intr_work_pause(struct qca_phy_priv *priv);
+void qca_intr_work_resume(struct qca_phy_priv *priv);
 
 #ifdef __cplusplus
 }

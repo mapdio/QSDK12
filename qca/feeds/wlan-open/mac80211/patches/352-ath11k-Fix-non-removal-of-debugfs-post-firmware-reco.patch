@@ -57,9 +57,9 @@ Signed-off-by: Nidhi Jain <quic_nidhjain@quicinc.com>
  	switch (vif->type) {
  	case NL80211_IFTYPE_UNSPECIFIED:
  	case NL80211_IFTYPE_STATION:
-@@ -8310,13 +8311,8 @@ static int ath11k_mac_op_add_interface(s
+@@ -8306,13 +8307,7 @@ static int ath11k_mac_op_add_interface(s
  	if (ret)
- 		ath11k_warn(ar->ab, "failed to set ap ps ret %d\n", ret);
+ 		goto err_peer_del;
  
 -	if (ar->state != ATH11K_STATE_RESTARTED) {
 -		ath11k_debug_aggr_size_config_init(arvif);
@@ -68,12 +68,11 @@ Signed-off-by: Nidhi Jain <quic_nidhjain@quicinc.com>
 -		INIT_LIST_HEAD(&arvif->ar->debug.wmi_list);
 -		init_completion(&arvif->ar->debug.wmi_ctrl_path_stats_rcvd);
 -	}
-+	if (arvif->vif->debugfs_dir)
-+		ath11k_debugfs_per_arvif(arvif);
++	ath11k_debugfs_per_arvif(arvif);
  
  	mutex_unlock(&ar->conf_mutex);
  
-@@ -8358,6 +8354,32 @@ static int ath11k_mac_vif_unref(int buf_
+@@ -8354,6 +8349,32 @@ static int ath11k_mac_vif_unref(int buf_
  	return 0;
  }
  
@@ -106,7 +105,7 @@ Signed-off-by: Nidhi Jain <quic_nidhjain@quicinc.com>
  static void ath11k_mac_op_remove_interface(struct ieee80211_hw *hw,
  					   struct ieee80211_vif *vif)
  {
-@@ -8463,24 +8485,8 @@ err_vdev_del:
+@@ -8459,24 +8480,7 @@ err_vdev_del:
  
  	/* TODO: recal traffic pause state based on the available vdevs */
  
@@ -128,14 +127,13 @@ Signed-off-by: Nidhi Jain <quic_nidhjain@quicinc.com>
 -	/* Remove the wbm tx compl stats file */
 -	debugfs_remove(arvif->wbm_tx_completion_stats);
 -	arvif->wbm_tx_completion_stats = NULL;
-+	if (arvif->vif->debugfs_dir)
-+		ath11k_mac_debugfs_remove_stats_file(arvif);
++	ath11k_mac_debugfs_remove_stats_file(arvif);
  
  unlock:
  	mutex_unlock(&ar->conf_mutex);
 --- a/drivers/net/wireless/ath/ath11k/core.c
 +++ b/drivers/net/wireless/ath/ath11k/core.c
-@@ -2156,6 +2156,7 @@ static void ath11k_core_pre_reconfigure_
+@@ -2056,6 +2056,7 @@ static void ath11k_core_pre_reconfigure_
  {
  	struct ath11k *ar;
  	struct ath11k_pdev *pdev;
@@ -143,7 +141,7 @@ Signed-off-by: Nidhi Jain <quic_nidhjain@quicinc.com>
  	int i;
  
  	spin_lock_bh(&ab->base_lock);
-@@ -2169,6 +2170,11 @@ static void ath11k_core_pre_reconfigure_
+@@ -2069,6 +2070,11 @@ static void ath11k_core_pre_reconfigure_
  		    ar->state == ATH11K_STATE_TM)
  			continue;
  

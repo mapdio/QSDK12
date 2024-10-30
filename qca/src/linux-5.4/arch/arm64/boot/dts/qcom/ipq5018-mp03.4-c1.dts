@@ -146,6 +146,10 @@
 			reg = <0x0 0x4E500000 0x0 0x01A00000>;
 		};
 
+		minidump_mem: minidump_mem@0 {
+			no-map;
+		};
+
 #if defined(__CNSS2__)
 		mhi_region0: dma_pool0@4FF00000 {
 			compatible = "shared-dma-pool";
@@ -279,6 +283,10 @@
 		qcn9000_pcie1: qcn9000_pcie1@50000000 {
 			no-map;
 			reg = <0x0 0x50000000 0x0 0x03500000>;
+		};
+
+		minidump_mem: minidump_mem@0 {
+			no-map;
 		};
 
 #if defined(__CNSS2__)

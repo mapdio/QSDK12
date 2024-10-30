@@ -105,7 +105,7 @@ static ip6mr_mfc_event_offload_callback_t __rcu
 
 #ifdef CONFIG_IPV6_MROUTE_MULTIPLE_TABLES
 #define ip6mr_for_each_table(mrt, net) \
-	list_for_each_entry_rcu(mrt, &net->ipv6.mr_tables, list)
+	list_for_each_entry_rcu(mrt, &net->ipv6.mr6_tables, list)
 
 static struct mr_table *ip6mr_mr_table_iter(struct net *net,
 					    struct mr_table *mrt)

@@ -40,23 +40,28 @@ Signed-off-by: Rameshkumar Sundaram <quic_ramess@quicinc.com>
  src/drivers/driver_nl80211.c | 20 ++++++++-----
  6 files changed, 126 insertions(+), 20 deletions(-)
 
+diff --git a/src/ap/ap_config.h b/src/ap/ap_config.h
+index 4302618..7e8d607 100644
 --- a/src/ap/ap_config.h
 +++ b/src/ap/ap_config.h
-@@ -925,6 +925,11 @@ struct hostapd_bss_config {
- 
+@@ -926,6 +926,12 @@ struct hostapd_bss_config {
  	u8 rnr;
  	int beacon_tx_mode;
+ 	bool xrates_supported;
 +	enum {
 +		FILS_UBPR_USER_DISABLED,
 +		FILS_UBPR_FORCE_DISABLED,
 +		FILS_UBPR_ENABLED
 +	} fils_state, ubpr_state;
++
  };
  
  /**
+diff --git a/src/ap/beacon.c b/src/ap/beacon.c
+index 6ac0835..12857df 100644
 --- a/src/ap/beacon.c
 +++ b/src/ap/beacon.c
-@@ -1401,16 +1401,28 @@ static u8 * hostapd_probe_resp_offloads(
+@@ -1678,16 +1678,28 @@ static u8 * hostapd_probe_resp_offloads(struct hostapd_data *hapd,
  
  
  #ifdef CONFIG_IEEE80211AX
@@ -85,8 +90,8 @@ Signed-off-by: Rameshkumar Sundaram <quic_ramess@quicinc.com>
 +
  	return hostapd_gen_probe_resp(hapd, NULL, 0,
  				      &params->unsol_bcast_probe_resp_tmpl_len,
- 				      NULL, 0);
-@@ -1695,6 +1707,17 @@ static u8 * hostapd_gen_fils_discovery(s
+ 				      NULL, 0, NULL, true);
+@@ -1972,6 +1984,17 @@ static u8 * hostapd_gen_fils_discovery(struct hostapd_data *hapd, size_t *len)
  static u8 * hostapd_fils_discovery(struct hostapd_data *hapd,
  				   struct wpa_driver_ap_params *params)
  {
@@ -104,7 +109,7 @@ Signed-off-by: Rameshkumar Sundaram <quic_ramess@quicinc.com>
  	params->fd_max_int = hapd->conf->fils_discovery_max_int;
  	if (is_6ghz_op_class(hapd->iconf->op_class) &&
  	    params->fd_max_int > FD_MAX_INTERVAL_6GHZ)
-@@ -1704,10 +1727,12 @@ static u8 * hostapd_fils_discovery(struc
+@@ -1981,10 +2004,12 @@ static u8 * hostapd_fils_discovery(struct hostapd_data *hapd,
  	if (params->fd_min_int > params->fd_max_int)
  		params->fd_min_int = params->fd_max_int;
  
@@ -119,9 +124,11 @@ Signed-off-by: Rameshkumar Sundaram <quic_ramess@quicinc.com>
  	return NULL;
  }
  
+diff --git a/src/ap/hostapd.c b/src/ap/hostapd.c
+index ce0ab94..c123255 100644
 --- a/src/ap/hostapd.c
 +++ b/src/ap/hostapd.c
-@@ -71,6 +71,8 @@ static void hostapd_switch_color_timeout
+@@ -71,6 +71,8 @@ static void hostapd_switch_color_timeout_handler(void *eloop_data,
  						 void *user_ctx);
  #endif /* CONFIG_IEEE80211AX */
  
@@ -130,7 +137,7 @@ Signed-off-by: Rameshkumar Sundaram <quic_ramess@quicinc.com>
  #ifdef CONFIG_IEEE80211BE
  void hostapd_mld_unlink_bss(struct hostapd_data *tbss);
  #endif
-@@ -2421,6 +2423,8 @@ dfs_offload:
+@@ -2536,6 +2538,8 @@ dfs_offload:
  	for (j = 0; j < iface->num_bss; j++)
  		hostapd_neighbor_set_own_report(iface->bss[j]);
  
@@ -139,7 +146,7 @@ Signed-off-by: Rameshkumar Sundaram <quic_ramess@quicinc.com>
  	return 0;
  
  fail:
-@@ -2658,7 +2662,7 @@ void hostapd_interface_deinit(struct hos
+@@ -2848,7 +2852,7 @@ void hostapd_interface_deinit(struct hostapd_iface *iface)
  			break;
  		hostapd_bss_deinit(iface->bss[j]);
  	}
@@ -148,7 +155,7 @@ Signed-off-by: Rameshkumar Sundaram <quic_ramess@quicinc.com>
  #ifdef NEED_AP_MLME
  	hostapd_stop_setup_timers(iface);
  	eloop_cancel_timeout(ap_ht2040_timeout, iface, NULL);
-@@ -2956,6 +2960,68 @@ static int ifname_in_use(struct hapd_int
+@@ -3151,6 +3155,68 @@ static int ifname_in_use(struct hapd_interfaces *interfaces, const char *ifname)
  	return 0;
  }
  
@@ -217,7 +224,7 @@ Signed-off-by: Rameshkumar Sundaram <quic_ramess@quicinc.com>
  
  /**
   * hostapd_interface_init_bss - Read configuration file and init BSS data
-@@ -3235,6 +3301,7 @@ int hostapd_disable_iface(struct hostapd
+@@ -3430,6 +3496,7 @@ int hostapd_disable_iface(struct hostapd_iface *hapd_iface)
  	wpa_printf(MSG_DEBUG, "Interface %s disabled",
  		   hapd_iface->bss[0]->conf->iface);
  	hostapd_set_state(hapd_iface, HAPD_IFACE_DISABLED);
@@ -225,9 +232,11 @@ Signed-off-by: Rameshkumar Sundaram <quic_ramess@quicinc.com>
  	return 0;
  }
  
+diff --git a/src/ap/ieee802_11.c b/src/ap/ieee802_11.c
+index 36ce52c..3c17c51 100644
 --- a/src/ap/ieee802_11.c
 +++ b/src/ap/ieee802_11.c
-@@ -7514,15 +7514,7 @@ static size_t hostapd_eid_rnr_iface_len(
+@@ -8232,15 +8232,7 @@ static size_t hostapd_eid_rnr_iface_len(struct hostapd_data *hapd,
  	return total_len;
  }
  
@@ -244,7 +253,7 @@ Signed-off-by: Rameshkumar Sundaram <quic_ramess@quicinc.com>
  {
  	u8 i;
  	bool is_6ghz = is_6ghz_op_class(hapd->iconf->op_class);
-@@ -7541,6 +7533,9 @@ static enum colocation_mode get_colocati
+@@ -8259,6 +8251,9 @@ static enum colocation_mode get_colocation_mode(struct hostapd_data *hapd)
  		if (iface == hapd->iface || !iface || !iface->conf)
  			continue;
  
@@ -254,11 +263,13 @@ Signed-off-by: Rameshkumar Sundaram <quic_ramess@quicinc.com>
  		is_colocated_6ghz = is_6ghz_op_class(iface->conf->op_class);
  		if (!is_6ghz && is_colocated_6ghz)
  			return COLOCATED_LOWER_BAND;
+diff --git a/src/ap/ieee802_11.h b/src/ap/ieee802_11.h
+index 8fd148c..ec430a3 100644
 --- a/src/ap/ieee802_11.h
 +++ b/src/ap/ieee802_11.h
-@@ -21,6 +21,13 @@ enum ieee80211_op_mode;
- struct mac_acl_entry;
+@@ -22,6 +22,13 @@ struct mac_acl_entry;
  enum oper_chan_width;
+ struct multi_link_data;
  
 +enum colocation_mode {
 +        NO_COLOCATED_6GHZ,
@@ -270,9 +281,11 @@ Signed-off-by: Rameshkumar Sundaram <quic_ramess@quicinc.com>
  int ieee802_11_mgmt(struct hostapd_data *hapd, const u8 *buf, size_t len,
  		    struct hostapd_frame_info *fi);
  void ieee802_11_mgmt_cb(struct hostapd_data *hapd, const u8 *buf, size_t len,
+diff --git a/src/drivers/driver_nl80211.c b/src/drivers/driver_nl80211.c
+index d11cf9f..af02fda 100644
 --- a/src/drivers/driver_nl80211.c
 +++ b/src/drivers/driver_nl80211.c
-@@ -4608,10 +4608,13 @@ static int nl80211_fils_discovery(struct
+@@ -4737,10 +4737,13 @@ static int nl80211_fils_discovery(struct i802_bss *bss, struct nl_msg *msg,
  	struct nlattr *attr;
  
  	if (!bss->drv->fils_discovery) {
@@ -290,7 +303,7 @@ Signed-off-by: Rameshkumar Sundaram <quic_ramess@quicinc.com>
  	}
  
  	attr = nla_nest_start(msg, NL80211_ATTR_FILS_DISCOVERY);
-@@ -4639,10 +4642,13 @@ static int nl80211_unsol_bcast_probe_res
+@@ -4768,10 +4771,13 @@ static int nl80211_unsol_bcast_probe_resp(struct i802_bss *bss,
  	struct nlattr *attr;
  
  	if (!bss->drv->unsol_bcast_probe_resp) {
@@ -307,3 +320,6 @@ Signed-off-by: Rameshkumar Sundaram <quic_ramess@quicinc.com>
  	}
  
  	wpa_printf(MSG_DEBUG,
+-- 
+2.7.4
+

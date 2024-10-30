@@ -30,7 +30,7 @@
  
  
  enum dfs_channel_type {
-@@ -1332,6 +1334,79 @@ hostapd_dfs_background_start_channel_swi
+@@ -1332,6 +1334,73 @@ hostapd_dfs_background_start_channel_swi
  	return hostapd_dfs_start_channel_switch_background(iface);
  }
  
@@ -65,19 +65,13 @@
 +				      iface->conf->hw_mode,
 +				      iface->freq,
 +				      iface->conf->channel,
-+				      iface->conf->enable_edmg,
-+				      iface->conf->edmg_channel,
 +				      iface->conf->ieee80211n,
 +				      iface->conf->ieee80211ac,
-+				      iface->conf->ieee80211ax,
-+				      iface->conf->ieee80211be,
 +				      secondary_channel,
-+				      hostapd_get_oper_chwidth(iface->conf),
++				      iface->conf->vht_oper_chwidth,
 +				      vht_oper_centr_freq_seg0_idx,
 +				      vht_oper_centr_freq_seg1_idx,
-+				      iface->current_mode->vht_capab,
-+				      &iface->current_mode->he_capab[IEEE80211_MODE_AP],
-+				      &iface->current_mode->eht_capab[IEEE80211_MODE_AP]);
++				      iface->current_mode->vht_capab);
 +
 +	if (err) {
 +		wpa_printf(MSG_ERROR, "DFS failed to calculate CSA freq params");
@@ -110,7 +104,7 @@
  
  static int hostapd_dfs_start_channel_switch(struct hostapd_iface *iface)
  {
-@@ -1361,6 +1436,9 @@ static int hostapd_dfs_start_channel_swi
+@@ -1361,6 +1430,9 @@ static int hostapd_dfs_start_channel_swi
  	if (iface->dfs_domain == HOSTAPD_DFS_REGION_ETSI)
  		channel_type = DFS_ANY_CHANNEL;
  
@@ -120,7 +114,7 @@
  	/* Perform channel switch/CSA */
  	channel = dfs_get_valid_channel(iface, &secondary_channel,
  					&oper_centr_freq_seg0_idx,
-@@ -1432,6 +1510,12 @@ int hostapd_dfs_radar_detected(struct ho
+@@ -1432,6 +1504,12 @@ int hostapd_dfs_radar_detected(struct ho
  			   cf1, cf2, HOSTAPD_CHAN_DFS_UNAVAILABLE))
  		return 0;
  

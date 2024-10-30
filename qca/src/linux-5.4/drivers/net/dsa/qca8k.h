@@ -11,15 +11,21 @@
 #include <linux/delay.h>
 #include <linux/regmap.h>
 #include <linux/gpio.h>
+#include <linux/bitfield.h>
 
 #define QCA8K_NUM_PORTS					7
 
 #define PHY_ID_QCA8337					0x004dd036
 #define QCA8K_ID_QCA8337				0x13
+#define PHY_ID_QCA8386					0x004dd180
+#define QCA8K_ID_QCA8386				0x17
+
+#define QCA_HDR_TYPE_VALUE	0xAAAA
+#define QCA8K_PORT_VID_DEF	0
+
+#define HIGH_ADDR_DFLT	0x200
 
 #define QCA8K_NUM_FDB_RECORDS				2048
-
-#define QCA8K_CPU_PORT					0
 
 /* Global control registers */
 #define QCA8K_REG_MASK_CTRL				0x000
@@ -69,6 +75,11 @@
 #define   QCA8K_PORT_STATUS_LINK_UP			BIT(8)
 #define   QCA8K_PORT_STATUS_LINK_AUTO			BIT(9)
 #define   QCA8K_PORT_STATUS_LINK_PAUSE			BIT(10)
+#define QCA8K_HEADER_CTL				0x98
+#define   QCA8K_HEADER_LENGTH_SEL_BIT			BIT(16)
+#define   QCA8K_HEADER_LENGTH_SEL_VAL(x)		FIELD_PREP(QCA8K_HEADER_LENGTH_SEL_BIT, x)
+#define   QCA8K_HEADER_TYPE_VAL_MASK			GENMASK(15, 0)
+#define   QCA8K_HEADER_TYPE_VAL_VAL(x) 			FIELD_PREP(QCA8K_HEADER_TYPE_VAL_MASK, x)
 #define QCA8K_REG_PORT_HDR_CTRL(_i)			(0x9c + (_i * 4))
 #define   QCA8K_PORT_HDR_CTRL_RX_MASK			GENMASK(3, 2)
 #define   QCA8K_PORT_HDR_CTRL_RX_S			2
@@ -87,6 +98,9 @@
 #define   QCA8K_PORT_VLAN_CVID(x)			(x << 16)
 #define   QCA8K_PORT_VLAN_SVID(x)			x
 #define QCA8K_REG_PORT_VLAN_CTRL1(_i)			(0x424 + (_i * 8))
+#define   QCA8K_PORT_VLAN_EGMODE(x)			((x & 0x3) << 12)
+#define   QCA8K_PORT_VLAN_EGMODE_MASK		GENMASK(13, 12)
+
 #define QCA8K_REG_IPV4_PRI_BASE_ADDR			0x470
 #define QCA8K_REG_IPV4_PRI_ADDR_MASK			0x474
 
@@ -132,6 +146,11 @@
 /* Pkt edit registers */
 #define QCA8K_EGRESS_VLAN(x)				(0x0c70 + (4 * (x / 2)))
 
+/* Route Egress VLAN Mode Register */
+#define QCA8K_ROUTE_EGRESS_VLAN					 0x0c80
+#define   QCA8K_ROUTE_EGRESS_VLAN_MASK(port) 	 (0x3 << (port << 2))
+#define   QCA8K_ROUTE_EGRESS_VLAN_VAL(port, val) (val << (port << 2))
+
 /* L3 registers */
 #define QCA8K_HROUTER_CONTROL				0xe00
 #define   QCA8K_HROUTER_CONTROL_GLB_LOCKTIME_M		GENMASK(17, 16)
@@ -176,6 +195,8 @@ struct qca8k_priv {
 	struct device *dev;
 	struct dsa_switch_ops ops;
 	struct gpio_desc *reset_gpio;
+	uint32_t chip_id;
+	uint32_t cpu_port;
 };
 
 struct qca8k_mib_desc {

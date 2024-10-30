@@ -7,9 +7,9 @@
 include $(TOPDIR)/rules.mk
 
 PKG_NAME:=nfs-kernel-server
-PKG_VERSION:=2.3.4
+PKG_VERSION:=2.6.2
 PKG_RELEASE:=3
-PKG_HASH:=8a6bafd5a33c4259e6e5093d126384cbe33acb10135578b5faa60c40f2f5e995
+PKG_HASH:=26d46448982252e9e2c8346d10cf13e1143e7089c866f53e25db3359f3e9493c
 
 PKG_SOURCE_URL:=@SF/nfs
 PKG_SOURCE:=nfs-utils-$(PKG_VERSION).tar.xz
@@ -32,7 +32,7 @@ define Package/nfs-kernel-server/Default
 	SECTION:=net
 	CATEGORY:=Network
 	SUBMENU:=Filesystem
-	DEPENDS:=+libwrap +libblkid +libuuid +libtirpc
+	DEPENDS:=+libblkid +libuuid +libtirpc
 	URL:=http://nfs.sourceforge.net/
 	MAINTAINER:=Peter Wagner <tripolar@gmx.at>
 endef
@@ -100,8 +100,11 @@ TARGET_CFLAGS += -Wno-error=implicit-function-declaration \
 		 -Wno-error=undef \
 		 -Wno-error=missing-include-dirs
 
-TARGET_LDFLAGS += -Wl,-rpath-link=$(STAGING_DIR)/usr/lib \
-		  -L$(STAGING_DIR)/usr/lib/libevent
+ifneq ($(CONFIG_USE_MUSL),)
+  TARGET_CFLAGS += -D_LARGEFILE64_SOURCE
+endif
+
+TARGET_LDFLAGS += -L$(STAGING_DIR)/usr/lib/libevent
 
 CONFIGURE_ARGS += \
 	--disable-caps \
@@ -150,6 +153,11 @@ HOST_CONFIGURE_VARS += \
 	ac_cv_header_nfsidmap_h=yes \
 	ac_cv_header_blkid_blkid_h=yes \
 	ac_cv_lib_resolv___res_querydomain=yes \
+	ac_cv_func_prctl=yes \
+	ac_cv_sizeof_size_t=0 \
+	ac_cv_func_getrpcbynumber=yes \
+	ac_cv_func_getrpcbynumber_r=yes \
+	enable_ipv6=no \
 	GSSGLUE_CFLAGS=" " \
 	GSSGLUE_LIBS=" " \
 	RPCSECGSS_CFLAGS=" " \

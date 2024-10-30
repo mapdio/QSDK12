@@ -16,7 +16,7 @@ Signed-off-by: Aishwarya R <quic_aisr@quicinc.com>
 
 --- a/drivers/net/wireless/ath/ath12k/core.h
 +++ b/drivers/net/wireless/ath/ath12k/core.h
-@@ -496,8 +496,12 @@ struct ath12k_sta {
+@@ -494,8 +494,12 @@ struct ath12k_sta {
  #define ATH12K_MIN_6G_FREQ (ATH12K_6G_MIN_CENTER - ATH12K_HALF_20MHZ_BW)
  #define ATH12K_MAX_6G_FREQ (ATH12K_6G_MAX_CENTER + ATH12K_HALF_20MHZ_BW)
  
@@ -31,7 +31,7 @@ Signed-off-by: Aishwarya R <quic_aisr@quicinc.com>
  
  enum ath12k_state {
  	ATH12K_STATE_OFF,
-@@ -809,7 +813,7 @@ struct ath12k_soc_dp_stats {
+@@ -806,7 +810,7 @@ struct ath12k_soc_dp_stats {
  	struct ath12k_dp_ring_bp_stats bp_stats;
  };
  
@@ -40,7 +40,7 @@ Signed-off-by: Aishwarya R <quic_aisr@quicinc.com>
           u32 start_freq;
           u32 end_freq;
  };
-@@ -886,9 +890,9 @@ struct ath12k_base {
+@@ -883,9 +887,9 @@ struct ath12k_base {
  
  	/* Current DFS Regulatory */
  	enum ath12k_dfs_region dfs_region;
@@ -79,7 +79,7 @@ Signed-off-by: Aishwarya R <quic_aisr@quicinc.com>
  };
  
  static const struct ieee80211_channel ath12k_6ghz_channels[] = {
-@@ -9069,6 +9070,28 @@ static void ath12k_mac_update_ch_list(st
+@@ -9071,6 +9072,28 @@ static void ath12k_mac_update_ch_list(st
  	}
  }
  
@@ -108,7 +108,7 @@ Signed-off-by: Aishwarya R <quic_aisr@quicinc.com>
  static u32 ath12k_get_phy_id(struct ath12k *ar, u32 band)
  {
  	struct ath12k_pdev *pdev = ar->pdev;
-@@ -9088,8 +9111,9 @@ static u32 ath12k_get_phy_id(struct ath1
+@@ -9090,8 +9113,9 @@ static u32 ath12k_get_phy_id(struct ath1
  static int ath12k_mac_setup_channels_rates(struct ath12k *ar,
  					   u32 supported_bands)
  {
@@ -119,7 +119,7 @@ Signed-off-by: Aishwarya R <quic_aisr@quicinc.com>
  	void *channels;
  	u32 phy_id;
  	struct ieee80211_6ghz_channel *chan_6g;
-@@ -9101,7 +9125,8 @@ static int ath12k_mac_setup_channels_rat
+@@ -9103,7 +9127,8 @@ static int ath12k_mac_setup_channels_rat
  		      ARRAY_SIZE(ath12k_6ghz_channels)) !=
  		     ATH12K_NUM_CHANS);
  
@@ -129,7 +129,7 @@ Signed-off-by: Aishwarya R <quic_aisr@quicinc.com>
  
  	if (supported_bands & WMI_HOST_WLAN_2G_CAP) {
  		channels = kmemdup(ath12k_2ghz_channels,
-@@ -9118,13 +9143,13 @@ static int ath12k_mac_setup_channels_rat
+@@ -9120,13 +9145,15 @@ static int ath12k_mac_setup_channels_rat
  		band->bitrates = ath12k_g_rates;
  		ar->hw->wiphy->bands[NL80211_BAND_2GHZ] = band;
  
@@ -142,12 +142,14 @@ Signed-off-by: Aishwarya R <quic_aisr@quicinc.com>
  		ath12k_mac_update_ch_list(ar, band,
 -					  reg_cap->low_2ghz_chan,
 -					  reg_cap->high_2ghz_chan);
-+					  temp_reg_cap->low_2ghz_chan,
-+					  temp_reg_cap->high_2ghz_chan);
++					  max(temp_reg_cap->low_2ghz_chan,
++					     ab->reg_freq_2g.start_freq),
++					  min(temp_reg_cap->high_2ghz_chan,
++					     ab->reg_freq_2g.end_freq));
  	}
  
  	if (supported_bands & WMI_HOST_WLAN_5G_CAP) {
-@@ -9155,12 +9180,14 @@ static int ath12k_mac_setup_channels_rat
+@@ -9157,12 +9184,16 @@ static int ath12k_mac_setup_channels_rat
  
                          if (ar->ab->hw_params->single_pdev_only) {
                                  phy_id = ath12k_get_phy_id(ar, WMI_HOST_WLAN_5G_CAP);
@@ -156,8 +158,10 @@ Signed-off-by: Aishwarya R <quic_aisr@quicinc.com>
  			ath12k_mac_update_ch_list(ar, band,
 -                                                  reg_cap->low_5ghz_chan,
 -                                                  reg_cap->high_5ghz_chan);
-+                                                  temp_reg_cap->low_5ghz_chan,
-+                                                  temp_reg_cap->high_5ghz_chan);
++                                                  max(temp_reg_cap->low_5ghz_chan,
++                                                      ab->reg_freq_5g.start_freq),
++						  min(temp_reg_cap->high_5ghz_chan,
++						      ab->reg_freq_5g.end_freq));
  
 -			} else if (reg_cap->low_5ghz_chan >= ATH12K_MIN_6G_FREQ &&
 +			ath12k_mac_update_5_9_ch_list(ar, band);
@@ -165,7 +169,7 @@ Signed-off-by: Aishwarya R <quic_aisr@quicinc.com>
                             reg_cap->high_5ghz_chan <= ATH12K_MAX_6G_FREQ) {
                          band = &ar->mac.sbands[NL80211_BAND_6GHZ];
                          band->band = NL80211_BAND_6GHZ;
-@@ -9194,9 +9221,11 @@ static int ath12k_mac_setup_channels_rat
+@@ -9196,9 +9227,13 @@ static int ath12k_mac_setup_channels_rat
                          band->n_bitrates = ath12k_a_rates_size;
                          band->bitrates = ath12k_a_rates;
                          ar->hw->wiphy->bands[NL80211_BAND_6GHZ] = band;
@@ -173,8 +177,10 @@ Signed-off-by: Aishwarya R <quic_aisr@quicinc.com>
                          ath12k_mac_update_ch_list(ar, band,
 -						reg_cap->low_5ghz_chan,
 -                                                 reg_cap->high_5ghz_chan);
-+						  temp_reg_cap->low_5ghz_chan,
-+                                                  temp_reg_cap->high_5ghz_chan);
++						  max(temp_reg_cap->low_5ghz_chan,
++                                                      ab->reg_freq_6g.start_freq),
++						  min(temp_reg_cap->high_5ghz_chan,
++						      ab->reg_freq_6g.end_freq));
 +
  			/* For 6G sband, the strcut channels and int numchannels will
                          * have the default value. During ieee80211_hw_register(),

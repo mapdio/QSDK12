@@ -183,12 +183,12 @@ static inline struct b53_device *sw_to_b53(struct switch_dev *sw)
 	return container_of(sw, struct b53_device, sw_dev);
 }
 
-struct b53_device *b53_switch_alloc(struct device *base, struct b53_io_ops *ops,
-				    void *priv);
+struct b53_device *b53_swconfig_switch_alloc(struct device *base, struct b53_io_ops *ops,
+					     void *priv);
 
-int b53_switch_detect(struct b53_device *dev);
+int b53_swconfig_switch_detect(struct b53_device *dev);
 
-int b53_switch_register(struct b53_device *dev);
+int b53_swconfig_switch_register(struct b53_device *dev);
 
 static inline void b53_switch_remove(struct b53_device *dev)
 {
@@ -314,9 +314,8 @@ static inline int b53_write64(struct b53_device *dev, u8 page, u8 reg,
 #endif
 
 #include <linux/version.h>
-#if (LINUX_VERSION_CODE >= KERNEL_VERSION(4, 1, 0))
 #include <linux/bcm47xx_nvram.h>
-#endif
+
 static inline int b53_switch_get_reset_gpio(struct b53_device *dev)
 {
 #ifdef CONFIG_BCM47XX
@@ -331,11 +330,7 @@ static inline int b53_switch_get_reset_gpio(struct b53_device *dev)
 	}
 #endif
 
-#if (LINUX_VERSION_CODE >= KERNEL_VERSION(4, 1, 0))
 	return bcm47xx_nvram_gpio_pin("robo_reset");
-#else
-	return -ENOENT;
-#endif
 }
 
 #endif

@@ -272,10 +272,13 @@ int sfe_ipv6_recv_esp(struct sfe_ipv6 *si, struct sk_buff *skb, struct net_devic
 	}
 
 	/*
-	 * Update priority of skb.
+	 * Update priority and int_pri of skb.
 	 */
 	if (unlikely(cm->flags & SFE_IPV6_CONNECTION_MATCH_FLAG_PRIORITY_REMARK)) {
 		skb->priority = cm->priority;
+#if defined(SFE_PPE_QOS_SUPPORTED)
+		skb_set_int_pri(skb, cm->int_pri);
+#endif
 	}
 
 	/*

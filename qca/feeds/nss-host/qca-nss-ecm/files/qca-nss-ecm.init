@@ -1,7 +1,7 @@
 #!/bin/sh  /etc/rc.common
 #
 # Copyright (c) 2014, 2019-2021 The Linux Foundation. All rights reserved.
-# Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
+# Copyright (c) 2022-2023 Qualcomm Innovation Center, Inc. All rights reserved.
 #
 # Permission to use, copy, modify, and/or distribute this software for any
 # purpose with or without fee is hereby granted, provided that the above
@@ -79,6 +79,7 @@ ecm_dependency() {
 	[ -e /lib/modules/$(uname -r)/qca-ovsmgr.ko ] && modprobe qca-ovsmgr
 	[ -e /lib/modules/$(uname -r)/bonding.ko ] && modprobe bonding
 	[ -e /lib/modules/$(uname -r)/l2tp_ppp.ko ] && modprobe l2tp_ppp
+	[ -e /lib/modules/$(uname -r)/qca-nss-ppe-vxlanmgr.ko ] && modprobe qca-nss-ppe-vxlanmgr
 }
 
 load_ecm() {
@@ -92,6 +93,12 @@ load_ecm() {
 		fi
 	}
 
+	# Set conntrack event mode to 1 for 6.1 kernel to get the conntrack events from ECM
+	local kernel_major=`uname -r |cut -d. -f1`
+	if [ $kernel_major == 6 ]; then
+		echo 1 > /proc/sys/net/netfilter/nf_conntrack_events
+	fi
+
 	support_bridge && {
 		sysctl -w net.bridge.bridge-nf-call-ip6tables=1
 		sysctl -w net.bridge.bridge-nf-call-iptables=1
@@ -101,6 +108,12 @@ load_ecm() {
 unload_ecm() {
 	sysctl -w net.bridge.bridge-nf-call-ip6tables=0
 	sysctl -w net.bridge.bridge-nf-call-iptables=0
+
+	# Change it back to 6.1 linux's default setting
+	local kernel_major=`uname -r |cut -d. -f1`
+	if [ $kernel_major == 6 ]; then
+		echo 2 > /proc/sys/net/netfilter/nf_conntrack_events
+	fi
 
 	if [ -d /sys/module/ecm ]; then
 		#
@@ -114,6 +127,13 @@ unload_ecm() {
 		#
 	        echo 1 > /sys/kernel/debug/ecm/ecm_db/defunct_all
 		sleep 5;
+
+		#
+		# unload ecm-wifi-plugin
+		#
+		if [ -d /sys/module/ecm_wifi_plugin ]; then
+			rmmod ecm-wifi-plugin
+		fi
 
 		if [ -d /sys/module/ecm_ae_select ]; then
 			rmmod ecm_ae_select
@@ -133,6 +153,10 @@ start() {
 	[ -d /sys/kernel/debug/ecm/ecm_nss_ipv4 ] && sysctl -w dev.nss.general.redirect=1
 
 	support_bridge && {
+		# Delete original configuration before appending new
+		sed '/net.bridge.bridge-nf-call-ip6tables/d' -i /etc/sysctl.d/qca-nss-ecm.conf
+		sed '/net.bridge.bridge-nf-call-iptables/d' -i /etc/sysctl.d/qca-nss-ecm.conf
+
 		echo 'net.bridge.bridge-nf-call-ip6tables=1' >> /etc/sysctl.d/qca-nss-ecm.conf
 		echo 'net.bridge.bridge-nf-call-iptables=1' >> /etc/sysctl.d/qca-nss-ecm.conf
 	}
@@ -144,7 +168,8 @@ start() {
 	local kernel_version=$(uname -r)
 
 	[ -e "/lib/modules/$kernel_version/ecm-wifi-plugin.ko" ] && {
-		[ -d /sys/module/ecm_wifi_plugin ] || [ -f /tmp/.wifi-config-done ] && insmod ecm-wifi-plugin
+		[ -d /sys/module/ecm_wifi_plugin ] || [ -f /tmp/.wifi-config-done ] ||
+		[ -f /lib/modules/$kernel_version/ath.ko ] && insmod ecm-wifi-plugin
 	}
 }
 
@@ -162,10 +187,6 @@ stop() {
 
 	if [ -d /sys/module/ecm_ovs ]; then
 		rmmod ecm_ovs
-	fi
-
-	if [ -d /sys/module/ecm_wifi_plugin ]; then
-		rmmod ecm-wifi-plugin
 	fi
 
 	unload_ecm

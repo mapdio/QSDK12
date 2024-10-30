@@ -1,7 +1,7 @@
 /*
  **************************************************************************
  * Copyright (c) 2016-2021, The Linux Foundation. All rights reserved.
- * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2023 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
@@ -88,7 +88,7 @@ int nss_hal_firmware_load(struct nss_ctx_instance *nss_ctx, struct platform_devi
 		return rc;
 	}
 
-	nss_info_always("nss_driver - fw of size %d  bytes copied to load addr: %x, nss_id : %d\n", (int)nss_fw->size, npd->load_addr, nss_dev->id);
+	nss_info("nss_driver - fw of size %d  bytes copied to load addr: %x, nss_id : %d\n", (int)nss_fw->size, npd->load_addr, nss_dev->id);
 	memcpy_toio(load_mem, nss_fw->data, nss_fw->size);
 	release_firmware(nss_fw);
 	iounmap(load_mem);
@@ -798,7 +798,7 @@ int nss_hal_probe(struct platform_device *nss_dev)
 		nss_hal_enable_interrupt(nss_ctx, nss_ctx->int_ctx[i].shift_factor, NSS_HAL_SUPPORTED_INTERRUPTS);
 	}
 
-	nss_info_always("%px: All resources initialized and nss core%d has been brought out of reset", nss_ctx, nss_dev->id);
+	nss_info("%px: All resources initialized and nss core%d has been brought out of reset", nss_ctx, nss_dev->id);
 	goto out;
 
 err_register_irq:

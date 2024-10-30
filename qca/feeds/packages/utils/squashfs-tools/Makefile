@@ -1,4 +1,4 @@
-# 
+#
 # Copyright (C) 2016 OpenWrt.org
 #
 # This is free software, licensed under the GNU General Public License v2.
@@ -8,18 +8,17 @@
 include $(TOPDIR)/rules.mk
 
 PKG_NAME:=squashfs-tools
-PKG_VERSION:=4.3
-PKG_RELEASE:=6
-PKG_LICENSE:=GPL-2.0
+PKG_VERSION:=4.6.1
+PKG_RELEASE:=1
+
+PKG_LICENSE:=GPL-2.0-only
 PKG_LICENSE_FILES:=COPYING
+PKG_MAINTAINER:=Alexandru Ardelean <ardeleanalex@gmail.com>
 PKG_CPE_ID:=cpe:/a:phillip_lougher:squashfs
 
-PKG_SOURCE_PROTO:=git
-PKG_SOURCE_URL:=https://github.com/plougher/squashfs-tools
-PKG_SOURCE_SUBDIR:=$(PKG_NAME)-$(PKG_VERSION)
-PKG_SOURCE_VERSION:=5be5d61e5e5a93911256b5f2106e50da0ca81e8d
-PKG_SOURCE:=$(PKG_NAME)-$(PKG_VERSION)-$(PKG_SOURCE_VERSION).tar.gz
-PKG_MIRROR_HASH:=eac1bc559708dc8656fe7d099ffc9e9374ae0cfb9a12d180a9c0c28acb0adf11
+PKG_SOURCE:=$(PKG_NAME)-$(PKG_VERSION).tar.gz
+PKG_SOURCE_URL:=https://codeload.github.com/plougher/squashfs-tools/tar.gz/${PKG_VERSION}?
+PKG_HASH:=94201754b36121a9f022a190c75f718441df15402df32c2b520ca331a107511c
 
 PKG_BUILD_PARALLEL:=1
 include $(INCLUDE_DIR)/package.mk
@@ -28,13 +27,13 @@ define Package/squashfs-tools/Default
   SECTION:=utils
   CATEGORY:=Utilities
   SUBMENU:=Filesystem
-  TITLE:=squashfs-tools
+  TITLE:=Tools to create and extract Squashfs filesystems
   URL:=https://github.com/plougher/squashfs-tools
   DEPENDS += +libpthread +zlib \
 	+SQUASHFS_TOOLS_LZO_SUPPORT:liblzo \
 	+SQUASHFS_TOOLS_LZ4_SUPPORT:liblz4 \
-	+SQUASHFS_TOOLS_XZ_SUPPORT:liblzma
-  MAINTAINER:=Alexandru Ardelean <ardeleanalex@gmail.com>
+	+SQUASHFS_TOOLS_XZ_SUPPORT:liblzma \
+	+SQUASHFS_TOOLS_ZSTD_SUPPORT:libzstd
 endef
 
 define Package/squashfs-tools-mksquashfs
@@ -53,9 +52,6 @@ endef
 
 Build/Configure:=
 
-MAKE_FLAGS += \
-	XATTR_SUPPORT=
-
 ifneq ($(CONFIG_SQUASHFS_TOOLS_XZ_SUPPORT),)
 MAKE_FLAGS += XZ_SUPPORT=1
 endif
@@ -66,6 +62,10 @@ endif
 
 ifneq ($(CONFIG_SQUASHFS_TOOLS_LZ4_SUPPORT),)
 MAKE_FLAGS += LZ4_SUPPORT=1
+endif
+
+ifneq ($(CONFIG_SQUASHFS_TOOLS_ZSTD_SUPPORT),)
+MAKE_FLAGS += ZSTD_SUPPORT=1
 endif
 
 define Build/Compile
@@ -80,11 +80,13 @@ endef
 define Package/squashfs-tools-mksquashfs/install
 	$(INSTALL_DIR) $(1)/usr/sbin
 	$(INSTALL_BIN) $(PKG_BUILD_DIR)/squashfs-tools/mksquashfs $(1)/usr/sbin/mksquashfs
+	$(LN) mksquashfs $(1)/usr/sbin/sqfstar
 endef
 
 define Package/squashfs-tools-unsquashfs/install
 	$(INSTALL_DIR) $(1)/usr/sbin
 	$(INSTALL_BIN) $(PKG_BUILD_DIR)/squashfs-tools/unsquashfs $(1)/usr/sbin/unsquashfs
+	$(LN) unsquashfs $(1)/usr/sbin/sqfscat
 endef
 
 $(eval $(call BuildPackage,squashfs-tools-mksquashfs))

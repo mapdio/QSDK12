@@ -329,7 +329,7 @@ static int nss_ppe_pppoe_mgr_changemtu_event(struct net_device *dev)
 	ret = ppe_drv_iface_mtu_set(entry->iface, dev->mtu);
 	if (ret != PPE_DRV_RET_SUCCESS) {
 		nss_ppe_pppoe_mgr_warn("%px: failed to set mtu, error = %d \n", dev, ret);
-		return NOTIFY_DONE;
+		return NOTIFY_BAD;
 	}
 
 	entry->mtu = dev->mtu;

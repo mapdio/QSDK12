@@ -247,9 +247,10 @@ static void ecm_sfe_ipv4_process_one_conn_sync_msg(struct sfe_ipv4_conn_sync *sy
 
 	/*
 	 * GRE connections such as PPTP-GRE are stored into the db using a 3 tuple based hash.
-	 * So we ignore the port information here when trying to lookup the connection
+	 * L2TPv3 over IP connection also uses a 3 tuple based hash.
+	 * So we ignore the port information here when trying to lookup the connection.
 	 */
-	if (sync->protocol == IPPROTO_GRE) {
+	if (sync->protocol == IPPROTO_GRE || sync->protocol == IPPROTO_L2TP) {
 		flow_ident = 0;
 		return_ident_xlate = 0;
 	}
@@ -258,7 +259,7 @@ static void ecm_sfe_ipv4_process_one_conn_sync_msg(struct sfe_ipv4_conn_sync *sy
 
 	if (!ci) {
 		DEBUG_TRACE("%px: SFE Sync: no connection\n", sync);
-		goto sync_conntrack;
+		return;
 	}
 	DEBUG_TRACE("%px: Sync conn %px\n", sync, ci);
 
@@ -287,6 +288,17 @@ static void ecm_sfe_ipv4_process_one_conn_sync_msg(struct sfe_ipv4_conn_sync *sy
 		aci->sync_to_v4(aci, &class_sync);
 	}
 	ecm_db_connection_assignments_release(assignment_count, assignments);
+
+	/*
+	 * Get the elapsed time since the last sync. If the return value is
+	 * a negative value which means the timer is not in a valid state, just
+	 * return here and do not update the defunct timer and the conntrack.
+	 */
+	if (ecm_db_connection_elapsed_defunct_timer(ci) < 0) {
+		DEBUG_TRACE("%px: Defunct timer is expired or not in a valid state\n", ci);
+		ecm_db_connection_deref(ci);
+		return;
+	}
 
 	/*
 	 * Keep connection alive and updated
@@ -949,44 +961,44 @@ int ecm_sfe_ipv4_init(struct dentry *dentry)
 	}
 
 #ifdef CONFIG_XFRM
-	if (!debugfs_create_u32("reject_acceleration_for_ipsec", S_IRUGO | S_IWUSR, ecm_sfe_ipv4_dentry,
+	if (!ecm_debugfs_create_u32("reject_acceleration_for_ipsec", S_IRUGO | S_IWUSR, ecm_sfe_ipv4_dentry,
 					(u32 *)&ecm_sfe_ipv4_reject_acceleration_for_ipsec)) {
 		DEBUG_ERROR("Failed to create ecm sfe ipv4 reject_acceleration_for_ipsec file in debugfs\n");
 		goto task_cleanup;
 	}
 #endif
 
-	if (!debugfs_create_u32("no_action_limit_default", S_IRUGO | S_IWUSR, ecm_sfe_ipv4_dentry,
+	if (!ecm_debugfs_create_u32("no_action_limit_default", S_IRUGO | S_IWUSR, ecm_sfe_ipv4_dentry,
 					(u32 *)&ecm_sfe_ipv4_no_action_limit_default)) {
 		DEBUG_ERROR("Failed to create ecm sfe ipv4 no_action_limit_default file in debugfs\n");
 		goto task_cleanup;
 	}
 
-	if (!debugfs_create_u32("driver_fail_limit_default", S_IRUGO | S_IWUSR, ecm_sfe_ipv4_dentry,
+	if (!ecm_debugfs_create_u32("driver_fail_limit_default", S_IRUGO | S_IWUSR, ecm_sfe_ipv4_dentry,
 					(u32 *)&ecm_sfe_ipv4_driver_fail_limit_default)) {
 		DEBUG_ERROR("Failed to create ecm sfe ipv4 driver_fail_limit_default file in debugfs\n");
 		goto task_cleanup;
 	}
 
-	if (!debugfs_create_u32("nack_limit_default", S_IRUGO | S_IWUSR, ecm_sfe_ipv4_dentry,
+	if (!ecm_debugfs_create_u32("nack_limit_default", S_IRUGO | S_IWUSR, ecm_sfe_ipv4_dentry,
 					(u32 *)&ecm_sfe_ipv4_nack_limit_default)) {
 		DEBUG_ERROR("Failed to create ecm sfe ipv4 nack_limit_default file in debugfs\n");
 		goto task_cleanup;
 	}
 
-	if (!debugfs_create_u32("accelerated_count", S_IRUGO, ecm_sfe_ipv4_dentry,
+	if (!ecm_debugfs_create_u32("accelerated_count", S_IRUGO, ecm_sfe_ipv4_dentry,
 					(u32 *)&ecm_sfe_ipv4_accelerated_count)) {
 		DEBUG_ERROR("Failed to create ecm sfe ipv4 accelerated_count file in debugfs\n");
 		goto task_cleanup;
 	}
 
-	if (!debugfs_create_u32("pending_accel_count", S_IRUGO, ecm_sfe_ipv4_dentry,
+	if (!ecm_debugfs_create_u32("pending_accel_count", S_IRUGO, ecm_sfe_ipv4_dentry,
 					(u32 *)&ecm_sfe_ipv4_pending_accel_count)) {
 		DEBUG_ERROR("Failed to create ecm sfe ipv4 pending_accel_count file in debugfs\n");
 		goto task_cleanup;
 	}
 
-	if (!debugfs_create_u32("pending_decel_count", S_IRUGO, ecm_sfe_ipv4_dentry,
+	if (!ecm_debugfs_create_u32("pending_decel_count", S_IRUGO, ecm_sfe_ipv4_dentry,
 					(u32 *)&ecm_sfe_ipv4_pending_decel_count)) {
 		DEBUG_ERROR("Failed to create ecm sfe ipv4 pending_decel_count file in debugfs\n");
 		goto task_cleanup;

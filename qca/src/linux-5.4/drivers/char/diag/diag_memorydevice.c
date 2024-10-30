@@ -1,13 +1,6 @@
-/* Copyright (c) 2014-2020, The Linux Foundation. All rights reserved.
- *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License version 2 and
- * only version 2 as published by the Free Software Foundation.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
+// SPDX-License-Identifier: GPL-2.0-only
+/* Copyright (c) 2014-2021, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2024 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #include <linux/slab.h>
@@ -62,15 +55,14 @@ struct diag_md_info diag_md[NUM_DIAG_MD_DEV] = {
 		.ops = NULL,
 	},
 	{
-                .id = DIAG_MD_MDM3,
-                .ctx = 0,
-                .mempool = POOL_TYPE_MDM3_MUX,
-                .num_tbl_entries = 0,
-                .md_info_inited = 0,
-                .tbl = NULL,
-                .ops = NULL,
-        }
-
+		.id = DIAG_MD_SMUX,
+		.ctx = 0,
+		.mempool = POOL_TYPE_QSC_MUX,
+		.num_tbl_entries = 0,
+		.md_info_inited = 0,
+		.tbl = NULL,
+		.ops = NULL,
+	}
 #endif
 };
 
@@ -99,13 +91,14 @@ void diag_md_open_all(void)
 }
 void diag_md_open_device(int id)
 {
+
 	struct diag_md_info *ch = NULL;
 
-	ch = &diag_md[id];
-	if (!ch->md_info_inited)
-		return;
-	if (ch->ops && ch->ops->open)
-		ch->ops->open(ch->ctx, DIAG_MEMORY_DEVICE_MODE);
+		ch = &diag_md[id];
+		if (!ch->md_info_inited)
+			return;
+		if (ch->ops && ch->ops->open)
+			ch->ops->open(ch->ctx, DIAG_MEMORY_DEVICE_MODE);
 
 }
 void diag_md_close_all(void)
@@ -153,34 +146,36 @@ void diag_md_close_device(int id)
 	struct diag_md_info *ch = NULL;
 	struct diag_buf_tbl_t *entry = NULL;
 
-	ch = &diag_md[id];
-	if (!ch->md_info_inited)
-		return;
+		ch = &diag_md[id];
+		if (!ch->md_info_inited)
+			return;
 
-	if (ch->ops && ch->ops->close)
-		ch->ops->close(ch->ctx, DIAG_MEMORY_DEVICE_MODE);
+		if (ch->ops && ch->ops->close)
+			ch->ops->close(ch->ctx, DIAG_MEMORY_DEVICE_MODE);
 
-	/*
-	 * When we close the Memory device mode, make sure we flush the
-	 * internal buffers in the table so that there are no stale
-	 * entries.
-	 * Give Write_done notifications to buffers with packets
-	 * indicated valid length.
-	 */
-	spin_lock_irqsave(&ch->lock, flags);
-	for (j = 0; j < ch->num_tbl_entries; j++) {
-		entry = &ch->tbl[j];
-		if (entry->len <= 0)
-			continue;
-		if (ch->ops && ch->ops->write_done)
-			ch->ops->write_done(entry->buf, entry->len,
-					    entry->ctx,
-					    DIAG_MEMORY_DEVICE_MODE);
-		entry->buf = NULL;
-		entry->len = 0;
-		entry->ctx = 0;
-	}
-	spin_unlock_irqrestore(&ch->lock, flags);
+		/*
+		 * When we close the Memory device mode, make sure we flush the
+		 * internal buffers in the table so that there are no stale
+		 * entries.
+		 *
+		 * Give Write_done notifications to buffers with packets
+		 * indicated valid length.
+		 */
+		spin_lock_irqsave(&ch->lock, flags);
+		for (j = 0; j < ch->num_tbl_entries; j++) {
+			entry = &ch->tbl[j];
+			if (entry->len <= 0)
+				continue;
+			if (ch->ops && ch->ops->write_done)
+				ch->ops->write_done(entry->buf, entry->len,
+						    entry->ctx,
+						    DIAG_MEMORY_DEVICE_MODE);
+			entry->buf = NULL;
+			entry->len = 0;
+			entry->ctx = 0;
+		}
+		spin_unlock_irqrestore(&ch->lock, flags);
+
 	diag_ws_reset(DIAG_WS_MUX);
 }
 
@@ -214,13 +209,12 @@ void diag_md_clear_tbl_entries(int id)
 
 int diag_md_write(int id, unsigned char *buf, int len, int ctx)
 {
-	int i, peripheral, pid = 0;
+	int i, peripheral, pid = 0, type = 0;
 	uint8_t found = 0;
 	unsigned long flags, flags_sec;
 	struct diag_md_info *ch = NULL;
 	struct diag_md_session_t *session_info = NULL;
 
-	flags_sec = 0;
 	if (id < 0 || id >= NUM_DIAG_MD_DEV || id >= DIAG_NUM_PROC)
 		return -EINVAL;
 
@@ -233,6 +227,7 @@ int diag_md_write(int id, unsigned char *buf, int len, int ctx)
 	} else {
 		peripheral = 0;
 	}
+	type = GET_BUF_TYPE(ctx);
 	mutex_lock(&driver->md_session_lock);
 	session_info = diag_md_session_get_peripheral(id, peripheral);
 	if (!session_info) {
@@ -251,7 +246,8 @@ int diag_md_write(int id, unsigned char *buf, int len, int ctx)
 	spin_lock_irqsave(&ch->lock, flags);
 	if (peripheral == APPS_DATA) {
 		spin_lock_irqsave(&driver->diagmem_lock, flags_sec);
-		if (!hdlc_data.allocated && !non_hdlc_data.allocated) {
+		if (type == TYPE_DATA &&
+		!hdlc_data.allocated && !non_hdlc_data.allocated) {
 			spin_unlock_irqrestore(&driver->diagmem_lock,
 				flags_sec);
 			spin_unlock_irqrestore(&ch->lock, flags);
@@ -335,13 +331,19 @@ int diag_md_copy_to_user(char __user *buf, int *pret, size_t buf_size,
 	struct diag_md_info *ch = NULL;
 	struct diag_buf_tbl_t *entry = NULL;
 	uint8_t drain_again = 0;
-	int peripheral = 0;
+	int peripheral = 0, tmp_len = 0;
 	struct diag_md_session_t *session_info = NULL;
 	struct pid *pid_struct = NULL;
 	struct task_struct *task_s = NULL;
+	unsigned char *tmp_buf = NULL;
 
 	if (!info)
 		return -EINVAL;
+
+	tmp_buf = vzalloc(MAX_PERIPHERAL_HDLC_BUF_SZ);
+	if (!tmp_buf)
+		return -ENOMEM;
+
 	for (i = 0; i < NUM_DIAG_MD_DEV && !err; i++) {
 		ch = &diag_md[i];
 		if (!ch->md_info_inited)
@@ -353,6 +355,8 @@ int diag_md_copy_to_user(char __user *buf, int *pret, size_t buf_size,
 				spin_unlock_irqrestore(&ch->lock, flags);
 				continue;
 			}
+			tmp_len = entry->len;
+			memcpy(tmp_buf, entry->buf, entry->len);
 			peripheral = diag_md_get_peripheral(entry->ctx);
 			if (peripheral < 0) {
 				spin_unlock_irqrestore(&ch->lock, flags);
@@ -388,14 +392,6 @@ int diag_md_copy_to_user(char __user *buf, int *pret, size_t buf_size,
 					drain_again = 1;
 					break;
 				}
-			} else {
-				if ((ret + (2 * sizeof(int)) + entry->len) >=
-						buf_size) {
-					drain_again = 1;
-					break;
-				}
-			}
-			if (i > 0) {
 				remote_token = diag_get_remote(i);
 				task_s = get_pid_task(pid_struct, PIDTYPE_PID);
 				if (task_s) {
@@ -409,30 +405,39 @@ int diag_md_copy_to_user(char __user *buf, int *pret, size_t buf_size,
 					ret += sizeof(int);
 					put_task_struct(task_s);
 				}
+			} else {
+				if ((ret + (2 * sizeof(int)) + entry->len) >=
+						buf_size) {
+					drain_again = 1;
+					break;
+				}
 			}
 
 			task_s = get_pid_task(pid_struct, PIDTYPE_PID);
 			if (task_s) {
-
 				/* Copy the length of data being passed */
-				err = copy_to_user(buf + ret,
-						(void *)&(entry->len),
-						sizeof(int));
-				if (err) {
-					put_task_struct(task_s);
-					goto drop_data;
+				if (tmp_len) {
+					err = copy_to_user(buf + ret,
+							(void *)&(tmp_len),
+							sizeof(int));
+					if (err) {
+						put_task_struct(task_s);
+						goto drop_data;
+					}
+					ret += sizeof(int);
 				}
-				ret += sizeof(int);
 
 				/* Copy the actual data being passed */
-				err = copy_to_user(buf + ret,
-						(void *)entry->buf,
-						entry->len);
-				if (err) {
-					put_task_struct(task_s);
-					goto drop_data;
+				if (tmp_buf) {
+					err = copy_to_user(buf + ret,
+							(void *)tmp_buf,
+							tmp_len);
+					if (err) {
+						put_task_struct(task_s);
+						goto drop_data;
+					}
+					ret += entry->len;
 				}
-				ret += entry->len;
 				put_task_struct(task_s);
 			}
 
@@ -444,6 +449,11 @@ int diag_md_copy_to_user(char __user *buf, int *pret, size_t buf_size,
 			num_data++;
 drop_data:
 			spin_lock_irqsave(&ch->lock, flags);
+			entry = &ch->tbl[j];
+			if (entry->len <= 0 || entry->buf == NULL) {
+				spin_unlock_irqrestore(&ch->lock, flags);
+				continue;
+			}
 			if (ch->ops && ch->ops->write_done)
 				ch->ops->write_done(entry->buf, entry->len,
 						    entry->ctx,
@@ -455,6 +465,8 @@ drop_data:
 			spin_unlock_irqrestore(&ch->lock, flags);
 
 			put_pid(pid_struct);
+			memset(tmp_buf, 0, MAX_PERIPHERAL_HDLC_BUF_SZ);
+			tmp_len = 0;
 		}
 	}
 
@@ -470,6 +482,8 @@ drop_data:
 		}
 		put_pid(pid_struct);
 	}
+	vfree(tmp_buf);
+	tmp_buf = NULL;
 	diag_ws_on_copy_complete(DIAG_WS_MUX);
 	if (drain_again)
 		chk_logging_wakeup();

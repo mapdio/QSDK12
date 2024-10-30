@@ -3,7 +3,7 @@
  * IPQ9574 Memory device tree source
  *
  * Copyright (c) 2021 The Linux Foundation. All rights reserved.
- * Copyright (c) 2021-2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2021-2022, 2024 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 / {
@@ -19,7 +19,7 @@
 	 * |        |              |                         |
 	 * |        |              |                         |
 	 * |        |              |                         |
-	 * | Linux  |  0x42000000  |         123MB           |
+	 * | Linux  |  0x41000000  |         139MB           |
 	 * |        |              |                         |
 	 * |        |              |                         |
 	 * |        |              |                         |
@@ -115,7 +115,7 @@
 
 		nss@40000000 {
 			no-map;
-			reg = <0x0 0x40000000 0x0 0x02000000>;
+			reg = <0x0 0x40000000 0x0 0x01000000>;
 			status = "disabled";
 		};
 
@@ -222,8 +222,12 @@
 
 		mlo_global_mem0: mlo_global_mem_0@0 {
 			no-map;
-			size = <0x0 0x1100000>;
+			size = <0x0 0x1200000>;
 			status = "disabled";
+		};
+
+		minidump_mem: minidump_mem@0 {
+			no-map;
 		};
 
 		rpm_msg_ram: rpm_msg_ram@0x60000 {

@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022, 2024 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for any
  * purpose with or without fee is hereby granted, provided that the above
@@ -33,10 +33,29 @@ struct nss_dp_vp_tx_info {
  *	VP info struct struct
  */
 struct nss_dp_vp_rx_info {
-	uint8_t dvp;		/* Destination VP number */
-	uint8_t svp;		/* Source VP number */
-	uint16_t l3offset;	/* L3 offset of packet */
+	uint8_t dvp;			/* Destination VP number */
+	uint8_t svp;			/* Source VP number */
+	uint16_t l3offset;		/* L3 offset of packet */
+	uint8_t ip_summed;		/* IP checksum */
+	struct napi_struct *napi;	/* RX NAPI */
 };
+
+/*
+ * nss_dp_vp_skb_list
+ *	skb list of a VP
+ */
+struct nss_dp_vp_skb_list{
+	struct nss_dp_vp_skb_list *next;
+	struct sk_buff_head skb_list;	/* skb list*/
+	uint16_t len;			/* Total data length carried by these skb*/
+	uint8_t dvp;			/* Destination VP */
+};
+
+/*
+ * nss_dp_vp_list_rx_cb_t
+ *	Vp rx handler callback typedef
+ */
+typedef void (*nss_dp_vp_list_rx_cb_t)( struct nss_dp_vp_skb_list *vp_rx_list);
 
 /*
  * nss_dp_vp_rx_cb_t
@@ -50,13 +69,16 @@ typedef void (*nss_dp_vp_rx_cb_t)(struct sk_buff *skb, struct nss_dp_vp_rx_info 
  *
  * @datatypes
  * nss_dp_vp_rx_cb_t
+ * nss_dp_vp_list_rx_cb_t
  *
  * @param[in] nss_dp_vp_tx_info Pointer to VP rx handler.
+ * @param[in] nss_dp_vp_list_rx_cb_t Pointer to VP list handler.
  *
  * @return
  * True or false.
  */
-bool nss_dp_vp_rx_register_cb(nss_dp_vp_rx_cb_t cb);
+bool nss_dp_vp_rx_register_cb(nss_dp_vp_rx_cb_t cb, \
+		nss_dp_vp_list_rx_cb_t list_cb);
 
 /**
  * nss_dp_vp_rx_unregister_cb

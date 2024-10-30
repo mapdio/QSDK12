@@ -84,7 +84,7 @@ endif
   #CPU_CFLAG=-Wstrict-prototypes -Wundef -fomit-frame-pointer -G 0 -mno-abicalls -Wno-trigraphs -fno-strict-aliasing -fno-common -ffreestanding -O2 -fno-pic -pipe -mabi=32 -march=r4600 -Wa,-32 -Wa,-march=r4600 -Wa,--trap -DMODULE -mlong-calls -DEXPORT_SYMTAB
 
 
-KERNEL_MODE=TRUE
+KERNEL_MODE=FLASE
 #compatiable with OpenWRT
 ifeq ($(SWITCH_SSDK_MODE),user)
 KERNEL_MODE=FLASE
@@ -158,4 +158,5 @@ IN_GENEVE=TRUE
 IN_MAPT=TRUE
 IN_TUNNEL_PROGRAM=TRUE
 IN_ATHTAG=TRUE
+IN_PKTEDIT=TRUE
 #auto_insert_flag

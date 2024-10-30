@@ -1,0 +1,72 @@
+Index: wasm-micro-runtime-WAMR-1.3.2/CMakeLists.txt
+===================================================================
+--- wasm-micro-runtime-WAMR-1.3.2.orig/CMakeLists.txt
++++ wasm-micro-runtime-WAMR-1.3.2/CMakeLists.txt
+@@ -82,7 +82,7 @@ endif ()
+ 
+ if (NOT DEFINED WAMR_BUILD_LIB_PTHREAD)
+   # Disable pthread library by default
+-  set (WAMR_BUILD_LIB_PTHREAD 0)
++  set (WAMR_BUILD_LIB_PTHREAD 1)
+ endif ()
+ 
+ if (NOT DEFINED WAMR_BUILD_LIB_WASI_THREADS)
+@@ -154,6 +154,8 @@ if (MINGW)
+   target_link_libraries (iwasm_shared -lWs2_32)
+ endif ()
+ 
++ADD_SUBDIRECTORY(product-mini/platforms/linux)
++
+ install (TARGETS iwasm_shared LIBRARY DESTINATION lib)
+ 
+ # HEADERS
+Index: wasm-micro-runtime-WAMR-1.3.2/product-mini/platforms/linux/CMakeLists.txt
+===================================================================
+--- wasm-micro-runtime-WAMR-1.3.2.orig/product-mini/platforms/linux/CMakeLists.txt
++++ wasm-micro-runtime-WAMR-1.3.2/product-mini/platforms/linux/CMakeLists.txt
+@@ -71,6 +71,8 @@ if (NOT DEFINED WAMR_BUILD_LIBC_WASI)
+   set (WAMR_BUILD_LIBC_WASI 1)
+ endif ()
+ 
++set(WAMR_BUILD_LIBC_EMCC 1)
++
+ if (NOT DEFINED WAMR_BUILD_FAST_INTERP)
+   # Enable fast interpreter
+   set (WAMR_BUILD_FAST_INTERP 1)
+@@ -83,7 +85,7 @@ endif ()
+ 
+ if (NOT DEFINED WAMR_BUILD_LIB_PTHREAD)
+   # Disable pthread library by default
+-  set (WAMR_BUILD_LIB_PTHREAD 0)
++  set (WAMR_BUILD_LIB_PTHREAD 1)
+ endif ()
+ 
+ if (NOT DEFINED WAMR_BUILD_LIB_WASI_THREADS)
+@@ -141,6 +143,11 @@ if (WAMR_BUILD_TARGET MATCHES "X86_.*" O
+   endif ()
+ endif ()
+ 
++set (RUNTIME_SOURCE_ALL
++    ${WAMR_ROOT_DIR}/product-mini/platforms/posix/main.c
++    ${UNCOMMON_SHARED_SOURCE}
++)
++
+ # The following flags are to enhance security, but it may impact performance,
+ # we disable them by default.
+ #if (WAMR_BUILD_TARGET MATCHES "X86_.*" OR WAMR_BUILD_TARGET STREQUAL "AMD_64")
+Index: wasm-micro-runtime-WAMR-1.3.2/product-mini/platforms/posix/main.c
+===================================================================
+--- wasm-micro-runtime-WAMR-1.3.2.orig/product-mini/platforms/posix/main.c
++++ wasm-micro-runtime-WAMR-1.3.2/product-mini/platforms/posix/main.c
+@@ -6,6 +6,11 @@
+ #ifndef _GNU_SOURCE
+ #define _GNU_SOURCE
+ #endif
++
++#if !defined(BH_HAS_DLFCN)
++#define BH_HAS_DLFCN 1
++#endif
++
+ #include <stdio.h>
+ #include <stdlib.h>
+ #include <string.h>

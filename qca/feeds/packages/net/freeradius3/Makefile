@@ -8,20 +8,21 @@
 include $(TOPDIR)/rules.mk
 
 PKG_NAME:=freeradius3
-PKG_VERSION:=3_0_21
-PKG_RELEASE:=1
+PKG_VERSION:=3.0.26
+PKG_RELEASE:=3
 
-PKG_SOURCE:=release_$(PKG_VERSION).tar.gz
-PKG_SOURCE_URL:=https://github.com/FreeRADIUS/freeradius-server/archive
-PKG_HASH:=b2014372948a92f86cfe2cf43c58ef47921c03af05666eb9d6416bdc6eeaedc2
+PKG_SOURCE:=freeradius-server-$(PKG_VERSION).tar.bz2
+PKG_SOURCE_URL:=https://github.com/FreeRADIUS/freeradius-server/releases/download/release_$(subst .,_,$(PKG_VERSION))/
+PKG_HASH:=9a65314c462da4d4c4204df72c45f210de671f89317299b01f78549ac4503f59
 
 PKG_MAINTAINER:=
 PKG_LICENSE:=GPL-2.0
 PKG_LICENSE_FILES:=COPYRIGHT LICENSE
 PKG_CPE_ID:=cpe:/a:freeradius:freeradius
 
-PKG_BUILD_DIR:=$(BUILD_DIR)/freeradius-server-release_$(PKG_VERSION)
+PKG_BUILD_DIR:=$(BUILD_DIR)/freeradius-server-$(PKG_VERSION)
 PKG_FIXUP:=autoreconf
+PYTHON3_PKG_BUILD:=0
 
 PKG_CONFIG_DEPENDS := \
   FREERADIUS3_OPENSSL \
@@ -30,7 +31,6 @@ PKG_CONFIG_DEPENDS := \
 CFLAGS += $(FPIC)
 
 include $(INCLUDE_DIR)/package.mk
-include ../../lang/python/python-package.mk
 include ../../lang/python/python3-package.mk
 
 define Package/freeradius3/config
@@ -63,7 +63,7 @@ endef
 define Package/freeradius3-common
   $(call Package/freeradius3/Default)
   TITLE:=common files
-  DEPENDS:=+USE_GLIBC:libpthread +FREERADIUS3_OPENSSL:libopenssl +libcap +libpcap +libncurses +libpcre +libreadline +libtalloc +libatomic
+  DEPENDS:=+USE_GLIBC:libpthread +USE_GLIBC:libbsd +FREERADIUS3_OPENSSL:libopenssl +libcap +libpcap +libncurses +libreadline +libtalloc +libatomic
 endef
 
 define Package/freeradius3-default
@@ -77,7 +77,6 @@ define Package/freeradius3-default
 +freeradius3-mod-digest \
 +freeradius3-mod-eap \
 +freeradius3-mod-eap-gtc \
-+freeradius3-mod-eap-leap \
 +freeradius3-mod-eap-md5 \
 +freeradius3-mod-eap-mschapv2 \
 +freeradius3-mod-eap-peap \
@@ -193,12 +192,6 @@ define Package/freeradius3-mod-eap-gtc
   $(call Package/freeradius3/Default)
   DEPENDS:=freeradius3-mod-eap
   TITLE:=EAP/GTC module
-endef
-
-define Package/freeradius3-mod-eap-leap
-  $(call Package/freeradius3/Default)
-  DEPENDS:=freeradius3-mod-eap
-  TITLE:=EAP/LEAP module
 endef
 
 define Package/freeradius3-mod-eap-md5
@@ -349,16 +342,6 @@ define Package/freeradius3-mod-preprocess/conffiles
 /etc/freeradius3/mods-config/preprocess/huntgroups
 /etc/freeradius3/mods-available/preprocess
 /etc/freeradius3/mods-enabled/preprocess
-endef
-
-define Package/freeradius3-mod-python
-  $(call Package/freeradius3/Default)
-  DEPENDS:=freeradius3 +python
-  TITLE:=Python module
-endef
-
-define Package/freeradius3-mod-python/conffiles
-/etc/freeradius3/mods-available/python
 endef
 
 define Package/freeradius3-mod-python3
@@ -516,6 +499,7 @@ CONFIGURE_ARGS+= \
 	--with-radacctdir=/var/db/radacct \
 	--with-logdir=/var/log \
 	--without-edir \
+	--without-pcre \
 	--without-snmp \
 	--without-rlm_cache \
 	--without-rlm_cache_memcached \
@@ -531,6 +515,7 @@ CONFIGURE_ARGS+= \
 	--without-rlm_opendirectory \
 	--without-rlm_pam \
 	--without-rlm_perl \
+	--without-rlm_python \
 	--without-rlm_redis \
 	--without-rlm_rediswho \
 	--without-rlm_ruby \
@@ -601,19 +586,6 @@ ifneq ($(SDK)$(CONFIG_PACKAGE_freeradius3-mod-ldap),)
 		--with-rlm_ldap-lib-dir="$(STAGING_DIR)/usr/lib"
 else
   CONFIGURE_ARGS+= --without-rlm_ldap
-endif
-
-ifneq ($(SDK)$(CONFIG_PACKAGE_freeradius3-mod-python),)
-  CFLAGS+= -fPIC
-  CONFIGURE_ARGS+= \
-		--with-rlm_python \
-		--with-rlm-python-include-dir="$(PYTHON_INC_DIR)" \
-		--with-rlm-python-lib-dir="$(PYTHON_LIB_DIR)"
-  CONFIGURE_VARS+= \
-		OPENWRTTARGET_PY_PREFIX="$(PYTHON_DIR)" \
-		OPENWRTTARGET_PY_SYS_VERSION="$(PYTHON_VERSION)"
-else
-  CONFIGURE_ARGS+= --without-rlm_python
 endif
 
 ifneq ($(SDK)$(CONFIG_PACKAGE_freeradius3-mod-python3),)
@@ -796,7 +768,6 @@ $(eval $(call BuildPlugin,freeradius3-mod-detail,rlm_detail,))
 $(eval $(call BuildPlugin,freeradius3-mod-digest,rlm_digest,))
 $(eval $(call BuildPlugin,freeradius3-mod-eap,rlm_eap,))
 $(eval $(call BuildPlugin,freeradius3-mod-eap-gtc,rlm_eap_gtc,))
-$(eval $(call BuildPlugin,freeradius3-mod-eap-leap,rlm_eap_leap,))
 $(eval $(call BuildPlugin,freeradius3-mod-eap-md5,rlm_eap_md5,))
 $(eval $(call BuildPlugin,freeradius3-mod-eap-mschapv2,rlm_eap_mschapv2,))
 $(eval $(call BuildPlugin,freeradius3-mod-eap-peap,rlm_eap_peap,))
@@ -813,9 +784,6 @@ $(eval $(call BuildPlugin,freeradius3-mod-mschap,rlm_mschap,))
 $(eval $(call BuildPlugin,freeradius3-mod-pap,rlm_pap,))
 $(eval $(call BuildPlugin,freeradius3-mod-passwd,rlm_passwd,))
 $(eval $(call BuildPlugin,freeradius3-mod-preprocess,rlm_preprocess,))
-$(eval $(call PyPackage,freeradius3-mod-python))
-$(eval $(call BuildPlugin,freeradius3-mod-python,rlm_python,))
-$(eval $(call Py3Package,freeradius3-mod-python3))
 $(eval $(call BuildPlugin,freeradius3-mod-python3,rlm_python3,))
 $(eval $(call BuildPlugin,freeradius3-mod-radutmp,rlm_radutmp,))
 $(eval $(call BuildPlugin,freeradius3-mod-realm,rlm_realm,))

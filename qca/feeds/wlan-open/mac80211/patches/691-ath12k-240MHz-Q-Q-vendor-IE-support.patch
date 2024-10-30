@@ -12,8 +12,10 @@ copied one during STA association.
 
 Signed-off-by: Ramya Gnanasekar <quic_rgnanase@quicinc.com>
 
---- a/include/linux/ieee80211.h
-+++ b/include/linux/ieee80211.h
+Index: b/include/linux/ieee80211.h
+===================================================================
+--- a/include/linux/ieee80211.h	2023-01-04 09:49:16.232080548 +0530
++++ b/include/linux/ieee80211.h	2023-01-04 09:49:16.204080803 +0530
 @@ -2108,6 +2108,14 @@ struct ieee80211_eht_operation_info {
  	u8 optional[];
  } __packed;
@@ -51,8 +53,10 @@ Signed-off-by: Ramya Gnanasekar <quic_rgnanase@quicinc.com>
  /*
   * EHT operation channel width as defined in P802.11be_D2.0 section 9.4.2.311
   */
---- a/include/net/cfg80211.h
-+++ b/include/net/cfg80211.h
+Index: b/include/net/cfg80211.h
+===================================================================
+--- a/include/net/cfg80211.h	2023-01-04 09:49:16.232080548 +0530
++++ b/include/net/cfg80211.h	2023-01-04 09:49:16.212080730 +0530
 @@ -1621,6 +1621,8 @@ struct link_station_parameters {
  	const struct ieee80211_he_6ghz_capa *he_6ghz_capa;
  	const struct ieee80211_eht_cap_elem *eht_capa;
@@ -62,9 +66,11 @@ Signed-off-by: Ramya Gnanasekar <quic_rgnanase@quicinc.com>
  };
  
  /**
---- a/include/uapi/linux/nl80211.h
-+++ b/include/uapi/linux/nl80211.h
-@@ -3378,6 +3378,8 @@ enum nl80211_attrs {
+Index: b/include/uapi/linux/nl80211.h
+===================================================================
+--- a/include/uapi/linux/nl80211.h	2023-01-04 09:49:16.232080548 +0530
++++ b/include/uapi/linux/nl80211.h	2023-01-04 09:55:26.728712049 +0530
+@@ -3372,6 +3372,8 @@ enum nl80211_attrs {
  	NL80211_ATTR_MULTI_HW_MACS,
  
  	NL80211_ATTR_RADAR_BITMAP,
@@ -73,7 +79,7 @@ Signed-off-by: Ramya Gnanasekar <quic_rgnanase@quicinc.com>
  	/* add attributes here, update the policy in nl80211.c */
  
  	__NL80211_ATTR_AFTER_LAST,
-@@ -3440,6 +3442,7 @@ enum nl80211_attrs {
+@@ -3434,6 +3436,7 @@ enum nl80211_attrs {
  #define NL80211_MAX_NR_AKM_SUITES		2
  #define NL80211_EHT_MIN_CAPABILITY_LEN          12
  #define NL80211_EHT_MAX_CAPABILITY_LEN          51
@@ -81,8 +87,10 @@ Signed-off-by: Ramya Gnanasekar <quic_rgnanase@quicinc.com>
  
  #define NL80211_MIN_REMAIN_ON_CHANNEL_TIME	10
  
---- a/net/mac80211/cfg.c
-+++ b/net/mac80211/cfg.c
+Index: b/net/mac80211/cfg.c
+===================================================================
+--- a/net/mac80211/cfg.c	2023-01-04 09:49:16.232080548 +0530
++++ b/net/mac80211/cfg.c	2023-01-04 09:49:16.220080657 +0530
 @@ -1892,6 +1892,8 @@ static int sta_link_apply_parameters(str
  						    params->he_capa_len,
  						    params->eht_capa,
@@ -92,8 +100,10 @@ Signed-off-by: Ramya Gnanasekar <quic_rgnanase@quicinc.com>
  						    link_sta);
  		/* 802.11s mesh STA may have different eht punctruing pattern,
  		 * update it here so that drivers can use if needed.
---- a/net/mac80211/eht.c
-+++ b/net/mac80211/eht.c
+Index: b/net/mac80211/eht.c
+===================================================================
+--- a/net/mac80211/eht.c	2023-01-04 09:49:16.232080548 +0530
++++ b/net/mac80211/eht.c	2023-01-04 09:49:16.220080657 +0530
 @@ -13,6 +13,8 @@ ieee80211_eht_cap_ie_to_sta_eht_cap(stru
  				    const u8 *he_cap_ie, u8 he_cap_len,
  				    const struct ieee80211_eht_cap_elem *eht_cap_ie_elem,
@@ -108,7 +118,7 @@ Signed-off-by: Ramya Gnanasekar <quic_rgnanase@quicinc.com>
  		       eht_ppe_size);
  
 +	if (eht_240mhz_cap &&
-+	    sband->band == NL80211_BAND_5GHZ) {
++	    link_sta->sta->sdata->vif.bss_conf.chandef.chan->band == NL80211_BAND_5GHZ) {
 +		/* Override capabilities from QCN IE for 240MHz to EHT phy capab */
 +		if (eht_240mhz_cap->phy_cap_320mhz &
 +		    IEEE80211_EHT_PHY_CAP0_320MHZ_IN_6GHZ_MASK)
@@ -141,9 +151,11 @@ Signed-off-by: Ramya Gnanasekar <quic_rgnanase@quicinc.com>
  	eht_cap->has_eht = true;
  
  	link_sta->cur_max_bandwidth = ieee80211_sta_cap_rx_bw(link_sta);
---- a/net/mac80211/ieee80211_i.h
-+++ b/net/mac80211/ieee80211_i.h
-@@ -1726,6 +1726,7 @@ struct ieee802_11_elems {
+Index: b/net/mac80211/ieee80211_i.h
+===================================================================
+--- a/net/mac80211/ieee80211_i.h	2023-01-04 09:49:16.232080548 +0530
++++ b/net/mac80211/ieee80211_i.h	2023-01-04 09:49:16.224080621 +0530
+@@ -1721,6 +1721,7 @@ struct ieee802_11_elems {
  	const struct ieee80211_aid_response_ie *aid_resp;
  	const struct ieee80211_eht_cap_elem *eht_cap;
  	const struct ieee80211_eht_operation *eht_operation;
@@ -151,7 +163,7 @@ Signed-off-by: Ramya Gnanasekar <quic_rgnanase@quicinc.com>
  	const struct ieee80211_multi_link_elem *multi_link;
  
  	/* length of them, respectively */
-@@ -1749,6 +1750,7 @@ struct ieee802_11_elems {
+@@ -1744,6 +1745,7 @@ struct ieee802_11_elems {
  	u8 tx_pwr_env_len[IEEE80211_TPE_MAX_IE_COUNT];
  	u8 tx_pwr_env_num;
  	u8 eht_cap_len;
@@ -159,7 +171,7 @@ Signed-off-by: Ramya Gnanasekar <quic_rgnanase@quicinc.com>
  
  	/* whether a parse error occurred while retrieving these elements */
  	bool parse_error;
-@@ -2603,6 +2605,8 @@ ieee80211_eht_cap_ie_to_sta_eht_cap(stru
+@@ -2598,6 +2600,8 @@ ieee80211_eht_cap_ie_to_sta_eht_cap(stru
  				    const u8 *he_cap_ie, u8 he_cap_len,
  				    const struct ieee80211_eht_cap_elem *eht_cap_ie_elem,
  				    u8 eht_cap_len,
@@ -168,8 +180,10 @@ Signed-off-by: Ramya Gnanasekar <quic_rgnanase@quicinc.com>
  				    struct link_sta_info *link_sta);
  void ieee80211_eht_op_ie_to_bss_conf(struct ieee80211_bss_conf *link_conf,
  				     const struct ieee80211_eht_operation *op_ie);
---- a/net/mac80211/mesh_plink.c
-+++ b/net/mac80211/mesh_plink.c
+Index: b/net/mac80211/mesh_plink.c
+===================================================================
+--- a/net/mac80211/mesh_plink.c	2023-01-04 09:49:16.232080548 +0530
++++ b/net/mac80211/mesh_plink.c	2023-01-04 09:49:16.224080621 +0530
 @@ -464,6 +464,7 @@ static void mesh_sta_info_init(struct ie
  	ieee80211_eht_cap_ie_to_sta_eht_cap(sdata, sband, elems->he_cap,
  					    elems->he_cap_len,
@@ -178,8 +192,10 @@ Signed-off-by: Ramya Gnanasekar <quic_rgnanase@quicinc.com>
  					    &sta->deflink);
  
  	if (bw != sta->sta.deflink.bandwidth)
---- a/net/mac80211/mlme.c
-+++ b/net/mac80211/mlme.c
+Index: b/net/mac80211/mlme.c
+===================================================================
+--- a/net/mac80211/mlme.c	2023-01-04 09:49:16.232080548 +0530
++++ b/net/mac80211/mlme.c	2023-01-04 09:49:16.224080621 +0530
 @@ -4092,6 +4092,7 @@ static bool ieee80211_assoc_config_link(
  							    elems->he_cap_len,
  							    elems->eht_cap,
@@ -188,9 +204,11 @@ Signed-off-by: Ramya Gnanasekar <quic_rgnanase@quicinc.com>
  							    link_sta);
  
  			bss_conf->eht_support = link_sta->pub->eht_cap.has_eht;
---- a/net/wireless/nl80211.c
-+++ b/net/wireless/nl80211.c
-@@ -860,6 +860,16 @@ static const struct nla_policy nl80211_p
+Index: b/net/wireless/nl80211.c
+===================================================================
+--- a/net/wireless/nl80211.c	2023-01-04 09:49:16.232080548 +0530
++++ b/net/wireless/nl80211.c	2023-01-04 09:51:54.218642161 +0530
+@@ -859,6 +859,16 @@ static const struct nla_policy nl80211_p
  	[NL80211_ATTR_RU_PUNCT_BITMAP] = { .type = NLA_U16 },
  	[NL80211_ATTR_AP_PS] = NLA_POLICY_MAX(NLA_U8, 1),
  	[NL80211_ATTR_RADAR_BITMAP] = { .type = NLA_U16 },
@@ -207,7 +225,7 @@ Signed-off-by: Ramya Gnanasekar <quic_rgnanase@quicinc.com>
  };
  
  /* policy for the key attributes */
-@@ -7502,6 +7512,13 @@ static int nl80211_set_station_tdls(stru
+@@ -7494,6 +7504,13 @@ static int nl80211_set_station_tdls(stru
  							params->link_sta_params.eht_capa_len))
  				return -EINVAL;
  		}
@@ -221,7 +239,7 @@ Signed-off-by: Ramya Gnanasekar <quic_rgnanase@quicinc.com>
  	}
  
  	err = nl80211_parse_sta_channel_info(info, params);
-@@ -16660,6 +16677,13 @@ nl80211_add_mod_link_station(struct sk_b
+@@ -16652,6 +16669,13 @@ nl80211_add_mod_link_station(struct sk_b
  							params.eht_capa_len))
  				return -EINVAL;
  		}

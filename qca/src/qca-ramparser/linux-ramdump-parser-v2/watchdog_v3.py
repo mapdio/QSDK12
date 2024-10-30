@@ -332,7 +332,6 @@ class TZCpuCtx_v3():
             if t32_name is not None:
                 outfile.write('r.s {0} 0x{1:x}\n'.format(t32_name, self.regs[reg_name]))
 
-
 class TZRegDump_v3():
     def __init__(self):
         self.core_regs = []
@@ -368,6 +367,48 @@ class TZRegDump_v3():
             self.sec_regs[i].print_regs(secn_regs, ram_dump)
             secn_regs.close()
             kernel_addr += self.struct_size
+
+    def dump_dcc_all_regs(self, ram_dump):
+        for i in range(0, self.ncores):
+            # DCC scan enabled only for Secure boot dump
+            # Register addresses are  extracted in core*_regs_sec.cmm
+            coren_regs = ram_dump.open_file('core{0}_regs_sec.cmm'.format(i)) # print_dcc_regs
+            print_out_str('core{0} regs secure_world:'.format(i))
+            outdir = self.ramdump.scan_dump_output
+            file_name = "core" + str(i) + ".txt";
+            file_path = os.path.join(outdir, file_name)
+            PCLRPattern = "PC Value is:"
+            address_pattern_64 = "[0-9a-fx]{10,18}"
+            address_pattern_32 = "[0-9a-fx]{8,10}"
+            digit = "[0-9]*"
+            pattern = "X\[" + digit + "\], X_index_value is: " + digit + " ;high 32bits value is: .*; low 32bits value is: .*"
+            array = []
+            with open(file_path, 'r') as Lines:
+                for partial in Lines:
+                        if (re.search(PCLRPattern, partial)):
+                                x = re.findall(address_pattern_64, partial)
+                                pc = x[0]
+                                pc = int(pc, 16)
+                                array.append(pc)
+                        elif (re.search(pattern, partial)):
+                                regx = re.findall("X\[(\d*)\]", partial)
+                                x = re.findall(address_pattern_32, partial)
+                                if not x:
+                                    address = "0x0"
+                                else:
+                                    address = x[1]
+
+                                address = int(address, 16)
+                                array.append(address)
+            register_names = sysdbg_dcc_cpu64_register_names[self.version]
+            i = 0
+            for reg_name, t32_name, print_pc in register_names:
+                coren_regs.write('r.s {0} 0x{1:x}\n'.format(t32_name, array[i]))
+                print_out_str('   {0:8} = 0x{1:016x}'.format(t32_name, array[i]))
+                if t32_name == "x30":
+                    break
+                i += 1
+            coren_regs.close()
 
     def print_status_register_details(self):
         print_out_str('\n======== entry/exit details of SGI and WDT interrupt ==========\n')

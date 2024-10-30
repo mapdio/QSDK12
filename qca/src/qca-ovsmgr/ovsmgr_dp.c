@@ -1943,10 +1943,17 @@ void ovsmgr_dp_bridge_interface_stats_update(struct net_device *dev,
 
 	ovs_stats = this_cpu_ptr(dev->tstats);
 	u64_stats_update_begin(&ovs_stats->syncp);
+#if (LINUX_VERSION_CODE < KERNEL_VERSION(6, 1, 0))
 	ovs_stats->rx_packets += rx_packets;
 	ovs_stats->rx_bytes += rx_bytes;
 	ovs_stats->tx_packets += tx_packets;
 	ovs_stats->tx_bytes += tx_bytes;
+#else
+	u64_stats_add(&ovs_stats->rx_packets, rx_packets);
+	u64_stats_add(&ovs_stats->rx_bytes, rx_bytes);
+	u64_stats_add(&ovs_stats->tx_packets, tx_packets);
+	u64_stats_add(&ovs_stats->tx_bytes, tx_bytes);
+#endif
 	u64_stats_update_end(&ovs_stats->syncp);
 }
 

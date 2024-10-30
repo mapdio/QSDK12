@@ -62,13 +62,16 @@
  */
 #define SFE_GET_SAWF_TAG(sawf_meta)             (sawf_meta >> SFE_SAWF_TAG_SHIFT)
 				/**< Get tag field in SAWF meta. */
-#define SFE_GET_SAWF_SERVICE_CLASS(sawf_meta)   ((sawf_meta >> SFE_SAWF_SERVICE_CLASS_SHIFT) & SFE_SAWF_SERVICE_CLASS_MASK)
-				/**< Get service class ID field in SAWF meta. */
-#define SFE_GET_SAWF_MSDUQ(sawf_meta)           (sawf_meta & SFE_SAWF_MSDUQ_MASK)
-				/**< Get msduq field in SAWF meta. */
 #define SFE_SAWF_TAG_IS_VALID(tag)              ((tag == SFE_SAWF_VALID_TAG) ? true : false)
 				/**< Check if tag is a valid SAWF tag. */
 
+/**
+ * MHT port information placement in mark field.
+ */
+#define SFE_MHT_VALID_TAG		0xBB	/**< Valid MHT tag value. */
+#define SFE_MHT_TAG_SHIFT		24	/**< Number of bit shifts for MHT tag. */
+
+#define SFE_MHT_MAX_ACCELERATION_RETRY	256	/**< Maximum retry for SFE acceleration for MHT. */
 /**
 * @}
 */
@@ -100,6 +103,9 @@
 								/**< Check source interface on the flow direction but do not flush the connection. */
 #define SFE_RULE_CREATE_FLAG_RETURN_SRC_INTERFACE_CHECK_NO_FLUSH  (1<<15)
 								/**< Check source interface on the return direction but do not flush the connection. */
+#define SFE_RULE_CREATE_FLAG_FLOW_L2_DISABLE (1<<16)		/**< Disable L2 flow processing in original flow. */
+#define SFE_RULE_CREATE_FLAG_RETURN_L2_DISABLE (1<<17)		/**< Disable L2 flow processing in return flow. */
+#define SFE_RULE_CREATE_FLAG_BRIDGE_VLAN_PASSTHROUGH  (1<<18)	/**< Bridge VLAN passthrough. */
 
 /*
  * Rule creation validity flags.
@@ -186,11 +192,15 @@
 		/**< Qdisc interface for the flow interface is valid. */
 #define SFE_QDISC_RULE_RETURN_VALID 0x02
 		/**< Qdisc interface for the return interface is valid. */
+#define SFE_QDISC_RULE_FLOW_PPE_QDISC_FAST_XMIT 0x04
+		/**< Fast transmit via PPE Qdisc for the flow interface is valid. */
+#define SFE_QDISC_RULE_RETURN_PPE_QDISC_FAST_XMIT 0x08
+		/**< Fast transmit via PPE Qdisc for the return interface is valid. */
 
 /*
- * Bridge VLAN Filter flags; used with SFE_RULE_CREATE_VLAN_FILTER_VALID and sfe_vlan_filter_rule structure.
+ * Bridge VLAN filter flags; used with SFE_RULE_CREATE_VLAN_FILTER_VALID and sfe_vlan_filter_rule structure.
  */
-#define SFE_VLAN_FILTER_FLAG_VALID 		(1<<0) 	/**< VLAN Filter is valid in the rule.  */
+#define SFE_VLAN_FILTER_FLAG_VALID 		(1<<0) 	/**< VLAN filter is valid in the rule.  */
 #define SFE_VLAN_FILTER_FLAG_INGRESS_PVID 	(1<<1)	/**< Add VLAN header at ingress for untagged packets. */
 #define SFE_VLAN_FILTER_FLAG_EGRESS_UNTAGGED	(1<<2)	/**< Strip VLAN header associated with this VID at egress. */
 
@@ -286,15 +296,17 @@ enum sfe_connection_mark_type {
  * Connection mark structure.
  */
 struct sfe_connection_mark {
-	int protocol;                           /**< Protocol number. */
-	__be32 src_ip[4];                       /**< Source IP address. */
-	__be32 dest_ip[4];                      /**< Destination IP address. */
-	__be16 src_port;                        /**< Source port number. */
-	__be16 dest_port;                       /**< Destination port number. */
-	u32 flow_mark;                          /**< Mark to be updated for the flow direction. */
-	u32 return_mark;                        /**< Mark to be updated for the return direction. */
-	u32 flags;                              /**< State of marks. */
-	enum sfe_connection_mark_type type;     /**< Type of the marking. */
+	int protocol;				/**< Protocol number. */
+	__be32 src_ip[4];			/**< Source IP address. */
+	__be32 dest_ip[4];			/**< Destination IP address. */
+	__be16 src_port;			/**< Source port number. */
+	__be16 dest_port;			/**< Destination port number. */
+	u32 flow_mark;				/**< Mark to be updated for the flow direction. */
+	u32 return_mark;			/**< Mark to be updated for the return direction. */
+	u8 flow_svc_id;			/**< Service class in the flow direction. */
+	u8 return_svc_id;		/**< Service class in the return direction. */
+	u32 flags;				/**< State of marks. */
+	enum sfe_connection_mark_type type;	/**< Type of the marking. */
 };
 
 /**
@@ -392,6 +404,8 @@ struct sfe_src_mac_rule {
 struct sfe_qos_rule {
 	u32 flow_qos_tag;	/**< QoS tag associated with this rule for flow direction. */
 	u32 return_qos_tag;	/**< QoS tag associated with this rule for return direction. */
+	u8 flow_int_pri;	/**< PPE INT_PRI corresponding to flow direction when PPE Qdisc is configured. */
+	u8 return_int_pri;	/**< PPE INT_PRI corresponding to return direction when PPE Qdisc is configured. */
 };
 
 /**
@@ -420,7 +434,7 @@ struct sfe_vlan_rule {
 };
 
 /**
- * VLAN Filter connection rule structure.
+ * VLAN filter connection rule structure.
  * 	TODO: Combine flow/return information into one structure.
  */
 struct sfe_vlan_filter_rule {
@@ -454,8 +468,10 @@ struct sfe_acceleration_direction_rule {
  * Service class rule information in both directions.
  */
 struct sfe_service_class_rule {
-	uint32_t flow_mark;		/**< Service class information in flow direction. */
-	uint32_t return_mark;		/**< Service class information in return direction. */
+	uint32_t flow_mark;		/**< SAWF metadata information in flow direction. */
+	uint32_t return_mark;		/**< SAWF metadata information in return direction. */
+	uint8_t flow_svc_id;		/**< Service class id in flow direction. */
+	uint8_t return_svc_id;		/**< Service class id in return direction. */
 };
 
 /**
@@ -476,8 +492,8 @@ struct sfe_qdisc_rule {
  */
 struct sfe_ipv4_rule_create_msg {
 	/* Request */
-	u16 valid_flags;				/**< Bit flags associated with paramater validity. */
-	u16 rule_flags;					/**< Bit flags associated with the rule. */
+	u32 valid_flags;				/**< Bit flags associated with paramater validity. */
+	u32 rule_flags;					/**< Bit flags associated with the rule. */
 
 	struct sfe_ipv4_5tuple tuple;			/**< Holds values of 5-tuple. */
 
@@ -518,8 +534,8 @@ struct sfe_ipv4_rule_destroy_msg {
  * Multicast destination interface entry
  */
 struct sfe_ipv4_mc_device_entry {
-	uint16_t rule_flags;		/**< Bit flag of rules indicating PPPOE session, Vlan. */
-	uint16_t valid_flags;		/**< Valid Bit flags associated with the rule of vlan/pppoe. */
+	uint32_t rule_flags;		/**< Bit flag of rules indicating PPPOE session, Vlan. */
+	uint32_t valid_flags;		/**< Valid Bit flags associated with the rule of vlan/pppoe. */
 	uint32_t xlate_src_ip;		/**< nated source ip address. */
 	uint32_t xlate_src_ident;	/**< nated source port number. */
 	uint32_t egress_vlan_tag[SFE_MAX_VLAN_DEPTH]; /**< VLAN tag stack for the ingress packets. */
@@ -539,8 +555,8 @@ struct sfe_ipv4_mc_device_entry {
  */
 struct sfe_ipv4_mc_rule_create_msg {
 	/* Request */
-	u16 valid_flags;				/**< Bit flags associated with paramater validity. */
-	u16 rule_flags;					/**< Bit flags associated with the rule. */
+	u32 valid_flags;				/**< Bit flags associated with paramater validity. */
+	u32 rule_flags;					/**< Bit flags associated with the rule. */
 
 	struct sfe_ipv4_5tuple tuple;           /**< Holds values of the 5 tuple. */
 	struct sfe_ipv4_connection_rule conn_rule;	/**< Basic connection-specific data. */
@@ -644,6 +660,19 @@ struct sfe_ipv4_msg {
 };
 
 /**
+ * Structure used to pass stats during netfn flowmgr single ipv4 stats pull
+ */
+struct sfe_ipv4_single_conn_stats {
+	struct net_device *org_dev;		/**< Source netdevice */
+	struct net_device *reply_dev;		/**< Desination netdevice */
+	struct sfe_ipv4_5tuple tuple;		/**< Conn tuple information */
+	u64 rx_packet_count;			/**< Rx packets */
+	u64 rx_byte_count;			/**< Rx bytes */
+	u64 tx_packet_count;			/**< Tx packets */
+	u64 tx_byte_count;			/**< Tx bytes */
+};
+
+/**
  * @}
  */
 
@@ -690,6 +719,10 @@ struct sfe_ipv6_connection_rule {
 	s32 return_top_interface_num;	/**< Top return interface number. */
 	u32 flow_mtu;			/**< Flow interface's MTU. */
 	u32 return_mtu;			/**< Return interface's MTU. */
+	__be32 flow_ip_xlate[4];		/**< Translated flow IP address. */
+	__be32 return_ip_xlate[4];		/**< Translated return IP address. */
+	__be16 flow_ident_xlate;	/**< Translated flow identifier, e.g., port. */
+	__be16 return_ident_xlate;	/**< Translated return identifier, e.g., port. */
 };
 
 /**
@@ -699,8 +732,8 @@ struct sfe_ipv6_rule_create_msg {
 	/*
 	 * Request
 	 */
-	u16 valid_flags;				/**< Bit flags associated with parameter validity. */
-	u16 rule_flags;					/**< Bit flags associated with the rule. */
+	u32 valid_flags;				/**< Bit flags associated with parameter validity. */
+	u32 rule_flags;					/**< Bit flags associated with the rule. */
 	struct sfe_ipv6_5tuple tuple;			/**< Holds values of the sfe_ipv6_5tuple tuple. */
 	struct sfe_ipv6_connection_rule conn_rule;	/**< Basic connection-specific data. */
 	struct sfe_protocol_tcp_rule tcp_rule;		/**< Protocol-related acceleration parameters. */
@@ -740,8 +773,10 @@ struct sfe_ipv6_rule_destroy_msg {
  * Multicast destination interface entry
  */
 struct sfe_ipv6_mc_device_entry {
-	uint16_t rule_flags;		/**< Bit flag of rules indicating PPPOE session, Vlan. */
-	uint16_t valid_flags;		/**< Valid Bit flags associated with the rule of vlan/pppoe. */
+	uint32_t rule_flags;		/**< Bit flag of rules indicating PPPOE session, Vlan. */
+	uint32_t valid_flags;		/**< Valid Bit flags associated with the rule of vlan/pppoe. */
+	uint32_t xlate_src_ip[4];	/**< nated source ip address. */
+	uint32_t xlate_src_ident;	/**< nated source port number. */
 
 	uint32_t egress_vlan_tag[SFE_MAX_VLAN_DEPTH]; /**< VLAN tag stack for the ingress packets. */
 	uint32_t if_mtu;                        /* Interface MTU */
@@ -760,8 +795,8 @@ struct sfe_ipv6_mc_device_entry {
  */
 struct sfe_ipv6_mc_rule_create_msg {
 	/* Request */
-	u16 valid_flags;				/**< Bit flags associated with paramater validity. */
-	u16 rule_flags;					/**< Bit flags associated with the rule. */
+	u32 valid_flags;				/**< Bit flags associated with paramater validity. */
+	u32 rule_flags;					/**< Bit flags associated with the rule. */
 
 	struct sfe_ipv6_5tuple tuple;           /**< Holds values of the 5 tuple. */
 	struct sfe_ipv6_connection_rule conn_rule;	/**< Basic connection-specific data. */
@@ -798,7 +833,9 @@ struct sfe_ipv6_conn_sync {
 	u32 index;			/**< Slot ID for cache statistics to host OS. */
 	u8 protocol;			/**< Protocol number. */
 	__be32 flow_ip[4];		/**< Flow IP address. */
+	__be32 flow_ip_xlate[4];		/**< Translated flow IP address. */
 	__be16 flow_ident;		/**< Flow identifier, e.g., port. */
+	__be16 flow_ident_xlate;	/**< Translated flow identifier, e.g., port. */
 	u32 flow_max_window;		/**< Flow direction's largest seen window. */
 	u32 flow_end;			/**< Flow direction's largest seen sequence + segment length. */
 	u32 flow_max_end;		/**< Flow direction's largest seen ack + max(1, win). */
@@ -809,7 +846,9 @@ struct sfe_ipv6_conn_sync {
 	u16 flow_pppoe_session_id;	/**< Flow interface`s PPPoE session ID. */
 	u16 flow_pppoe_remote_mac[3];	/**< Flow interface's PPPoE remote server MAC address (if present). */
 	__be32 return_ip[4];		/**< Return IP address. */
+	__be32 return_ip_xlate[4];		/**< Translated return IP address. */
 	__be16 return_ident;		/**< Return identifer, e.g., port. */
+	__be16 return_ident_xlate;	/**< Translated return identifier, e.g., port. */
 	u32 return_max_window;		/**< Return direction's largest seen window. */
 	u32 return_end;			/**< Return direction's largest seen sequence + segment length. */
 	u32 return_max_end;		/**< Return direction's largest seen ack + max(1, win). */
@@ -862,6 +901,19 @@ struct sfe_ipv6_msg {
 		struct sfe_ipv6_mc_rule_destroy_msg mc_rule_destroy; /**<MC rule destroy message. */
 
 	} msg;				/**< IPv6 message. */
+};
+
+/**
+ * Structure used to pass stats during netfn flowmgr single ipv6 stats pull
+ */
+struct sfe_ipv6_single_conn_stats {
+	struct net_device *org_dev;		/**< Source netdevice */
+	struct net_device *reply_dev;		/**< Desination netdevice */
+	struct sfe_ipv6_5tuple tuple;		/**< Conn tuple information */
+	u64 rx_packet_count;			/**< Rx packets */
+	u64 rx_byte_count;			/**< Rx bytes */
+	u64 tx_packet_count;			/**< Tx packets */
+	u64 tx_byte_count;			/**< Tx bytes */
 };
 
 /**
@@ -953,6 +1005,17 @@ int sfe_ipv4_max_conn_count(void);
 extern sfe_tx_status_t sfe_ipv4_tx(struct sfe_ctx_instance *sfe_ctx, struct sfe_ipv4_msg *msg);
 
 /**
+ * Transmits an IPv4 message to the SFE.
+ *
+ * @param	sfe_ctx		SFE context.
+ * @param	msg		The IPv4 message.
+ *
+ * @return
+ * ACK/NACK msg based on successful accel/deaccel.
+ */
+extern enum sfe_cmn_response sfe_ipv4_tx_with_resp(struct sfe_ctx_instance *sfe_ctx, struct sfe_ipv4_msg *msg);
+
+/**
  * Registers a notifier callback for IPv4 messages from the SFE.
  *
  * @param	one_rule_cb		The callback pointer for one rule.
@@ -987,6 +1050,17 @@ extern void sfe_ipv4_notify_unregister(void);
 extern void sfe_ipv4_msg_init(struct sfe_ipv4_msg *nim, u16 if_num, u32 type, u32 len,
 			sfe_ipv4_msg_callback_t cb, void *app_data);
 
+
+/**
+ * Allows netfn flowmgr to pull single Connection Stats from SFE
+ *
+ * @param	sfe_ipv4_single_conn_stats	SFE context.
+ *
+ * @return
+ * The status of the pull operation operation (bool).
+ */
+extern bool sfe_ipv4_get_single_conn_stats(struct sfe_ipv4_single_conn_stats *stats);
+
 /**
  * Gets the maximum number of IPv6 connections supported by the SFE acceleration engine.
  *
@@ -1005,6 +1079,17 @@ int sfe_ipv6_max_conn_count(void);
  * The status of the Tx operation (#sfe_tx_status_t).
  */
 extern sfe_tx_status_t sfe_ipv6_tx(struct sfe_ctx_instance *sfe_ctx, struct sfe_ipv6_msg *msg);
+
+/**
+ * Transmits an IPv6 message to the SFE.
+ *
+ * @param	sfe_ctx		The SFE context.
+ * @param	msg		The IPv6 message.
+ *
+ * @return
+ * ACK/NACK msg based on successful accel/deaccel.
+ */
+extern enum sfe_cmn_response sfe_ipv6_tx_with_resp(struct sfe_ctx_instance *sfe_ctx, struct sfe_ipv6_msg *msg);
 
 /**
  * Registers a notifier callback for IPv6 messages from the SFE.
@@ -1095,6 +1180,16 @@ void sfe_ipv4_mark_rule_update(struct sfe_connection_mark *mark);
 void sfe_ipv6_mark_rule_update(struct sfe_connection_mark *mark);
 
 /**
+ * Allows netfn flowmgr to pull single Connection Stats from SFE
+ *
+ * @param	sfe_ipv6_single_conn_stats	SFE context.
+ *
+ * @return
+ * The status of the pull operation operation (bool).
+ */
+extern bool sfe_ipv6_get_single_conn_stats(struct sfe_ipv6_single_conn_stats *stats);
+
+/**
  * Gets the acceleration mode of PPPoE bridge.
  *
  * @return
@@ -1111,10 +1206,6 @@ sfe_pppoe_br_accel_mode_t sfe_pppoe_get_br_accel_mode(void);
  * @param	orig_src_port	Source port number in the original direcion.
  * @param	orig_dst_ip	A pointer to the destination IP address in the original direction. If IPv6, a pointer to an array of length 4.
  * @param	orig_dst_port	Destination port number in the original direcion.
- * @param	repl_src_ip	A pointer to the source IP address in the reply direction. If IPv6, a pointer to an array of length 4.
- * @param	repl_src_port	Source port number in the reply direcion.
- * @param	repl_dst_ip	A pointer to the destination IP address in the reply direction. If IPv6, a pointer to an array of length 4.
- * @param	repl_dst_port	Destination port number in the reply direcion.
  * @param	orig_conn	Pointer to where the original direction connection entry pointer will be written.
  * @param	repl_conn	Pointer to where the reply direction connection entry pointer will be written.
  */
@@ -1124,10 +1215,6 @@ typedef void (*sfe_fls_conn_create_t)(uint8_t ip_version,
 					uint16_t orig_src_port,
 					uint32_t *orig_dest_ip,
 					uint16_t orig_dest_port,
-					uint32_t *repl_src_ip,
-					uint16_t repl_src_port,
-					uint32_t *repl_dest_ip,
-					uint16_t repl_dest_port,
 					void **orig_conn,
 					void **repl_conn);
 
@@ -1144,7 +1231,7 @@ typedef void (*sfe_fls_conn_delete_t)(void *conn);
  * @param	conn	The entry to be updated.
  * @param	skb	The sk_buff to use for statistics.
  */
-typedef void (*sfe_fls_conn_stats_update_t)(void *conn, struct sk_buff *skb);
+typedef bool (*sfe_fls_conn_stats_update_t)(void *conn, struct sk_buff *skb);
 
 /**
  * Registers flow statistics methods with SFE.

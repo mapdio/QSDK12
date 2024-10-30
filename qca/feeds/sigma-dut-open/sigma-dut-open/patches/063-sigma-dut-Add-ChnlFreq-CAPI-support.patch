@@ -12,9 +12,11 @@ Signed-off-by: Muna Sinada <quic_msinada@quicinc.com>
  sigma_dut.h |  1 +
  2 files changed, 9 insertions(+), 2 deletions(-)
 
+diff --git a/ap.c b/ap.c
+index 32cd7727dceb..55affabe7bfb 100644
 --- a/ap.c
 +++ b/ap.c
-@@ -798,11 +798,17 @@ static enum sigma_cmd_result cmd_ap_set_
+@@ -798,11 +798,17 @@ static enum sigma_cmd_result cmd_ap_set_wireless(struct sigma_dut *dut,
  			dut->ap_interface_5g = 1;
  		else
  			dut->ap_interface_2g = 1;
@@ -34,14 +36,8 @@ Signed-off-by: Muna Sinada <quic_msinada@quicinc.com>
  	val = get_param(cmd, "CountryCode");
  	if (val) {
  		if (strlen(val) > sizeof(dut->ap_countrycode) - 1)
-@@ -10715,6 +10721,7 @@ static enum sigma_cmd_result cmd_ap_rese
- 
- 	dut->mbo_pref_ap_cnt = 0;
- 	dut->ft_bss_mac_cnt = 0;
-+	dut->ap_interface_6g = 0;
- 	dut->ap_interface_5g = 0;
- 	dut->ap_interface_2g = 0;
- 	dut->ap_pmf = AP_PMF_DISABLED;
+diff --git a/sigma_dut.h b/sigma_dut.h
+index 899d921731fa..e2f9fca6a000 100644
 --- a/sigma_dut.h
 +++ b/sigma_dut.h
 @@ -770,6 +770,7 @@ struct sigma_dut {
@@ -52,3 +48,6 @@ Signed-off-by: Muna Sinada <quic_msinada@quicinc.com>
  	int ap_assoc_delay;
  	int ap_btmreq_bss_term_tsf;
  	int ap_fils_dscv_int;
+-- 
+2.7.4
+

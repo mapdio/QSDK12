@@ -6,24 +6,25 @@
 include $(TOPDIR)/rules.mk
 
 PKG_NAME:=subversion
-PKG_RELEASE:=2
-PKG_VERSION:=1.12.2
+PKG_VERSION:=1.14.1
+PKG_RELEASE:=1
+
 PKG_SOURCE_URL:=@APACHE/subversion
 PKG_SOURCE:=$(PKG_NAME)-$(PKG_VERSION).tar.bz2
-PKG_HASH:=3bd0b5c8e4c5175263dc9a92fd9aef94ce917e80af034f26fe5c45fde7e0f771
+PKG_HASH:=2c5da93c255d2e5569fa91d92457fdb65396b0666fad4fd59b22e154d986e1a9
+
+PKG_MAINTAINER:=Val Kulkov <val.kulkov@gmail.com>
 PKG_LICENSE:=Apache-2.0
 PKG_LICENSE_FILES:=LICENSE
-PKG_MAINTAINER:=Val Kulkov <val.kulkov@gmail.com>
+PKG_CPE_ID:=cpe:/a:apache:subversion
 
 PKG_FIXUP:=autoreconf
 PKG_MACRO_PATHS:=build/ac-macros
-PKG_BUILD_DEPENDS:=apr-util
 PKG_BUILD_PARALLEL:=1
 PKG_INSTALL:=1
 
 include $(INCLUDE_DIR)/package.mk
 include $(INCLUDE_DIR)/nls.mk
-
 
 define Package/subversion/Default
   SECTION:=net
@@ -35,11 +36,11 @@ define Package/subversion/Default
 endef
 
 define Package/subversion/Default/description
-	Subversion is a free/open-source version control system. That is,
-	Subversion manages files and directories, and the changes made to them,
-	over time. This allows you to recover older versions of your data, or
-	examine the history of how your data changed. In this regard, many
-	people think of a version control system as a sort of time machine.
+  Subversion is a free/open-source version control system. That is,
+  Subversion manages files and directories, and the changes made to them,
+  over time. This allows you to recover older versions of your data, or
+  examine the history of how your data changed. In this regard, many
+  people think of a version control system as a sort of time machine.
 endef
 
 define Package/subversion-libs
@@ -79,9 +80,6 @@ define Package/subversion-server/conffiles
 endef
 
 CONFIGURE_ARGS += \
-	--with-apr="$(STAGING_DIR)/usr/bin/apr-1-config" \
-	--with-apr-util="$(STAGING_DIR)/usr/bin/apu-1-config" \
-	--with-libmagic="$(STAGING_DIR)/usr" \
 	--disable-mod-activation \
 	--without-ruby-sitedir \
 	--without-swig \
@@ -91,13 +89,10 @@ CONFIGURE_ARGS += \
 	--without-apxs \
 	--without-sasl \
 	--with-lz4=internal \
-	--with-utf8proc=internal
+	--with-utf8proc=internal \
+	$(call autoconf_bool,INTL_FULL,nls)
 
-ifdef $(INTL_FULL)
-	CONFIGURE_ARGS += --enable-nls
-else
-	CONFIGURE_ARGS += --disable-nls
-endif
+TARGET_LDFLAGS += $(if $(INTL_FULL),-lintl)
 
 define Package/subversion-libs/install
 	$(INSTALL_DIR) $(1)/usr/lib

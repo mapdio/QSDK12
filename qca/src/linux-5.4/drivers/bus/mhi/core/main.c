@@ -1737,10 +1737,15 @@ void mhi_debug_reg_dump(struct mhi_controller *mhi_cntrl)
 		{ "BHI_ERRDBG1", BHI_ERRDBG1, bhi_base},
 		{ "BHI_ERRDBG2", BHI_ERRDBG2, bhi_base},
 		{ "BHI_ERRDBG3", BHI_ERRDBG3, bhi_base},
+		{ "BHI_IMGADDR_HIGH", BHI_IMGADDR_HIGH, bhi_base},
+		{ "BHI_IMGADDR_LOW", BHI_IMGADDR_LOW, bhi_base},
+		{ "BHI_IMGSIZE", BHI_IMGSIZE, bhi_base},
+		{ "BHI_IMGTXDB", BHI_IMGTXDB, bhi_base},
 		{ "BHIE_TXVEC_DB", BHIE_TXVECDB_OFFS, bhie_base},
 		{ "BHIE_TXVEC_STATUS", BHIE_TXVECSTATUS_OFFS, bhie_base},
 		{ "BHIE_RXVEC_DB", BHIE_RXVECDB_OFFS, bhie_base},
 		{ "BHIE_RXVEC_STATUS", BHIE_RXVECSTATUS_OFFS, bhie_base},
+		{ "BHIE_IMGTXDB", BHI_IMGTXDB, bhie_base},
 		{ NULL },
 	};
 

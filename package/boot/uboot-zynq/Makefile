@@ -7,9 +7,9 @@
 
 include $(TOPDIR)/rules.mk
 
-PKG_VERSION:=2018.07
+PKG_VERSION:=2019.07
 
-PKG_HASH:=9f10df88bc91b35642e461217f73256bbaeeca9ae2db8db56197ba5e89e1f6d4
+PKG_HASH:=bff4fa77e8da17521c030ca4c5b947a056c1b1be4d3e6ee8637020b8d50251d0
 
 include $(INCLUDE_DIR)/kernel.mk
 include $(INCLUDE_DIR)/u-boot.mk
@@ -18,6 +18,7 @@ include $(INCLUDE_DIR)/host-build.mk
 
 define U-Boot/Default
   BUILD_TARGET:=zynq
+  BUILD_SUBTARGET:=generic
   UBOOT_IMAGE:=spl/boot.bin u-boot.img
   UBOOT_CONFIG:=zynq_$(1)
   UENV:=default
@@ -59,7 +60,5 @@ endef
 
 define Package/u-boot/install/default
 endef
-
-Build/Exports:=$(Host/Exports)
 
 $(eval $(call BuildPackage/U-Boot))

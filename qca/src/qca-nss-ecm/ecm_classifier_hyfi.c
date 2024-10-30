@@ -1111,7 +1111,7 @@ int ecm_classifier_hyfi_rules_init(struct dentry *dentry)
 		goto classifier_task_cleanup;
 	}
 
-	if (!debugfs_create_u32("enabled", S_IRUGO | S_IWUSR, ecm_classifier_hyfi_dentry,
+	if (!ecm_debugfs_create_u32("enabled", S_IRUGO | S_IWUSR, ecm_classifier_hyfi_dentry,
 					(u32 *)&ecm_classifier_hyfi_enabled)) {
 		DEBUG_ERROR("Failed to create ecm hyfi classifier enabled file in debugfs\n");
 		goto classifier_task_cleanup;

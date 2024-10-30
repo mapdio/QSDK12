@@ -1,7 +1,7 @@
 /*
  * Copyright (c) 2017-2021, The Linux Foundation. All rights reserved.
  *
- * Copyright (c) 2022-2023 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2024 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for any
  * purpose with or without fee is hereby granted, provided that the above
@@ -37,20 +37,21 @@
 #include "adpt_cppe_uniphy.h"
 #include "adpt_cppe_portctrl.h"
 #endif
-#if (LINUX_VERSION_CODE >= KERNEL_VERSION(5,4,0))
-#include <soc/qcom/socinfo.h>
-#endif
+#include <linux/mdio-bitbang.h>
 
 extern void adpt_hppe_gcc_port_speed_clock_set(a_uint32_t dev_id,
 				a_uint32_t port_id, fal_port_speed_t phy_speed);
 
-static a_uint32_t
+a_uint32_t
 adpt_hppe_port_get_by_uniphy(a_uint32_t dev_id, a_uint32_t uniphy_index,
 		a_uint32_t channel)
 {
 	a_uint32_t ssdk_port = 0;
 
 	if (uniphy_index == SSDK_UNIPHY_INSTANCE0) {
+#ifdef MPPE
+		ssdk_port = SSDK_PHYSICAL_PORT1;
+#else
 		if (channel == SSDK_UNIPHY_CHANNEL0) {
 			ssdk_port = SSDK_PHYSICAL_PORT1;
 		} else if (channel == SSDK_UNIPHY_CHANNEL1) {
@@ -60,13 +61,38 @@ adpt_hppe_port_get_by_uniphy(a_uint32_t dev_id, a_uint32_t uniphy_index,
 		} else if (channel == SSDK_UNIPHY_CHANNEL3) {
 			ssdk_port = SSDK_PHYSICAL_PORT4;
 		}
+#endif
 	} else if (uniphy_index == SSDK_UNIPHY_INSTANCE1) {
-		ssdk_port = HPPE_UNIPHY1_PORT;
+#ifdef MPPE
+		ssdk_port = SSDK_PHYSICAL_PORT2;
+#else
+		ssdk_port = SSDK_PHYSICAL_PORT5;
+#endif
 	} else if (uniphy_index == SSDK_UNIPHY_INSTANCE2) {
 		ssdk_port = SSDK_PHYSICAL_PORT6;
 	}
 
 	return ssdk_port;
+}
+
+a_bool_t
+adpt_hppe_uniphy_usxgmii_port_check(a_uint32_t dev_id, a_uint32_t uniphy_index,
+		a_uint32_t port_id)
+{
+	return (port_id == adpt_hppe_port_get_by_uniphy(dev_id, uniphy_index,
+		SSDK_UNIPHY_CHANNEL0));
+}
+
+a_uint32_t
+adpt_ppe_uniphy_number_get(a_uint32_t dev_id)
+{
+#if defined(MPPE) || defined (CPPE)
+	if(adpt_ppe_type_get(dev_id) == MPPE_TYPE ||
+		adpt_ppe_type_get(dev_id) == CPPE_TYPE)
+		return (SSDK_UNIPHY_INSTANCE1+1);
+#endif
+
+	return (SSDK_UNIPHY_INSTANCE2+1);
 }
 
 sw_error_t
@@ -76,8 +102,7 @@ adpt_hppe_uniphy_usxgmii_status_get(a_uint32_t dev_id, a_uint32_t uniphy_index,
 	ADPT_DEV_ID_CHECK(dev_id);
 	ADPT_NULL_POINT_CHECK(sr_mii_ctrl);
 
-	if ((port_id == SSDK_PHYSICAL_PORT1) || (port_id == HPPE_UNIPHY1_PORT) ||
-		(port_id == SSDK_PHYSICAL_PORT6)) {
+	if (adpt_hppe_uniphy_usxgmii_port_check(dev_id, uniphy_index, port_id)) {
 		hppe_sr_mii_ctrl_get(dev_id, uniphy_index, sr_mii_ctrl);
 	}
 #if defined(APPE)
@@ -106,8 +131,7 @@ adpt_hppe_uniphy_usxgmii_status_set(a_uint32_t dev_id, a_uint32_t uniphy_index,
 	ADPT_DEV_ID_CHECK(dev_id);
 	ADPT_NULL_POINT_CHECK(sr_mii_ctrl);
 
-	if ((port_id == SSDK_PHYSICAL_PORT1) || (port_id == HPPE_UNIPHY1_PORT) ||
-		(port_id == SSDK_PHYSICAL_PORT6)) {
+	if (adpt_hppe_uniphy_usxgmii_port_check(dev_id, uniphy_index, port_id)) {
 		hppe_sr_mii_ctrl_set(dev_id, uniphy_index, sr_mii_ctrl);
 	}
 #if defined(APPE)
@@ -137,8 +161,7 @@ adpt_hppe_uniphy_usxgmii_autoneg_status_get(a_uint32_t dev_id, a_uint32_t uniphy
 	ADPT_DEV_ID_CHECK(dev_id);
 	ADPT_NULL_POINT_CHECK(vr_mii_an_intr_sts);
 
-	if ((port_id == SSDK_PHYSICAL_PORT1) || (port_id == HPPE_UNIPHY1_PORT) ||
-		(port_id == SSDK_PHYSICAL_PORT6)) {
+	if (adpt_hppe_uniphy_usxgmii_port_check(dev_id, uniphy_index, port_id)) {
 		hppe_vr_mii_an_intr_sts_get(dev_id, uniphy_index, vr_mii_an_intr_sts);
 	}
 #if defined(APPE)
@@ -171,8 +194,7 @@ adpt_hppe_uniphy_usxgmii_autoneg_status_set(a_uint32_t dev_id, a_uint32_t uniphy
 	ADPT_DEV_ID_CHECK(dev_id);
 	ADPT_NULL_POINT_CHECK(vr_mii_an_intr_sts);
 
-	if ((port_id == SSDK_PHYSICAL_PORT1) || (port_id == HPPE_UNIPHY1_PORT) ||
-		(port_id == SSDK_PHYSICAL_PORT6)) {
+	if (adpt_hppe_uniphy_usxgmii_port_check(dev_id, uniphy_index, port_id)) {
 		hppe_vr_mii_an_intr_sts_set(dev_id, uniphy_index, vr_mii_an_intr_sts);
 	}
 #if defined(APPE)
@@ -682,7 +704,34 @@ __adpt_hppe_uniphy_usxgmii_mode_set(a_uint32_t dev_id, a_uint32_t uniphy_index)
 	sr_mii_ctrl.bf.duplex_mode = 1;
 	hppe_sr_mii_ctrl_set(dev_id, uniphy_index, &sr_mii_ctrl);
 
+#ifdef APPE
+	if(adpt_ppe_type_get(dev_id) == APPE_TYPE &&
+		uniphy_index == SSDK_UNIPHY_INSTANCE0) {
+		union qp_usxg_opiton1_u qp_usxg_opiton1 = {0};
+
+		/*select gmii of xpcs*/
+		hppe_qp_usxg_opiton1_get(dev_id, uniphy_index, &qp_usxg_opiton1);
+		qp_usxg_opiton1.bf.gmii_src_sel = 0x1;
+		hppe_qp_usxg_opiton1_set(dev_id, uniphy_index, &qp_usxg_opiton1);
+		/* enable uniphy eee transparent mode*/
+		__adpt_hppe_uniphy_uqxgmii_eee_set(dev_id, uniphy_index);
+	}
+#endif
 	return rv;
+}
+
+static a_bool_t
+__adpt_hppe_uniphy_rxlos_check(a_uint32_t dev_id, a_uint32_t uniphy_index)
+{
+	a_uint32_t port_id = 0;
+	struct qca_phy_priv *priv = ssdk_phy_priv_data_get(dev_id);
+
+	port_id = adpt_hppe_port_get_by_uniphy(dev_id, uniphy_index,
+		SSDK_UNIPHY_CHANNEL0);
+	if(priv == NULL || priv->sfp_rx_los_pin[port_id] == SSDK_INVALID_GPIO)
+		return A_TRUE;
+
+	return A_FALSE;
 }
 
 static sw_error_t
@@ -719,9 +768,7 @@ __adpt_hppe_uniphy_10g_r_mode_set(a_uint32_t dev_id, a_uint32_t uniphy_index)
 		UNIPHY_XPCS_MODE_ENABLE;
 
 	hppe_uniphy_mode_ctrl_set(dev_id, uniphy_index, &uniphy_mode_ctrl);
-#ifdef MPPE
-	if (!(adpt_ppe_type_get(dev_id) == MPPE_TYPE && uniphy_index == SSDK_UNIPHY_INSTANCE0))
-#endif
+	if(__adpt_hppe_uniphy_rxlos_check(dev_id, uniphy_index))
 	{
 		hppe_uniphy_instance_link_detect_get(dev_id, uniphy_index,
 			&uniphy_instance_link_detect);
@@ -802,13 +849,14 @@ __adpt_hppe_uniphy_sgmiiplus_mode_set(a_uint32_t dev_id, a_uint32_t uniphy_index
 	}
 	hppe_uniphy_reg_set(dev_id, UNIPHY_MISC2_REG_OFFSET,
 		uniphy_index, UNIPHY_MISC2_REG_SGMII_PLUS_MODE);
+
 	if (adpt_ppe_type_get(dev_id) != MPPE_TYPE) {
 		/*reset uniphy*/
 		hppe_uniphy_reg_set(dev_id, UNIPHY_PLL_RESET_REG_OFFSET,
-			uniphy_index, UNIPHY_PLL_RESET_REG_VALUE);
+				uniphy_index, UNIPHY_PLL_RESET_REG_VALUE);
 		msleep(100);
 		hppe_uniphy_reg_set(dev_id, UNIPHY_PLL_RESET_REG_OFFSET,
-			uniphy_index, UNIPHY_PLL_RESET_REG_DEFAULT_VALUE);
+				uniphy_index, UNIPHY_PLL_RESET_REG_DEFAULT_VALUE);
 		msleep(100);
 	}
 
@@ -915,7 +963,8 @@ __adpt_hppe_uniphy_sgmii_mode_set(a_uint32_t dev_id, a_uint32_t uniphy_index, a_
 
 	/* disable instance clock */
 	if (uniphy_index == SSDK_UNIPHY_INSTANCE0)
-		max_port = HPPE_UNIPHY0_PORT_MAX;
+		max_port = adpt_hppe_port_get_by_uniphy(dev_id, SSDK_UNIPHY_INSTANCE0,
+			SSDK_UNIPHY_CHANNEL4);
 	else
 		max_port = SSDK_PHYSICAL_PORT1;
 
@@ -1025,7 +1074,8 @@ __adpt_hppe_uniphy_sgmii_mode_set(a_uint32_t dev_id, a_uint32_t uniphy_index, a_
 
 	/* enable instance clock */
 	if (uniphy_index == SSDK_UNIPHY_INSTANCE0)
-		max_port = HPPE_UNIPHY0_PORT_MAX;
+		max_port = adpt_hppe_port_get_by_uniphy (dev_id, SSDK_UNIPHY_INSTANCE0,
+			SSDK_UNIPHY_CHANNEL4);
 	else
 		max_port = SSDK_PHYSICAL_PORT1;
 
@@ -1042,7 +1092,7 @@ __adpt_hppe_uniphy_sgmii_mode_set(a_uint32_t dev_id, a_uint32_t uniphy_index, a_
 	}
 #endif
 
-	return rv;
+	return SW_OK;
 }
 
 static sw_error_t
@@ -1190,14 +1240,26 @@ __adpt_hppe_uniphy_psgmii_mode_set(a_uint32_t dev_id, a_uint32_t uniphy_index)
 }
 
 #ifdef MPPE
+static a_uint32_t
+_adpt_mppe_uniphy_clk_output_get(a_uint32_t dev_id, a_uint32_t index)
+{
+	struct qca_phy_priv *priv = ssdk_phy_priv_data_get(dev_id);
+
+	if(!priv)
+		return 0;
+
+	return priv->uniphy_clk_output[index];
+}
+
 static sw_error_t
 _adpt_mppe_uniphy_clk_output_set(a_uint32_t dev_id, a_uint32_t index,
 	a_uint32_t clk_rate)
 {
 	sw_error_t rv = SW_OK;
 	union uniphy_clkout_50m_ctrl_u clkout_50m_ctrl = {0};
+	struct qca_phy_priv *priv = ssdk_phy_priv_data_get(dev_id);
 
-	SSDK_INFO("uniphy will output clock as %dHz\n", clk_rate);
+	SSDK_DEBUG("uniphy %d will output clock as %dHz\n", index, clk_rate);
 	rv = mppe_uniphy_clkout_50m_ctrl_get(dev_id, index, &clkout_50m_ctrl);
 	SW_RTN_ON_ERROR(rv);
 
@@ -1212,7 +1274,12 @@ _adpt_mppe_uniphy_clk_output_set(a_uint32_t dev_id, a_uint32_t index,
 	}
 
 	rv = mppe_uniphy_clkout_50m_ctrl_set(dev_id, index, &clkout_50m_ctrl);
-	return rv;
+	SW_RTN_ON_ERROR(rv);
+
+	SW_RTN_ON_NULL(priv);
+	priv->uniphy_clk_output[index] = clk_rate;
+
+	return SW_OK;
 }
 
 static void
@@ -1228,69 +1295,94 @@ adpt_mppe_uniphy_clk_output_set(a_uint32_t dev_id, a_uint32_t index)
 			/* modify the uniphy clock as 25M for s17c connected. */
 			_adpt_mppe_uniphy_clk_output_set(dev_id, index, UNIPHY_CLK_RATE_25M);
 		} else if (force_speed == FAL_SPEED_2500) {
-			static bool mht_clock_enable = false;
+#if 0
+			struct mii_bus *mdio_bus = NULL;
+			struct qca_mdio_data *mdio_priv = NULL;
+			static bool mht_preinit_done = false;
+			struct mdiobb_ctrl *gpio_priv = NULL;
+			void (*mht_preinit)(struct mii_bus *bus) = NULL;
 
-			/* when P0 and P5 are both connected to mppe, the mht 50M clock should
-			* come from the mppe uniphy that was confiured firstly, then need to
-			* disable the clock output of another uniphy.
-			*/
-			if (mht_clock_enable && 2 == ssdk_switch_device_num_get()) {
+			/* Disable the second uniphy clock output and skip the preinit of mht,
+			 * when the P0 and P5 are connected with the uniphy0 and uniphy 1 of
+			 * Miami.
+			 */
+			if (mht_preinit_done && 2 == ssdk_switch_device_num_get()) {
 				_adpt_mppe_uniphy_clk_output_set(dev_id, index, 0);
+				return;
 			}
-			mht_clock_enable = true;
+
+			/* if manhattan switch is connected, need to reset manhattan with GPIO,
+			 * and do the initialization sequence, since this initialization needs
+			 * to be configured after the miami uniphy clock configured stably.
+			 */
+			mdio_bus = ssdk_port_miibus_get(dev_id, port_id);
+			if (mdio_bus) {
+				if (!strncmp(mdio_bus->id, "gpio", strlen("gpio"))) {
+					gpio_priv = mdio_bus->priv;
+					mht_preinit = gpio_priv ? gpio_priv->preinit : NULL;
+				} else {
+					mdio_priv = mdio_bus->priv;
+					mht_preinit = mdio_priv ? mdio_priv->preinit : NULL;
+				}
+			}
+
+			if (mht_preinit) {
+				hsl_port_phy_gpio_reset(dev_id, port_id);
+				mht_preinit(mdio_bus);
+
+				/* do the HW initialization on mht bypass port if connected,
+				 * miami only has two physcial ports(port id 1, 2), the HW
+				 * initialization is also needed on the other bypass port
+				 * after the GPIO rest.
+				 */
+				phy_id = hsl_port_phyid_get(dev_id, port_id ^ 3);
+				if (phy_id == QCA8084_PHY)
+					hsl_port_phy_hw_init(dev_id, port_id ^ 3);
+
+				mht_preinit_done = true;
+			}
+#endif
+			/* when P0 and P5 are both connected to mppe, the mht 50M clock should
+			 * come from the mppe uniphy that was confiured firstly, then need to
+			 * disable the clock output of another uniphy.
+			 */
+			if (2 == ssdk_switch_device_num_get()) {
+				if(_adpt_mppe_uniphy_clk_output_get(dev_id, index ^ 1) == 0)
+					_adpt_mppe_uniphy_clk_output_set(dev_id, index,
+					UNIPHY_CLK_RATE_50M);
+				else
+					_adpt_mppe_uniphy_clk_output_set(dev_id, index, 0);
+			}
 		}
+
+		return;
 	}
+
 	phy_id = hsl_port_phyid_get(dev_id, port_id);
-
-	if (phy_id == QCA8030_PHY || phy_id == QCA8033_PHY || phy_id == QCA8035_PHY)
-	{
-		_adpt_mppe_uniphy_clk_output_set(dev_id, index, UNIPHY_CLK_RATE_25M);
-		hsl_port_phy_gpio_reset(dev_id, port_id);
-		hsl_port_phy_hw_init(dev_id, port_id);
+	/* modify the uniphy clock as 25M for qca803x phy connected. */
+	switch (phy_id) {
+		case QCA8030_PHY:
+		case QCA8033_PHY:
+		case QCA8035_PHY:
+			_adpt_mppe_uniphy_clk_output_set(dev_id, index, UNIPHY_CLK_RATE_25M);
+			hsl_port_phy_gpio_reset(dev_id, port_id);
+			hsl_port_phy_hw_init(dev_id, port_id);
+			break;
+		case QCA8084_PHY:
+			/* checking whether another miami port is connected with
+			 * manhattan bypass port4 or not, if yes, we need to disable
+			 * the clock output of this miami uniphy, since the clock for
+			 * manhattan switch core is already provided by the miami uniphy
+			 * connected with switch core, so do not need to enable the clock
+			 * from uniphy connected with bypass port.
+			 */
+			_adpt_mppe_uniphy_clk_output_set(dev_id, index, 0);
+			break;
+		default:
+			break;
 	}
-
-	/* For miami connected with manhattan bypass device, the port4 is connected with
-	 * uniphy1 of miami, the clock of manhattan is provided from the uniphy0 of miami,
-	 * so do not need to enable the clock from uniphy1 of miami.
-	 */
-	if (QCA8084_PHY == phy_id)
-		_adpt_mppe_uniphy_clk_output_set(dev_id, index, 0);
 
 	return;
-}
-#endif
-
-#if (LINUX_VERSION_CODE >= KERNEL_VERSION(5,4,0))
-a_bool_t
-adpt_hppe_uniphy_check(a_uint32_t dev_id, a_uint32_t index, a_uint32_t mode)
-{
-	adpt_ppe_type_t ppe_type = adpt_ppe_type_get(dev_id);
-
-	if (ppe_type == APPE_TYPE) {
-		if (((index == SSDK_UNIPHY_INSTANCE1)
-			&& (cpu_is_uniphy1_enabled() == A_FALSE)) ||
-			((index == SSDK_UNIPHY_INSTANCE2)
-			&& (cpu_is_uniphy2_enabled() == A_FALSE))) {
-			return A_FALSE;
-		}
-	} else if (ppe_type == MPPE_TYPE) {
-#ifdef MPPE
-		if ((mode == PORT_WRAPPER_UQXGMII) || (mode == PORT_WRAPPER_UDXGMII)) {
-			return A_FALSE;
-		}
-		if ((cpu_is_ipq5312() == A_TRUE) || (cpu_is_ipq5302() == A_TRUE)) {
-			if ((mode == PORT_WRAPPER_10GBASE_R)
-				|| (mode == PORT_WRAPPER_USXGMII)) {
-				return A_FALSE;
-			}
-		}
-#endif
-	} else if ((ppe_type == HPPE_TYPE) || (ppe_type == CPPE_TYPE)) {
-		if ((mode == PORT_WRAPPER_UQXGMII) || (mode == PORT_WRAPPER_UDXGMII)) {
-			return A_FALSE;
-		}
-	}
-	return A_TRUE;
 }
 #endif
 
@@ -1306,7 +1398,8 @@ adpt_hppe_uniphy_mode_set(a_uint32_t dev_id, a_uint32_t index, a_uint32_t mode)
 	}
 
 #if (LINUX_VERSION_CODE >= KERNEL_VERSION(5,4,0))
-	if (adpt_hppe_uniphy_check(dev_id, index, mode) == A_FALSE) {
+	if ((ssdk_uniphy_valid_check(dev_id, index, mode)) == A_FALSE &&
+		(ssdk_is_emulation(dev_id) == A_FALSE)) {
 		SSDK_INFO("ssdk doesn't support mode:%d in uniphy:%d on platform!\n",
 			mode, index);
 		return SW_OK;

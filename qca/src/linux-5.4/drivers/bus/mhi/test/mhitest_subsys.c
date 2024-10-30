@@ -80,43 +80,6 @@ int mhitest_ss_shutdown(struct rproc *subsys_desc)
 	return 0;
 }
 
-void mhitest_ss_crash_shutdown(struct rproc *subsys_desc)
-{
-	int crash_d_instance;
-	int ret;
-	struct mhitest_platform *temp;
-
-	if (!strncmp(subsys_desc->name, "mhitest-ss-0",
-		     strlen("mhitest-ss-0"))) {
-		crash_d_instance = 0;
-	} else if (!strncmp(subsys_desc->name, "mhitest-ss-1",
-			  strlen("mhitest-ss-1"))) {
-		crash_d_instance = 1;
-	} else {
-		MHITEST_ERR("Error: subsys desc name: %s is not matching with any subsystem\n",
-			    subsys_desc->name);
-		return;
-	}
-
-	temp = get_mhitest_mplat(crash_d_instance);
-
-	MHITEST_LOG("Going for shutdown temp:%p\n", temp);
-
-	if (!temp)
-		return;
-
-	if ((strcmp(temp->mhitest_ss_desc_name, subsys_desc->name))) {
-		MHITEST_ERR("Error: not the same subsystem\n");
-		return;
-	}
-
-	ret = mhitest_dump_info(temp, true);
-	if (ret) {
-		MHITEST_ERR("Error: ret = %d\n", ret);
-		return;
-	}
-}
-
 int mhitest_ss_dummy_load(struct rproc *subsys_desc,
 					const struct firmware *fw)
 {
@@ -136,7 +99,6 @@ const struct rproc_ops mhitest_rproc_ops = {
 	.stop = mhitest_ss_shutdown,
 	.load = mhitest_ss_dummy_load,
 	.parse_fw = mhitest_ss_add_ramdump_callback,
-	.report_panic = mhitest_ss_crash_shutdown,
 };
 
 int mhitest_subsystem_register(struct mhitest_platform *mplat)
@@ -194,10 +156,13 @@ void mhitest_subsystem_unregister(struct mhitest_platform *mplat)
 		return;
 	}
 
-	if (mplat->subsys_handle)
-		rproc_shutdown(mplat->subsys_handle);
-	else
+	if (!mplat->subsys_handle) {
 		MHITEST_ERR("mplat->subsys_handle is NULL\n");
+		return;
+	}
 
+	rproc_shutdown(mplat->subsys_handle);
+	rproc_del(mplat->subsys_handle);
+	rproc_free(mplat->subsys_handle);
 	mplat->subsys_handle = NULL;
 }

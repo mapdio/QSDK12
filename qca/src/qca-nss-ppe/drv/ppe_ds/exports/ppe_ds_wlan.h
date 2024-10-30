@@ -157,6 +157,20 @@ void ppe_ds_wlan_rx(ppe_ds_wlan_handle_t *wlan_handle, uint16_t reo_prod_idx);
 ppe_vp_num_t ppe_ds_wlan_vp_alloc(ppe_ds_wlan_handle_t *wlan_handle, struct net_device *dev, struct ppe_vp_ai *vpai);
 
 /**
+ * ppe_ds_wlan_get_node_id
+ *	PPE-DS WLAN get node id API
+ *
+ * @datatypes
+ * ppe_ds_wlan_handle_t
+ *
+ * @param[in] wlan_handle   PPE-DS WLAN handle
+ *
+ * @return
+ * valid node id if success, invalid node id if error
+ */
+uint32_t ppe_ds_wlan_get_node_id(ppe_ds_wlan_handle_t *wlan_handle);
+
+/**
  * ppe_ds_wlan_vp_free
  *	PPE-DS WLAN VP free API
  *

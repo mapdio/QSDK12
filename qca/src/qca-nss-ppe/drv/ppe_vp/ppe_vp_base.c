@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022, 2024 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for any
  * purpose with or without fee is hereby granted, provided that the above
@@ -79,24 +79,6 @@ static struct ctl_table nss_ppe_vp_feature[] = {
 		.maxlen			= sizeof(int),
 		.mode			= 0644,
 		.proc_handler		= &ppe_vp_enable_handler,
-	},
-	{ }
-};
-
-static struct ctl_table nss_ppe_vp_dir[] = {
-	{
-		.procname		= "ppe_vp",
-		.mode			= 0555,
-		.child			= nss_ppe_vp_feature,
-	},
-	{ }
-};
-
-static struct ctl_table nss_ppe_root[] = {
-	{
-		.procname		= "ppe",
-		.mode			= 0555,
-		.child			= nss_ppe_vp_dir,
 	},
 	{ }
 };
@@ -215,7 +197,6 @@ struct ppe_vp *ppe_vp_base_alloc_vp(uint8_t port_num)
 	rcu_assign_pointer(pvt->vp_allocator[vp_idx], vp);
 	pvt->active_vp++;
 	spin_unlock_bh(&pvb->lock);
-	synchronize_rcu();
 
 	ppe_vp_info("%px: Successfully allocate VP %px at port num %u (idx %u)", pvb, vp, port_num, vp_idx);
 	return vp;
@@ -319,7 +300,7 @@ static int __init ppe_vp_base_module_init(void)
 		return -EINVAL;
 	}
 
-	pvb->vp_hdr = register_sysctl_table(nss_ppe_root);
+	pvb->vp_hdr = register_sysctl("ppe/ppe_vp", nss_ppe_vp_feature);
 	if (!pvb->vp_hdr) {
 		ppe_vp_warn("%px: Unable to register sysctl table for PPE virtual port\n", pvb);
 		return -EINVAL;
@@ -334,9 +315,9 @@ static int __init ppe_vp_base_module_init(void)
 	ppe_vp_base_stats_init(pvb);
 
 	/*
-	 * Register ppe_vp Rx handler with nss-dp
+	 * Register ppe_vp Rx handlers with nss-dp
 	 */
-	nss_dp_vp_rx_register_cb(ppe_vp_rx_dp_cb);
+	nss_dp_vp_rx_register_cb(ppe_vp_rx_dp_cb, ppe_vp_rx_dp_list_cb);
 
 	ppe_vp_info("%px: PPE-VP module loaded successfully", pvb);
 

@@ -8,14 +8,14 @@
 include $(TOPDIR)/rules.mk
 
 PKG_NAME:=ocserv
-PKG_VERSION:=1.1.1
-PKG_RELEASE:=2
-PKG_USE_MIPS16:=0
+PKG_VERSION:=1.2.4
+PKG_RELEASE:=1
+PKG_BUILD_FLAGS:=no-mips16
 
 PKG_BUILD_DIR :=$(BUILD_DIR)/$(PKG_NAME)-$(PKG_VERSION)
 PKG_SOURCE:=$(PKG_NAME)-$(PKG_VERSION).tar.xz
 PKG_SOURCE_URL:=ftp://ftp.infradead.org/pub/ocserv/
-PKG_HASH:=9c7aaf46e53e28cfa7be329b18f3951e7e851153ff6a27e946496fd4e8e5765a
+PKG_HASH:=d30f29c5967715f7b118e89bba496011b2be2af0f49bb9e332f12be7fbf693d7
 
 PKG_LICENSE:=GPL-2.0-or-later
 PKG_LICENSE_FILES:=COPYING
@@ -39,7 +39,7 @@ define Package/ocserv
   TITLE:=OpenConnect VPN server
   URL:=http://www.infradead.org/ocserv/
   MAINTAINER:=Nikos Mavrogiannopoulos <n.mavrogiannopoulos@gmail.com>
-  DEPENDS:= +OCSERV_RADIUS:libradcli +OCSERV_HTTP_PARSER:libhttp-parser +OCSERV_SECCOMP:libseccomp +libgnutls +certtool +libncurses +libreadline +OCSERV_PAM:libpam +OCSERV_PROTOBUF:libprotobuf-c +libev +kmod-tun
+  DEPENDS:= +OCSERV_RADIUS:libradcli +OCSERV_HTTP_PARSER:libhttp-parser +OCSERV_SECCOMP:libseccomp +libgnutls +certtool +libncurses +libreadline +OCSERV_PAM:libpam +OCSERV_PROTOBUF:libprotobuf-c +OCSERV_LIBOATH:liboath +libev +kmod-tun
   USERID:=ocserv=72:ocserv=72
 endef
 
@@ -63,6 +63,7 @@ CONFIGURE_ARGS+= \
 	--with-libreadline-prefix="$(STAGING_DIR)/" \
 	--without-libnl \
 	--without-gssapi \
+	--without-maxmind \
 	--with-libcrypt-prefix="$(STAGING_DIR)/" \
 	--with-libev-prefix="$(STAGING_DIR)/" \
 	--without-lz4 \
@@ -86,6 +87,10 @@ endif
 
 ifneq ($(CONFIG_OCSERV_HTTP_PARSER),y)
 CONFIGURE_ARGS += --without-http-parser
+endif
+
+ifndef CONFIG_OCSERV_LIBOATH
+CONFIGURE_ARGS += --without-liboath
 endif
 
 define Package/ocserv/conffiles

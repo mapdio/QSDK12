@@ -535,6 +535,34 @@ static struct vxlan_fdb *vxlan_find_mac(struct vxlan_dev *vxlan,
 	return f;
 }
 
+/* Get the remote IP address of the given client */
+int vxlan_find_remote_ip(struct vxlan_dev *vxlan,
+					const u8 *mac, __be32 vni, union vxlan_addr *rip)
+{
+	struct hlist_head *head = vxlan_fdb_head(vxlan, mac, vni);
+	struct vxlan_fdb *f = NULL;
+	struct vxlan_rdst *rd = NULL;
+
+	rcu_read_lock();
+	f = __vxlan_find_mac(vxlan, mac, vni);
+	if (!f) {
+		rcu_read_unlock();
+		return -1;
+	}
+
+	list_for_each_entry(rd, &f->remotes, list) {
+		if (rd->remote_vni == vni) {
+			memcpy(rip, &rd->remote_ip, sizeof(union vxlan_addr));
+			rcu_read_unlock();
+			return 0;
+		}
+	}
+	rcu_read_unlock();
+
+	return -1;
+}
+EXPORT_SYMBOL_GPL(vxlan_find_remote_ip);
+
 /* Find and update age of fdb entry corresponding to MAC. */
 void vxlan_fdb_update_mac(struct vxlan_dev *vxlan, const u8 *mac, uint32_t vni)
 {

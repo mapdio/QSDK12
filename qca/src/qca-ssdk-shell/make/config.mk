@@ -73,7 +73,7 @@ OPT_FLAG=
 LD_FLAG=
 
 SHELLOBJ=ssdk_sh
-US_MOD=ssdk_us
+US_MOD=libssdk_us
 KS_MOD=ssdk_ks
 
 ifeq (TRUE, $(KERNEL_MODE))

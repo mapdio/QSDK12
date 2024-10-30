@@ -76,11 +76,12 @@ static int ptm_stop(struct net_device *);
   static unsigned int ptm_poll(int, unsigned int);
   static int ptm_napi_poll(struct napi_struct *, int);
 static int ptm_hard_start_xmit(struct sk_buff *, struct net_device *);
-#if (LINUX_VERSION_CODE < KERNEL_VERSION(4,10,0))
-static int ptm_change_mtu(struct net_device *, int);
-#endif
 static int ptm_ioctl(struct net_device *, struct ifreq *, int);
+#if LINUX_VERSION_CODE < KERNEL_VERSION(5,6,0)
 static void ptm_tx_timeout(struct net_device *);
+#else
+static void ptm_tx_timeout(struct net_device *, unsigned int txqueue);
+#endif
 
 static inline struct sk_buff* alloc_skb_rx(void);
 static inline struct sk_buff* alloc_skb_tx(unsigned int);
@@ -119,9 +120,6 @@ static struct net_device_ops g_ptm_netdev_ops = {
     .ndo_start_xmit      = ptm_hard_start_xmit,
     .ndo_validate_addr   = eth_validate_addr,
     .ndo_set_mac_address = eth_mac_addr,
-#if (LINUX_VERSION_CODE < KERNEL_VERSION(4,10,0))
-    .ndo_change_mtu      = ptm_change_mtu,
-#endif
     .ndo_do_ioctl        = ptm_ioctl,
     .ndo_tx_timeout      = ptm_tx_timeout,
 };
@@ -131,7 +129,11 @@ static char *g_net_dev_name[1] = {"dsl0"};
 
 static int g_ptm_prio_queue_map[8];
 
+#if LINUX_VERSION_CODE < KERNEL_VERSION(5,9,0)
 static DECLARE_TASKLET(g_swap_desc_tasklet, do_swap_desc_tasklet, 0);
+#else
+static DECLARE_TASKLET_OLD(g_swap_desc_tasklet, do_swap_desc_tasklet);
+#endif
 
 
 unsigned int ifx_ptm_dbg_enable = DBG_ENABLE_MASK_ERR;
@@ -147,10 +149,8 @@ static void ptm_setup(struct net_device *dev, int ndev)
     netif_carrier_off(dev);
 
     dev->netdev_ops      = &g_ptm_netdev_ops;
-#if (LINUX_VERSION_CODE >= KERNEL_VERSION(4,10,0))
     /* Allow up to 1508 bytes, for RFC4638 */
     dev->max_mtu         = ETH_DATA_LEN + 8;
-#endif
     netif_napi_add(dev, &g_ptm_priv_data.itf[ndev].napi, ptm_napi_poll, 16);
     dev->watchdog_timeo  = ETH_WATCHDOG_TIMEOUT;
 
@@ -228,10 +228,6 @@ static unsigned int ptm_poll(int ndev, unsigned int work_to_do)
             skb->dev = g_net_dev[0];
             skb->protocol = eth_type_trans(skb, skb->dev);
 
-#if (LINUX_VERSION_CODE < KERNEL_VERSION(4,11,0))
-            g_net_dev[0]->last_rx = jiffies;
-#endif
-
             netif_receive_skb(skb);
 
             g_ptm_priv_data.itf[0].stats.rx_packets++;
@@ -301,11 +297,7 @@ static int ptm_hard_start_xmit(struct sk_buff *skb, struct net_device *dev)
     /*  allocate descriptor */
     desc_base = get_tx_desc(0, &f_full);
     if ( f_full ) {
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(4,7,0)
         netif_trans_update(dev);
-#else
-        dev->trans_start = jiffies;
-#endif
         netif_stop_queue(dev);
 
         IFX_REG_W32_MASK(0, 1 << 17, MBOX_IGU1_ISRC);
@@ -367,11 +359,7 @@ static int ptm_hard_start_xmit(struct sk_buff *skb, struct net_device *dev)
     wmb();
     *(volatile unsigned int *)desc = *(unsigned int *)&reg_desc;
 
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(4,7,0)
     netif_trans_update(dev);
-#else
-    dev->trans_start = jiffies;
-#endif
 
     return 0;
 
@@ -381,17 +369,6 @@ PTM_HARD_START_XMIT_FAIL:
     g_ptm_priv_data.itf[0].stats.tx_dropped++;
     return 0;
 }
-
-#if (LINUX_VERSION_CODE < KERNEL_VERSION(4,10,0))
-static int ptm_change_mtu(struct net_device *dev, int mtu)
-{
-	/* Allow up to 1508 bytes, for RFC4638 */
-        if (mtu < 68 || mtu > ETH_DATA_LEN + 8)
-                return -EINVAL;
-        dev->mtu = mtu;
-        return 0;
-}
-#endif
 
 static int ptm_ioctl(struct net_device *dev, struct ifreq *ifr, int cmd)
 {
@@ -482,7 +459,11 @@ static int ptm_ioctl(struct net_device *dev, struct ifreq *ifr, int cmd)
     return 0;
 }
 
+#if LINUX_VERSION_CODE < KERNEL_VERSION(5,6,0)
 static void ptm_tx_timeout(struct net_device *dev)
+#else
+static void ptm_tx_timeout(struct net_device *dev, unsigned int txqueue)
+#endif
 {
     ASSERT(dev == g_net_dev[0], "incorrect device");
 
@@ -576,7 +557,6 @@ static inline int get_tx_desc(unsigned int itf, unsigned int *f_full)
 static irqreturn_t mailbox_irq_handler(int irq, void *dev_id)
 {
     unsigned int isr;
-    int i;
 
     isr = IFX_REG_R32(MBOX_IGU1_ISR);
     IFX_REG_W32(isr, MBOX_IGU1_ISRC);
@@ -652,12 +632,15 @@ static void do_swap_desc_tasklet(unsigned long arg)
 static inline int ifx_ptm_version(char *buf)
 {
     int len = 0;
-    unsigned int major, minor;
+    unsigned int major, mid, minor;
 
-    ifx_ptm_get_fw_ver(&major, &minor);
+    ifx_ptm_get_fw_ver(&major, &mid, &minor);
 
-    len += sprintf(buf + len, "PTM %d.%d.%d", IFX_PTM_VER_MAJOR, IFX_PTM_VER_MID, IFX_PTM_VER_MINOR);
-    len += sprintf(buf + len, "    PTM (E1) firmware version %d.%d\n", major, minor);
+    len += ifx_drv_ver(buf + len, "PTM", IFX_PTM_VER_MAJOR, IFX_PTM_VER_MID, IFX_PTM_VER_MINOR);
+    if ( mid == ~0 )
+        len += sprintf(buf + len, "    PTM (E1) firmware version %u.%u\n", major, minor);
+    else
+        len += sprintf(buf + len, "    PTM (E1) firmware version %u.%u.%u\n", major, mid, minor);
 
     return len;
 }
@@ -994,7 +977,7 @@ static int ltq_ptm_probe(struct platform_device *pdev)
 {
     int ret;
     int i;
-    char ver_str[128];
+    char ver_str[256];
     struct port_cell_info port_cell = {0};
 
     ret = init_priv_data();
@@ -1024,11 +1007,7 @@ static int ltq_ptm_probe(struct platform_device *pdev)
     }
 
     /*  register interrupt handler  */
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(4,1,0)
     ret = request_irq(PPE_MAILBOX_IGU1_INT, mailbox_irq_handler, 0, "ptm_mailbox_isr", &g_ptm_priv_data);
-#else
-    ret = request_irq(PPE_MAILBOX_IGU1_INT, mailbox_irq_handler, IRQF_DISABLED, "ptm_mailbox_isr", &g_ptm_priv_data);
-#endif
     if ( ret ) {
         if ( ret == -EBUSY ) {
             err("IRQ may be occupied by other driver, please reconfig to disable it.");

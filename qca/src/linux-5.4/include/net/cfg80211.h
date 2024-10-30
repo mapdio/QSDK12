@@ -22,6 +22,7 @@
 #include <linux/net.h>
 #include <net/regulatory.h>
 
+#define CFG80211_SUPPORT_AUTH_DEAUTH_TA_RANDOMIZATION 1
 /**
  * DOC: Introduction
  *
@@ -605,7 +606,7 @@ struct vif_params {
 	const u8 *vht_mumimo_groups;
 	const u8 *vht_mumimo_follow_addr;
 	u8 mld_macaddr[ETH_ALEN];
-	u32 mld_reference;
+	char *mld_reference;
 };
 
 /**
@@ -1213,6 +1214,61 @@ enum station_parameters_apply_mask {
 struct sta_txpwr {
 	s16 power;
 	enum nl80211_tx_power_setting type;
+};
+
+/**
+ * struct link_station_parameters - link station parameters
+ *
+ * Used to change and create a new link station.
+ *
+ * @mld_mac: MAC address of the station
+ * @link_id: the link id (-1 for non-MLD station)
+ * @link_mac: MAC address of the link
+ * @supported_rates: supported rates in IEEE 802.11 format
+ *	(or NULL for no change)
+ * @supported_rates_len: number of supported rates
+ * @ht_capa: HT capabilities of station
+ * @vht_capa: VHT capabilities of station
+ * @opmode_notif: operating mode field from Operating Mode Notification
+ * @opmode_notif_used: information if operating mode field is used
+ * @he_capa: HE capabilities of station
+ * @he_capa_len: the length of the HE capabilities
+ * @txpwr: transmit power for an associated station
+ * @txpwr_set: txpwr field is set
+ * @he_6ghz_capa: HE 6 GHz Band capabilities of station
+ * @eht_capa: EHT capabilities of station
+ * @eht_capa_len: the length of the EHT capabilities
+ */
+struct link_station_parameters {
+	const u8 *mld_mac;
+	int link_id;
+	const u8 *link_mac;
+	const u8 *supported_rates;
+	u8 supported_rates_len;
+	const struct ieee80211_ht_cap *ht_capa;
+	const struct ieee80211_vht_cap *vht_capa;
+	u8 opmode_notif;
+	bool opmode_notif_used;
+	const struct ieee80211_he_cap_elem *he_capa;
+	u8 he_capa_len;
+	struct sta_txpwr txpwr;
+	bool txpwr_set;
+	const struct ieee80211_he_6ghz_capa *he_6ghz_capa;
+	const struct ieee80211_eht_cap_elem *eht_capa;
+	u8 eht_capa_len;
+};
+
+/**
+ * struct link_station_del_parameters - link station deletion parameters
+ *
+ * Used to delete a link station entry (or all stations).
+ *
+ * @mld_mac: MAC address of the station
+ * @link_id: the link id
+ */
+struct link_station_del_parameters {
+	const u8 *mld_mac;
+	u32 link_id;
 };
 
 /**
@@ -4071,6 +4127,8 @@ struct cfg80211_ops {
 				   const u8 *buf, size_t len);
 	int	(*set_fils_aad)(struct wiphy *wiphy, struct net_device *dev,
 				struct cfg80211_fils_aad *fils_aad);
+	int	(*add_link_station)(struct wiphy *wiphy, struct net_device *dev,
+				    struct link_station_parameters *params);
 };
 
 /*
@@ -5124,6 +5182,14 @@ static inline void *wdev_priv(struct wireless_dev *wdev)
 	BUG_ON(!wdev);
 	return wiphy_priv(wdev->wiphy);
 }
+
+#define for_each_valid_link(link_info, link_id)                 \
+	for (link_id = 0;                                       \
+	     link_id < ((link_info)->valid_links ?              \
+			ARRAY_SIZE((link_info)->links) : 1);    \
+	     link_id++)                                         \
+		if (!(link_info)->valid_links ||                \
+		    ((link_info)->valid_links & BIT(link_id)))
 
 /**
  * DOC: Utility functions
@@ -6516,13 +6582,6 @@ struct cfg80211_fils_resp_params {
  *	indicate that this is a failure, but without a status code.
  *	@timeout_reason is used to report the reason for the timeout in that
  *	case.
- * @bssid: The BSSID of the AP (may be %NULL)
- * @bss: Entry of bss to which STA got connected to, can be obtained through
- *	cfg80211_get_bss() (may be %NULL). But it is recommended to store the
- *	bss from the connect_request and hold a reference to it and return
- *	through this param to avoid a warning if the bss is expired during the
- *	connection, esp. for those drivers implementing connect op.
- *	Only one parameter among @bssid and @bss needs to be specified.
  * @req_ie: Association request IEs (may be %NULL)
  * @req_ie_len: Association request IEs length
  * @resp_ie: Association response IEs (may be %NULL)
@@ -6534,6 +6593,24 @@ struct cfg80211_fils_resp_params {
  *	not known. This value is used only if @status < 0 to indicate that the
  *	failure is due to a timeout and not due to explicit rejection by the AP.
  *	This value is ignored in other cases (@status >= 0).
+ * @valid_links: For MLO connection, BIT mask of the valid link ids. Otherwise
+ *	zero.
+ * @ap_mld_addr: For MLO connection, MLD address of the AP. Otherwise %NULL.
+ * @links : For MLO connection, contains link info for the valid links indicated
+ *	using @valid_links. For non-MLO connection, links[0] contains the
+ *	connected AP info.
+ * @links.addr: For MLO connection, MAC address of the STA link. Otherwise
+ *	%NULL.
+ * @links.bssid: For MLO connection, MAC address of the AP link. For non-MLO
+ *	connection, links[0].bssid points to the BSSID of the AP (may be %NULL).
+ * @links.bss: For MLO connection, entry of bss to which STA link is connected.
+ *	For non-MLO connection, links[0].bss points to entry of bss to which STA
+ *	is connected. It can be obtained through cfg80211_get_bss() (may be
+ *	%NULL). It is recommended to store the bss from the connect_request and
+ *	hold a reference to it and return through this param to avoid a warning
+ *	if the bss is expired during the connection, esp. for those drivers
+ *	implementing connect op. Only one parameter among @bssid and @bss needs
+ *	to be specified.
  */
 struct cfg80211_connect_resp_params {
 	int status;
@@ -6545,6 +6622,14 @@ struct cfg80211_connect_resp_params {
 	size_t resp_ie_len;
 	struct cfg80211_fils_resp_params fils;
 	enum nl80211_timeout_reason timeout_reason;
+
+	const u8 *ap_mld_addr;
+	u16 valid_links;
+	struct {
+		const u8 *addr;
+		const u8 *bssid;
+		struct cfg80211_bss *bss;
+	} links[IEEE80211_MLD_MAX_NUM_LINKS];
 };
 
 /**
@@ -6614,8 +6699,8 @@ cfg80211_connect_bss(struct net_device *dev, const u8 *bssid,
 
 	memset(&params, 0, sizeof(params));
 	params.status = status;
-	params.bssid = bssid;
-	params.bss = bss;
+	params.links[0].bssid = bssid;
+	params.links[0].bss = bss;
 	params.req_ie = req_ie;
 	params.req_ie_len = req_ie_len;
 	params.resp_ie = resp_ie;
@@ -7660,4 +7745,41 @@ void cfg80211_update_owe_info_event(struct net_device *netdev,
 				    struct cfg80211_update_owe_info *owe_info,
 				    gfp_t gfp);
 
+/**
+ * cfg80211_update_current_bss - API to update the current bss param
+ * @dev: network device
+ * @cr: Connection response params
+ * @ssid: SSID
+ * @ssid_len: SSID len
+ *
+ * Return: 0 on success. Non-zero on error.
+ */
+int cfg80211_update_current_bss(struct net_device *dev,
+				struct cfg80211_connect_resp_params *cr,
+				const u8 *ssid, size_t ssid_len);
+
+/**
+ * cfg80211_clear_current_bss - API to clear the current bss param
+ * @dev: network device
+ *
+ * Return: 0 on success. Non-zero on error.
+ */
+int cfg80211_clear_current_bss(struct net_device *dev);
+
+/**
+ * cfg80211_dfs_event_notify - Send DFS events to userspace.
+ * @wiphy: the wireless device
+ * @chandef: the channel definition
+ * @event: DFS event to be sent to userspace
+ * @dev: network device
+ * @gfp: GFP kernel flags
+ *
+ * Return: void
+ */
+void
+cfg80211_dfs_event_notify(struct wiphy *wiphy,
+			  struct cfg80211_chan_def *chandef,
+			  enum nl80211_radar_event event,
+			  struct net_device *dev,
+			  gfp_t gfp);
 #endif /* __NET_CFG80211_H */

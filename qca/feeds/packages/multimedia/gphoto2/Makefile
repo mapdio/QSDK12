@@ -9,20 +9,23 @@
 include $(TOPDIR)/rules.mk
 
 PKG_NAME:=gphoto2
-PKG_VERSION:=2.5.20
+PKG_VERSION:=2.5.28
 PKG_RELEASE:=1
-PKG_MAINTAINER:=Leonardo Medici <leonardo_medici@me.com>
 
 PKG_SOURCE:=$(PKG_NAME)-$(PKG_VERSION).tar.bz2
 PKG_SOURCE_URL:=@SF/gphoto
-PKG_HASH:=a36f03b50a8f040f185cbc757f957f03dc05a9210907199e6919ef3f970248f6
+PKG_HASH:=2a648dcdf12da19e208255df4ebed3e7d2a02f905be4165f2443c984cf887375
+
+PKG_MAINTAINER:=Leonardo Medici <leonardo_medici@me.com>
 PKG_LICENSE:=GPL-2.0
 PKG_LICENSE_FILES:=COPYING
 
 PKG_FIXUP:=autoreconf
 PKG_INSTALL:=1
+PKG_BUILD_PARALLEL:=1
 
 include $(INCLUDE_DIR)/package.mk
+include $(INCLUDE_DIR)/nls.mk
 
 define Package/gphoto2
   SECTION:=multimedia
@@ -37,17 +40,11 @@ define Package/gphoto2/description
 endef
 
 CONFIGURE_ARGS += \
-	--without-aalib \
-	--without-libiconv-prefix \
-	--without-libintl-prefix \
+	--without-aalib
 
 CONFIGURE_VARS += \
-	LIBGPHOTO2_CFLAGS="$$$$CFLAGS -I$(STAGING_DIR)/usr/include/gphoto2 $$$$CPPFLAGS" \
-	LIBGPHOTO2_LIBS="$$$$LDFLAGS -lgphoto2 -lgphoto2_port -lltdl" \
-	LIBEXIF_CFLAGS="$$$$CFLAGS $$$$CPPFLAGS" \
-	LIBEXIF_LIBS="$$$$LDFLAGS -lexif" \
-	POPT_CFLAGS="$$$$CFLAGS $$$$CPPFLAGS" \
-	POPT_LIBS="$$$$LDFLAGS -lpopt" \
+	POPT_CFLAGS="-I$(STAGING_DIR)/usr/include" \
+	POPT_LIBS="-L$(STAGING_DIR)/usr/lib -lpopt"
 
 define Package/gphoto2/install
 	$(INSTALL_DIR) $(1)/usr/bin

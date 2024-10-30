@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2023 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for any
  * purpose with or without fee is hereby granted, provided that the above
@@ -13,6 +13,9 @@
  * ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  */
+
+#include <linux/version.h>
+
 #ifndef _PPE_DRV_TUN_DECAP_H_
 #define _PPE_DRV_TUN_DECAP_H_
 
@@ -21,19 +24,38 @@
 #define PPE_DRV_TUN_DECAP_MAP_ENTRY_PAIR_MAX    2
 #define PPE_DRV_TUN_DECAP_INVALID_IDX           0xFFFF
 
+#define PPE_DRV_TUN_DECAP_L2TP_UDF_MASK 0xffff	/* Common 16 Bit UDF feild Mask used for L2TP tunnel */
+#define PPE_DRV_TUN_DECAP_L2TP_TUNNEL_ID_OFFSET 10 /* Tunnel ID offset from start of UDP header */
+#define PPE_DRV_TUN_DECAP_L2TP_SESSION_ID_OFFSET 12 /* Session  ID offset from start of UDP Header */
+#define PPE_DRV_TUN_DECAP_L2TP_PKT_TYPE_OFFSET 0 /* L2TP offset from end of UDP header */
+#define PPE_DRV_TUN_DECAP_L2TP_PPP_ADDR_OFFSET 6 /* PPP Address field offset from end of UDP header */
+#define PPE_DRV_TUN_DECAP_L2TP_PPP_CTRL_OFFSET 8 /* PPP Control field offset from end of UDP header */
+#define PPE_DRV_TUN_DECAP_L2TP_PROTOCOL_MASK 0xffffffff /* Protocol mask for L2TP program entry config */
+
 /*
  * ppe_drv_tun_decap
  *	tun decap module
  */
 struct ppe_drv_tun_decap {
+#if (LINUX_VERSION_CODE < KERNEL_VERSION(6, 1, 0))
 	struct kref ref;	/* Reference counter */
 	uint8_t index;		/* Decap entry index */
 	uint32_t tl_l3_if_idx;	/* Tunnel l3 interface index */
 	uint16_t tl_index;	/* Decap entry table index in HW */
 	uint8_t rule_id;	/* Edit rule index associated to this decap for MAP-T */
+	struct ppe_drv_tun_prgm_prsr *pgm_prsr;	/* Programable parser instance */
+	/* end */
+#else
+	struct_group(ppe_drv_tun_decap_group,
+		struct kref ref;	/* Reference counter */
+		uint8_t index;		/* Decap entry index */
+		uint32_t tl_l3_if_idx;	/* Tunnel l3 interface index */
+		uint16_t tl_index;	/* Decap entry table index in HW */
+		uint8_t rule_id;	/* Edit rule index associated to this decap for MAP-T */
+		struct ppe_drv_tun_prgm_prsr *pgm_prsr;	/* Programable parser instance */
+	);			        /* end of ppe_drv_tun_decap_group group */
+#endif
 };
-
-
 
 uint16_t ppe_drv_tun_decap_configure(struct ppe_drv_tun_decap *ptde, struct ppe_drv_port *pp, struct ppe_drv_tun_cmn_ctx *pth);
 struct ppe_drv_tun_decap *ppe_drv_tun_decap_alloc(struct ppe_drv *p);

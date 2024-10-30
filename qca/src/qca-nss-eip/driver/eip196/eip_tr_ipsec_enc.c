@@ -316,12 +316,12 @@ int eip_tr_ipsec_enc(struct eip_tr *tr, struct sk_buff *skb)
 		return -ENOMEM;
 	}
 
-	eip_tr_pre_process(tr, &tr->ipsec.ops, skb);
+	EIP_TR_PRE_PROCESS(tr, &tr->ipsec.ops, skb);
 
 	/*
 	 * Fill token for encryption and hash for ipsec
 	 */
-	tk_words = eip_tr_fill_token(tr, &tr->ipsec.ops, tk, skb, &tk_hdr);
+	tk_words = EIP_TR_FILL_TOKEN(tr, &tr->ipsec.ops, tk, skb, &tk_hdr);
 	dmac_clean_range(tk, tk + 1);
 
 	dma_tx = skb_is_nonlinear(skb) ? eip_dma_tx_nonlinear_skb : eip_dma_tx_linear_skb;
@@ -439,9 +439,9 @@ void eip_tr_ipsec_enc_cmn_init(struct eip_tr *tr, struct eip_tr_info *info, cons
          * Update relative information in control words.
          */
         tr_words[0] |= EIP_TR_CTRL_CONTEXT_WORDS(crypt_words - tr_words - 2);
-        tr_words[1] |= EIP_TR_IPSEC_SEQ_NUM_OFFSET_EN;
-        tr_words[1] |= EIP_TR_IPSEC_SEQ_NUM_OFFSET(seq_offset);
-        tr_words[1] |= EIP_TR_IPSEC_SEQ_NUM_STORE;
+	tr_words[1] |= EIP_TR_CTRL_SEQ_NUM_OFFSET_EN;
+	tr_words[1] |= EIP_TR_CTRL_SEQ_NUM_OFFSET(seq_offset);
+	tr_words[1] |= EIP_TR_CTRL_SEQ_NUM_STORE;
 
         /*
          * Store the details to be used during token fill

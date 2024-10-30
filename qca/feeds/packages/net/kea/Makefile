@@ -9,27 +9,24 @@
 include $(TOPDIR)/rules.mk
 
 PKG_NAME:=kea
-PKG_VERSION:=1.6.2
+PKG_VERSION:=2.2.0
 PKG_RELEASE:=1
 
 PKG_SOURCE:=$(PKG_NAME)-$(PKG_VERSION).tar.gz
 PKG_SOURCE_URL:=https://ftp.isc.org/isc/kea/$(PKG_VERSION)
-PKG_HASH:=2af7336027143c3e98d8d1d44165b2c2cbb0252a92bd88f6dd4d2c6adb69d7b5
+PKG_HASH:=da7d90ca62a772602dac6e77e507319038422895ad68eeb142f1487d67d531d2
 
-PKG_MAINTAINER:=BangLang Huang<banglang.huang@foxmail.com>, Rosy Song<rosysong@rosinson.com>
+PKG_MAINTAINER:=BangLang Huang <banglang.huang@foxmail.com>, Rosy Song <rosysong@rosinson.com>
 PKG_LICENSE:=MPL-2.0
 PKG_LICENSE_FILES:=COPYING
 
-HOST_BUILD_DEPENDS:=boost/host log4cplus/host
-PKG_BUILD_DEPENDS:=kea/host
-HOST_BUILD_PARALLEL:=1
 PKG_BUILD_PARALLEL:=1
+PKG_BUILD_FLAGS:=gc-sections
 
 PKG_INSTALL:=1
 PKG_FIXUP:=autoreconf
 
 include $(INCLUDE_DIR)/package.mk
-include $(INCLUDE_DIR)/host-build.mk
 
 define Package/kea/Default
   SECTION:=net
@@ -39,6 +36,14 @@ define Package/kea/Default
   URL:=https://www.isc.org/kea
 endef
 
+define Package/kea/conffiles
+/etc/kea/
+endef
+
+Package/kea-ctrl/conffiles = $(Package/kea/conffiles)
+Package/kea-dhcp4/conffiles = $(Package/kea/conffiles)
+Package/kea-dhcp6/conffiles = $(Package/kea/conffiles)
+Package/kea-dhcp-ddns/conffiles = $(Package/kea/conffiles)
 
 ###### *************************************************************************
 define Package/kea
@@ -120,6 +125,26 @@ define Package/kea-admin/description
 checking versions, upgrading etc.).
 endef
 
+###### *************************************************************************
+define Package/kea-hook-ha
+	$(call Package/kea/Default)
+	TITLE+=High Availability hook library
+	DEPENDS:=+kea-libs +kea-hook-lease-cmds
+endef
+define Package/kea-hook-ha/description
+	The high availability hook library.
+endef
+
+###### *************************************************************************
+define Package/kea-hook-lease-cmds
+	$(call Package/kea/Default)
+	TITLE+=Lease Commands hook library
+	DEPENDS:=+kea-libs
+endef
+define Package/kea-hook-lease-cmds/description
+	The lease commands hook library.
+endef
+
 ##### *************************************************************************
 define Package/kea-lfc
 	$(call Package/kea/Default)
@@ -144,56 +169,46 @@ DHCPv4 and DHCPv6 server performance.
 endef
 
 ###### *************************************************************************
-HOST_CONFIGURE_ARGS += \
-	--with-boost-include="$(STAGING_DIR_HOSTPKG)" \
-	--with-log4cplus="$(STAGING_DIR_HOSTPKG)" \
-	--with-openssl="$(STAGING_DIR_HOST)" \
-	--enable-boost-headers-only \
-	--enable-generate-messages
+define Package/kea-shell
+	$(call Package/kea/Default)
+	TITLE+=shell
+	DEPENDS:=+kea-libs
+endef
+define Package/kea-shell/description
+     This simple text client uses the REST interface to connect to the Kea
+Control Agent.
+endef
 
-HOST_LDFLAGS += \
-	 -Wl,--gc-sections,--as-needed
+###### *************************************************************************
+define Package/kea-uci
+	$(call Package/kea/Default)
+	TITLE+=UCI support
+	DEPENDS:=@(PACKAGE_kea-ctrl||PACKAGE_kea-dhcp4||PACKAGE_kea-dhcp6||PACKAGE_kea-dhcp-ddns)
+endef
+define Package/kea-uci/description
+	Kea PROCD/UCI support. This package installs a UCI config file and
+	a PROCD service file.
+endef
+
+###### *************************************************************************
 
 CONFIGURE_ARGS += \
 	--with-boost-include="$(STAGING_DIR)/usr" \
 	--with-log4cplus="$(STAGING_DIR)/usr" \
 	--with-openssl="$(STAGING_DIR)/usr" \
 	--without-pic \
-	$(if $(CONFIG_PACKAGE_kea-perfdhcp),--enable-perfdhcp,)
+	$(if $(CONFIG_PACKAGE_kea-perfdhcp),--enable-perfdhcp,) \
+	$(if $(CONFIG_PACKAGE_kea-shell),--enable-shell,)
 
 CONFIGURE_VARS += \
 	cross_compiling="yes"
 
 TARGET_CXXFLAGS += \
 	$(FPIC) \
-	-fdata-sections \
-	-ffunction-sections
+	-std=c++17
 
 TARGET_LDFLAGS += \
-	-Wl,--gc-sections,--as-needed
-
-# Only compile the kea-msg-compiler which we need for
-# package compilation
-define Host/Compile
-	+$(HOST_MAKE_VARS) \
-	$(MAKE) $(HOST_JOBS) -C $(HOST_BUILD_DIR)/src/lib/exceptions $(HOST_MAKE_FLAGS)
-	+$(HOST_MAKE_VARS) \
-	$(MAKE) $(HOST_JOBS) -C $(HOST_BUILD_DIR)/src/lib/util $(HOST_MAKE_FLAGS)
-	+$(HOST_MAKE_VARS) \
-	$(MAKE) $(HOST_JOBS) -C $(HOST_BUILD_DIR)/src/lib/log $(HOST_MAKE_FLAGS)
-endef
-
-define Host/Install
-	$(INSTALL_BIN) $(HOST_BUILD_DIR)/src/lib/log/compiler/kea-msg-compiler \
-		$(STAGING_DIR_HOSTPKG)/bin/
-endef
-
-define Build/Compile
-	$(INSTALL_DIR) $(PKG_BUILD_DIR)/src/lib/log/compiler
-	$(INSTALL_BIN) $(STAGING_DIR_HOSTPKG)/bin/kea-msg-compiler \
-		$(PKG_BUILD_DIR)/src/lib/log/compiler/
-	$(call Build/Compile/Default)
-endef
+	-Wl,--as-needed
 
 define Package/kea-libs/install
 	$(INSTALL_DIR) $(1)/usr/lib
@@ -223,6 +238,16 @@ define Package/kea-admin/install
 	$(INSTALL_BIN) $(PKG_INSTALL_DIR)/usr/sbin/kea-admin $(1)/usr/sbin/kea-admin
 endef
 
+define Package/kea-hook-ha/install
+	$(INSTALL_DIR) $(1)/usr/lib/kea/hooks
+	$(CP) $(PKG_INSTALL_DIR)/usr/lib/kea/hooks/libdhcp_ha.so $(1)/usr/lib/kea/hooks
+endef
+
+define Package/kea-hook-lease-cmds/install
+	$(INSTALL_DIR) $(1)/usr/lib/kea/hooks
+	$(CP) $(PKG_INSTALL_DIR)/usr/lib/kea/hooks/libdhcp_lease_cmds.so $(1)/usr/lib/kea/hooks
+endef
+
 define Package/kea-ctrl/install
 	$(INSTALL_DIR) $(1)/usr/sbin $(1)/etc/kea
 	$(INSTALL_BIN) $(PKG_INSTALL_DIR)/usr/sbin/keactrl $(1)/usr/sbin/keactrl
@@ -241,6 +266,21 @@ define Package/kea-perfdhcp/install
 	$(INSTALL_BIN) $(PKG_INSTALL_DIR)/usr/sbin/perfdhcp $(1)/usr/sbin/perfdhcp
 endef
 
+define Package/kea-shell/install
+	$(INSTALL_DIR) $(1)/usr/sbin
+	$(INSTALL_BIN) $(PKG_INSTALL_DIR)/usr/sbin/kea-shell $(1)/usr/sbin/kea-shell
+endef
+
+define Package/kea-uci/install
+	$(INSTALL_DIR) $(1)/etc/config $(1)/etc/init.d
+	$(INSTALL_CONF) ./files/kea.config $(1)/etc/config/kea
+	$(INSTALL_BIN) ./files/kea.init $(1)/etc/init.d/kea
+endef
+
+define Package/kea-uci/conffiles
+/etc/config/kea
+endef
+
 $(eval $(call HostBuild))
 $(eval $(call BuildPackage,kea-libs))
 $(eval $(call BuildPackage,kea-ctrl))
@@ -248,5 +288,9 @@ $(eval $(call BuildPackage,kea-dhcp4))
 $(eval $(call BuildPackage,kea-dhcp6))
 $(eval $(call BuildPackage,kea-dhcp-ddns))
 $(eval $(call BuildPackage,kea-admin))
+$(eval $(call BuildPackage,kea-hook-ha))
+$(eval $(call BuildPackage,kea-hook-lease-cmds))
 $(eval $(call BuildPackage,kea-lfc))
 $(eval $(call BuildPackage,kea-perfdhcp))
+$(eval $(call BuildPackage,kea-shell))
+$(eval $(call BuildPackage,kea-uci))

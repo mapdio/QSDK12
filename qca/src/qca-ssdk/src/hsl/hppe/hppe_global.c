@@ -1,6 +1,6 @@
 /*
  * Copyright (c) 2016-2017, The Linux Foundation. All rights reserved.
- * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2023 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for any
  * purpose with or without fee is hereby granted, provided that the above
@@ -70,6 +70,7 @@ hppe_rgmii_ctrl_set(
 				NSS_GLOBAL_BASE_ADDR + RGMII_CTRL_ADDRESS,
 				value->val);
 }
+#endif
 
 sw_error_t
 hppe_clk_gating_ctrl_get(
@@ -92,7 +93,7 @@ hppe_clk_gating_ctrl_set(
 				NSS_GLOBAL_BASE_ADDR + CLK_GATING_CTRL_ADDRESS,
 				value->val);
 }
-#endif
+
 sw_error_t
 hppe_port_mux_ctrl_get(
 		a_uint32_t dev_id,
@@ -614,35 +615,6 @@ hppe_rgmii_ctrl_rgmii_ctrl_set(
 		return ret;
 	reg_val.bf.rgmii_ctrl = value;
 	ret = hppe_rgmii_ctrl_set(dev_id, &reg_val);
-	return ret;
-}
-
-sw_error_t
-hppe_clk_gating_ctrl_clk_gating_ctrl_get(
-		a_uint32_t dev_id,
-		a_uint32_t *value)
-{
-	union clk_gating_ctrl_u reg_val;
-	sw_error_t ret = SW_OK;
-
-	ret = hppe_clk_gating_ctrl_get(dev_id, &reg_val);
-	*value = reg_val.bf.clk_gating_ctrl;
-	return ret;
-}
-
-sw_error_t
-hppe_clk_gating_ctrl_clk_gating_ctrl_set(
-		a_uint32_t dev_id,
-		a_uint32_t value)
-{
-	union clk_gating_ctrl_u reg_val;
-	sw_error_t ret = SW_OK;
-
-	ret = hppe_clk_gating_ctrl_get(dev_id, &reg_val);
-	if (SW_OK != ret)
-		return ret;
-	reg_val.bf.clk_gating_ctrl = value;
-	ret = hppe_clk_gating_ctrl_set(dev_id, &reg_val);
 	return ret;
 }
 
@@ -2643,6 +2615,20 @@ hppe_port_phy_status_0_port2_phy_status_get(
 	*value = reg_val.bf.port2_phy_status;
 	return ret;
 }
+
+sw_error_t
+hppe_port_phy_status_0_port3_phy_status_get(
+		a_uint32_t dev_id,
+		a_uint32_t *value)
+{
+	union port_phy_status_0_u reg_val;
+	sw_error_t ret = SW_OK;
+
+	ret = hppe_port_phy_status_0_get(dev_id, &reg_val);
+	*value = reg_val.bf.port3_phy_status;
+	return ret;
+}
+
 #if 0
 sw_error_t
 hppe_port_phy_status_0_port2_phy_status_set(

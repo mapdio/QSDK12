@@ -5,21 +5,19 @@
 include $(TOPDIR)/rules.mk
 
 PKG_NAME:=libevdev
-PKG_VERSION:=1.6.0
+PKG_VERSION:=1.13.0
 PKG_RELEASE:=1
 
 PKG_SOURCE:=$(PKG_NAME)-$(PKG_VERSION).tar.xz
 PKG_SOURCE_URL:=https://www.freedesktop.org/software/libevdev/
-PKG_HASH:=f5005c865987d980cc1279b9ec6131b06a89fd9892f649f2a68262b8786ef814
+PKG_HASH:=9edf2006cc86a5055279647c38ec923d11a821ee4dc2c3033e8d20e8ee237cd9
 
+PKG_MAINTAINER:=Daniel Golle <daniel@makrotopia.org>
 PKG_LICENSE:=MIT
 PKG_LICENSE_FILES:=COPYING
-PKG_MAINTAINER:=Daniel Golle <daniel@makrotopia.org>
-
-PKG_FIXUP:=autoreconf
-PKG_INSTALL:=1
 
 include $(INCLUDE_DIR)/package.mk
+include $(INCLUDE_DIR)/meson.mk
 
 define Package/libevdev
   SECTION:=libs
@@ -37,18 +35,23 @@ define Package/libevdev/description
   evdev devices, thus making direct access unnecessary.
 endef
 
+MESON_ARGS += \
+	-Dtests=disabled \
+	-Ddocumentation=disabled \
+	-Dcoverity=false
+
 define Build/InstallDev
-	$(INSTALL_DIR) $(1)/usr/include
-	$(CP) $(PKG_INSTALL_DIR)/usr/include/* $(1)/usr/include/
+	$(INSTALL_DIR) $(1)/usr/include/libevdev-1.0/libevdev
+	$(CP) $(PKG_INSTALL_DIR)/usr/include/libevdev-1.0/libevdev/*.h $(1)/usr/include/libevdev-1.0/libevdev
 	$(INSTALL_DIR) $(1)/usr/lib
-	$(CP) $(PKG_INSTALL_DIR)/usr/lib/*.{a,so*} $(1)/usr/lib/
+	$(CP) $(PKG_INSTALL_DIR)/usr/lib/libevdev.so* $(1)/usr/lib/
 	$(INSTALL_DIR) $(1)/usr/lib/pkgconfig
-	$(CP) $(PKG_INSTALL_DIR)/usr/lib/pkgconfig/* $(1)/usr/lib/pkgconfig/
+	$(CP) $(PKG_INSTALL_DIR)/usr/lib/pkgconfig/libevdev.pc $(1)/usr/lib/pkgconfig/
 endef
 
 define Package/libevdev/install
 	$(INSTALL_DIR) $(1)/usr/lib
-	$(CP) $(PKG_INSTALL_DIR)/usr/lib/*.so* $(1)/usr/lib/
+	$(CP) $(PKG_INSTALL_DIR)/usr/lib/libevdev.so.* $(1)/usr/lib/
 endef
 
 $(eval $(call BuildPackage,libevdev))

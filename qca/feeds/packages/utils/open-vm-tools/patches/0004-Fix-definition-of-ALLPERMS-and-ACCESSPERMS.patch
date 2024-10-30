@@ -1,7 +1,22 @@
-diff -urN a/lib/hgfsServer/hgfsServerLinux.c b/lib/hgfsServer/hgfsServerLinux.c
+From 81da70dccfd03e6089be9ec509e43e697b8a58b3 Mon Sep 17 00:00:00 2001
+From: Natanael Copa <ncopa@alpinelinux.org>
+Date: Wed, 18 Nov 2015 09:10:14 +0000
+Subject: [PATCH] Fix definition of ALLPERMS and ACCESSPERMS
+
+The ALLPERMS and ACCESSPERMS defines are not specified in POSIX so
+assume it is not there instead of testing for specific implementations.
+
+This is needed for musl libc.
+
+Signed-off-by: Natanael Copa <ncopa@alpinelinux.org>
+---
+ lib/hgfsServer/hgfsServerLinux.c      | 8 +++++---
+ services/plugins/dndcp/dnd/dndLinux.c | 3 +--
+ 2 files changed, 6 insertions(+), 5 deletions(-)
+
 --- a/lib/hgfsServer/hgfsServerLinux.c
 +++ b/lib/hgfsServer/hgfsServerLinux.c
-@@ -105,11 +105,13 @@
+@@ -105,11 +105,13 @@ typedef struct DirectoryEntry {
  #endif
  
  /*
@@ -18,10 +33,9 @@ diff -urN a/lib/hgfsServer/hgfsServerLinux.c b/lib/hgfsServer/hgfsServerLinux.c
  #   define ALLPERMS (S_ISUID|S_ISGID|S_ISVTX|S_IRWXU|S_IRWXG|S_IRWXO)
  #endif
  
-diff -urN a/services/plugins/dndcp/dnd/dndLinux.c b/services/plugins/dndcp/dnd/dndLinux.c
 --- a/services/plugins/dndcp/dnd/dndLinux.c
 +++ b/services/plugins/dndcp/dnd/dndLinux.c
-@@ -52,7 +52,7 @@
+@@ -53,7 +53,7 @@
  
  #define DND_ROOTDIR_PERMS     (S_IRWXU | S_IRWXG | S_IRWXO)
  #define DND_STAGINGDIR_PERMS  (S_IRWXU | S_IRGRP | S_IXGRP | S_IROTH | S_IXOTH)
@@ -30,7 +44,7 @@ diff -urN a/services/plugins/dndcp/dnd/dndLinux.c b/services/plugins/dndcp/dnd/d
  #define ACCESSPERMS           (S_IRWXU | S_IRWXG | S_IRWXO)
  #endif
  #ifdef __ANDROID__
-@@ -61,7 +61,6 @@
+@@ -62,7 +62,6 @@
   */
  #define NO_SETMNTENT
  #define NO_ENDMNTENT

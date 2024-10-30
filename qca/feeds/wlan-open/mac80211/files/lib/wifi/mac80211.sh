@@ -4,95 +4,6 @@ append DRIVERS "mac80211"
 
 MLD_VAP_DETAILS="/lib/netifd/wireless/wifi_mld_cfg.config"
 
-configure_service_param() {
-	enable_service=$2
-	phy=$3
-	json_load "$1"
-	json_get_var svc_id svc_id
-	json_get_var disable disable
-
-	[ -z "$disable" ] && disable='0'
-
-	if [ $enable_service -eq 1 ] && [ "$disable" -eq 0 ]; then
-		json_get_var app_name app_name
-		json_get_var min_thruput_rate min_thruput_rate
-		json_get_var max_thruput_rate max_thruput_rate
-		json_get_var burst_size burst_size
-		json_get_var service_interval service_interval
-		json_get_var delay_bound delay_bound
-		json_get_var msdu_ttl msdu_ttl
-		json_get_var priority priority
-		json_get_var tid tid
-		json_get_var msdu_rate_loss msdu_rate_loss
-
-		cmd="iw $phy service_class create $svc_id "
-		[ ! -z "$app_name" ] && cmd=$cmd"'$app_name' "
-		[ ! -z "$min_thruput_rate" ] && cmd=$cmd"min_tput $min_thruput_rate "
-		[ ! -z "$max_thruput_rate" ] && cmd=$cmd"max_tput $max_thruput_rate "
-		[ ! -z "$burst_size" ] && cmd=$cmd"burst_size $burst_size "
-		[ ! -z "$service_interval" ] && cmd=$cmd"service_interval $service_interval "
-		[ ! -z "$delay_bound" ] && cmd=$cmd"delay_bound $delay_bound "
-		[ ! -z "$msdu_ttl" ] && cmd=$cmd"msdu_ttl $msdu_ttl "
-		[ ! -z "$priority" ] && cmd=$cmd"priority $priority "
-		[ ! -z "$tid" ] && cmd=$cmd"tid $tid "
-		[ ! -z "$msdu_rate_loss" ] && cmd=$cmd"msdu_loss $msdu_rate_loss "
-
-		eval $cmd
-	elif [ $enable_service -eq 0 ]; then
-		check_svc_id=$(iw $phy service_class view $svc_id | grep "Service ID" | cut -d ":" -f2)
-		if [ ! -z "$check_svc_id" ] && [ $check_svc_id -eq $svc_id ]; then
-			cmd="iw $phy service_class disable $svc_id"
-			eval $cmd
-		fi
-	fi
-}
-
-configure_service_class() {
-	PHY_PATH="/sys/kernel/debug/ieee80211"
-	phy_present=false
-	if [ -d  $PHY_PATH ]
-	then
-		for phy in $(ls $PHY_PATH 2>/dev/null); do
-			dir_name="$PHY_PATH/$phy/ath12k*"
-			for dir in $dir_name; do
-				[ -d $dir ] && phy_present=true && break
-			done
-			[ $phy_present = true ] && break
-		done
-	fi
-	[ $phy_present = false ] && return
-
-	json_init
-	json_set_namespace default_ns
-	json_load_file /lib/wifi/sawf/def_service_classes.json
-	json_select service_class
-	json_get_keys svc_class_indexes
-	svc_class_index=0
-	enable_svc=$1
-
-	svc_class_index_count=$(echo "$svc_class_indexes" | wc -w)
-	while [ $svc_class_index -lt $svc_class_index_count ]
-	do
-		svc_class_json=$(jsonfilter -i /lib/wifi/sawf/def_service_classes.json -e "@.service_class[$svc_class_index]")
-		configure_service_param "$svc_class_json" "$enable_svc" "$phy"
-		svc_class_index=$((svc_class_index+1))
-	done
-
-	json_set_namespace default_ns
-	json_load_file /lib/wifi/sawf/service_classes.json
-	json_select service_class
-	json_get_keys svc_class_indexes
-	svc_class_index=0
-
-	svc_class_index_count=$(echo "$svc_class_indexes" | wc -w)
-	while [ $svc_class_index -lt $svc_class_index_count ]
-	do
-		svc_class_json=$(jsonfilter -i /lib/wifi/sawf/service_classes.json -e "@.service_class[$svc_class_index]")
-		configure_service_param "$svc_class_json" "$enable_svc" "$phy"
-		svc_class_index=$((svc_class_index+1))
-	done
-}
-
 update_mld_vap_details() {
 	local _mlds
 	local _devices_up
@@ -111,12 +22,17 @@ update_mld_vap_details() {
 	fi
 
 	mac80211_get_wifi_ifaces() {
-		config_get iface_mode $1 mode
-		if [ -n "$iface_mode" ] && [[ "$iface_mode" == "ap" ]]; then
-			append _ifaces $1
-		fi
+		append _ifaces $1
 	}
 	config_foreach mac80211_get_wifi_ifaces wifi-iface
+
+	mac80211_get_active_wifi_devices()  {
+		config_get disabled "$1" disabled
+		if [ -z "$disabled" ] || [ "$disabled" -eq 0 ]; then
+			radio_up_count=$((radio_up_count+1))
+		fi
+	}
+	config_foreach mac80211_get_active_wifi_devices wifi-device
 
 	for _mld in $_mlds
 	do
@@ -126,31 +42,12 @@ update_mld_vap_details() {
 			config_get mldevice $_ifname device
 			config_get mlcaps  $mldevice mlo_capable
 
-			if ! [[ "$mldevices" =~ "$mldevice" ]]; then
-				append mldevices $mldevice
-			fi
-
 			if [ -n "$mlcaps" ] && [ $mlcaps -eq 1 ] && \
 			   [ -n "$mld_name" ] &&  [ "$_mld" = "$mld_name" ]; then
 				mld_vaps_count=$((mld_vaps_count+1))
 			fi
 		done
 	done
-
-	for mldev in $mldevices
-	do
-		# Length of radio name should be 12 in order to ensure only single wiphy wifi-devices are taken into account
-		if [ ${#mldev} -ne 12 ]; then
-                        continue;
-                fi
-
-                config_get disabled "$mldev" disabled
-
-                if [ -z "$disabled" ] || [ "$disabled" -eq 0 ]; then
-                        radio_up_count=$((radio_up_count+1))
-                fi
-	done
-
 	echo "radio_up_count=$radio_up_count mld_vaps_count=$mld_vaps_count" > $MLD_VAP_DETAILS
 }
 
@@ -162,20 +59,6 @@ pre_wifi_updown() {
 	if [ -f "$MLD_VAP_DETAILS" ]; then
 		rm -rf $MLD_VAP_DETAILS
 	fi
-
-	get_device_config()  {
-		if [ ${#1} -eq 12 ]; then
-			dev=$1
-			drv_mlo_capable=$(cat /sys/module/ath12k/parameters/mlo_capable)
-		fi
-        }
-	config_foreach get_device_config wifi-device
-
-	if ([ -n "$drv_mlo_capable" ] && [ $drv_mlo_capable -eq 0 ]); then
-		echo Wireless driver is not in single wiphy architecture. Kindly set mlo_capable module param.
-		exit
-	fi
-
 
 	update_mld_vap_details
 }
@@ -396,7 +279,7 @@ detect_mac80211() {
 	then
 		chipset=$(grep -o "IPQ.*" /proc/device-tree/model | awk -F/ '{print $1}')
 		board=$(grep -o "IPQ.*" /proc/device-tree/model | awk -F/ '{print $2}')
-		if [ "$chipset" == "IPQ9574" ] && [ "$board" != "AP-AL02-C4" ] && [ "$board" != "AP-AL02-C9" ]; then
+		if [ "$chipset" == "IPQ9574" ] && [ "$board" != "AP-AL02-C4" ]; then
 			echo 0 > /sys/bus/coresight/devices/coresight-stm/enable
 			echo "q6mem" > /sys/bus/coresight/devices/coresight-tmc-etr/out_mode
 			echo 1 > /sys/bus/coresight/devices/coresight-tmc-etr/curr_sink
@@ -594,10 +477,6 @@ post_mac80211() {
 			if [ -f "/etc/init.d/lbd" ]; then
 				start_lbd &
 			fi
-			sawf_supp="/sys/module/ath12k/parameters/sawf"
-			if [ -f $sawf_supp ] && [ $(cat $sawf_supp) == "Y" ]; then
-				configure_service_class 1
-			fi
 		;;
 	esac
 
@@ -621,7 +500,7 @@ post_mac80211() {
 		echo 5 > /sys/bus/coresight/devices/coresight-funnel-mm/funnel_ctrl
 		echo 6 > /sys/bus/coresight/devices/coresight-funnel-in0/funnel_ctrl
 		echo 1 > /sys/bus/coresight/devices/coresight-stm/enable
-	elif [ "$chipset" == "IPQ9574" ] && [ "$board" != "AP-AL02-C4" ] && [ "$board" != "AP-AL02-C9" ]; then
+	elif [ "$chipset" == "IPQ9574" ] && [ "$board" != "AP-AL02-C4" ]; then
                 echo 0 > /sys/bus/coresight/devices/coresight-stm/enable
                 echo "q6mem" > /sys/bus/coresight/devices/coresight-tmc-etr/out_mode
                 echo 1 > /sys/bus/coresight/devices/coresight-tmc-etr/curr_sink
@@ -644,10 +523,6 @@ pre_mac80211() {
 
 			extsta_path=/sys/module/mac80211/parameters/extsta
 			[ -e $extsta_path ] && echo 0 > $extsta_path
-			sawf_supp="/sys/module/ath12k/parameters/sawf"
-                        if [ -f $sawf_supp ] && [ $(cat $sawf_supp) == "Y" ]; then
-				configure_service_class 0
-			fi
 		;;
 	esac
 	return 0

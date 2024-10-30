@@ -18,25 +18,7 @@
  #define PRINT_ARRAY_TO_BUF(out, buflen, arr, str, len, newline)				\
  	do {										\
  		int index = 0; u8 i; const char *str_val = str;				\
-@@ -38,6 +49,17 @@
- 		buflen += index;							\
- 	} while (0)
- 
-+#define CHAIN_ARRAY_TO_BUF(out, buflen, arr, len)		\
-+	do {							\
-+		int index = 0; u8 i;				\
-+		for (i = 0; i < len; i++) {			\
-+		index += scnprintf((out + buflen) + index,	\
-+		(ATH11K_HTT_STATS_BUF_SIZE - buflen) - index,	\
-+			" %u:%d,", i, arr[i]);			\
-+		}						\
-+		buflen += index;				\
-+	} while (0)
-+
- static inline void htt_print_stats_string_tlv(const void *tag_buf,
- 					      u16 tag_len,
- 					      struct debug_htt_stats_req *stats_req)
-@@ -81,6 +103,10 @@ static inline void htt_print_tx_pdev_sta
+@@ -81,6 +92,10 @@ static inline void htt_print_tx_pdev_sta
  	len += scnprintf(buf + len, buf_len - len, "HTT_TX_PDEV_STATS_CMN_TLV:\n");
  	len += scnprintf(buf + len, buf_len - len, "mac_id = %lu\n",
  			 FIELD_GET(HTT_STATS_MAC_ID, htt_stats_buf->mac_id__word));
@@ -47,7 +29,7 @@
  	len += scnprintf(buf + len, buf_len - len, "hw_queued = %u\n",
  			 htt_stats_buf->hw_queued);
  	len += scnprintf(buf + len, buf_len - len, "hw_reaped = %u\n",
-@@ -95,6 +121,8 @@ static inline void htt_print_tx_pdev_sta
+@@ -95,6 +110,8 @@ static inline void htt_print_tx_pdev_sta
  			 htt_stats_buf->hw_filt);
  	len += scnprintf(buf + len, buf_len - len, "tx_abort = %u\n",
  			 htt_stats_buf->tx_abort);
@@ -56,7 +38,7 @@
  	len += scnprintf(buf + len, buf_len - len, "mpdu_requeued = %u\n",
  			 htt_stats_buf->mpdu_requeued);
  	len += scnprintf(buf + len, buf_len - len, "tx_xretry = %u\n",
-@@ -109,6 +137,8 @@ static inline void htt_print_tx_pdev_sta
+@@ -109,6 +126,8 @@ static inline void htt_print_tx_pdev_sta
  			 htt_stats_buf->cont_xretry);
  	len += scnprintf(buf + len, buf_len - len, "tx_timeout = %u\n",
  			 htt_stats_buf->tx_timeout);
@@ -65,7 +47,7 @@
  	len += scnprintf(buf + len, buf_len - len, "pdev_resets = %u\n",
  			 htt_stats_buf->pdev_resets);
  	len += scnprintf(buf + len, buf_len - len, "phy_underrun = %u\n",
-@@ -123,8 +153,26 @@ static inline void htt_print_tx_pdev_sta
+@@ -123,8 +142,26 @@ static inline void htt_print_tx_pdev_sta
  			 htt_stats_buf->seq_completed);
  	len += scnprintf(buf + len, buf_len - len, "seq_restarted = %u\n",
  			 htt_stats_buf->seq_restarted);
@@ -93,7 +75,7 @@
  	len += scnprintf(buf + len, buf_len - len, "seq_switch_hw_paused = %u\n",
  			 htt_stats_buf->seq_switch_hw_paused);
  	len += scnprintf(buf + len, buf_len - len, "next_seq_posted_dsr = %u\n",
-@@ -141,6 +189,8 @@ static inline void htt_print_tx_pdev_sta
+@@ -141,6 +178,8 @@ static inline void htt_print_tx_pdev_sta
  			 htt_stats_buf->mpdu_removed_tqm);
  	len += scnprintf(buf + len, buf_len - len, "msdu_removed_tqm = %u\n",
  			 htt_stats_buf->msdu_removed_tqm);
@@ -102,7 +84,7 @@
  	len += scnprintf(buf + len, buf_len - len, "mpdus_sw_flush = %u\n",
  			 htt_stats_buf->mpdus_sw_flush);
  	len += scnprintf(buf + len, buf_len - len, "mpdus_hw_filter = %u\n",
-@@ -177,8 +227,10 @@ static inline void htt_print_tx_pdev_sta
+@@ -177,8 +216,10 @@ static inline void htt_print_tx_pdev_sta
  			 htt_stats_buf->isr_wait_seq_posted);
  	len += scnprintf(buf + len, buf_len - len, "tx_active_dur_us_low = %u\n",
  			 htt_stats_buf->tx_active_dur_us_low);
@@ -114,7 +96,7 @@
  
  	if (len >= buf_len)
  		buf[buf_len - 1] = 0;
-@@ -442,18 +494,90 @@ static inline void htt_print_hw_stats_pd
+@@ -442,18 +483,90 @@ static inline void htt_print_hw_stats_pd
  			 htt_stats_buf->rx_abort);
  	len += scnprintf(buf + len, buf_len - len, "rx_abort_fail_count = %u\n",
  			 htt_stats_buf->rx_abort_fail_count);
@@ -206,7 +188,7 @@
  
  	if (len >= buf_len)
  		buf[buf_len - 1] = 0;
-@@ -712,6 +836,8 @@ static inline void htt_print_peer_stats_
+@@ -712,6 +825,8 @@ static inline void htt_print_peer_stats_
  	len += scnprintf(buf + len, buf_len - len, "transmitted_ppdu_bytes = %llu\n",
  			 htt_stats_buf->ppdu_transmitted_bytes_low |
  			 ((u64)htt_stats_buf->ppdu_transmitted_bytes_high << 32));
@@ -215,7 +197,7 @@
  	len += scnprintf(buf + len, buf_len - len, "ttl_removed_count = %u\n",
  			 htt_stats_buf->peer_ttl_removed_count);
  	len += scnprintf(buf + len, buf_len - len, "inactive_time = %u\n\n",
-@@ -865,6 +991,13 @@ static inline void htt_print_rx_peer_rat
+@@ -865,6 +980,13 @@ static inline void htt_print_rx_peer_rat
  				   HTT_RX_PEER_STATS_NUM_BW_COUNTERS, "\n");
  	}
  
@@ -229,7 +211,7 @@
  	for (j = 0; j < HTT_RX_PEER_STATS_NUM_GI_COUNTERS; j++) {
  		len += scnprintf(buf + len, (buf_len - len),
  				 "rx_gi[%u] = ", j);
-@@ -875,6 +1008,38 @@ static inline void htt_print_rx_peer_rat
+@@ -875,6 +997,37 @@ static inline void htt_print_rx_peer_rat
  	PRINT_ARRAY_TO_BUF(buf, len, htt_stats_buf->rx_pream, "rx_pream",
  			   HTT_RX_PDEV_STATS_NUM_PREAMBLE_TYPES, "\n");
  
@@ -260,15 +242,14 @@
 +	for (j = 0; j < HTT_RX_PEER_STATS_NUM_SPATIAL_STREAMS; j++) {
 +		len += HTT_DBG_OUT(buf + len, buf_len - len,
 +				   "\nrx_per_chain_rssi_in_dbm[%u] = ", j);
-+		CHAIN_ARRAY_TO_BUF(buf, len, htt_stats_buf->rx_per_chain_rssi_in_dbm[j],
++		ARRAY_TO_BUF(buf, len, htt_stats_buf->rx_per_chain_rssi_in_dbm[j],
 +			     HTT_RX_PEER_STATS_NUM_BW_COUNTERS);
-+		len += scnprintf(buf + len, buf_len - len, "\n");
 +	}
 +
  	if (len >= buf_len)
  		buf[buf_len - 1] = 0;
  	else
-@@ -1331,6 +1496,20 @@ htt_print_tx_selfgen_cmn_stats_tlv(const
+@@ -1331,6 +1484,20 @@ htt_print_tx_selfgen_cmn_stats_tlv(const
  			 htt_stats_buf->delayed_bar_6);
  	len += scnprintf(buf + len, buf_len - len, "delayed_bar_7 = %u\n\n",
  			 htt_stats_buf->delayed_bar_7);
@@ -289,7 +270,7 @@
  
  	if (len >= buf_len)
  		buf[buf_len - 1] = 0;
-@@ -1350,19 +1529,33 @@ htt_print_tx_selfgen_ac_stats_tlv(const
+@@ -1350,19 +1517,33 @@ htt_print_tx_selfgen_ac_stats_tlv(const
  	u32 buf_len = ATH11K_HTT_STATS_BUF_SIZE;
  
  	len += scnprintf(buf + len, buf_len - len, "HTT_TX_SELFGEN_AC_STATS_TLV:\n");
@@ -330,7 +311,7 @@
  			 htt_stats_buf->ac_mu_mimo_brpoll_3);
  
  	if (len >= buf_len)
-@@ -1383,29 +1576,35 @@ htt_print_tx_selfgen_ax_stats_tlv(const
+@@ -1383,29 +1564,35 @@ htt_print_tx_selfgen_ax_stats_tlv(const
  	u32 buf_len = ATH11K_HTT_STATS_BUF_SIZE;
  
  	len += scnprintf(buf + len, buf_len - len, "HTT_TX_SELFGEN_AX_STATS_TLV:\n");
@@ -385,7 +366,7 @@
  			 htt_stats_buf->ax_basic_trigger);
  	len += scnprintf(buf + len, buf_len - len, "ax_ulmumimo_trigger = %u\n",
  			 htt_stats_buf->ax_ulmumimo_trigger);
-@@ -1436,18 +1635,32 @@ htt_print_tx_selfgen_ac_err_stats_tlv(co
+@@ -1436,18 +1623,32 @@ htt_print_tx_selfgen_ac_err_stats_tlv(co
  	len += scnprintf(buf + len, buf_len - len, "HTT_TX_SELFGEN_AC_ERR_STATS_TLV:\n");
  	len += scnprintf(buf + len, buf_len - len, "ac_su_ndp_err = %u\n",
  			 htt_stats_buf->ac_su_ndp_err);
@@ -419,7 +400,7 @@
  
  	if (len >= buf_len)
  		buf[buf_len - 1] = 0;
-@@ -1469,27 +1682,38 @@ htt_print_tx_selfgen_ax_err_stats_tlv(co
+@@ -1469,27 +1670,38 @@ htt_print_tx_selfgen_ax_err_stats_tlv(co
  	len += scnprintf(buf + len, buf_len - len, "HTT_TX_SELFGEN_AX_ERR_STATS_TLV:\n");
  	len += scnprintf(buf + len, buf_len - len, "ax_su_ndp_err = %u\n",
  			 htt_stats_buf->ax_su_ndp_err);
@@ -473,7 +454,7 @@
  			 htt_stats_buf->ax_basic_trigger_err);
  	len += scnprintf(buf + len, buf_len - len, "ax_ulmumimo_trigger_err = %u\n",
  			 htt_stats_buf->ax_ulmumimo_trigger_err);
-@@ -1881,6 +2105,22 @@ htt_print_tx_pdev_stats_sched_per_txq_tl
+@@ -1891,6 +2103,22 @@ htt_print_tx_pdev_stats_sched_per_txq_tl
  			 htt_stats_buf->notify_sched);
  	len += scnprintf(buf + len, buf_len - len, "dur_based_sendn_term = %u\n\n",
  			 htt_stats_buf->dur_based_sendn_term);
@@ -496,7 +477,7 @@
  
  	if (len >= buf_len)
  		buf[buf_len - 1] = 0;
-@@ -2068,8 +2308,9 @@ htt_print_tx_tqm_pdev_stats_tlv_v(const
+@@ -2078,8 +2306,9 @@ htt_print_tx_tqm_pdev_stats_tlv_v(const
  	stats_req->buf_len = len;
  }
  
@@ -508,7 +489,7 @@
  {
  	const struct htt_tx_tqm_cmn_stats_tlv *htt_stats_buf = tag_buf;
  	u8 *buf = stats_req->buf;
-@@ -2093,6 +2334,21 @@ static inline void htt_print_tx_tqm_cmn_
+@@ -2103,6 +2332,21 @@ static inline void htt_print_tx_tqm_cmn_
  			 htt_stats_buf->drop_notification);
  	len += scnprintf(buf + len, buf_len - len, "desc_threshold = %u\n\n",
  			 htt_stats_buf->desc_threshold);
@@ -530,7 +511,7 @@
  
  	if (len >= buf_len)
  		buf[buf_len - 1] = 0;
-@@ -2115,8 +2371,56 @@ static inline void htt_print_tx_tqm_erro
+@@ -2125,8 +2369,56 @@ static inline void htt_print_tx_tqm_erro
  			 htt_stats_buf->q_empty_failure);
  	len += scnprintf(buf + len, buf_len - len, "q_not_empty_failure = %u\n",
  			 htt_stats_buf->q_not_empty_failure);
@@ -588,7 +569,7 @@
  
  	if (len >= buf_len)
  		buf[buf_len - 1] = 0;
-@@ -2195,6 +2499,16 @@ htt_print_tx_de_eapol_packets_stats_tlv(
+@@ -2205,6 +2497,16 @@ htt_print_tx_de_eapol_packets_stats_tlv(
  			 htt_stats_buf->g1_packets);
  	len += scnprintf(buf + len, buf_len - len, "g2_packets = %u\n\n",
  			 htt_stats_buf->g2_packets);
@@ -605,7 +586,7 @@
  
  	if (len >= buf_len)
  		buf[buf_len - 1] = 0;
-@@ -2241,6 +2555,18 @@ htt_print_tx_de_classify_failed_stats_tl
+@@ -2251,6 +2553,18 @@ htt_print_tx_de_classify_failed_stats_tl
  			 htt_stats_buf->ipv6_jumbogram_zero_length);
  	len += scnprintf(buf + len, buf_len - len, "qos_to_non_qos_in_prog = %u\n\n",
  			 htt_stats_buf->qos_to_non_qos_in_prog);
@@ -624,7 +605,7 @@
  
  	if (len >= buf_len)
  		buf[buf_len - 1] = 0;
-@@ -2499,6 +2825,12 @@ htt_print_tx_de_cmn_stats_tlv(const void
+@@ -2509,6 +2823,12 @@ htt_print_tx_de_cmn_stats_tlv(const void
  			 htt_stats_buf->wbm2fw_entry_count);
  	len += scnprintf(buf + len, buf_len - len, "invalid_pdev = %u\n\n",
  			 htt_stats_buf->invalid_pdev);
@@ -637,7 +618,7 @@
  
  	if (len >= buf_len)
  		buf[buf_len - 1] = 0;
-@@ -2782,6 +3114,8 @@ static inline void htt_print_tx_pdev_rat
+@@ -2792,6 +3112,8 @@ static inline void htt_print_tx_pdev_rat
  			 htt_stats_buf->rts_success);
  	len += scnprintf(buf + len, buf_len - len, "ack_rssi = %u\n",
  			 htt_stats_buf->ack_rssi);
@@ -646,7 +627,7 @@
  
  	len += scnprintf(buf + len, buf_len - len,
  			 "Legacy CCK Rates: 1 Mbps: %u, 2 Mbps: %u, 5.5 Mbps: %u, 11 Mbps: %u\n",
-@@ -2804,12 +3138,24 @@ static inline void htt_print_tx_pdev_rat
+@@ -2814,12 +3136,24 @@ static inline void htt_print_tx_pdev_rat
  
  	PRINT_ARRAY_TO_BUF(buf, len, htt_stats_buf->tx_mcs, "tx_mcs",
  			   HTT_TX_PDEV_STATS_NUM_MCS_COUNTERS, "\n");
@@ -671,7 +652,7 @@
  	PRINT_ARRAY_TO_BUF(buf, len, htt_stats_buf->tx_nss, "tx_nss",
  			   HTT_TX_PDEV_STATS_NUM_SPATIAL_STREAMS, "\n");
  	PRINT_ARRAY_TO_BUF(buf, len, htt_stats_buf->ac_mu_mimo_tx_nss,
-@@ -2831,6 +3177,9 @@ static inline void htt_print_tx_pdev_rat
+@@ -2841,6 +3175,9 @@ static inline void htt_print_tx_pdev_rat
  			   HTT_TX_PDEV_STATS_NUM_BW_COUNTERS, "\n");
  	PRINT_ARRAY_TO_BUF(buf, len, htt_stats_buf->tx_stbc, "tx_stbc",
  			   HTT_TX_PDEV_STATS_NUM_MCS_COUNTERS, "\n");
@@ -681,7 +662,7 @@
  	PRINT_ARRAY_TO_BUF(buf, len, htt_stats_buf->tx_pream, "tx_pream",
  			   HTT_TX_PDEV_STATS_NUM_PREAMBLE_TYPES, "\n");
  
-@@ -2843,8 +3192,14 @@ static inline void htt_print_tx_pdev_rat
+@@ -2853,8 +3190,14 @@ static inline void htt_print_tx_pdev_rat
  	for (j = 0; j < HTT_TX_PDEV_STATS_NUM_GI_COUNTERS; j++) {
  		len += scnprintf(buf + len, (buf_len - len),
  				 "tx_gi[%u] = ", j);
@@ -696,7 +677,7 @@
  	}
  
  	/* AC MU-MIMO GI Stats */
-@@ -2861,6 +3216,9 @@ static inline void htt_print_tx_pdev_rat
+@@ -2871,6 +3214,9 @@ static inline void htt_print_tx_pdev_rat
  				 "ax_mu_mimo_tx_gi[%u] = ", j);
  		PRINT_ARRAY_TO_BUF(buf, len, htt_stats_buf->ax_mu_mimo_tx_gi[j],
  				   NULL, HTT_TX_PDEV_STATS_NUM_MCS_COUNTERS, "\n");
@@ -706,7 +687,7 @@
  	}
  
  	/* DL OFDMA GI Stats */
-@@ -2869,11 +3227,18 @@ static inline void htt_print_tx_pdev_rat
+@@ -2879,11 +3225,18 @@ static inline void htt_print_tx_pdev_rat
  				 "ofdma_tx_gi[%u] = ", j);
  		PRINT_ARRAY_TO_BUF(buf, len, htt_stats_buf->ofdma_tx_gi[j], NULL,
  				   HTT_TX_PDEV_STATS_NUM_MCS_COUNTERS, "\n");
@@ -725,7 +706,7 @@
  	if (len >= buf_len)
  		buf[buf_len - 1] = 0;
  	else
-@@ -3041,33 +3406,6 @@ static inline void htt_print_rx_pdev_rat
+@@ -3064,33 +3417,6 @@ static inline void htt_print_rx_pdev_rat
  	PRINT_ARRAY_TO_BUF(buf, len, htt_stats_buf->rx_ulofdma_mpdu_fail,
  			   "rx_ulofdma_mpdu_fail", HTT_RX_PDEV_MAX_OFDMA_NUM_USER, "\n");
  
@@ -759,9 +740,9 @@
  	PRINT_ARRAY_TO_BUF(buf, len, htt_stats_buf->rx_ulmumimo_non_data_ppdu,
  			   "rx_ulmumimo_non_data_ppdu", HTT_RX_PDEV_MAX_ULMUMIMO_NUM_USER,
  			   "\n");
-@@ -3084,6 +3422,13 @@ static inline void htt_print_rx_pdev_rat
- 			   "rx_ulmumimo_mpdu_fail", HTT_RX_PDEV_MAX_ULMUMIMO_NUM_USER,
- 			   "\n");
+@@ -3131,6 +3457,13 @@ static inline void htt_print_rx_pdev_rat
+ 	PRINT_ARRAY_TO_BUF(buf, len, htt_stats_buf->rx_ulmumimo_mpdu_fail,
+ 		     "rx_ulmumimo_mpdu_fail", HTT_RX_PDEV_MAX_ULMUMIMO_NUM_USER, "\n");
  
 +	for (j = 0; j < HTT_RX_PDEV_STATS_NUM_SPATIAL_STREAMS; j++) {
 +		len += HTT_DBG_OUT(buf + len, buf_len - len,
@@ -773,7 +754,7 @@
  	len += scnprintf(buf + len, buf_len - len, "per_chain_rssi_pkt_type = %#x\n",
  			 htt_stats_buf->per_chain_rssi_pkt_type);
  
-@@ -3098,6 +3443,23 @@ static inline void htt_print_rx_pdev_rat
+@@ -3145,6 +3478,23 @@ static inline void htt_print_rx_pdev_rat
  					 htt_stats_buf->rx_per_chain_rssi_in_dbm[j][i]);
  		len += scnprintf(buf + len, buf_len - len, "\n");
  	}
@@ -797,7 +778,7 @@
  	len += scnprintf(buf + len, buf_len - len, "\n");
  
  	if (len >= buf_len)
-@@ -3662,22 +4024,27 @@ htt_print_pdev_obss_pd_stats_tlv_v(const
+@@ -3709,22 +4059,27 @@ htt_print_pdev_obss_pd_stats_tlv_v(const
  	u32 len = stats_req->buf_len;
  	u32 buf_len = ATH11K_HTT_STATS_BUF_SIZE;
  
@@ -838,7 +819,7 @@
  
  	if (len >= buf_len)
  		buf[buf_len - 1] = 0;
-@@ -3694,30 +4061,33 @@ static inline void htt_print_backpressur
+@@ -3741,30 +4096,33 @@ static inline void htt_print_backpressur
  			(struct debug_htt_stats_req *)data;
  	struct htt_ring_backpressure_stats_tlv *htt_stats_buf =
  			(struct htt_ring_backpressure_stats_tlv *)tag_buf;
@@ -882,7 +863,7 @@
  
  	if (len >= buf_len) {
  		buf[buf_len - 1] = 0;
-@@ -3850,9 +4220,6 @@ static inline void htt_print_ul_ofdma_tr
+@@ -3897,9 +4255,6 @@ static inline void htt_print_ul_ofdma_tr
  	PRINT_ARRAY_TO_BUF(buf, len, htt_trigger_stats_buf->ul_ofdma_rx_mcs,
  			   "ul_ofdma_rx_mcs",
  			   HTT_RX_PDEV_STATS_NUM_MCS_COUNTERS, "\n");
@@ -892,7 +873,7 @@
  
  	for (j = 0; j < HTT_RX_PDEV_STATS_NUM_GI_COUNTERS; j++) {
  		len += scnprintf(buf + len, buf_len - len,
-@@ -3861,13 +4228,6 @@ static inline void htt_print_ul_ofdma_tr
+@@ -3908,13 +4263,6 @@ static inline void htt_print_ul_ofdma_tr
  				   htt_trigger_stats_buf->ul_ofdma_rx_gi[j],
  				   NULL, HTT_RX_PDEV_STATS_NUM_MCS_COUNTERS,
  				   "\n");
@@ -906,7 +887,7 @@
  	}
  
  	PRINT_ARRAY_TO_BUF(buf, len, htt_trigger_stats_buf->ul_ofdma_rx_nss,
-@@ -3877,6 +4237,12 @@ static inline void htt_print_ul_ofdma_tr
+@@ -3924,6 +4272,12 @@ static inline void htt_print_ul_ofdma_tr
  	PRINT_ARRAY_TO_BUF(buf, len, htt_trigger_stats_buf->ul_ofdma_rx_bw,
  			   "ul_ofdma_rx_bw", HTT_RX_PDEV_STATS_NUM_BW_COUNTERS,
  			   "\n");
@@ -919,7 +900,7 @@
  
  	len += scnprintf(buf + len, buf_len - len, "ul_ofdma_rx_stbc = %u\n",
  			 htt_trigger_stats_buf->ul_ofdma_rx_stbc);
-@@ -3892,6 +4258,23 @@ static inline void htt_print_ul_ofdma_tr
+@@ -3939,6 +4293,23 @@ static inline void htt_print_ul_ofdma_tr
  			   "rx_ulofdma_data_ru_size_ppdu",
  			   HTT_RX_PDEV_STATS_NUM_RU_SIZE_COUNTERS, "\n");
  
@@ -943,7 +924,7 @@
  	len += scnprintf(buf + len, buf_len - len, "\n\n");
  
  	stats_req->buf_len = len;
-@@ -3924,7 +4307,7 @@ static inline void htt_print_ul_mumimo_t
+@@ -3971,7 +4342,7 @@ static inline void htt_print_ul_mumimo_t
  	PRINT_ARRAY_TO_BUF(buf, len,
  			   htt_ul_mumimo_trig_stats_buf->ul_mumimo_rx_mcs_ext,
  			   "ul_mumimo_ext_rx_mcs",
@@ -952,7 +933,7 @@
  
  	for (j = 0; j < HTT_RX_PDEV_STATS_NUM_GI_COUNTERS; j++) {
  		len += scnprintf(buf + len, buf_len - len,
-@@ -3933,19 +4316,12 @@ static inline void htt_print_ul_mumimo_t
+@@ -3980,19 +4351,12 @@ static inline void htt_print_ul_mumimo_t
  			      htt_ul_mumimo_trig_stats_buf->ul_mumimo_rx_gi[j],
  				   NULL, HTT_RX_PDEV_STATS_NUM_MCS_COUNTERS,
  				   "\n");
@@ -973,7 +954,7 @@
  
  	PRINT_ARRAY_TO_BUF(buf, len,
  			   htt_ul_mumimo_trig_stats_buf->ul_mumimo_rx_bw,
-@@ -3956,6 +4332,34 @@ static inline void htt_print_ul_mumimo_t
+@@ -4003,6 +4367,34 @@ static inline void htt_print_ul_mumimo_t
  			 htt_ul_mumimo_trig_stats_buf->ul_mumimo_rx_stbc);
  	len += scnprintf(buf + len, buf_len - len, "ul_mumimo_rx_ldpc = %u\n",
  			 htt_ul_mumimo_trig_stats_buf->ul_mumimo_rx_ldpc);
@@ -1008,7 +989,7 @@
  	len += scnprintf(buf + len, buf_len - len, "\n\n");
  
  	stats_req->buf_len = len;
-@@ -4092,18 +4496,28 @@ static inline void htt_print_rx_fse_stat
+@@ -4139,18 +4531,28 @@ static inline void htt_print_rx_fse_stat
  	stats_req->buf_len = len;
  }
  
@@ -1041,7 +1022,7 @@
  
  	len += scnprintf(buf + len, buf_len - len, "tx_ol_mcs = ");
  	for (i = 0; i < HTT_TX_TXBF_RATE_STATS_NUM_MCS_COUNTERS; i++)
-@@ -4147,18 +4561,41 @@ void htt_print_pdev_tx_rate_txbf_stats_t
+@@ -4194,18 +4596,41 @@ void htt_print_pdev_tx_rate_txbf_stats_t
  				 "%d:%u,", i, htt_stats_buf->tx_su_ol_bw[i]);
  	len--;
  
@@ -1083,7 +1064,7 @@
  	len += scnprintf(buf + len, buf_len - len, "\n");
  
  	stats_req->buf_len = len;
-@@ -4370,14 +4807,15 @@ void htt_print_phy_stats_tlv(const void
+@@ -4417,14 +4842,15 @@ void htt_print_phy_stats_tlv(const void
  		len += HTT_DBG_OUT(buf + len, buf_len - len, "runtime_nf_chain[%d] = %d\n",
  				   i, htt_stats_buf->runtime_nf_chain[i]);
  
@@ -1103,7 +1084,7 @@
  
  	stats_req->buf_len = len;
  }
-@@ -4392,18 +4830,20 @@ static inline void htt_print_phy_reset_c
+@@ -4439,18 +4865,20 @@ static inline void htt_print_phy_reset_c
  
  	len += HTT_DBG_OUT(buf + len, buf_len - len, "HTT_PHY_RESET_COUNTERS_TLV:\n");
  
@@ -1130,7 +1111,7 @@
  
  	if (len >= buf_len)
  		buf[buf_len - 1] = 0;
-@@ -4423,60 +4863,66 @@ static inline void htt_print_phy_reset_s
+@@ -4470,60 +4898,66 @@ static inline void htt_print_phy_reset_s
  
  	len += HTT_DBG_OUT(buf + len, buf_len - len, "HTT_PHY_RESET_STATS_TLV:\n");
  
@@ -1224,7 +1205,7 @@
  
  	if (len >= buf_len)
  		buf[buf_len - 1] = 0;
-@@ -4495,13 +4941,12 @@ void htt_print_peer_ctrl_path_txrx_stats
+@@ -4542,13 +4976,12 @@ void htt_print_peer_ctrl_path_txrx_stats
  	u32 len = stats_req->buf_len;
  	u32 buf_len = ATH11K_HTT_STATS_BUF_SIZE;
  	int i;
@@ -1244,7 +1225,7 @@
  
  	len += scnprintf(buf + len, buf_len - len,
  			 "HTT_STATS_PEER_CTRL_PATH_TXRX_STATS_TAG:\n");
-@@ -4511,16 +4956,16 @@ void htt_print_peer_ctrl_path_txrx_stats
+@@ -4558,16 +4991,16 @@ void htt_print_peer_ctrl_path_txrx_stats
  			 htt_stat_buf->peer_mac_addr[2], htt_stat_buf->peer_mac_addr[3],
  			 htt_stat_buf->peer_mac_addr[4], htt_stat_buf->peer_mac_addr[5]);
  
@@ -1269,20 +1250,10 @@
  				 htt_stat_buf->peer_rx_mgmt_subtype[i]);
  
  	len += scnprintf(buf + len, buf_len - len, "\n");
-@@ -4528,16 +4973,117 @@ void htt_print_peer_ctrl_path_txrx_stats
- 	stats_req->buf_len = len;
- }
+@@ -4586,6 +5019,118 @@ void htt_print_peer_ctrl_path_txrx_stats
+        buflen += index;                           \
+    } while (0)
  
--#define CHAIN_ARRAY_TO_BUF(out, buflen, arr, len)                         \
--   do {                                       \
--       int index = 0; u8 i;                           \
--       for (i = 0; i < len; i++) {                    \
--           index += scnprintf((out + buflen) + index,         \
--               (ATH11K_HTT_STATS_BUF_SIZE - buflen) - index,  \
--                     " %u:%d,", i, arr[i]);           \
--       }                                  \
--       buflen += index;                           \
--   } while (0)
 +static inline void htt_print_pdev_ctrl_path_tx_stats_tlv(const void *tag_buf,
 +							 struct debug_htt_stats_req *stats_req)
 +{
@@ -1394,10 +1365,11 @@
 +
 +	stats_req->buf_len = len;
 +}
- 
++
  static inline void htt_print_rx_pdev_rate_ext_stats_tlv(const void *tag_buf,
  							struct debug_htt_stats_req *stats_req)
-@@ -4608,10 +5154,13 @@ static int ath11k_dbg_htt_ext_stats_pars
+ {
+@@ -4655,10 +5200,13 @@ static int ath11k_dbg_htt_ext_stats_pars
  					  void *user_data)
  {
  	struct debug_htt_stats_req *stats_req = user_data;
@@ -1412,7 +1384,7 @@
  		break;
  	case HTT_STATS_TX_PDEV_UNDERRUN_TAG:
  		htt_print_tx_pdev_stats_urrn_tlv_v(tag_buf, len, stats_req);
-@@ -4682,7 +5231,7 @@ static int ath11k_dbg_htt_ext_stats_pars
+@@ -4729,7 +5277,7 @@ static int ath11k_dbg_htt_ext_stats_pars
  		break;
  
  	case HTT_STATS_TX_TQM_CMN_TAG:
@@ -1421,7 +1393,7 @@
  		break;
  
  	case HTT_STATS_TX_TQM_PDEV_TAG:
-@@ -4951,6 +5500,9 @@ static int ath11k_dbg_htt_ext_stats_pars
+@@ -4998,6 +5546,9 @@ static int ath11k_dbg_htt_ext_stats_pars
  	case HTT_STATS_PDEV_OBSS_PD_TAG:
  		htt_print_pdev_obss_pd_stats_tlv_v(tag_buf, stats_req);
  		break;
@@ -1431,7 +1403,7 @@
  	case HTT_STATS_RING_BACKPRESSURE_STATS_TAG:
  		htt_print_backpressure_stats_tlv_v(tag_buf, user_data);
  		break;
-@@ -5008,6 +5560,15 @@ static int ath11k_dbg_htt_ext_stats_pars
+@@ -5055,6 +5606,15 @@ static int ath11k_dbg_htt_ext_stats_pars
  	case HTT_STATS_PEER_CTRL_PATH_TXRX_STATS_TAG:
  		htt_print_peer_ctrl_path_txrx_stats_tlv(tag_buf, stats_req);
  		break;
@@ -1447,7 +1419,7 @@
  	case HTT_STATS_RX_PDEV_RATE_EXT_STATS_TAG:
  		htt_print_rx_pdev_rate_ext_stats_tlv(tag_buf, stats_req);
  		break;
-@@ -5015,6 +5576,13 @@ static int ath11k_dbg_htt_ext_stats_pars
+@@ -5062,6 +5622,13 @@ static int ath11k_dbg_htt_ext_stats_pars
  		break;
  	}
  
@@ -2081,7 +2053,7 @@
  void ath11k_debugfs_htt_stats_init(struct ath11k *ar);
 --- a/drivers/net/wireless/ath/ath11k/dp.h
 +++ b/drivers/net/wireless/ath/ath11k/dp.h
-@@ -1737,12 +1737,13 @@ struct htt_ext_stats_cfg_cmd {
+@@ -1743,12 +1743,13 @@ struct htt_ext_stats_cfg_cmd {
   *   4 bit htt_tx_tid_stats_tlv/htt_tx_tid_stats_v1_tlv
   *   5 bit htt_rx_tid_stats_tlv
   *   6 bit htt_msdu_flow_stats_tlv

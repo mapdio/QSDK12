@@ -23,9 +23,11 @@ Signed-off-by: Aaradhana Sahu <quic_aarasahu@quicinc.com>
  drivers/net/wireless/ath/ath12k/debugfs.c | 48 ++++++++++++++++++++++-
  1 file changed, 46 insertions(+), 2 deletions(-)
 
+diff --git a/drivers/net/wireless/ath/ath12k/debugfs.c b/drivers/net/wireless/ath/ath12k/debugfs.c
+index 5bb7647..ac840fb 100644
 --- a/drivers/net/wireless/ath/ath12k/debugfs.c
 +++ b/drivers/net/wireless/ath/ath12k/debugfs.c
-@@ -3134,6 +3134,47 @@ static ssize_t ath12k_write_twt_resume_d
+@@ -3023,6 +3023,47 @@ static ssize_t ath12k_write_twt_resume_dialog(struct file *file,
  	return count;
  }
  
@@ -73,7 +75,7 @@ Signed-off-by: Aaradhana Sahu <quic_aarasahu@quicinc.com>
  static const struct file_operations ath12k_fops_twt_add_dialog = {
  	.write = ath12k_write_twt_add_dialog,
  	.open = simple_open
-@@ -3171,12 +3212,18 @@ int ath12k_debugfs_add_interface(struct
+@@ -3060,12 +3101,15 @@ int ath12k_debugfs_add_interface(struct ath12k_link_vif *arvif)
  	if (arvif->debugfs_twt)
  		goto exit;
  
@@ -85,61 +87,12 @@ Signed-off-by: Aaradhana Sahu <quic_aarasahu@quicinc.com>
 +	} else {
  		arvif->debugfs_twt = debugfs_create_dir("twt",
  							vif->link_debugfs[link_id]);
-+		arvif->debugfs_rtsthreshold = debugfs_create_file("rts_threshold",
-+								  0200,
-+								  vif->link_debugfs[link_id],
-+								  arvif,
-+								  &ath12k_fops_rts_threshold);
++		debugfs_create_file("rts_threshold", 0400, vif->link_debugfs[link_id],
++				    arvif, &ath12k_fops_rts_threshold);
 +	}
  
  	if (!arvif->debugfs_twt || IS_ERR(arvif->debugfs_twt)) {
  		ath12k_warn(arvif->ar->ab,
-@@ -3199,6 +3246,19 @@ int ath12k_debugfs_add_interface(struct
- 	debugfs_create_file("resume_dialog", 0200, arvif->debugfs_twt,
- 			    arvif, &ath12k_fops_twt_resume_dialog);
- 
-+	if (hw->wiphy->num_hw) {
-+		if (!arvif->debugfs_rtsthreshold || IS_ERR(arvif->debugfs_rtsthreshold)) {
-+			ath12k_warn(arvif->ar->ab,
-+				    "failed to create file %p\n",
-+				    arvif->debugfs_rtsthreshold);
-+			debugfs_remove_recursive(arvif->debugfs_twt);
-+			arvif->debugfs_twt = NULL;
-+			arvif->debugfs_rtsthreshold = NULL;
-+			ret = -ENOMEM;
-+			goto exit;
-+		}
-+	}
-+
- exit:
- 	return ret;
- }
-@@ -3212,11 +3272,18 @@ void ath12k_debugfs_remove_interface(str
- 	if (!arvif->debugfs_twt)
- 		return;
- 
-+	if (!arvif->debugfs_rtsthreshold)
-+		return;
-+
- 	if (!vif || !vif->link_debugfs[link_id]) {
- 		arvif->debugfs_twt = NULL;
-+		arvif->debugfs_rtsthreshold = NULL;
- 		return;
- 	}
- 
- 	debugfs_remove_recursive(arvif->debugfs_twt);
- 	arvif->debugfs_twt = NULL;
-+
-+	debugfs_remove(arvif->debugfs_rtsthreshold);
-+	arvif->debugfs_rtsthreshold = NULL;
- }
---- a/drivers/net/wireless/ath/ath12k/core.h
-+++ b/drivers/net/wireless/ath/ath12k/core.h
-@@ -357,6 +357,7 @@ struct ath12k_link_vif {
- 	u32 vht_cap;
- #ifdef CPTCFG_ATH12K_DEBUGFS
- 	struct dentry *debugfs_twt;
-+	struct dentry *debugfs_rtsthreshold;
- #endif /* CPTCFG_ATH12K_DEBUGFS */
- 	struct work_struct update_bcn_template_work;
- 	u64 obss_color_bitmap;
+-- 
+2.17.1
+

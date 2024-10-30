@@ -51,15 +51,9 @@ static int
 sfp_phy_probe(struct phy_device *pdev)
 {
 	fal_port_t port;
-	a_uint32_t addr;
 	struct qca_phy_priv *priv = pdev->priv;
 
-#if (LINUX_VERSION_CODE >= KERNEL_VERSION(4,9,0))
-	addr = pdev->mdio.addr;
-#else
-	addr = pdev->addr;
-#endif
-	port = qca_ssdk_phy_addr_to_port(priv->device_id, addr);
+	port = qca_ssdk_phydev_to_port(priv->device_id, pdev);
 	if (A_TRUE == hsl_port_feature_get(priv->device_id, port, PHY_F_SFP_SGMII)) {
 		pdev->autoneg = AUTONEG_ENABLE;
 	} else {
@@ -183,7 +177,6 @@ static int
 sfp_read_status(struct phy_device *pdev)
 {
 	fal_port_t port;
-	a_uint32_t addr = 0;
 	struct qca_phy_priv *priv = pdev->priv;
 #ifdef MP
 	a_uint32_t port_mode = 0, uniphy_index = 0, uniphy_mode = 0;
@@ -192,12 +185,7 @@ sfp_read_status(struct phy_device *pdev)
 	phy_info_t *phy_info = NULL;
 #endif
 
-#if (LINUX_VERSION_CODE >= KERNEL_VERSION(4,9,0))
-	addr = pdev->mdio.addr;
-#else
-	addr = pdev->addr;
-#endif
-	port = qca_ssdk_phy_addr_to_port(priv->device_id, addr);
+	port = qca_ssdk_phydev_to_port(priv->device_id, pdev);
 	if(port == 0)
 		return -ENXIO;
 #ifdef MP
@@ -225,8 +213,16 @@ sfp_read_status(struct phy_device *pdev)
 	pdev->duplex = phy_status.duplex;
 #else
 	pdev->link = priv->port_old_link[port - 1];
-	pdev->speed = priv->port_old_speed[port - 1];
-	pdev->duplex = priv->port_old_duplex[port - 1];
+	if(pdev->link == PORT_LINK_UP)
+	{
+		pdev->speed = priv->port_old_speed[port - 1];
+		pdev->duplex = priv->port_old_duplex[port - 1];
+	}
+	else
+	{
+		pdev->speed = FAL_SPEED_BUTT;
+		pdev->duplex = FAL_DUPLEX_BUTT;
+	}
 #endif
 	return 0;
 }
@@ -266,6 +262,24 @@ static int sfp_phy_read_abilities(struct phy_device *pdev)
 }
 #endif
 
+static sw_error_t
+sfp_phy_i2c_read(a_uint32_t dev_id, a_uint32_t i2c_slaver, a_uint32_t reg_addr,
+	a_uint16_t *reg_data)
+{
+	sw_error_t rv = SW_OK;
+	a_uint8_t rx[2] = { 0 };
+
+	rv = qca_i2c_data_get(dev_id, i2c_slaver, reg_addr & 0xff, rx, sizeof(rx));
+
+	if (rv == SW_OK) {
+		*reg_data = (rx[0] << 8) | rx[1];
+	} else {
+		*reg_data = 0xffff;
+	}
+
+	return rv;
+}
+
 static struct phy_driver sfp_phy_driver = {
 	.name		= "QCA SFP",
 	.phy_id		= SFP_PHY,
@@ -288,11 +302,11 @@ static struct phy_driver sfp_phy_driver = {
 #endif
 };
 
-int sfp_phy_device_setup(a_uint32_t dev_id, a_uint32_t port, a_uint32_t phy_id)
+int sfp_phy_device_setup(a_uint32_t dev_id, a_uint32_t port, a_uint32_t phy_id,
+	void *priv)
 {
 #if (LINUX_VERSION_CODE >= KERNEL_VERSION(4,4,0))
 	struct phy_device *phydev;
-	struct qca_phy_priv *priv;
 	a_uint32_t addr = 0;
 	struct mii_bus *bus;
 
@@ -300,8 +314,6 @@ int sfp_phy_device_setup(a_uint32_t dev_id, a_uint32_t port, a_uint32_t phy_id)
 	{
 		return 0;
 	}
-
-	priv = ssdk_phy_priv_data_get(dev_id);
 	/*create phy device*/
 #if defined(IN_PHY_I2C_MODE)
 	if (hsl_port_phy_access_type_get(dev_id, port) == PHY_I2C_ACCESS) {
@@ -311,7 +323,9 @@ int sfp_phy_device_setup(a_uint32_t dev_id, a_uint32_t port, a_uint32_t phy_id)
 	{
 		addr = qca_ssdk_port_to_phy_addr(dev_id, port);
 	}
-	bus = hsl_phy_miibus_get(dev_id, addr);
+	bus = ssdk_phy_miibus_get(dev_id, addr);
+	if(!bus)
+		return SW_NOT_FOUND;
 	phydev = phy_device_create(bus, addr, phy_id, false, NULL);
 	if (IS_ERR(phydev) || phydev == NULL) {
 		SSDK_ERROR("Failed to create phy device!\n");
@@ -343,14 +357,16 @@ void sfp_phy_device_remove(a_uint32_t dev_id, a_uint32_t port)
 		return;
 	}
 
-	bus = ssdk_miibus_get_by_device(dev_id);
+	bus = ssdk_port_miibus_get(dev_id, port);
+	if(!bus)
+		return;
 #if defined(IN_PHY_I2C_MODE)
 	if (hsl_port_phy_access_type_get(dev_id, port) == PHY_I2C_ACCESS) {
 		addr = qca_ssdk_port_to_phy_mdio_fake_addr(dev_id, port);
 	} else
 #endif
 	{
-		addr = qca_ssdk_port_to_phy_addr(dev_id, port);
+		addr = TO_PHY_ADDR(qca_ssdk_port_to_phy_addr(dev_id, port));
 	}
 
 	if (addr < PHY_MAX_ADDR)
@@ -391,12 +407,13 @@ void sfp_phy_driver_unregister(void)
 int sfp_phy_init(a_uint32_t dev_id, a_uint32_t port_bmp)
 {
 	a_uint32_t port_id = 0;
+	struct qca_phy_priv *priv = ssdk_phy_priv_data_get(dev_id);
 
 	SSDK_INFO("qca probe sfp phy driver succeeded!\n");
 
 	for (port_id = 0; port_id < SW_MAX_NR_PORT; port_id ++) {
 		if (port_bmp & (0x1 << port_id)) {
-			sfp_phy_device_setup(dev_id, port_id, SFP_PHY);
+			sfp_phy_device_setup(dev_id, port_id, SFP_PHY, priv);
 		}
 	}
 	return sfp_phy_driver_register();
@@ -425,7 +442,7 @@ sfp_phy_part_number_check(a_uint32_t dev_id, a_uint32_t port_id)
 	a_uint16_t reg_data[5] = {0}, i = 0;
 
 	for (i = 0; i < 5; i++) {
-		rv = qca_phy_i2c_mii_read(dev_id, SFP_E2PROM_ADDR,
+		rv = sfp_phy_i2c_read(dev_id, SFP_E2PROM_ADDR,
 			SFP_E2PROM_PART_NUM_OFFSET + i *2, &reg_data[i]);
 		if (rv != SW_OK)
 			return A_FALSE;
@@ -441,7 +458,7 @@ sfp_phy_usxgmii_check(a_uint32_t dev_id, a_uint32_t port_id)
 	if (sfp_phy_part_number_check(dev_id, port_id) == A_TRUE) {
 		sw_error_t rv = SW_OK;
 		a_uint16_t reg_data = 0;
-		rv = qca_phy_i2c_mii_read(dev_id, SFP_E2PROM_EXTEND_ADDR,
+		rv = sfp_phy_i2c_read(dev_id, SFP_E2PROM_EXTEND_ADDR,
 			SFP_EXTEND_USXGMII_OFFSET, &reg_data);
 		if (rv != SW_OK)
 			return A_FALSE;
@@ -460,7 +477,7 @@ sfp_phy_present_status_check(a_uint32_t dev_id, a_uint32_t port_id)
 	struct qca_phy_priv *priv = ssdk_phy_priv_data_get(dev_id);
 
 	/*if sfp_mode_present_pin is available, then need to check it*/
-	if(priv && priv->sfp_mod_present_pin[port_id] != SSDK_INVALID_GPIO)
+	if(priv && !qca_ssdk_gpio_is_invalid(dev_id, priv->sfp_mod_present_pin[port_id]))
 	{
 		rv = sfp_phy_mod_present_status_get(dev_id, port_id,
 			&mod_present_status);
@@ -492,7 +509,7 @@ sw_error_t sfp_phy_interface_get_mode_status(a_uint32_t dev_id,
 	}
 	rv = hsl_port_phydev_get(dev_id, port_id, &phydev);
 	SW_RTN_ON_ERROR(rv);
-	rv = qca_phy_i2c_mii_read(dev_id, SFP_E2PROM_ADDR, SFP_SPEED_ADDR,
+	rv = sfp_phy_i2c_read(dev_id, SFP_E2PROM_ADDR, SFP_SPEED_ADDR,
 		&reg_data);
 	SW_RTN_ON_ERROR(rv);
 	sfp_speed = SFP_TO_SFP_SPEED(reg_data);
@@ -502,7 +519,7 @@ sw_error_t sfp_phy_interface_get_mode_status(a_uint32_t dev_id,
 		sfp_speed < SFP_SPEED_2500M)
 	{
 		reg_data = 0;
-		rv = qca_phy_i2c_mii_read(dev_id, SFP_E2PROM_ADDR, SFP_TYPE_ADDR,
+		rv = sfp_phy_i2c_read(dev_id, SFP_E2PROM_ADDR, SFP_TYPE_ADDR,
 			&reg_data);
 		SW_RTN_ON_ERROR(rv);
 		sfp_type = SFP_TO_SFP_TYPE(reg_data);
@@ -605,9 +622,9 @@ sfp_phy_rx_los_status_get(a_uint32_t dev_id, a_uint32_t port_id,
 	if(!priv)
 		return SW_NOT_INITIALIZED;
 	rx_los_pin = priv->sfp_rx_los_pin[port_id];
-	if(rx_los_pin == SSDK_INVALID_GPIO)
+	if(qca_ssdk_gpio_is_invalid(dev_id, rx_los_pin))
 	{
-		return SW_NOT_FOUND;
+		return SW_NOT_SUPPORTED;
 	}
 	*rx_los_status = gpio_get_value(rx_los_pin);
 	SSDK_DEBUG("port%d sfp rx_los_pin is %d, the rx_los_status is %d",
@@ -627,9 +644,9 @@ sfp_phy_tx_dis_status_set(a_uint32_t dev_id, a_uint32_t port_id,
 	if(!priv)
 		return SW_NOT_INITIALIZED;
 	tx_dis_pin = priv->sfp_tx_dis_pin[port_id];
-	if(tx_dis_pin == SSDK_INVALID_GPIO)
+	if(qca_ssdk_gpio_is_invalid(dev_id, tx_dis_pin))
 	{
-		return SW_NOT_FOUND;
+		return SW_NOT_SUPPORTED;
 	}
 	ret = gpio_request(tx_dis_pin, "sfp_tx_dis_pin");
 	if(ret)
@@ -658,9 +675,9 @@ sfp_phy_tx_dis_status_get(a_uint32_t dev_id, a_uint32_t port_id,
 	if(!priv)
 		return SW_NOT_INITIALIZED;
 	tx_dis_pin = priv->sfp_tx_dis_pin[port_id];
-	if(tx_dis_pin == SSDK_INVALID_GPIO)
+	if(qca_ssdk_gpio_is_invalid(dev_id, tx_dis_pin))
 	{
-		return SW_NOT_FOUND;
+		return SW_NOT_SUPPORTED;
 	}
 	*tx_dis_status = gpio_get_value(tx_dis_pin);
 	SSDK_DEBUG("port%d sfp tx_dis_pin is %d, the tx_dis_status is %d",
@@ -680,9 +697,9 @@ sfp_phy_mod_present_status_get(a_uint32_t dev_id, a_uint32_t port_id,
 	if(!priv)
 		return SW_NOT_INITIALIZED;
 	mod_present_pin = priv->sfp_mod_present_pin[port_id];
-	if(mod_present_pin == SSDK_INVALID_GPIO)
+	if(qca_ssdk_gpio_is_invalid(dev_id, mod_present_pin))
 	{
-		return SW_NOT_FOUND;
+		return SW_NOT_SUPPORTED;
 	}
 	mod_present_pin_status = gpio_get_value(mod_present_pin);
 	SSDK_DEBUG("port%d sfp mod_present_pin is %d, mod_present_pin_status is %d",
@@ -705,9 +722,9 @@ sfp_phy_medium_status_set(a_uint32_t dev_id, a_uint32_t port_id,
 	SW_RTN_ON_NULL(priv);
 
 	sfp_medium_pin = priv->sfp_medium_pin[port_id];
-	if(sfp_medium_pin == SSDK_INVALID_GPIO)
+	if(qca_ssdk_gpio_is_invalid(dev_id, sfp_medium_pin))
 	{
-		return SW_NOT_FOUND;
+		return SW_NOT_SUPPORTED;
 	}
 	ret = gpio_request(sfp_medium_pin, "sfp_medium_pin");
 	if(ret)
@@ -742,7 +759,7 @@ sfp_phy_port_status_get(a_uint32_t dev_id, a_uint32_t port_id,
 		return SW_OK;
 	}
 	if (sfp_phy_part_number_check(dev_id, port_id) == A_TRUE) {
-		rv = qca_phy_i2c_mii_read(dev_id, SFP_E2PROM_EXTEND_ADDR,
+		rv = sfp_phy_i2c_read(dev_id, SFP_E2PROM_EXTEND_ADDR,
 			SFP_EXTEND_LINK_OFFSET, &reg_data);
 		SW_RTN_ON_ERROR(rv);
 
@@ -755,7 +772,7 @@ sfp_phy_port_status_get(a_uint32_t dev_id, a_uint32_t port_id,
 			} else {
 				phy_status->duplex = FAL_FULL_DUPLEX;
 			}
-			rv = qca_phy_i2c_mii_read(dev_id, SFP_E2PROM_EXTEND_ADDR,
+			rv = sfp_phy_i2c_read(dev_id, SFP_E2PROM_EXTEND_ADDR,
 					SFP_EXTEND_SPEED_OFFSET, &reg_data);
 			SW_RTN_ON_ERROR(rv);
 			speed_data = (reg_data >> 0x8) & 0x7;
@@ -769,7 +786,7 @@ sfp_phy_port_status_get(a_uint32_t dev_id, a_uint32_t port_id,
 					SSDK_ERROR("usxgmii sfp port speed sync failed!\n");
 					break;
 				}
-				rv = qca_phy_i2c_mii_read(dev_id, SFP_E2PROM_EXTEND_ADDR,
+				rv = sfp_phy_i2c_read(dev_id, SFP_E2PROM_EXTEND_ADDR,
 					SFP_EXTEND_SPEED_OFFSET, &reg_data);
 				SW_RTN_ON_ERROR(rv);
 				speed_data = (reg_data >> 0x8) & 0x7;

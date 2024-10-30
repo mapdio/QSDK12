@@ -175,7 +175,7 @@ int nss_connmgr_gre_v4_set_config(struct net_device *dev, struct nss_connmgr_gre
 	/*
 	 * IP address validate
 	 */
-	if ((cfg->src_ip == 0) || (cfg->dest_ip == 0)) {
+	if ((cfg->src_ip[0] == 0) || (cfg->dest_ip[0] == 0)) {
 		nss_connmgr_gre_warning("Source ip/Destination IP is invalid");
 		return GRE_ERR_INVALID_IP;
 	}

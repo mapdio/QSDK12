@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2024 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for any
  * purpose with or without fee is hereby granted, provided that the above
@@ -82,7 +82,7 @@ void ppe_drv_tun_decap_map_deconfigure(struct kref *kref)
  */
 bool ppe_drv_tun_decap_map_entry_deref(struct ppe_drv_tun_decap *ptdcm)
 {
-	uint8_t index = ptdcm->index;
+	uint8_t index __maybe_unused = ptdcm->index;
 
 	ppe_drv_assert(kref_read(&ptdcm->ref), "%p: ref count under run for ppe_drv_tun_decap", ptdcm);
 
@@ -143,7 +143,7 @@ bool ppe_drv_tun_decap_map_configure(struct ppe_drv_tun_decap *ptdcm, uint32_t *
 	if (src_info_update) {
 		fmde.src_info = port_num;
 		fmde.src_info_type = PPE_DRV_TUN_TL_TBL_SRC_INFO_TYPE_VP;
-		fmde.src_info_enable = true;
+		fmde.src_info_enable = A_TRUE;
 	}
 
 	fmde.edit_rule_id =   ptdcm->rule_id;
@@ -159,7 +159,7 @@ bool ppe_drv_tun_decap_map_configure(struct ppe_drv_tun_decap *ptdcm, uint32_t *
 	 * are not required.
 	 */
 	if (ip_to_me) {
-		fmde.dst_is_local = true;
+		fmde.dst_is_local = A_TRUE;
 		goto done;
 	}
 

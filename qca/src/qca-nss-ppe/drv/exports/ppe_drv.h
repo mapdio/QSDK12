@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2022-2023 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2024 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for any
  * purpose with or without fee is hereby granted, provided that the above
@@ -44,7 +44,29 @@
 #define PPE_DRV_INT_PRI_MIN 0
 #define PPE_DRV_INT_PRI_MAX 15
 
+#define PPE_DRV_MHT_SWITCH_ID	1			/**< MHT switch ID */
+
+/*
+ * PPE Assist feature flags
+ */
+#define PPE_DRV_ASSIST_FEATURE_RFS      0x00000001      /* PPE Assist feature to configure RFS */
+#define PPE_DRV_ASSIST_FEATURE_PRIORITY 0x00000002      /* PPE Assist feature to configure Priority */
+
 #define PPE_DRV_SERVICE_CLASS_IS_VALID(sc)	((sc >= PPE_DRV_SAWF_SC_START) && (sc <= PPE_DRV_SAWF_SC_END))
+
+/*
+ * PPE QOS VALID FLAGS
+ */
+#define PPE_DRV_VALID_FLAG_FLOW_PPE_QOS		0x01	/**< PPE QOS is enabled in flow direction. */
+#define PPE_DRV_VALID_FLAG_RETURN_PPE_QOS	0x02	/**< PPE QOS is enabled in return direction. */
+
+/*
+ * ACL/POLICER VALID FLAGS
+ */
+#define PPE_DRV_VALID_FLAG_FLOW_ACL		0x01	/**< ACL is enabled in flow direction. */
+#define PPE_DRV_VALID_FLAG_RETURN_ACL		0x02	/**< ACL is enabled in return direction. */
+#define PPE_DRV_VALID_FLAG_FLOW_POLICER		0x01	/**< Policer is enabled in flow direction. */
+#define PPE_DRV_VALID_FLAG_RETURN_POLICER	0x02	/**< Policer is enabled in return direction. */
 
 /*
  * ppe_drv_ip_type
@@ -64,7 +86,7 @@ enum ppe_drv_ip_type {
 typedef enum ppe_drv_sawf_sc_type {
 	PPE_DRV_SAWF_SC_NONE = 0,	/**< Invalid service class. */
 	PPE_DRV_SAWF_SC_START,		/**< SAWF service class start. */
-	PPE_DRV_SAWF_SC_END = 127,	/**< SAWF service class end. */
+	PPE_DRV_SAWF_SC_END = 128,	/**< SAWF service class end. */
 	PPE_DRV_SAWF_SC_MAX,		/**< Maximum number of SAWF service classes */
 } ppe_drv_sawf_sc_t;
 
@@ -75,6 +97,9 @@ typedef enum ppe_drv_sawf_sc_type {
 typedef enum ppe_drv_tree_id_type {
 	PPE_DRV_TREE_ID_TYPE_NONE = 0,	/**< Normal processing */
 	PPE_DRV_TREE_ID_TYPE_SAWF,	/**< SAWF usecase */
+	PPE_DRV_TREE_ID_TYPE_WIFI_TID,	/**< HLOS TID usecase */
+	PPE_DRV_TREE_ID_TYPE_SCS,	/**< SCS usecase */
+	PPE_DRV_TREE_ID_TYPE_MLO_ASSIST,	/**< MLO usecase */
 	PPE_DRV_TREE_ID_TYPE_MAX = 16,	/**< Maximum number of supported types */
 } ppe_drv_tree_id_type_t;
 
@@ -162,6 +187,10 @@ struct ppe_drv_vlan_rule {
 struct ppe_drv_qos_rule {
 	uint32_t flow_qos_tag;		/**< QoS tag associated with this rule for the flow direction. */
 	uint32_t return_qos_tag;	/**< QoS tag associated with this rule for the return direction. */
+	uint8_t flow_int_pri;		/**< PPE INT_PRI corresponding to flow_qos_tag when PPE Qdisc is configured. */
+	uint8_t return_int_pri;		/**< PPE INT_PRI corresponding to return_qos_tag when PPE Qdisc is configured. */
+	uint8_t qos_valid_flags;	/**< FLAGS to identify PPE QOS. */
+	uint8_t reserved[1];		/**< Reserved; padding for alignment. */
 };
 
 /**
@@ -178,8 +207,21 @@ struct ppe_drv_top_if_rule {
  *	Service class related information.
  */
 struct ppe_drv_service_class_rule {
-	uint32_t flow_mark;		/**< Service class information in flow direction. */
-	uint32_t return_mark;		/**< Service class information in return direction. */
+	uint32_t flow_mark;		/**< SAWF metadata information in flow direction. */
+	uint32_t return_mark;		/**< SAWF metadata information in return direction. */
+	uint8_t flow_service_class;	/**< Service class id in flow direction. */
+	uint8_t return_service_class;	/**< Service class id in return direction. */
+};
+
+/**
+ * ppe_drv_wifi_rule
+ *	Wi-Fi metadata and DS related information.
+ */
+struct ppe_drv_wifi_mdata_rule {
+	uint32_t flow_mark;		/**< Wi-Fi metadata information in flow direction. */
+	uint32_t return_mark;		/**< Wi-Fi metadata information in return direction. */
+	uint32_t flow_ds_node_mdata;	/**< DS metadata in flow direction. */
+	uint32_t return_ds_node_mdata;	/**< DS metadata in return direction. */
 };
 
 /*
@@ -218,6 +260,39 @@ struct ppe_drv_nsm_stats {
 	struct ppe_drv_nsm_sawf_sc_stats sawf_sc_stats;		/**< Per-service class stats. */
 	struct ppe_drv_nsm_flow_stats flow_stats;		/**< Per-flow stats. */
 	struct ppe_drv_nsm_queue_drop_stats queue_stats;	/**< Per-queue stats. */
+};
+
+/*
+ * ppe_drv_acl_policer_rule_type
+ *	Rule type to indicate flow+acl or flow+policer combination.
+ */
+typedef enum ppe_drv_acl_policer_rule_type {
+	PPE_DRV_RULE_TYPE_FLOW_ACL,		/**< Flow needs to be combined with ACL. */
+	PPE_DRV_RULE_TYPE_FLOW_POLICER,		/**< Flow needs to be combined with Policer. */
+} ppe_drv_acl_policer_rule_t;
+
+/*
+ * ppe_drv_acl_policer_rule
+ *	ACL/POLICER rule ID for each direction
+ *
+ * Note: This is used when the packets matching the flow need to be rate-limited (policed)
+ * 	or filtered by an ACL rule, post flow processing.
+ */
+struct ppe_drv_acl_policer_rule {
+	ppe_drv_acl_policer_rule_t type;	/**< Whether ACL or Policer rule? */
+	bool pkt_noedit;			/**< Is packet edit required. */
+	union {
+		struct {
+			uint8_t flags;			/**< Valid flag. */
+			uint32_t flow_acl_id;		/**< ACL rule ID in flow direction. */
+			uint32_t return_acl_id;		/**< ACL rule ID in return direction. */
+		} acl;
+		struct {
+			uint8_t flags;			/**< Valid flag. */
+			uint32_t flow_policer_id;	/**< Policer ID in flow direction. */
+			uint32_t return_policer_id;	/**< Policer ID in return direction. */
+		} policer;
+	} rule_id;
 };
 
 /*
@@ -276,6 +351,9 @@ struct ppe_drv_notifier_ops {
  */
 typedef enum ppe_drv_ret {
 	PPE_DRV_RET_SUCCESS = 0,			/**< Success */
+	PPE_DRV_POLICER_CREATE_FAIL,			/**< Create Fail */
+	PPE_DRV_POLICER_DESTROY_FAIL,			/**< Destroy Fail */
+	PPE_DRV_POLICER_DESTROY_SUCCESS,		/**< Destroy success */
 	PPE_DRV_RET_IFACE_INVALID,			/**< Failure due to Invalid PPE interface */
 	PPE_DRV_RET_FAILURE_NOT_SUPPORTED,		/**< Failure due to unsupported feature */
 	PPE_DRV_RET_FAILURE_NO_RESOURCE,		/**< Failure due to out of resource */
@@ -286,6 +364,7 @@ typedef enum ppe_drv_ret {
 	PPE_DRV_RET_PORT_ALLOC_FAIL,			/**< Port allocation fails */
 	PPE_DRV_RET_L3_IF_ALLOC_FAIL,			/**< L3_IF allocation fails */
 	PPE_DRV_RET_L3_IF_PORT_ATTACH_FAIL,		/**< L3_IF PORT attach fails */
+	PPE_DRV_RET_L3_IF_TTL_DEC_BYPASS_FAIL,		/**< L3_IF TTL decrement bypass fails */
 	PPE_DRV_RET_VSI_ALLOC_FAIL,			/**< VSI allocation fails */
 	PPE_DRV_RET_MAC_ADDR_CLEAR_CFG_FAIL,		/**< Mac address clear configuration fails */
 	PPE_DRV_RET_MAC_ADDR_SET_CFG_FAIL,		/**< Mac address set configuration fails */
@@ -315,6 +394,7 @@ typedef enum ppe_drv_ret {
 	PPE_DRV_RET_FAILURE_CREATE_OOM,			/**< Failure due to memory allocation failed */
 	PPE_DRV_RET_FAILURE_FLOW_ADD_FAIL,		/**< Failure due to flow addition failed in hardware */
 	PPE_DRV_RET_FAILURE_DESTROY_NO_CONN,		/**< Failure due to connection not found in hardware */
+	PPE_DRV_RET_FAILURE_NO_MATCHING_CONN,		/**< Failure due to connection not found in hardware */
 	PPE_DRV_RET_FAILURE_DESTROY_FAIL,		/**< Failure due to connection not found in hardware */
 	PPE_DRV_RET_FAILURE_FLUSH_FAIL,			/**< Flush failure */
 	PPE_DRV_RET_FAILURE_BRIDGE_NAT,			/**< Failure due to Bridge + NAT flows */
@@ -329,14 +409,27 @@ typedef enum ppe_drv_ret {
 	PPE_DRV_RET_ADD_FDB_FAIL,			/**< Failed to add new fdb entry */
 	PPE_DRV_RET_SET_FDB_AGEING_TIME_FAIL,		/**< Failed to set Ageing time */
 	PPE_DRV_RET_SET_MIRROR_FAIL,			/**<Failed to set Mirror interface */
-	PPE_DRV_RET_SET_MIRROR_IN_FAIL,		/**< Failed to set Mirror ingress */
-	PPE_DRV_RET_SET_MIRROR_EG_FAIL,		/**< Failed to set Mirror egress */
-	PPE_DRV_RET_FLUSH_FDB_BY_PORT_FAIL,	/**< Failed to flush FDB by port */
+	PPE_DRV_RET_SET_MIRROR_IN_FAIL,			/**< Failed to set Mirror ingress */
+	PPE_DRV_RET_SET_MIRROR_EG_FAIL,			/**< Failed to set Mirror egress */
+	PPE_DRV_RET_FLUSH_FDB_BY_PORT_FAIL,		/**< Failed to flush FDB by port */
 	PPE_DRV_RET_FLUSH_FDB_FAIL,			/**< Failed to flush all FDB */
-	PPE_DRV_RET_SET_MIRROR_ANALYSIS_FAIL,	/**< Failed to set Mirror analysis port */
-	PPE_DRV_RET_GET_MIRROR_ANALYSIS_FAIL,	/**< Failed to get Mirror analysis port */
+	PPE_DRV_RET_SET_MIRROR_ANALYSIS_FAIL,		/**< Failed to set Mirror analysis port */
+	PPE_DRV_RET_GET_MIRROR_ANALYSIS_FAIL,		/**< Failed to get Mirror analysis port */
 	PPE_DRV_RET_GET_MIRROR_ANALYSIS_NO_PORT,	/**< No port is set for mirror analysis */
+	PPE_DRV_RET_QOS_QUEUE_CFG_FAIL,			/**< QoS queue configuration failed. */
+	PPE_DRV_RET_QOS_SCHEDULER_CFG_FAIL,		/**< QoS scheduler configuration failed. */
+	PPE_DRV_RET_QOS_SHAPER_CFG_FAIL,		/**< QoS shaper configuration failed. */
+	PPE_DRV_RET_QOS_PORT_CFG_FAIL,			/**< QoS port configuration failed. */
 	PPE_DRV_RET_PORT_NO_OFFLOAD,			/**< Offload is disabled on the PPE port */
+	PPE_DRV_RET_ACL_RULE_INVALID,			/**< ACL rule invalid */
+	PPE_DRV_RET_ACL_RULE_ADD_FAIL,			/**< Failed to add ACL rule */
+	PPE_DRV_RET_ACL_RULE_BIND_FAIL,			/**< Failed to bind ACL rule to src */
+	PPE_DRV_RET_POLICER_RULE_BIND_FAIL,		/**< Failed to bind Policer rule */
+	PPE_DRV_RET_BASE_DEV_NOT_FOUND,			/**< Base Device not found */
+	PPE_DRV_RET_BASE_PORT_NOT_FOUND,		/**< Base Port not found */
+	PPE_DRV_RET_FAILURE_FLOW_CONFIGURE_FAIL,	/**< Failure due to FSE flow configuration failed */
+	PPE_DRV_RET_NO_TOP_RX_IF,			/**< Failure due to no corresponding top interface */
+	PPE_DRV_RET_INVALID_DEV_TYPE,			/**< Invalid port netdev type */
 } ppe_drv_ret_t;
 
 /**
@@ -347,6 +440,28 @@ typedef enum ppe_drv_ret {
  * ppe dentry.
  */
 struct dentry *ppe_drv_get_dentry(void);
+
+/**
+ * ppe_drv_queue_from_core
+ *	Provide queue for a specific core.
+ *
+ * @param[in] core core_id.
+ *
+ * @return
+ * queue-ID for a specific core or -1 for incorrect core ID.
+ */
+int16_t ppe_drv_queue_from_core(uint8_t core);
+
+/**
+ * ppe_drv_loopback_base_queue
+ *	Configure loopback base queue
+ *
+ * @param[in] queue_id Loopback queue_id
+ *
+ * @return
+ * none.
+ */
+void ppe_drv_loopback_base_queue(uint8_t queue_id);
 
 /**
  * ppe_drv_core2queue_mapping
@@ -444,4 +559,36 @@ extern void ppe_drv_notifier_ops_register(struct ppe_drv_notifier_ops *notifier_
  * none.
  */
 extern void ppe_drv_notifier_ops_unregister(struct ppe_drv_notifier_ops *notifier_ops);
+
+/**
+ * ppe_drv_is_mht_dev
+ *	Check the ppe iface MHT switch port flag.
+ *
+ * @datatypes
+ * net_device
+ *
+ * @param[in] dev	netdevice pointer.
+ *
+ * @return
+ * true or false
+ */
+bool ppe_drv_is_mht_dev(struct net_device *dev);
+/*
+ * ppe_drv_mht_port_from_fdb()
+ *	Get the port id corresponding to the destination
+ *	mac address and vid
+ */
+int32_t ppe_drv_mht_port_from_fdb(uint8_t *dmac, uint16_t vid);
+
+/**
+ * ppe_drv_ds_map_node_to_queue
+ *	Provides node to queue mapping.
+ *
+ * @param[in] node_id	node id.
+ * @param[in] queue_id	queue_id.
+ *
+ * @return
+ * none.
+ */
+void ppe_drv_ds_map_node_to_queue(uint8_t node_id, uint8_t queue_id);
 #endif /* _PPE_DRV_H_ */

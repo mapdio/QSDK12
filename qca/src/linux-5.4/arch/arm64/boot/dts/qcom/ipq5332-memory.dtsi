@@ -6,6 +6,13 @@
  */
 
 / {
+
+#if defined(__IPQ_MEM_PROFILE_512_MB__)
+	MP_512;
+#elif defined(__IPQ_MEM_PROFILE_256_MB__)
+	MP_256;
+#endif
+
 	memory {
 		device_type = "memory";
 		reg = <0x0 0x40000000 0x0 0x20000000>;
@@ -34,6 +41,10 @@
 	 * |        |              |                         |
 	 * +--------+--------------+-------------------------+
 	 * |        |              |                         |
+	 * | The following conf is only for 256M profile.    |
+	 * | uboot  |  0x4A300000  |           2MB           |
+	 * |        |              |                         |
+	 * | The following conf is only for other profiles.  |
 	 * | uboot  |  0x4A100000  |           4MB           |
 	 * |        |              |                         |
 	 * +--------+--------------+-------------------------+
@@ -61,14 +72,20 @@
 
 		tzapp: tzapp@49B00000 {
 			no-map;
-		#if !defined(__IPQ_MEM_PROFILE_512_MB__)
+		#if !defined(__IPQ_MEM_PROFILE_512_MB__) && !defined(__IPQ_MEM_PROFILE_256_MB__)
 			reg = <0x0 0x49B00000 0x0 0x00600000>;
 		#endif
 		};
 
+#if defined(__IPQ_MEM_PROFILE_256_MB__)
+		uboot@4A300000 {
+			no-map;
+			reg = <0x0 0x4A300000 0x0 0x00200000>;
+#else
 		uboot@4A100000 {
 			no-map;
 			reg = <0x0 0x4A100000 0x0 0x00400000>;
+#endif
 		};
 
 		sbl@4A500000 {
@@ -93,6 +110,10 @@
 		q6_region: wcnss@4a900000 {
 			no-map;
 			reg = <0x0 0x4a900000 0x0 0x02b00000>;
+		};
+
+		minidump_mem: minidump_mem@0 {
+			no-map;
 		};
 	};
 };

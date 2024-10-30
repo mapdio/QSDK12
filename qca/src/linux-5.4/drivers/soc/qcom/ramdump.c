@@ -92,6 +92,25 @@ static void unset_g_rd_dev(struct ramdump_device *rd_dev, int index)
 	spin_unlock(&g_rd_dev_lock);
 }
 
+static void destroy_ramdump_device_file(struct ramdump_device *rd_dev,
+					int major, int minor)
+{
+	rd_dev->consumer_present = 0;
+	rd_dev->data_ready = 0;
+	unset_g_rd_dev(rd_dev, rd_dev->index);
+	device_destroy(dump_class, MKDEV(major, minor));
+	mutex_lock(&g_dump_class_lock);
+
+	g_class_refcnt--;
+	if (!g_class_refcnt) {
+		class_destroy(dump_class);
+		dump_class = NULL;
+		unregister_chrdev(dump_major, "dump_q6v5");
+		dump_major = 0;
+	}
+
+	mutex_unlock(&g_dump_class_lock);
+}
 
 static int ramdump_open(struct inode *inode, struct file *filep)
 {
@@ -127,21 +146,7 @@ static int ramdump_release(struct inode *inode, struct file *filep)
 		return -EINVAL;
 	}
 
-	rd_dev->consumer_present = 0;
-	rd_dev->data_ready = 0;
-	unset_g_rd_dev(rd_dev, rd_dev->index);
-	device_destroy(dump_class, MKDEV(dump_major, dump_minor));
-	mutex_lock(&g_dump_class_lock);
-
-	g_class_refcnt--;
-	if (!g_class_refcnt) {
-		class_destroy(dump_class);
-		dump_class = NULL;
-		unregister_chrdev(dump_major, "dump_q6v5");
-		dump_major = 0;
-	}
-
-	mutex_unlock(&g_dump_class_lock);
+	destroy_ramdump_device_file(rd_dev, dump_major, dump_minor);
 	complete(&rd_dev->ramdump_complete);
 	return 0;
 }
@@ -220,11 +225,10 @@ static ssize_t ramdump_read(struct file *filep, char __user *buf, size_t count,
 
 	/* EOF check */
 	if (data_left == 0) {
-		pr_debug("Ramdump(%s): Ramdump complete. %lld bytes read.",
+		pr_info("Ramdump(%s): Ramdump complete. %lld bytes read.",
 			rd_dev->name, *pos);
 		rd_dev->ramdump_status = 0;
-		ret = 0;
-		goto ramdump_done;
+		return 0;
 	}
 
 	copy_size = min(count, (size_t)MAX_IOREMAP_SIZE);
@@ -491,6 +495,7 @@ static int _do_ramdump(void *handle, struct ramdump_segment *segments,
 	if (!ret) {
 		pr_err("Ramdump(%s): Timed out waiting for userspace.\n",
 			rd_dev->name);
+		destroy_ramdump_device_file(rd_dev, dump_major, rd_dev->index);
 		ret = -EPIPE;
 	} else
 		ret = (rd_dev->ramdump_status == 0) ? 0 : -EPIPE;

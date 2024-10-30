@@ -569,6 +569,8 @@ static int rmnet_frag_deaggregate_one(struct skb_shared_info *shinfo,
 	u32 i;
 	u32 pkt_len;
 	int rc;
+	u32 hsize = 0;
+	u32 mdm_headroom = 0;
 
 	frag = &shinfo->frags[start_frag];
 	maph = skb_frag_address(frag);
@@ -587,8 +589,7 @@ static int rmnet_frag_deaggregate_one(struct skb_shared_info *shinfo,
 	} else if ((port->data_format & (RMNET_FLAGS_INGRESS_MAP_CKSUMV5 |
 					 RMNET_FLAGS_INGRESS_COALESCE)) &&
 		   !maph->cd_bit) {
-		u32 hsize = 0;
-		u8 type;
+		u8 type = 0;
 
 		type = ((struct rmnet_map_v5_coal_header *)
 			(maph + 1))->header_type;
@@ -602,6 +603,14 @@ static int rmnet_frag_deaggregate_one(struct skb_shared_info *shinfo,
 		}
 
 		pkt_len += hsize;
+	}
+
+	if (port->data_format & RMNET_FLAGS_HEADROOM_MASK) {
+		mdm_headroom = ((port->data_format & RMNET_FLAGS_HEADROOM_MASK) \
+			       >> RMNET_HEADROOM_FIELD_SHIFT);
+
+		/* SDX sends 64 bytes HEADROOM = 4 bytes QMAP + 4 bytes CSUM + 56 bytes empty */
+		pkt_len += mdm_headroom - (sizeof(*maph) + hsize);
 	}
 
 	/* Add all frags containing the packet data to the descriptor */
@@ -775,7 +784,17 @@ static struct sk_buff *rmnet_alloc_skb(struct rmnet_frag_descriptor *frag_desc,
 
 add_frag:
 		if (shinfo->nr_frags < MAX_SKB_FRAGS) {
+			//Pull the first 64 bytes for the Network and Transport header
+			u32 offset = (frag_size < 64) ? frag_size : 64;
+
+			memcpy(head_skb->data, skb_frag_address(&frag->frag), offset);
+			frag->frag.bv_offset += offset;
+			frag->frag.bv_len -= offset;
+			head_skb->tail += offset;
+			head_skb->len += offset;
+
 			get_page(p);
+			frag_size = skb_frag_size(&frag->frag);
 			skb_add_rx_frag(current_skb, shinfo->nr_frags, p,
 					skb_frag_off(&frag->frag), frag_size,
 					frag_size);
@@ -1353,6 +1372,8 @@ int rmnet_frag_process_next_hdr_packet(struct rmnet_frag_descriptor *frag_desc,
 	u64 nlo_err_mask;
 	u32 offset = sizeof(struct rmnet_map_header);
 	int rc = 0;
+	u32 mdm_headroom = 0;
+	int hr = 0;
 
 	/* Grab the header type. It's easier to grab enough for a full csum
 	 * offload header here since it's only 8 bytes and then check the
@@ -1389,8 +1410,17 @@ int rmnet_frag_process_next_hdr_packet(struct rmnet_frag_descriptor *frag_desc,
 			priv->stats.csum_valid_unset++;
 		}
 
+		if (port->data_format & RMNET_FLAGS_HEADROOM_MASK) {
+			mdm_headroom = ((port->data_format & \
+						RMNET_FLAGS_HEADROOM_MASK) \
+						>> RMNET_HEADROOM_FIELD_SHIFT);
+
+			/* Pull the 64 bytes HEADROOM = QMAP (4) + CSUM (4) + 56 bytes empty */
+			hr = mdm_headroom - (offset + sizeof(*csum_hdr));
+		}
+
 		if (!rmnet_frag_pull(frag_desc, port,
-				     offset + sizeof(*csum_hdr))) {
+				offset + sizeof(*csum_hdr) + hr)) {
 			rc = -EINVAL;
 			break;
 		}

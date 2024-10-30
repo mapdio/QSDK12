@@ -10,9 +10,11 @@ Signed-off-by: Hari Chandrakanthan <quic_haric@quicinc.com>
  src/ap/interference.c | 147 ++++++++++++++++++++++++++++++++++----------------
  1 file changed, 100 insertions(+), 47 deletions(-)
 
+diff --git a/src/ap/interference.c b/src/ap/interference.c
+index c51a4bf..4148489 100644
 --- a/src/ap/interference.c
 +++ b/src/ap/interference.c
-@@ -62,6 +62,7 @@ static int intf_awgn_chan_range_availabl
+@@ -62,6 +62,7 @@ static int intf_awgn_chan_range_available(struct hostapd_hw_modes *mode,
  	int allowed_80_6g[] = {1, 17, 33, 49, 65, 81, 97, 113, 129, 145, 161, 177,
  			       193, 209};
  	int allowed_160_6g[] = {1, 33, 65, 97, 129, 161, 193};
@@ -20,7 +22,7 @@ Signed-off-by: Hari Chandrakanthan <quic_haric@quicinc.com>
  	int chan_idx_match = 0;
  	int i;
  
-@@ -97,6 +98,13 @@ static int intf_awgn_chan_range_availabl
+@@ -97,6 +98,13 @@ static int intf_awgn_chan_range_available(struct hostapd_hw_modes *mode,
  				break;
  			}
  		}
@@ -34,7 +36,7 @@ Signed-off-by: Hari Chandrakanthan <quic_haric@quicinc.com>
  	}
  
  	if (chan_idx_match == 1)
-@@ -114,6 +122,46 @@ static int is_in_chanlist(struct hostapd
+@@ -114,6 +122,42 @@ static int is_in_chanlist(struct hostapd_iface *iface,
  	return freq_range_list_includes(&iface->conf->acs_ch_list, chan->chan);
  }
  
@@ -48,10 +50,6 @@ Signed-off-by: Hari Chandrakanthan <quic_haric@quicinc.com>
 +	*centre_freq = 0;
 +
 +	switch (chan_width) {
-+	case CHAN_WIDTH_20:
-+		if (chan_idx >= 1 && chan_idx <= 233)
-+			*centre_freq = ((chan_idx / 4) * 4 + 1) * 5 + BASE_6G_FREQ;
-+		break;
 +	case CHAN_WIDTH_40:
 +		if (chan_idx >= 1 && chan_idx <= 229)
 +			*centre_freq = ((chan_idx / 8) * 8 + 3) * 5 + BASE_6G_FREQ;
@@ -81,7 +79,7 @@ Signed-off-by: Hari Chandrakanthan <quic_haric@quicinc.com>
  /*
   *intf_awgn_find_channel - find the channel that can operate with bandwidth chan_width.
    If idx doesn't match with index of any of the existing channel, then the api
-@@ -123,11 +171,13 @@ static int is_in_chanlist(struct hostapd
+@@ -123,11 +167,13 @@ static int is_in_chanlist(struct hostapd_iface *iface,
   */
  static int intf_awgn_find_channel(struct hostapd_iface *iface,
  				  struct hostapd_channel_data **ret_chan,
@@ -96,7 +94,7 @@ Signed-off-by: Hari Chandrakanthan <quic_haric@quicinc.com>
  
  	switch (chan_width) {
  	case CHAN_WIDTH_20_NOHT:
-@@ -144,6 +194,9 @@ static int intf_awgn_find_channel(struct
+@@ -144,6 +190,9 @@ static int intf_awgn_find_channel(struct hostapd_iface *iface,
  	case CHAN_WIDTH_160:
  		n_chans = 8;
  		break;
@@ -106,7 +104,7 @@ Signed-off-by: Hari Chandrakanthan <quic_haric@quicinc.com>
  	default:
  		n_chans = 1;
  		break;
-@@ -167,6 +220,24 @@ static int intf_awgn_find_channel(struct
+@@ -167,6 +216,24 @@ static int intf_awgn_find_channel(struct hostapd_iface *iface,
  			continue;
  		}
  
@@ -131,7 +129,7 @@ Signed-off-by: Hari Chandrakanthan <quic_haric@quicinc.com>
  		if (ret_chan && idx == channel_idx) {
  			wpa_printf(MSG_DEBUG, "AWGN: Selected channel %d (%d)",
  				   chan->freq, chan->chan);
-@@ -182,54 +253,27 @@ static int intf_awgn_find_channel(struct
+@@ -182,50 +249,27 @@ static int intf_awgn_find_channel(struct hostapd_iface *iface,
  }
  
  enum chan_seg {
@@ -176,10 +174,6 @@ Signed-off-by: Hari Chandrakanthan <quic_haric@quicinc.com>
 -	*centre_freq = 0;
 -
 -	switch (chan_width) {
--	case CHAN_WIDTH_20:
--		if (chan_idx >= 1 && chan_idx <= 233)
--			*centre_freq = ((chan_idx / 4) * 4 + 1) * 5 + BASE_6G_FREQ;
--		break;
 -	case CHAN_WIDTH_40:
 -		if (chan_idx >= 1 && chan_idx <= 229)
 -			*centre_freq = ((chan_idx / 8) * 8 + 3) * 5 + BASE_6G_FREQ;
@@ -205,7 +199,7 @@ Signed-off-by: Hari Chandrakanthan <quic_haric@quicinc.com>
  /*
   * hostapd_intf_awgn_detected - awgn interference is detected in the operating channel.
   * The interference channel information is available as a
-@@ -273,7 +317,7 @@ int hostapd_intf_awgn_detected(struct ho
+@@ -269,7 +313,7 @@ int hostapd_intf_awgn_detected(struct hostapd_iface *iface, int freq, int chan_w
  	if (channel_switch) {
  		/* Find a random channel to be switched */
  		num_available_chandefs = intf_awgn_find_channel(iface, NULL, 0,
@@ -214,7 +208,7 @@ Signed-off-by: Hari Chandrakanthan <quic_haric@quicinc.com>
  		if (num_available_chandefs == 0) {
  			wpa_printf(MSG_ERROR, "AWGN: no available_chandefs");
  			return 0;
-@@ -285,7 +329,7 @@ int hostapd_intf_awgn_detected(struct ho
+@@ -281,7 +325,7 @@ int hostapd_intf_awgn_detected(struct hostapd_iface *iface, int freq, int chan_w
  		}
  
  		chan_idx = _rand % num_available_chandefs;
@@ -223,7 +217,7 @@ Signed-off-by: Hari Chandrakanthan <quic_haric@quicinc.com>
  
  		if (!chan_data) {
  			wpa_printf(MSG_ERROR, "AWGN: no random channel found, chan idx : %d",
-@@ -299,7 +343,7 @@ int hostapd_intf_awgn_detected(struct ho
+@@ -295,7 +339,7 @@ int hostapd_intf_awgn_detected(struct hostapd_iface *iface, int freq, int chan_w
  			 */
  			chan_data = NULL;
  			chan_idx = (chan_idx + 1) % num_available_chandefs;
@@ -232,7 +226,7 @@ Signed-off-by: Hari Chandrakanthan <quic_haric@quicinc.com>
  			if (!chan_data) {
  				wpa_printf(MSG_ERROR,
  					   "AWGN: random channel not found, chan idx : %d",
-@@ -323,7 +367,12 @@ int hostapd_intf_awgn_detected(struct ho
+@@ -319,7 +363,12 @@ int hostapd_intf_awgn_detected(struct hostapd_iface *iface, int freq, int chan_w
  			return 0;
  		}
  
@@ -246,7 +240,7 @@ Signed-off-by: Hari Chandrakanthan <quic_haric@quicinc.com>
  		    !(chan_bw_interference_bitmap & SEG_SEC40) &&
  		    !(chan_bw_interference_bitmap & SEG_SEC20))
  			new_chan_width = CHAN_WIDTH_80;
-@@ -362,6 +411,9 @@ int hostapd_intf_awgn_detected(struct ho
+@@ -358,6 +407,9 @@ int hostapd_intf_awgn_detected(struct hostapd_iface *iface, int freq, int chan_w
  	case CHAN_WIDTH_160:
  		settings.freq_params.bandwidth = 160;
  		break;
@@ -256,7 +250,7 @@ Signed-off-by: Hari Chandrakanthan <quic_haric@quicinc.com>
  	default:
  		settings.freq_params.bandwidth = 20;
  		break;
-@@ -371,6 +423,7 @@ int hostapd_intf_awgn_detected(struct ho
+@@ -367,6 +419,7 @@ int hostapd_intf_awgn_detected(struct hostapd_iface *iface, int freq, int chan_w
  	settings.freq_params.ht_enabled = iface->conf->ieee80211n;
  	settings.freq_params.vht_enabled = iface->conf->ieee80211ac;
  	settings.freq_params.he_enabled = iface->conf->ieee80211ax;
@@ -264,3 +258,6 @@ Signed-off-by: Hari Chandrakanthan <quic_haric@quicinc.com>
  
  	for (i = 0; i < iface->num_bss; i++) {
  		/* Save CHAN_SWITCH VHT and HE config */
+-- 
+2.7.4
+

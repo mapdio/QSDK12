@@ -20,10 +20,10 @@
  struct ath11k {
  	struct ath11k_base *ab;
  	struct ath11k_pdev *pdev;
-@@ -730,6 +736,8 @@ struct ath11k {
+@@ -729,6 +735,8 @@ struct ath11k {
+ 	bool dfs_block_radar_events;
  	struct ath11k_thermal thermal;
  	struct completion fw_mode_reset;
- 	u8 ftm_msgref;
 +	int ap_ps_enabled;
 +	enum ath11k_ap_ps_state ap_ps_state;
  	u32 vdev_id_11d_scan;
@@ -88,7 +88,7 @@
  
  		kfree(arsta->rx_stats);
  		arsta->rx_stats = NULL;
-@@ -5874,6 +5910,7 @@ static void ath11k_mac_op_stop(struct ie
+@@ -5869,6 +5905,7 @@ static void ath11k_mac_op_stop(struct ie
  
  	clear_bit(ATH11K_CAC_RUNNING, &ar->dev_flags);
  	ar->state = ATH11K_STATE_OFF;
@@ -96,7 +96,7 @@
  	mutex_unlock(&ar->conf_mutex);
  
  	cancel_delayed_work_sync(&ar->scan.timeout);
-@@ -6248,7 +6285,6 @@ static int ath11k_mac_op_add_interface(s
+@@ -6243,7 +6280,6 @@ static int ath11k_mac_op_add_interface(s
  			    arvif->vdev_id, ret);
  		goto err;
  	}
@@ -104,7 +104,7 @@
  	ar->num_created_vdevs++;
  	ath11k_dbg(ab, ATH11K_DBG_MAC, "vdev %pM created, vdev_id %d\n",
  		   vif->addr, arvif->vdev_id);
-@@ -6372,6 +6408,10 @@ static int ath11k_mac_op_add_interface(s
+@@ -6367,6 +6403,10 @@ static int ath11k_mac_op_add_interface(s
  	if (ret)
  		goto err_peer_del;
  
@@ -115,7 +115,7 @@
  	mutex_unlock(&ar->conf_mutex);
  
  	return 0;
-@@ -6494,6 +6534,7 @@ err_vdev_del:
+@@ -6489,6 +6529,7 @@ err_vdev_del:
  
  	/* Recalc txpower for remaining vdev */
  	ath11k_mac_txpower_recalc(ar);
@@ -314,7 +314,7 @@
  struct wmi_fwtest_set_param_cmd_param {
  	u32 tlv_header;
  	u32 param_id;
-@@ -6156,6 +6162,7 @@ int ath11k_wmi_pdev_non_srg_obss_bssid_e
+@@ -6136,6 +6142,7 @@ int ath11k_wmi_pdev_non_srg_obss_bssid_e
  						     u32 *bitmap);
  int ath11k_send_coex_config_cmd(struct ath11k *ar,
  			       struct coex_config_arg *coex_config);

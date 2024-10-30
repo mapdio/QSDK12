@@ -2222,6 +2222,8 @@ static int qcom_qmp_phy_com_init(struct qmp_phy *qphy)
 		}
 	}
 
+	usleep_range(1000, 1200);
+
 	for (i = cfg->num_resets - 1; i >= 0; i--) {
 		ret = reset_control_deassert(qmp->resets[i]);
 		if (ret) {
@@ -2749,8 +2751,8 @@ static int phy_pipe_clk_register(struct qcom_qmp *qmp, struct device_node *np)
 }
 
 static const struct phy_ops qcom_qmp_phy_gen_ops = {
-	.init		= qcom_qmp_phy_enable,
-	.exit		= qcom_qmp_phy_disable,
+	.power_on	= qcom_qmp_phy_enable,
+	.power_off	= qcom_qmp_phy_disable,
 	.set_mode	= qcom_qmp_phy_set_mode,
 	.owner		= THIS_MODULE,
 };

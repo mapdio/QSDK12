@@ -2,7 +2,7 @@
  * sfe_ipv4_pppoe_br.c
  *	Shortcut forwarding engine - IPv4 PPPoE bridge implementation
  *
- * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2023 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for any
  * purpose with or without fee is hereby granted, provided that the above
@@ -160,10 +160,13 @@ int sfe_ipv4_recv_pppoe_bridge(struct sfe_ipv4 *si, struct sk_buff *skb, struct 
 	}
 
 	/*
-	 * Update priority of skb.
+	 * Update priority and int_pri of skb.
 	 */
 	if (unlikely(cm->flags & SFE_IPV4_CONNECTION_MATCH_FLAG_PRIORITY_REMARK)) {
 		skb->priority = cm->priority;
+#if defined(SFE_PPE_QOS_SUPPORTED)
+		skb_set_int_pri(skb, cm->int_pri);
+#endif
 	}
 
 	/*
@@ -175,7 +178,7 @@ int sfe_ipv4_recv_pppoe_bridge(struct sfe_ipv4 *si, struct sk_buff *skb, struct 
 		 * Update service class stats if SAWF is valid.
 		 */
 		if (likely(cm->sawf_valid)) {
-			service_class_id = SFE_GET_SAWF_SERVICE_CLASS(cm->mark);
+			service_class_id = cm->svc_id;
 			sfe_ipv4_service_class_stats_inc(si, service_class_id, len);
 		}
 	}

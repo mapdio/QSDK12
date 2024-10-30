@@ -10,39 +10,44 @@ sub target_config_features(@) {
 
 	while ($_ = shift @_) {
 		/^arm_v(\w+)$/ and $ret .= "\tselect arm_v$1\n";
-		/^broken$/ and $ret .= "\tdepends on BROKEN\n";
 		/^audio$/ and $ret .= "\tselect AUDIO_SUPPORT\n";
+		/^boot-part$/ and $ret .= "\tselect USES_BOOT_PART\n";
+		/^broken$/ and $ret .= "\tdepends on BROKEN\n";
+		/^cpiogz$/ and $ret .= "\tselect USES_CPIOGZ\n";
 		/^display$/ and $ret .= "\tselect DISPLAY_SUPPORT\n";
 		/^dt$/ and $ret .= "\tselect USES_DEVICETREE\n";
+		/^dt-overlay$/ and $ret .= "\tselect HAS_DT_OVERLAY_SUPPORT\n";
+		/^emmc$/ and $ret .= "\tselect EMMC_SUPPORT\n";
+		/^ext4$/ and $ret .= "\tselect USES_EXT4\n";
+		/^fpu$/ and $ret .= "\tselect HAS_FPU\n";
 		/^gpio$/ and $ret .= "\tselect GPIO_SUPPORT\n";
-		/^pci$/ and $ret .= "\tselect PCI_SUPPORT\n";
-		/^pcie$/ and $ret .= "\tselect PCIE_SUPPORT\n";
-		/^usb$/ and $ret .= "\tselect USB_SUPPORT\n";
-		/^usbgadget$/ and $ret .= "\tselect USB_GADGET_SUPPORT\n";
-		/^pcmcia$/ and $ret .= "\tselect PCMCIA_SUPPORT\n";
-		/^rtc$/ and $ret .= "\tselect RTC_SUPPORT\n";
-		/^squashfs$/ and $ret .= "\tselect USES_SQUASHFS\n";
 		/^jffs2$/ and $ret .= "\tselect USES_JFFS2\n";
 		/^jffs2_nand$/ and $ret .= "\tselect USES_JFFS2_NAND\n";
-		/^ext4$/ and $ret .= "\tselect USES_EXT4\n";
-		/^targz$/ and $ret .= "\tselect USES_TARGZ\n";
-		/^cpiogz$/ and $ret .= "\tselect USES_CPIOGZ\n";
-		/^minor$/ and $ret .= "\tselect USES_MINOR\n";
-		/^ubifs$/ and $ret .= "\tselect USES_UBIFS\n";
-		/^fpu$/ and $ret .= "\tselect HAS_FPU\n";
-		/^spe_fpu$/ and $ret .= "\tselect HAS_SPE_FPU\n";
-		/^ramdisk$/ and $ret .= "\tselect USES_INITRAMFS\n";
-		/^powerpc64$/ and $ret .= "\tselect powerpc64\n";
-		/^nommu$/ and $ret .= "\tselect NOMMU\n";
-		/^mips16$/ and $ret .= "\tselect HAS_MIPS16\n";
-		/^rfkill$/ and $ret .= "\tselect RFKILL_SUPPORT\n";
+		/^legacy-sdcard$/ and $ret .= "\tselect LEGACY_SDCARD_SUPPORT\n";
 		/^low_mem$/ and $ret .= "\tselect LOW_MEMORY_FOOTPRINT\n";
-		/^small_flash$/ and $ret .= "\tselect SMALL_FLASH\n";
+		/^minor$/ and $ret .= "\tselect USES_MINOR\n";
+		/^mips16$/ and $ret .= "\tselect HAS_MIPS16\n";
 		/^nand$/ and $ret .= "\tselect NAND_SUPPORT\n";
-		/^virtio$/ and $ret .= "\tselect VIRTIO_SUPPORT\n";
+		/^nommu$/ and $ret .= "\tselect NOMMU\n";
+		/^pci$/ and $ret .= "\tselect PCI_SUPPORT\n";
+		/^pcie$/ and $ret .= "\tselect PCIE_SUPPORT\n";
+		/^pcmcia$/ and $ret .= "\tselect PCMCIA_SUPPORT\n";
+		/^powerpc64$/ and $ret .= "\tselect powerpc64\n";
+		/^pwm$/ and $ret .= "\select PWM_SUPPORT\n";
+		/^ramdisk$/ and $ret .= "\tselect USES_INITRAMFS\n";
+		/^rfkill$/ and $ret .= "\tselect RFKILL_SUPPORT\n";
 		/^rootfs-part$/ and $ret .= "\tselect USES_ROOTFS_PART\n";
-		/^boot-part$/ and $ret .= "\tselect USES_BOOT_PART\n";
+		/^rtc$/ and $ret .= "\tselect RTC_SUPPORT\n";
+		/^separate_ramdisk$/ and $ret .= "\tselect USES_INITRAMFS\n\tselect USES_SEPARATE_INITRAMFS\n";
+		/^small_flash$/ and $ret .= "\tselect SMALL_FLASH\n";
+		/^spe_fpu$/ and $ret .= "\tselect HAS_SPE_FPU\n";
+		/^squashfs$/ and $ret .= "\tselect USES_SQUASHFS\n";
+		/^targz$/ and $ret .= "\tselect USES_TARGZ\n";
 		/^testing-kernel$/ and $ret .= "\tselect HAS_TESTING_KERNEL\n";
+		/^ubifs$/ and $ret .= "\tselect USES_UBIFS\n";
+		/^usb$/ and $ret .= "\tselect USB_SUPPORT\n";
+		/^usbgadget$/ and $ret .= "\tselect USB_GADGET_SUPPORT\n";
+		/^virtio$/ and $ret .= "\tselect VIRTIO_SUPPORT\n";
 	}
 	return $ret;
 }
@@ -239,6 +244,7 @@ config TARGET_$target->{conf}_$profile->{id}
 	bool "$profile->{name}"
 	depends on TARGET_$target->{conf}
 EOF
+			$profile->{broken} and print "\tdepends on BROKEN\n";
 			my @pkglist = merge_package_lists($target->{packages}, $profile->{packages});
 			foreach my $pkg (@pkglist) {
 				print "\tselect DEFAULT_$pkg\n";
@@ -259,7 +265,6 @@ EOF
 endchoice
 
 menu "Target Devices"
-	depends on TARGET_MULTI_PROFILE
 
 	config TARGET_ALL_PROFILES
 		bool "Enable all profiles by default"
@@ -298,6 +303,7 @@ menuconfig TARGET_DEVICE_$target->{conf}_$profile->{id}
 	depends on TARGET_$target->{conf}
 	default $profile->{default}
 EOF
+			$profile->{broken} and print "\tdepends on BROKEN\n";
 			my @pkglist = merge_package_lists($target->{packages}, $profile->{packages});
 			foreach my $pkg (@pkglist) {
 				print "\tselect DEFAULT_$pkg if !TARGET_PER_DEVICE_ROOTFS\n";
@@ -426,7 +432,8 @@ sub gen_profile_mk() {
 	my @targets = parse_target_metadata($file);
 	foreach my $cur (@targets) {
 		next unless $cur->{id} eq $target;
-		print "PROFILE_NAMES = ".join(" ", map { $_->{id} } @{$cur->{profiles}})."\n";
+		my @profile_ids_unique =  do { my %seen; grep { !$seen{$_}++} map { $_->{id} } @{$cur->{profiles}}};
+		print "PROFILE_NAMES = ".join(" ", @profile_ids_unique)."\n";
 		foreach my $profile (@{$cur->{profiles}}) {
 			print $profile->{id}.'_NAME:='.$profile->{name}."\n";
 			print $profile->{id}.'_HAS_IMAGE_METADATA:='.$profile->{has_image_metadata}."\n";

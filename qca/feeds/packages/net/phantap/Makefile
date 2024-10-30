@@ -11,9 +11,9 @@ PKG_RELEASE:=1
 
 PKG_SOURCE_PROTO:=git
 PKG_SOURCE_URL:=https://github.com/nccgroup/phantap
-PKG_MIRROR_HASH:=01723a955e975b877f35924d3b5bfa53251f8928abe4657de0ed4c4943d9510c
-PKG_SOURCE_DATE:=2020.02.09
-PKG_SOURCE_VERSION:=fb3be84b4f4e081c35b7d0caa977bc659c02f8f1
+PKG_MIRROR_HASH:=3e2c884a9bc6e48e814a6fabfde4c945367f74e12253200a02f91004e98cdcb8
+PKG_SOURCE_DATE:=2022.10.30
+PKG_SOURCE_VERSION:=815c312c1843ef02d758b10f3d24ccaad96e1782
 
 PKG_MAINTAINER:=Diana Dragusin <diana.dragusin@nccgroup.com>, \
     Etienne Champetier <champetier.etienne@gmail.com>
@@ -34,7 +34,7 @@ define Package/phantap
   $(call Package/phantap/Default)
   TITLE:=PhanTap
   PKGARCH:=all
-  DEPENDS:=+ebtables +libpcap +libnl-tiny +ip-full +kmod-br-netfilter +kmod-ebtables-ipv4
+  DEPENDS:=+libpcap +libnl-tiny +ip-full +kmod-nft-bridge +kmod-nft-netdev
 endef
 
 define Package/phantap/conffiles
@@ -57,8 +57,6 @@ define Package/phantap/install
 	$(INSTALL_DIR) $(1)/etc/init.d
 	$(INSTALL_BIN) $(PKG_BUILD_DIR)/files/etc/init.d/phantap $(1)/etc/init.d/
 	$(INSTALL_BIN) $(PKG_BUILD_DIR)/files/etc/init.d/phantap-early $(1)/etc/init.d/
-	$(INSTALL_DIR) $(1)/etc/sysctl.d
-	$(INSTALL_DATA) $(PKG_BUILD_DIR)/files/etc/sysctl.d/12-phantap.conf $(1)/etc/sysctl.d/
 	$(INSTALL_DIR) $(1)/usr/sbin
 	$(INSTALL_BIN) $(PKG_BUILD_DIR)/phantap-learn $(1)/usr/sbin/
 endef

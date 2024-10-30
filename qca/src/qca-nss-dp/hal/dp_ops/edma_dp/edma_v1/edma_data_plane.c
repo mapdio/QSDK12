@@ -572,8 +572,16 @@ static netdev_tx_t edma_if_xmit(struct nss_dp_data_plane_ctx *dpc,
 	 * Not enough descriptors. Stop netdev Tx queue.
 	 */
 	if (ret == EDMA_TX_DESC) {
-		netif_stop_queue(netdev);
-		return NETDEV_TX_BUSY;
+		/*
+		 * Stop the queue if the queue stop is not disabled and return
+		 * NETDEV_TX_BUSY. Packet will be requeued or dropped by the caller.
+		 * Queue will be re-enabled from Tx Complete.
+		 */
+		if (likely(!dp_global_ctx.tx_requeue_stop)) {
+			netdev_dbg(netdev, "Stopping tx queue due to lack of tx descriptors");
+			netif_stop_queue(netdev);
+			return NETDEV_TX_BUSY;
+		}
 	}
 
 drop:

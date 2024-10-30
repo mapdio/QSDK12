@@ -41,7 +41,7 @@ Signed-off-by: Raj Kumar Bhagat <quic_rajkbhag@quicinc.com>
  	} else if (os_strcmp(buf, "stationary_ap") == 0) {
 --- a/hostapd/ctrl_iface.c
 +++ b/hostapd/ctrl_iface.c
-@@ -3140,6 +3140,25 @@ static int hostapd_ctrl_iface_req_beacon
+@@ -3112,6 +3112,25 @@ static int hostapd_ctrl_iface_req_beacon
  }
  
  
@@ -67,7 +67,7 @@ Signed-off-by: Raj Kumar Bhagat <quic_rajkbhag@quicinc.com>
  static int hostapd_ctrl_iface_show_neighbor(struct hostapd_data *hapd,
  					    char *buf, size_t buflen)
  {
-@@ -3930,6 +3949,10 @@ static int hostapd_ctrl_iface_receive_pr
+@@ -3902,6 +3921,10 @@ static int hostapd_ctrl_iface_receive_pr
  	} else if (os_strncmp(buf, "REQ_BEACON ", 11) == 0) {
  		reply_len = hostapd_ctrl_iface_req_beacon(hapd, buf + 11,
  							  reply, reply_size);
@@ -94,7 +94,7 @@ Signed-off-by: Raj Kumar Bhagat <quic_rajkbhag@quicinc.com>
  static int hostapd_cli_cmd_reload_wpa_psk(struct wpa_ctrl *ctrl, int argc,
  					  char *argv[])
  {
-@@ -1777,6 +1784,8 @@ static const struct hostapd_cli_cmd host
+@@ -1776,6 +1783,8 @@ static const struct hostapd_cli_cmd host
  	  "= show allowed bandwidth on each channel"},
  	{ "req_beacon", hostapd_cli_cmd_req_beacon, NULL,
  	  "<addr> [req_mode=] <measurement request hexdump>  = send a Beacon report request to a station" },
@@ -113,6 +113,23 @@ Signed-off-by: Raj Kumar Bhagat <quic_rajkbhag@quicinc.com>
  		iface->probe_resp_offloads = capa.probe_resp_offloads;
  		/*
  		 * Use default extended capa values from per-radio information
+--- a/src/ap/ap_drv_ops.h
++++ b/src/ap/ap_drv_ops.h
+@@ -398,6 +398,14 @@ static inline int hostapd_drv_channel_in
+ 	return hapd->driver->channel_info(hapd->drv_priv, ci);
+ }
+ 
++static inline int hostapd_drv_txpower_info(struct hostapd_data *hapd,
++					   struct wpa_txpower_info *txp_info)
++{
++	if (!hapd->driver || !hapd->driver->txpower_info)
++                return -1;
++	return hapd->driver->txpower_info(hapd->drv_priv, txp_info);
++}
++
+ static inline int
+ hostapd_drv_send_external_auth_status(struct hostapd_data *hapd,
+ 				      struct external_auth *params)
 --- a/src/ap/hostapd.h
 +++ b/src/ap/hostapd.h
 @@ -410,8 +410,10 @@ struct hostapd_data {
@@ -146,7 +163,7 @@ Signed-off-by: Raj Kumar Bhagat <quic_rajkbhag@quicinc.com>
  	default:
  		wpa_printf(MSG_DEBUG, "RRM action %u is not supported",
  			   mgmt->u.action.u.rrm.action);
-@@ -672,3 +675,113 @@ void hostapd_rrm_beacon_req_tx_status(st
+@@ -672,3 +675,121 @@ void hostapd_rrm_beacon_req_tx_status(st
  		" %u ack=%d", MAC2STR(mgmt->da),
  		mgmt->u.action.u.rrm.dialog_token, ok);
  }
@@ -197,6 +214,7 @@ Signed-off-by: Raj Kumar Bhagat <quic_rajkbhag@quicinc.com>
 +{
 +	struct wpabuf *buf;
 +	struct sta_info *sta;
++	struct wpa_txpower_info txpower;
 +	int ret;
 +
 +	wpa_printf(MSG_DEBUG, "Request Link Mesr: dest addr " MACSTR,
@@ -209,9 +227,9 @@ Signed-off-by: Raj Kumar Bhagat <quic_rajkbhag@quicinc.com>
 +	}
 +
 +	if (!(hapd->iface->drv_rrm_flags &
-+	      WPA_DRIVER_FLAGS_TX_POWER_INSERTION)) {
++	      WPA_DRIVER_FLAGS_TX_POWER_REPORTING)) {
 +		wpa_printf(MSG_INFO,
-+			   "Request Link Mesr: TX power insertion not supported");
++			   "Request Link Mesr: TX power reporting not supported");
 +		return -1;
 +	}
 +
@@ -241,10 +259,17 @@ Signed-off-by: Raj Kumar Bhagat <quic_rajkbhag@quicinc.com>
 +	wpabuf_put_u8(buf, WLAN_ACTION_RADIO_MEASUREMENT);
 +	wpabuf_put_u8(buf, WLAN_RRM_LINK_MEASUREMENT_REQUEST);
 +	wpabuf_put_u8(buf, hapd->link_measurement_req_token);
-+	/* NOTE: Driver is expected to fill the Tx Power Used and Max Tx Power
-+	 */
-+	wpabuf_put_u8(buf, 0);
-+	wpabuf_put_u8(buf, 0);
++
++	txpower.cur_txpower = 0;
++	txpower.max_txpower = 0;
++	if (hostapd_drv_txpower_info(hapd, &txpower) != 0) {
++		wpa_printf(MSG_DEBUG,
++			   "Request Link Mesr: Unable to get tx power info");
++		return -1;
++	}
++
++	wpabuf_put_u8(buf, (u8) txpower.cur_txpower);
++	wpabuf_put_u8(buf, (u8) txpower.max_txpower);
 +
 +	ret = hostapd_drv_send_action(hapd, hapd->iface->freq, 0, addr,
 +				       wpabuf_head(buf), wpabuf_len(buf));

@@ -8,12 +8,12 @@
 include $(TOPDIR)/rules.mk
 
 PKG_NAME:=dovecot
-PKG_VERSION:=2.3.11.3
-PKG_RELEASE:=2
+PKG_VERSION:=2.3.20
+PKG_RELEASE:=1
 
 PKG_SOURCE:=$(PKG_NAME)-$(PKG_VERSION).tar.gz
 PKG_SOURCE_URL:=https://dovecot.org/releases/2.3
-PKG_HASH:=d3d9ea9010277f57eb5b9f4166a5d2ba539b172bd6d5a2b2529a6db524baafdc
+PKG_HASH:=caa832eb968148abdf35ee9d0f534b779fa732c0ce4a913d9ab8c3469b218552
 
 PKG_MAINTAINER:=Lucian Cristian <lucian.cristian@gmail.com>
 PKG_LICENSE:=LGPL-2.1-only MIT BSD-3-Clause
@@ -36,6 +36,9 @@ include $(INCLUDE_DIR)/package.mk
 # iconv is needed when compiling with MySQL support. iconv will also be used by
 # dovecot itself.
 include $(INCLUDE_DIR)/nls.mk
+
+# need iconv.m4, otherwise error during autoreconf
+PKG_BUILD_DEPENDS:=gettext-full
 
 define Package/dovecot
   SECTION:=mail
@@ -68,6 +71,7 @@ endef
 
 CONFIGURE_ARGS += \
 	--libexecdir=/usr/libexec \
+	--without-libunwind \
 	--without-pam \
 	--with-notify=dnotify \
 	--without-lzma \

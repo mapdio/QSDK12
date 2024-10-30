@@ -149,6 +149,7 @@ struct spi_qup {
 	int			mode;
 	struct dma_slave_config	rx_conf;
 	struct dma_slave_config	tx_conf;
+	unsigned long transfer_timeout;
 };
 
 static int spi_qup_io_config(struct spi_device *spi, struct spi_transfer *xfer);
@@ -857,7 +858,7 @@ static int spi_qup_transfer_one(struct spi_master *master,
 	timeout = DIV_ROUND_UP(xfer->speed_hz, MSEC_PER_SEC);
 	timeout = DIV_ROUND_UP(min_t(unsigned long, SPI_MAX_XFER,
 				     xfer->len) * 8, timeout);
-	timeout = 200 * msecs_to_jiffies(timeout);
+	timeout = controller->transfer_timeout * msecs_to_jiffies(timeout);
 
 	reinit_completion(&controller->done);
 
@@ -1002,6 +1003,7 @@ static int spi_qup_probe(struct platform_device *pdev)
 	void __iomem *base;
 	u32 max_freq, iomode, num_cs, cs_select;
 	int ret, irq, size, disable_force_cs = 0;
+	u32 transfer_timeout;
 
 	dev = &pdev->dev;
 	res = platform_get_resource(pdev, IORESOURCE_MEM, 0);
@@ -1096,6 +1098,11 @@ static int spi_qup_probe(struct platform_device *pdev)
 
 	if (of_find_property(dev->of_node, "qcom,disable-force-cs", NULL))
 		disable_force_cs = 1;
+
+	if (!of_property_read_u32(dev->of_node, "spi-transfer-timeout", &transfer_timeout))
+		controller->transfer_timeout = transfer_timeout;
+	else
+		controller->transfer_timeout = 200;
 
 	if (!controller->qup_v1)
 		if (!disable_force_cs)

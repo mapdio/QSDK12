@@ -28,7 +28,7 @@ define KernelPackage/qca-nss-ppe-tun
   CATEGORY:=Kernel modules
   SUBMENU:=Network Devices
   TITLE:=Kernel driver for PPE Tunnel (tunnel driver)
-  DEPENDS:=@TARGET_ipq95xx||TARGET_ipq53xx +kmod-qca-nss-ppe +kmod-qca-nss-ppe-vp
+  DEPENDS:=@TARGET_ipq95xx||TARGET_ipq53xx +kmod-qca-nss-ppe +kmod-qca-nss-ppe-vp +kmod-qca-nss-ppe-rule
   FILES:=$(PKG_BUILD_DIR)/drv/ppe_tun/qca-nss-ppe-tun.ko
   AUTOLOAD:=$(call AutoLoad,53,qca-nss-ppe-tun)
 endef
@@ -37,14 +37,14 @@ define KernelPackage/qca-nss-ppe-tun/Description
 Kernel module for PPE Tunnel Driver
 endef
 
-EXTRA_CFLAGS+= \
+ifneq ($(CONFIG_PACKAGE_kmod-qca-nss-ppe-rule),)
+EXTRA_CFLAGS+= -DPPE_TUN_RULE_MODULE_ENABLED
+endif
 
 MAKE_OPTS+=ppe-tun=y
 
 define Build/Compile
-	$(MAKE) -C "$(LINUX_DIR)" $(strip $(MAKE_OPTS)) \
-		CROSS_COMPILE="$(TARGET_CROSS)" \
-		ARCH="$(LINUX_KARCH)" \
+	$(KERNEL_MAKE) $(strip $(MAKE_OPTS)) \
 		M="$(PKG_BUILD_DIR)" \
 		EXTRA_CFLAGS="$(EXTRA_CFLAGS)" \
 		SoC="$(subtarget)" \

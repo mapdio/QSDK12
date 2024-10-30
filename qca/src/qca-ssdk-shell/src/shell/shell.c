@@ -1,7 +1,7 @@
 /*
  * Copyright (c) 2014, 2017-2018, The Linux Foundation. All rights reserved.
  *
- * Copyright (c) 2021-2023 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2021-2024 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
@@ -207,12 +207,6 @@ cmd_api_output(sw_api_param_t *pp, a_uint32_t nr_param, a_ulong_t * args)
                 if (data_type->show_func)
                 {
                     data_type->show_func(pptmp->param_name, pbuf, pptmp->data_size);
-/*qca808x_end*/
-                    if(strcmp((a_char_t *)pptmp->param_name, "Function bitmap") == 0)
-                    {
-			cmd_data_print_module_func_ctrl(args[3], (fal_func_ctrl_t *)pbuf);
-                    }
-/*qca808x_start*/
                 }
                 else
                 {
@@ -346,7 +340,6 @@ cmd_parse_sw(char **cmd_str, a_ulong_t * arg_val)
 
     /*args number check */
     if ((arg_index == 0 && (api_id == SW_CMD_VLAN_SHOW ||
-				    api_id == SW_CMD_FDB_SHOW ||
 				    api_id == SW_CMD_RESV_FDB_SHOW ||
 				    api_id == SW_CMD_HOST_SHOW ||
 				    api_id == SW_CMD_HOST_IPV4_SHOW ||
@@ -367,13 +360,15 @@ cmd_parse_sw(char **cmd_str, a_ulong_t * arg_val)
 				    api_id == SW_CMD_TUNNEL_ENCAP_ENTRY_SHOW ||
 				    api_id == SW_CMD_GENEVE_ENTRY_SHOW ||
 				    api_id == SW_CMD_MAPT_ENTRY_SHOW ||
-				    api_id == SW_CMD_PUBADDR_SHOW )) ||
+				    api_id == SW_CMD_PUBADDR_SHOW ||
+				    api_id == SW_CMD_TOEPLITZ_HASH_CONFIG_SHOW)) ||
 				    ( arg_index == 1 && (api_id == SW_CMD_SET_DEVID ||
 						api_id == SW_CMD_VXLAN_ENTRY_SHOW ||
 						api_id == SW_CMD_TUNNEL_PROGRAM_ENTRY_SHOW ||
 						api_id == SW_CMD_TUNNEL_PROGRAM_UDF_SHOW ||
 						api_id == SW_CMD_TUNNEL_UDF_PROFILE_ENTRY_SHOW ||
-						api_id == SW_CMD_ACL_UDF_PROFILE_ENTRY_SHOW)) ||
+						api_id == SW_CMD_ACL_UDF_PROFILE_ENTRY_SHOW ||
+						api_id == SW_CMD_FDB_SHOW)) ||
 				    (arg_index == 2 && (api_id == SW_CMD_PT_VLAN_TRANS_ADV_SHOW ||
 						api_id == SW_CMD_PTP_TIMESTAMP_SHOW))) {
 							return SW_OK;
@@ -621,8 +616,10 @@ cmd_socket_init(int dev_id)
 #endif
     init_cfg.chip_type=CHIP_UNSPECIFIED;
 /*qca808x_end*/
+#ifndef IOCTL_COMPAT
     init_cfg.reg_func.mdio_set = NULL;
     init_cfg.reg_func.mdio_get = NULL;
+#endif
 /*qca808x_start*/
     rv = ssdk_init(dev_id, &init_cfg);
     if (SW_OK == rv)
@@ -636,8 +633,10 @@ cmd_socket_init(int dev_id)
 
     if (flag == 0)
     {
-        aos_mem_set(&ssdk_cfg, 0 ,sizeof(ssdk_cfg_t));
-        rv = sw_uk_exec(SW_API_SSDK_CFG, dev_id, &ssdk_cfg);
+        aos_mem_set(ioctl_buf, 0 , IOCTL_BUF_SIZE);
+        rv = sw_uk_exec(SW_API_SSDK_CFG, dev_id, ioctl_buf);
+        aos_mem_copy(&ssdk_cfg, ioctl_buf, sizeof(ssdk_cfg_t));
+        aos_mem_set(ioctl_buf, 0 , IOCTL_BUF_SIZE);
         flag = 1;
     }
     return rv;

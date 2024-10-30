@@ -1,7 +1,4 @@
 #
-# Copyright (C) 2006-2011 OpenWrt.org
-# Copyright (C) 2017-2018 Luiz Angelo Daros de Luca <luizluca@gmail.com>
-#
 # This is free software, licensed under the GNU General Public License v2.
 # See /LICENSE for more information.
 #
@@ -9,19 +6,19 @@
 include $(TOPDIR)/rules.mk
 
 PKG_NAME:=hplip
-PKG_VERSION:=3.19.6
+PKG_VERSION:=3.21.6
 PKG_RELEASE:=2
 
 PKG_SOURCE:=$(PKG_NAME)-$(PKG_VERSION).tar.gz
 PKG_SOURCE_URL:=@SF/hplip
-PKG_HASH:=fcdaedee9ed17d2e70f3aff9558a452d99443d1b93d6623132faf3f3ae61d66d
+PKG_HASH:=cc3360d3d913684fb080db97a434b04be45e2cef23cc5bc4cbc5f64b0c5e7bca
 
 PKG_MAINTAINER:=Luiz Angelo Daros de Luca <luizluca@gmail.com>
 PKG_LICENSE:=GPL-2.0 GPL-2.0-or-later
 PKG_LICENSE_FILES:=COPYING LICENSE
 
 PKG_BUILD_PARALLEL:=1
-PKG_BUILD_DEPENDS:= python libcups
+PKG_BUILD_DEPENDS:=libcups
 PKG_FIXUP:=autoreconf
 
 include $(INCLUDE_DIR)/package.mk
@@ -74,6 +71,13 @@ CONFIGURE_ARGS += \
 	--disable-cups-drv-install \
 	--enable-lite-build
 
+define Build/Install
+	mkdir -p $(PKG_INSTALL_DIR)/usr/share/sane
+	sed -n -e '/key="usb.product_id"/{s/.*int_outof="0x//;s/;0x/\n/g;s/".*//;p}' \
+		$(PKG_BUILD_DIR)/data/rules/20-hplip-devices.fdi | sort -u > \
+		$(PKG_INSTALL_DIR)/usr/share/sane/03f0-hplip.usbid
+endef
+
 define Package/hplip-common/install
 	$(INSTALL_DIR) $(1)/usr/lib
 	$(CP) $(PKG_BUILD_DIR)/.libs/libhpip.so* $(1)/usr/lib/
@@ -84,9 +88,6 @@ define Package/hplip-common/install
 
 	$(INSTALL_DIR) $(1)/usr/share/hplip/data/models/
 	$(CP) $(PKG_BUILD_DIR)/data/models/models.dat $(1)/usr/share/hplip/data/models/
-
-	$(INSTALL_DIR) $(1)/etc/hotplug.d/usb/
-	$(INSTALL_BIN) ./files/20-hplip $(1)/etc/hotplug.d/usb/
 endef
 
 define Package/hplip-sane/install
@@ -95,6 +96,10 @@ define Package/hplip-sane/install
 
 	$(INSTALL_DIR) $(1)/etc/sane.d/dll.d/
 	$(INSTALL_DATA) ./files/hplib.conf $(1)/etc/sane.d/dll.d/hplib
+
+	$(INSTALL_DIR) $(1)/usr/share/sane
+	$(INSTALL_DATA) $(PKG_INSTALL_DIR)/usr/share/sane/03f0-hplip.usbid \
+		$(1)/usr/share/sane/03f0-hplip.usbid
 endef
 
 define Package/hplip-common/conffiles

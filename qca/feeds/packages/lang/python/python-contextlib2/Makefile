@@ -5,15 +5,17 @@
 include $(TOPDIR)/rules.mk
 
 PKG_NAME:=python-contextlib2
-PKG_VERSION:=0.5.5
+PKG_VERSION:=21.6.0
 PKG_RELEASE:=1
+
+PYPI_NAME:=contextlib2
+PKG_HASH:=ab1e2bfe1d01d968e1b7e8d9023bc51ef3509bba217bb730cee3827e1ee82869
+
 PKG_MAINTAINER:=Karel Kočí <cynerd@email.cz>
+PKG_LICENSE:=PSF-2.0 Apache-2.0
+PKG_LICENSE_FILES:=LICENSE.txt
 
-PKG_SOURCE_URL:=https://pypi.python.org/packages/source/c/contextlib2/
-PKG_SOURCE:=contextlib2-$(PKG_VERSION).tar.gz
-PKG_HASH:=509f9419ee91cdd00ba34443217d5ca51f5a364a404e1dce9e8979cea969ca48
-PKG_BUILD_DIR:=$(BUILD_DIR)/contextlib2-$(PKG_VERSION)
-
+include ../pypi.mk
 include $(INCLUDE_DIR)/package.mk
 include ../python3-package.mk
 
@@ -21,14 +23,14 @@ define Package/python3-contextlib2
   SECTION:=lang
   CATEGORY:=Languages
   SUBMENU:=Python
-  URL:=http://contextlib2.readthedocs.org
-  TITLE:=python3-contextlib2
+  URL:=https://contextlib2.readthedocs.org
+  TITLE:=Backports and enhancements for the contextlib module
   DEPENDS:=+python3-light
-  VARIANT:=python3
 endef
 
 define Package/python-contextlib2/description
-  contextlib2 is a backport of the standard library’s contextlib module to earlier Python versions.
+contextlib2 is a backport of the standard library's contextlib module to
+earlier Python versions.
 endef
 
 $(eval $(call Py3Package,python3-contextlib2))

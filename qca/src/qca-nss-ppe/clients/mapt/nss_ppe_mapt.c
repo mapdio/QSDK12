@@ -1,6 +1,6 @@
 /*
  * Copyright (c) 2016-2021, The Linux Foundation. All rights reserved.
- * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2024 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for any
  * purpose with or without fee is hereby granted, provided that the above
@@ -39,16 +39,87 @@ static struct dentry *mapt_dentry;
 static bool nss_mapt_stats_dentry_create(struct net_device *dev);
 static bool nss_mapt_stats_dentry_free(struct net_device *dev);
 
+static uint8_t encap_ecn_mode = PPE_DRV_TUN_CMN_CTX_ENCAP_ECN_NO_UPDATE;
+module_param(encap_ecn_mode, byte, 0644);
+MODULE_PARM_DESC(encap_ecn_mode, "Encap ECN mode 0:NO_UPDATE, 1:RFC3168_LIMIT_RFC6040_CMPAT, 2:RFC3168_FULL, 3:RFC4301_RFC6040_NORMAL");
+
+static uint8_t decap_ecn_mode = PPE_DRV_TUN_CMN_CTX_DECAP_ECN_RFC3168_MODE;
+module_param(decap_ecn_mode, byte, 0644);
+MODULE_PARM_DESC(decap_ecn_mode, "Decap ECN mode 0:RFC3168, 1:RFC4301, 2:RFC6040");
+
+static bool inherit_dscp = false;
+module_param(inherit_dscp, bool, 0644);
+MODULE_PARM_DESC(inherit_dscp, "DSCP 0:Dont Inherit inner, 1:Inherit inner");
+
+static bool inherit_ttl = true;
+module_param(inherit_ttl, bool, 0644);
+MODULE_PARM_DESC(inherit_ttl, "TTL 0:Dont Inherit inner, 1:Inherit inner");
+
+/*
+ * nss_ppe_mapt_dev_stats_update()
+ *	Update MAPT dev statistics
+ */
+static bool nss_ppe_mapt_dev_stats_update(struct net_device *dev, ppe_tun_hw_stats *stats, ppe_tun_data *tun_cb_data)
+{
+	struct pcpu_sw_netstats *tstats;
+
+	if (!(dev->priv_flags_ext & IFF_EXT_MAPT)) {
+		return false;
+	}
+
+	tstats = this_cpu_ptr(dev->tstats);
+	u64_stats_update_begin(&tstats->syncp);
+#if (LINUX_VERSION_CODE < KERNEL_VERSION(6, 1, 0))
+	tstats->tx_bytes += stats->tx_byte_cnt;
+	tstats->tx_packets += stats->tx_pkt_cnt;
+	tstats->rx_bytes += stats->rx_byte_cnt;
+	tstats->rx_packets += stats->rx_pkt_cnt;
+#else
+	u64_stats_add(&tstats->tx_bytes, stats->tx_byte_cnt);
+	u64_stats_add(&tstats->tx_packets,  stats->tx_pkt_cnt);
+	u64_stats_add(&tstats->rx_bytes, stats->rx_byte_cnt);
+	u64_stats_add(&tstats->rx_packets,  stats->rx_pkt_cnt);
+#endif
+	/*
+	 * For Map-t device we need to update the rx and tx stats separately.
+	 */
+	if (unlikely(dev->priv_flags_ext & IFF_EXT_MAPT)) {
+#if (LINUX_VERSION_CODE < KERNEL_VERSION(6, 1, 0))
+		tstats->rx_bytes += stats->tx_byte_cnt;
+		tstats->rx_packets += stats->tx_pkt_cnt;
+		tstats->tx_bytes += stats->rx_byte_cnt;
+		tstats->tx_packets += stats->rx_pkt_cnt;
+#else
+		u64_stats_add(&tstats->rx_bytes, stats->tx_byte_cnt);
+		u64_stats_add(&tstats->rx_packets,  stats->tx_pkt_cnt);
+		u64_stats_add(&tstats->tx_bytes, stats->rx_byte_cnt);
+		u64_stats_add(&tstats->tx_packets,  stats->rx_pkt_cnt);
+#endif
+	}
+
+	u64_stats_update_end(&tstats->syncp);
+/*
+ * TODO: Remove the following check when net_device support for
+ * drop counters is added from Kernel for PPE Tunnel stats.
+ */
+#if (LINUX_VERSION_CODE < KERNEL_VERSION(6, 1, 0))
+	atomic_long_add(stats->tx_drop_pkt_cnt, &dev->tx_dropped);
+	atomic_long_add(stats->rx_drop_pkt_cnt, &dev->rx_dropped);
+#endif
+
+	return true;
+}
+
 /*
  * nss_ppe_mapt_src_exception()
  *	handle the source VP exception.
  */
-static bool nss_ppe_mapt_src_exception(struct net_device *dev, struct sk_buff *skb)
+static bool nss_ppe_mapt_src_exception(struct ppe_vp_cb_info *info, ppe_tun_data *tun_data)
 {
+	struct sk_buff *skb = info->skb;
+	struct net_device *dev = skb->dev;
 	int ret;
 
-	skb->dev = dev;
-	skb->skb_iif = dev->ifindex;
 	skb->protocol = eth_type_trans(skb, dev);
 	skb_reset_network_header(skb);
 
@@ -236,15 +307,22 @@ static bool nss_ppe_mapt_dev_parse_param(struct net_device *dev, struct ppe_drv_
 	mapt->remote.psid_offset = rule_pairs->remote.psid_offset;
 
 	l3->ttl = tunnel->parms.hop_limit;
-	if (!l3->ttl) {
+	if (inherit_ttl) {
 		l3->flags |= PPE_DRV_TUN_CMN_CTX_L3_INHERIT_TTL;
 	}
 
 	l3->dscp = ip6_tclass(tunnel->parms.flowinfo) & 0xfc;
-	if (!l3->dscp) {
-		l3->flags |= PPE_DRV_TUN_CMN_CTX_L3_INHERIT_DSCP;
+	if (inherit_dscp) {
+		l3->flags |=  PPE_DRV_TUN_CMN_CTX_L3_INHERIT_DSCP;
 	}
 
+	if (encap_ecn_mode <= PPE_DRV_TUN_CMN_CTX_ENCAP_ECN_RFC4301_RFC6040_NORMAL_MODE) {
+		l3->encap_ecn_mode = encap_ecn_mode;
+	}
+
+	if (decap_ecn_mode <= PPE_DRV_TUN_CMN_CTX_DECAP_ECN_RFC6040_MODE) {
+		l3->decap_ecn_mode = decap_ecn_mode;
+	}
 	l3->proto = tunnel->parms.proto;
 	l3->flags |= PPE_DRV_TUN_CMN_CTX_L3_IPV6;
 	tun_hdr->type = PPE_DRV_TUN_CMN_CTX_TYPE_MAPT;
@@ -261,6 +339,7 @@ static int nss_ppe_mapt_dev_event(struct notifier_block  *nb,
 {
 	struct net_device *dev = netdev_notifier_info_to_dev(info);
 	struct ppe_drv_tun_cmn_ctx *tun_hdr;
+	struct ppe_tun_excp *tun_cb = NULL;
 	int status;
 
 	if (!(dev->priv_flags_ext & IFF_EXT_MAPT)) {
@@ -304,15 +383,26 @@ static int nss_ppe_mapt_dev_event(struct notifier_block  *nb,
 			break;
 		}
 
-		if (!(ppe_tun_configure(dev, tun_hdr, nss_ppe_mapt_src_exception, NULL))) {
-			nss_ppe_mapt_warning("%p: Unable to configure PPE tunnel for dev: %s", dev, dev->name);
-			ppe_tun_free(dev);
-			nss_mapt_stats_dentry_free(dev);
+		tun_cb = kzalloc(sizeof(struct ppe_tun_excp), GFP_ATOMIC);
+
+		if (!tun_cb) {
+			nss_ppe_mapt_warning("%px: memory allocation for tunnel callback failed for device %s\n", dev, dev->name);
+
 			kfree(tun_hdr);
 			break;
 		}
 
+		tun_cb->src_excp_method = nss_ppe_mapt_src_exception;
+		tun_cb->stats_update_method = nss_ppe_mapt_dev_stats_update;
+
+		if (!(ppe_tun_configure(dev, tun_hdr, tun_cb))) {
+			nss_ppe_mapt_warning("%p: Unable to configure PPE tunnel for dev: %s", dev, dev->name);
+			ppe_tun_free(dev);
+			nss_mapt_stats_dentry_free(dev);
+		}
+
 		kfree(tun_hdr);
+		kfree(tun_cb);
 		break;
 
 	case NETDEV_CHANGEMTU:
@@ -482,6 +572,18 @@ int __init nss_ppe_mapt_init_module(void)
 	 */
 	if (!nss_ppe_mapt_dentry_init()) {
 		nss_ppe_mapt_trace("Failed to initialize debugfs");
+		return -1;
+	}
+
+	if (encap_ecn_mode > PPE_DRV_TUN_CMN_CTX_ENCAP_ECN_RFC4301_RFC6040_NORMAL_MODE) {
+		nss_ppe_mapt_dentry_deinit();
+		nss_ppe_mapt_warning("Invalid Encap ECN mode %u\n", encap_ecn_mode);
+		return -1;
+	}
+
+	if (decap_ecn_mode > PPE_DRV_TUN_CMN_CTX_DECAP_ECN_RFC6040_MODE) {
+		nss_ppe_mapt_dentry_deinit();
+		nss_ppe_mapt_warning("Invalid Decap ECN mode %u\n", decap_ecn_mode);
 		return -1;
 	}
 

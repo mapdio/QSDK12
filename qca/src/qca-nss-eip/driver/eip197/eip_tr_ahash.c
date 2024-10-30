@@ -24,7 +24,12 @@
 #include <asm/cacheflush.h>
 
 #include <crypto/md5.h>
+#if (LINUX_VERSION_CODE < KERNEL_VERSION(6, 1, 0))
 #include <crypto/sha.h>
+#else
+#include <crypto/sha1.h>
+#include <crypto/sha2.h>
+#endif
 #include <crypto/sha3.h>
 #include <crypto/aes.h>
 
@@ -283,13 +288,15 @@ bool eip_tr_ahash_init(struct eip_tr *tr, struct eip_tr_info *info, const struct
 	tr->crypto.enc.tk_fill = NULL;
 	tr->crypto.enc.cb = NULL;
 	tr->crypto.enc.err_cb = NULL;
+	tr->crypto.enc.app_data = NULL;
 	tr->crypto.dec.tk_fill = NULL;
 	tr->crypto.dec.cb = NULL;
 	tr->crypto.dec.err_cb = NULL;
+	tr->crypto.dec.app_data = NULL;
 	tr->crypto.auth.tk_fill = algo->auth_tk_fill;
 	tr->crypto.auth.cb = crypto->auth_cb;
 	tr->crypto.auth.err_cb = crypto->auth_err_cb;
-	tr->crypto.app_data = crypto->app_data;
+	tr->crypto.auth.app_data = crypto->app_data;
 
 	/*
 	 * For crypto, Control words are in tokens.
@@ -361,7 +368,7 @@ bool eip_tr_ahash_key2digest(struct eip_tr *tr, struct eip_tr_info *info, const 
 {
 	struct eip_tr_base *base = &info->base;
 	struct eip_ctx *ctx = tr->ctx;
-	uint32_t cmd_token_hdr = 0;
+	uint32_t tk_hdr = 0;
 	struct eip_sw_desc *sw;
 	struct scatterlist sg;
 	struct eip_dma *dma;
@@ -422,7 +429,7 @@ bool eip_tr_ahash_key2digest(struct eip_tr *tr, struct eip_tr_info *info, const 
 	 * Fill token for digest.
 	 */
 	pad_offst = EIP_HW_CTRL_WORDS + (base->cipher.key_len / sizeof(uint32_t));
-	tk_words = eip_tk_digest(tk, tr, &sg, &cmd_token_hdr, pad_offst, algo->auth_state_len / sizeof(uint32_t));
+	tk_words = eip_tk_digest(tk, tr, &sg, &tk_hdr, pad_offst, algo->auth_state_len / sizeof(uint32_t));
 
 	/*
 	 * Flush & invalidate token memory for device. We should not access token after this.
@@ -436,7 +443,7 @@ bool eip_tr_ahash_key2digest(struct eip_tr *tr, struct eip_tr_info *info, const 
 	sw->tk = tk;
 	sw->comp = &eip_tr_ahash_digest_done;
 	sw->err_comp = &eip_tr_ahash_digest_err;
-	sw->cmd_token_hdr = cmd_token_hdr;
+	sw->tk_hdr = tk_hdr;
 	sw->tk_addr = virt_to_phys(tk);
 	sw->tr_addr_type = tr->tr_addr_type;
 	sw->tk_words = tk_words;
@@ -485,7 +492,7 @@ static void eip_tr_ahash_done(struct eip_tr *tr, struct eip_hw_desc *hw, struct 
 {
 	eip_req_t eip_req = sw->req;
 	struct eip_ctx *ctx = tr->ctx;
-	void *app_data = tr->crypto.app_data;
+	void *app_data = tr->crypto.auth.app_data;
 	eip_tr_callback_t cb = tr->crypto.auth.cb;
 
 	/*
@@ -513,7 +520,7 @@ static void eip_tr_ahash_err(struct eip_tr *tr, struct eip_hw_desc *hw, struct e
 {
 	eip_req_t eip_req = sw->req;
 	struct eip_ctx *ctx = tr->ctx;
-	void *app_data = tr->crypto.app_data;
+	void *app_data = tr->crypto.auth.app_data;
 	eip_tr_err_callback_t cb = tr->crypto.auth.err_cb;
 	int err = 0;
 
@@ -546,7 +553,7 @@ static void eip_tr_ahash_err(struct eip_tr *tr, struct eip_hw_desc *hw, struct e
 int eip_tr_ahash_auth(struct eip_tr *tr, struct ahash_request *req, struct scatterlist *res)
 {
 	struct eip_ctx *ctx = tr->ctx;
-	uint32_t cmd_token_hdr = 0;
+	uint32_t tk_hdr = 0;
 	struct eip_sw_desc *sw;
 	struct eip_dma *dma;
 	struct eip_tk *tk;
@@ -565,7 +572,7 @@ int eip_tr_ahash_auth(struct eip_tr *tr, struct ahash_request *req, struct scatt
 	/*
 	 * Fill token for hmac and decryption.
 	 */
-	tk_words = tr->crypto.auth.tk_fill(tk, tr, req, &cmd_token_hdr);
+	tk_words = EIP_TR_FILL_TOKEN(tr, &tr->crypto.auth, tk, req, &tk_hdr);
 
 	dmac_clean_range(tk, tk + 1);
 
@@ -586,7 +593,7 @@ int eip_tr_ahash_auth(struct eip_tr *tr, struct ahash_request *req, struct scatt
 	sw->tk = tk;
 	sw->comp = &eip_tr_ahash_done;
 	sw->err_comp = &eip_tr_ahash_err;
-	sw->cmd_token_hdr = cmd_token_hdr;
+	sw->tk_hdr = tk_hdr;
 	sw->tk_addr = virt_to_phys(tk);
 	sw->tr_addr_type = tr->tr_addr_type;
 	sw->tk_words = tk_words;

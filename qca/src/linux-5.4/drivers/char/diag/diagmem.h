@@ -1,13 +1,6 @@
-/* Copyright (c) 2008-2014, 2017 The Linux Foundation. All rights reserved.
- *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License version 2 and
- * only version 2 as published by the Free Software Foundation.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
+/* SPDX-License-Identifier: GPL-2.0 */
+/* Copyright (c) 2008-2014, 2017-2018 The Linux Foundation. All rights reserved.
+ * Copyright (c) 2024 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #ifndef DIAGMEM_H
@@ -24,18 +17,14 @@
 #define POOL_TYPE_REMOTE_BASE		POOL_TYPE_LOCAL_LAST
 #define POOL_TYPE_MDM			POOL_TYPE_REMOTE_BASE
 #define POOL_TYPE_MDM2			(POOL_TYPE_REMOTE_BASE + 1)
-#define POOL_TYPE_MDM3                  (POOL_TYPE_REMOTE_BASE + 2)
-#define POOL_TYPE_MDM_DCI		(POOL_TYPE_REMOTE_BASE + 3)
-#define POOL_TYPE_MDM2_DCI		(POOL_TYPE_REMOTE_BASE + 4)
-#define POOL_TYPE_MDM3_DCI	        (POOL_TYPE_REMOTE_BASE + 5)
-#define POOL_TYPE_MDM_MUX		(POOL_TYPE_REMOTE_BASE + 6)
-#define POOL_TYPE_MDM2_MUX		(POOL_TYPE_REMOTE_BASE + 7)
-#define POOL_TYPE_MDM3_MUX              (POOL_TYPE_REMOTE_BASE + 8)
-#define POOL_TYPE_MDM_DCI_WRITE		(POOL_TYPE_REMOTE_BASE + 9)
-#define POOL_TYPE_MDM2_DCI_WRITE	(POOL_TYPE_REMOTE_BASE + 10)
-#define POOL_TYPE_MDM3_DCI_WRITE        (POOL_TYPE_REMOTE_BASE + 11)
-#define POOL_TYPE_QSC_MUX		(POOL_TYPE_REMOTE_BASE + 12)
-#define POOL_TYPE_REMOTE_LAST		(POOL_TYPE_REMOTE_BASE + 13)
+#define POOL_TYPE_MDM_DCI		(POOL_TYPE_REMOTE_BASE + 2)
+#define POOL_TYPE_MDM2_DCI		(POOL_TYPE_REMOTE_BASE + 3)
+#define POOL_TYPE_MDM_MUX		(POOL_TYPE_REMOTE_BASE + 4)
+#define POOL_TYPE_MDM2_MUX		(POOL_TYPE_REMOTE_BASE + 5)
+#define POOL_TYPE_MDM_DCI_WRITE		(POOL_TYPE_REMOTE_BASE + 6)
+#define POOL_TYPE_MDM2_DCI_WRITE	(POOL_TYPE_REMOTE_BASE + 7)
+#define POOL_TYPE_QSC_MUX		(POOL_TYPE_REMOTE_BASE + 8)
+#define POOL_TYPE_REMOTE_LAST		(POOL_TYPE_REMOTE_BASE + 9)
 
 #ifdef CONFIG_DIAGFWD_BRIDGE_CODE
 #define NUM_MEMORY_POOLS		POOL_TYPE_REMOTE_LAST

@@ -1,6 +1,5 @@
 #!/usr/bin/env bash
-#
-# Licensed under the terms of the GNU GPL License version 2 or later.
+# SPDX-License-Identifier: GPL-2.0-or-later
 #
 # Author: Jason Wu <jason.hy.wu@gmail.com>
 # with modifications for multi-DTB-same-image by:
@@ -199,6 +198,11 @@ parse_args() {
 			usage;;
 		esac
 	done
+	shift $(($OPTIND - 1))
+	[ $# -gt 0 ] && {
+		echo "Failed to parse all passed arguments (unrecognized: \"$@\")"
+		exit 1
+	}
 	[ -n "${OUTPUT}" ] || OUTPUT=fitimage.its
 	[ -n "${VERSION}" ] || VERSION="Unknown"
 	[ -n "${ARCH}" ] || ARCH=arm

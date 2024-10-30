@@ -8,18 +8,20 @@
 include $(TOPDIR)/rules.mk
 
 PKG_NAME:=git
-PKG_VERSION:=2.26.3
+PKG_VERSION:=2.43.2
 PKG_RELEASE:=1
 
 PKG_SOURCE:=$(PKG_NAME)-$(PKG_VERSION).tar.xz
 PKG_SOURCE_URL:=@KERNEL/software/scm/git/
-PKG_HASH:=ae8592b0878334aceb3d018dec7525562a19adee3a6fb5dcae11aab80cb06367
+PKG_HASH:=f612c1abc63557d50ad3849863fc9109670139fc9901e574460ec76e0511adb9
 
-PKG_INSTALL:=1
+PKG_LICENSE:=GPL-2.0-or-later
+PKG_LICENSE_FILES:=COPYING
+PKG_CPE_ID:=cpe:/a:git-scm:git
+
 PKG_FIXUP:=autoreconf
+PKG_INSTALL:=1
 PKG_BUILD_PARALLEL:=1
-
-PKG_CPE_ID:=cpe:/a:git:git
 
 include $(INCLUDE_DIR)/package.mk
 
@@ -95,10 +97,7 @@ MAKE_FLAGS := \
 	NO_TCLTK="YesPlease" \
 	NO_INSTALL_HARDLINKS="yes" \
 	gitwebdir="/www/cgi-bin" \
-	GITWEB_JS="/gitweb/gitweb.js" \
-	GITWEB_CSS="/gitweb/gitweb.css" \
-	GITWEB_LOGO="/gitweb/gitweb-logo.png" \
-	GITWEB_FAVICON="/gitweb/gitweb-favicon.png"
+	uname_S="Linux" \
 
 CONFIGURE_ARGS += \
 	--without-iconv \
@@ -150,6 +149,11 @@ endef
 define Package/git-gitweb/install
 	$(INSTALL_DIR) $(1)/www/cgi-bin $(1)/www/gitweb
 	$(INSTALL_BIN) $(PKG_INSTALL_DIR)/www/cgi-bin/gitweb.cgi $(1)/www/cgi-bin/
+	# work around https://lore.kernel.org/git/80eb3972-4960-5727-ce86-acc3a4425fd4@nic.cz/T/#u
+	$(SED) 's,^our @stylesheets .*,our @stylesheets = ("/gitweb/gitweb.css");,' $(1)/www/cgi-bin/gitweb.cgi
+	$(SED) 's,^our $$$$logo .*,our $$$$logo = "/gitweb/git-logo.png";,' $(1)/www/cgi-bin/gitweb.cgi
+	$(SED) 's,^our $$$$favicon .*,our $$$$favicon = "/gitweb/git-favicon.png";,' $(1)/www/cgi-bin/gitweb.cgi
+	$(SED) 's,^our $$$$javascript .*,our $$$$javascript = "/gitweb/gitweb.js";,' $(1)/www/cgi-bin/gitweb.cgi
 	$(CP) $(PKG_INSTALL_DIR)/www/cgi-bin/static/* $(1)/www/gitweb/
 endef
 

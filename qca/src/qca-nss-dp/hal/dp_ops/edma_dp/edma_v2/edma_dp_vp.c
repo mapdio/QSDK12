@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2022-2023 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2024 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for any
  * purpose with or without fee is hereby granted, provided that the above
@@ -34,6 +34,22 @@ netdev_tx_t edma_dp_vp_xmit(struct nss_dp_data_plane_ctx *dpc, struct nss_dp_vp_
 	struct sk_buff *segs;
 	enum edma_tx_gso result;
 	int ret;
+
+#ifdef NSS_DP_MHT_SW_PORT_MAP
+#ifndef NSS_DP_EDMA_MHT_SW_WITH_VP_RING
+	/*
+	 * Drop the packets received on vp port
+	 * when mht per port Tx ring mapping is enabled.
+	 */
+	if (dp_dev->nss_dp_mht_dev) {
+		dev_kfree_skb_any(skb);
+		u64_stats_update_begin(&stats->syncp);
+		++stats->tx_drops;
+		u64_stats_update_end(&stats->syncp);
+		return NETDEV_TX_OK;
+	}
+#endif
+#endif
 
 	/*
 	 * Select a TX ring based on current core

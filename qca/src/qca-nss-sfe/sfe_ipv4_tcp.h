@@ -20,3 +20,7 @@
 
 int sfe_ipv4_recv_tcp(struct sfe_ipv4 *si, struct sk_buff *skb, struct net_device *dev,
 			     unsigned int len, struct iphdr *iph, unsigned int ihl, bool sync_on_find, struct sfe_l2_info *l2_info);
+
+uint8_t sfe_tso_clear_fixed_id_cfg_get(void);
+
+int sfe_tso_clear_fixed_id_cfg_set(uint8_t val);

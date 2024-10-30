@@ -1,17 +1,19 @@
 /*
  * Copyright (c) 2014-2018, The Linux Foundation. All rights reserved.
- * Permission to use, copy, modify, and/or distribute this software for
- * any purpose with or without fee is hereby granted, provided that the
- * above copyright notice and this permission notice appear in all copies.
+ * Copyright (c) 2023 Qualcomm Innovation Center, Inc. All rights reserved.
+ *
+ * Permission to use, copy, modify, and/or distribute this software for any
+ * purpose with or without fee is hereby granted, provided that the above
+ * copyright notice and this permission notice appear in all copies.
+ *
  * THE SOFTWARE IS PROVIDED "AS IS" AND THE AUTHOR DISCLAIMS ALL WARRANTIES
  * WITH REGARD TO THIS SOFTWARE INCLUDING ALL IMPLIED WARRANTIES OF
  * MERCHANTABILITY AND FITNESS. IN NO EVENT SHALL THE AUTHOR BE LIABLE FOR
  * ANY SPECIAL, DIRECT, INDIRECT, OR CONSEQUENTIAL DAMAGES OR ANY DAMAGES
  * WHATSOEVER RESULTING FROM LOSS OF USE, DATA OR PROFITS, WHETHER IN AN
- * ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT
- * OF OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
+ * ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF
+ * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  */
-
 
 /**
  * @defgroup fal_fdb FAL_FDB
@@ -47,6 +49,18 @@ extern "C" {
     @brief This structure defines the Fdb entry.
 
     */
+    typedef enum
+    {
+        HW_ENTRY = 0,
+        SW_ENTRY = 1,
+    } fal_fdb_entry_type_t;
+
+    typedef enum
+    {
+        ENTRY_VER0 = 0,/*the fields from load_balance_en are invalid*/
+        ENTRY_VER1 = 1,
+    } fal_fdb_entry_ver_t;
+
     typedef struct
     {
         fal_mac_addr_t addr; /* mac address of fdb entry */
@@ -63,7 +77,7 @@ extern "C" {
         a_bool_t static_en; /* enable static or not */
         a_bool_t leaky_en; /* enable leaky or not */
         a_bool_t mirror_en; /* enable mirror or not */
-        a_bool_t clone_en; /* enable clone or not */
+        fal_fdb_entry_ver_t entry_ver; /* entry version*/
         a_bool_t cross_pt_state; /* cross port state */
         a_bool_t da_pri_en; /* enable da pri or not */
         a_uint8_t da_queue; /* da queue value */
@@ -72,6 +86,7 @@ extern "C" {
         a_uint8_t load_balance; /* load balance value */
         a_bool_t entry_valid; /* check if entry is value */
         a_bool_t lookup_valid; /* check if entry is lookup */
+        fal_fdb_entry_type_t type;/*software entry or hardware entry*/
     } fal_fdb_entry_t;
 
 #define FAL_FDB_DEL_STATIC   0x1

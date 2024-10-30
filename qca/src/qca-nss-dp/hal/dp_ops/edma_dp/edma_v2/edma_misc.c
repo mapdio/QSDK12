@@ -1,7 +1,7 @@
 /*
  * Copyright (c) 2021, The Linux Foundation. All rights reserved.
  *
- * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2023 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for any
  * purpose with or without fee is hereby granted, provided that the above
@@ -22,6 +22,7 @@
 #include "edma.h"
 #include "edma_regs.h"
 #include "edma_debug.h"
+#include "nss_dp_dev.h"
 
 /*
  * edma_misc_stats_alloc()
@@ -75,6 +76,10 @@ irqreturn_t edma_misc_handle_irq(int irq, void *ctx)
 	reg_data = edma_reg_read(EDMA_REG_MISC_INT_STAT);
 	misc_intr_status = reg_data & egc->misc_intr_mask;
 
+	/*
+	 * Clear EDMA miscellaneous interrupt mask bits before handling EDMA hang recovery
+	 */
+	edma_reg_write(EDMA_REG_MISC_INT_MASK, EDMA_MASK_INT_CLEAR);
 	edma_debug("Received misc irq %d, status: %d\n", irq, misc_intr_status);
 
 	if (EDMA_MISC_AXI_RD_ERR_STATUS_GET(misc_intr_status)) {
@@ -144,6 +149,15 @@ irqreturn_t edma_misc_handle_irq(int irq, void *ctx)
 		++stats->edma_misc_tx_timeout;
 		u64_stats_update_end(&stats->syncp);
 	}
+
+	/*
+	 * Schedule the EDMA global context work task for deferred execution
+	 * in userspace via a helper function if nss_dp_recovery_en module param is set to 1.
+	 */
+	if(nss_dp_recovery_en)
+		schedule_work(&edma_gbl_ctx.work);
+	else
+		edma_reg_write(EDMA_REG_MISC_INT_MASK, 0xFF);
 
 	return IRQ_HANDLED;
 }

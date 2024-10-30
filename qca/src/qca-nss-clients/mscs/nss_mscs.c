@@ -1,6 +1,8 @@
 /*
  **************************************************************************
  * Copyright (c) 2020-2021, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2022-2023, Qualcomm Innovation Center, Inc. All rights reserved.
+ *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
  * above copyright notice and this permission notice appear in all copies.
@@ -60,12 +62,66 @@
 #endif
 
 /*
+ * nss_mscs_get_peer_priority()
+ *	Callback to get the peer priority.
+ */
+static inline int nss_mscs_get_peer_priority(struct ecm_classifier_mscs_get_priority_info *get_priority_info)
+{
+	struct qca_mscs_get_priority_param wlan_get_priority_param = {0};
+
+	wlan_get_priority_param.dst_dev = get_priority_info->dst_dev;
+	wlan_get_priority_param.src_dev = get_priority_info->src_dev;
+	wlan_get_priority_param.dst_mac = get_priority_info->dst_mac;
+	wlan_get_priority_param.src_mac = get_priority_info->src_mac;
+	wlan_get_priority_param.skb = get_priority_info->skb;
+
+	return qca_mscs_peer_lookup_n_get_priority_v2(&wlan_get_priority_param);
+}
+
+/*
+ * nss_mscs_update_skb_prirotiy()
+ * Callback to update skb priority.
+ */
+static inline bool nss_mscs_update_skb_prioriy(struct ecm_classifier_mscs_rule_match_info *match_info)
+{
+	struct qca_scs_peer_lookup_n_rule_match rule_match_param = {0};
+
+	rule_match_param.dst_dev = match_info->dst_dev;
+	rule_match_param.src_dev = match_info->src_dev;
+	rule_match_param.dst_mac_addr = match_info->dst_mac;
+	rule_match_param.rule_id = match_info->rule_id;
+
+	return qca_scs_peer_lookup_n_rule_match_v2(&rule_match_param);
+}
+
+/*
+ * nss_mscs_update_peer_mesh_params()
+ *	Update mesh latency params.
+ */
+static inline void nss_mscs_update_peer_mesh_params(struct ecm_classifer_emesh_sawf_mesh_latency_params *mesh_params)
+{
+        struct qca_mesh_latency_update_peer_param wlan_mesh_params = {0};
+
+        wlan_mesh_params.dest_mac = mesh_params->peer_mac;
+        wlan_mesh_params.src_dev = mesh_params->src_dev;
+        wlan_mesh_params.dst_dev = mesh_params->dst_dev;
+        wlan_mesh_params.service_interval_dl = mesh_params->service_interval_dl;
+        wlan_mesh_params.service_interval_ul = mesh_params->service_interval_ul;
+        wlan_mesh_params.burst_size_dl = mesh_params->burst_size_dl;
+        wlan_mesh_params.burst_size_ul = mesh_params->burst_size_ul;
+        wlan_mesh_params.priority = mesh_params->priority;
+        wlan_mesh_params.add_or_sub = mesh_params->accel_or_decel;
+
+        qca_mesh_latency_update_peer_parameter_v2(&wlan_mesh_params);
+}
+
+/*
  * nss_mscs_ecm
  * 	Register MSCS client callback with ECM MSCS classifier to support MSCS wifi peer lookup.
  */
 static struct ecm_classifier_mscs_callbacks nss_mscs_ecm = {
-	    .get_peer_priority = qca_mscs_peer_lookup_n_get_priority,
-	    .update_skb_priority = qca_scs_peer_lookup_n_rule_match,
+	    .get_peer_priority = nss_mscs_get_peer_priority,
+	    .update_skb_priority = nss_mscs_update_skb_prioriy,
 };
 
 /*
@@ -73,7 +129,7 @@ static struct ecm_classifier_mscs_callbacks nss_mscs_ecm = {
  * 	Register EMESH client callback with ECM EMSH-SAWF classifier to update peer mesh latency parameters.
  */
 static struct ecm_classifier_emesh_sawf_callbacks nss_emesh_ecm = {
-	    .update_peer_mesh_latency_params = qca_mesh_latency_update_peer_parameter,
+	    .update_peer_mesh_latency_params = nss_mscs_update_peer_mesh_params,
 };
 
 /*

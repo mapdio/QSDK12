@@ -1,6 +1,6 @@
 /*
  * Copyright (c) 2014, The Linux Foundation. All rights reserved.
- * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2023 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for any
  * purpose with or without fee is hereby granted, provided that the above
@@ -19,7 +19,6 @@
 #include "nss_macsec.h"
 #include "nss_macsec_secy.h"
 #include "nss_macsec_utility.h"
-#include "nss_macsec_ops.h"
 
 struct mutex api_lock;
 
@@ -48,38 +47,37 @@ u32 nss_macsec_mutex_unlock(void)
 	return 0;
 }
 
+struct macsec_port *fal_macsec_port_get_by_device_id(u32 dev_id)
+{
+	return macsec_port_get_by_device_id(dev_id);
+}
+
 u32 fal_macsec_secy_num_get(void)
 {
-	return FAL_SECY_ID_NUM_MAX;
+	return MACSEC_DEVICE_MAXNUM;
 }
 
 u32 fal_secy_sc_sa_mapping_mode_get(u32 secy_id)
 {
-	return g_secy_cfg[secy_id].sc_sa_map_mode;
+	enum macsec_sc_sa_mapping_mode_t sc_sa_map_mode = 0;
+
+	qca_macsec_sc_sa_mapping_mode_get(FAL_SECY_ID_TO_PORT(secy_id), &sc_sa_map_mode);
+
+	return sc_sa_map_mode;
 }
 
 u32 fal_secy_get_sa_num_per_sc(u32 secy_id)
 {
-	return (1 << g_secy_cfg[secy_id].sc_sa_map_mode);
+	return (1 << FAL_SECY_SC_SA_MODE(secy_id));
 }
 
 u32 fal_secy_channel_num(u32 secy_id)
 {
-	g_error_t rv;
-	struct secy_drv_t *secy_drv;
 	u32 number = 0;
 
-	secy_drv = nss_macsec_secy_ops_get(secy_id);
-	if (secy_drv != NULL) {
-		if (secy_drv->secy_channel_number_get != NULL) {
-			rv = secy_drv->secy_channel_number_get(secy_id,
-				&number);
-			if (!rv)
-				return number;
-		}
-	}
+	qca_macsec_channel_number_get(FAL_SECY_ID_TO_PORT(secy_id), &number);
 
-	return (32 >> (g_secy_cfg[secy_id].sc_sa_map_mode));
+	return number;
 }
 
 u32 fal_tx_channel_2_sc_id(u32 secy_id, u32 channel)

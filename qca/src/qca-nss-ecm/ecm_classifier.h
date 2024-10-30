@@ -1,7 +1,7 @@
 /*
  **************************************************************************
  * Copyright (c) 2014-2015, 2018-2021 The Linux Foundation. All rights reserved.
- * Copyright (c) 2022, Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2024, Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for any
  * purpose with or without fee is hereby granted, provided that the above
@@ -38,6 +38,9 @@ enum ecm_classifier_types {
 #endif
 #ifdef ECM_CLASSIFIER_MSCS_ENABLE
 	ECM_CLASSIFIER_TYPE_MSCS,		/* Mirrored Stream Classification Signalling(MSCS) classifier */
+#endif
+#ifdef ECM_CLASSIFIER_WIFI_ENABLE
+	ECM_CLASSIFIER_TYPE_WIFI,		/* Wi-Fi classifier */
 #endif
 #ifdef ECM_CLASSIFIER_EMESH_ENABLE
 	ECM_CLASSIFIER_TYPE_EMESH,		/* E-Mesh classifier */
@@ -113,9 +116,23 @@ typedef enum ecm_classifier_acceleration_modes ecm_classifier_acceleration_mode_
 
 #ifdef ECM_CLASSIFIER_PCC_ENABLE
 #define ECM_CLASSIFIER_PROCESS_ACTION_MIRROR_ENABLED 0x00004000	/* Contains mirror dynamic interface number */
+#define ECM_CLASSIFIER_PROCESS_ACTION_ACL_ENABLED 0x00008000	/* Contains mirror dynamic interface number */
+#define ECM_CLASSIFIER_PROCESS_ACTION_POLICER_ENABLED 0x00010000	/* Contains mirror dynamic interface number */
 #endif
 
-#define ECM_CLASSIFIER_PROCESS_ACTION_MARK 0x00008000	/* Contains flow & return skb mark */
+#define ECM_CLASSIFIER_PROCESS_ACTION_MARK 0x00020000	/* Contains flow & return skb mark */
+
+#ifdef ECM_CLASSIFIER_EMESH_ENABLE
+#define ECM_CLASSIFIER_PROCESS_ACTION_EMESH_SAWF_LEGACY_SCS_TAG	0x00040000	/* Mark the E-MESH SAWF legacy scs tag */
+#endif
+
+#ifdef ECM_CLASSIFIER_MSCS_ENABLE
+#define ECM_CLASSIFIER_PROCESS_ACTION_HLOS_TID_VALID 0x00080000	/* Mark the HLOS TID tag */
+#endif
+
+#ifdef ECM_CLASSIFIER_WIFI_ENABLE
+#define ECM_CLASSIFIER_PROCESS_ACTION_WIFI_TAG	0x00100000	/* Mark the Wi-Fi tag */
+#endif
 
 /*
  * struct ecm_classifier_process_response
@@ -133,7 +150,7 @@ struct ecm_classifier_process_response {
 	bool drop;					/* Drop packet at hand */
 	uint32_t flow_qos_tag;				/* QoS tag to use for the packet */
 	uint32_t return_qos_tag;			/* QoS tag to use for the packet */
-#if defined ECM_CLASSIFIER_DSCP_ENABLE || defined ECM_CLASSIFIER_EMESH_ENABLE
+#if defined ECM_CLASSIFIER_DSCP_ENABLE || defined ECM_CLASSIFIER_EMESH_ENABLE || ECM_CLASSIFIER_WIFI_ENABLE
 #ifdef ECM_CLASSIFIER_DSCP_IGS
 	uint16_t igs_flow_qos_tag;			/* Ingress QoS tag to use for the packet */
 	uint16_t igs_return_qos_tag;			/* Ingress QoS tag to use for the return packet */
@@ -154,21 +171,38 @@ struct ecm_classifier_process_response {
 #ifdef ECM_CLASSIFIER_PCC_ENABLE
 	int flow_mirror_ifindex;			/* Flow mirror device index value */
 	int return_mirror_ifindex;			/* Return mirror device index value */
+	union {
+		struct {
+			uint32_t flow_acl_id;           /**< ACL rule ID in flow direction. */
+			uint32_t return_acl_id;         /**< ACL rule ID in return direction. */
+		} acl;
+
+		struct {
+			uint32_t flow_policer_id;        /**< POLICER ID in flow direction. */
+			uint32_t return_policer_id;      /**< POLICER ID in return direction. */
+		} policer;
+	} rule_id;
 #endif
 #ifdef ECM_CLASSIFIER_EMESH_ENABLE
 	uint32_t flow_sawf_metadata;			/* Flow SAWF metadata value */
 	uint32_t return_sawf_metadata;			/* Return SAWF metadata value */
+	uint8_t flow_service_class;			/* Flow service class ID */
+	uint8_t return_service_class;			/* Return service class ID */
 	uint8_t flow_vlan_pcp;				/* Flow VLAN pcp remark value */
 	uint8_t return_vlan_pcp;			/* Return VLAN pcp remark value */
 #endif
 	ecm_classifier_acceleration_mode_t accel_mode;	/* Acceleration needed for this connection */
 	ecm_db_timer_group_t timer_group;		/* Timer group the connection should be in */
+#ifdef ECM_CLASSIFIER_WIFI_ENABLE
+	uint32_t flow_wifi_ds_node_id;			/* Flow Wi-Fi ppe ds metadata i.e. node id */
+	uint32_t return_wifi_ds_node_id;		/* Return Wi-Fi ppe ds metadata i.e. node id */
+#endif
 };
 
 /*
  * Sync rule structure.
  *	Acceleration engine's sync parameters will be stored
- * in this data structure to update the classifiers.
+ *	in this data structure to update the classifiers.
  */
 struct ecm_classifier_rule_sync {
 	uint32_t tx_packet_count[ECM_CONN_DIR_MAX];
@@ -218,6 +252,7 @@ typedef int (*ecm_classifier_state_get_callback_t)(struct ecm_classifier_instanc
 											/* Get state output.  Returns 0 upon success. */
 #endif
 
+typedef void (*ecm_classifier_notify_create_t)(struct ecm_classifier_instance *ci, void *arg);
 typedef void (*ecm_classifier_update_t)(struct ecm_classifier_instance *ci, enum ecm_rule_update_type type, void *arg);
 
 /*
@@ -253,6 +288,7 @@ struct ecm_classifier_instance {
 	ecm_classifier_state_get_callback_t state_get;
 							/* Return its state */
 #endif
+	ecm_classifier_notify_create_t notify_create;	/* Notify connection create to classifier instance */
 	ecm_classifier_update_t update;			/* Updates the classifier instance */
 
 	ecm_classifier_ref_method_t ref;

@@ -288,14 +288,21 @@ void nss_dp_switchdev_setup(struct net_device *dev)
  * nss_dp_port_attr_set()
  *	Sets attributes
  */
+#if (LINUX_VERSION_CODE < KERNEL_VERSION(6, 1, 0))
 static int nss_dp_port_attr_set(struct net_device *dev,
-				const struct switchdev_attr *attr,
-				struct switchdev_trans *trans)
+				const struct switchdev_attr *attr
+				,struct switchdev_trans *trans)
+#else
+static int nss_dp_port_attr_set(struct net_device *dev,
+				const struct switchdev_attr *attr)
+#endif
 {
 	struct nss_dp_dev *dp_priv = (struct nss_dp_dev *)netdev_priv(dev);
 
+#if (LINUX_VERSION_CODE < KERNEL_VERSION(6, 1, 0))
 	if (switchdev_trans_ph_prepare(trans))
 		return 0;
+#endif
 
 	switch (attr->id) {
 	case SWITCHDEV_ATTR_ID_PORT_BRIDGE_FLAGS:
@@ -328,8 +335,12 @@ static int nss_dp_switchdev_port_attr_set_event(struct net_device *netdev,
 		return NOTIFY_DONE;
 	}
 
-	err = nss_dp_port_attr_set(netdev, port_attr_info->attr,
-				   port_attr_info->trans);
+#if (LINUX_VERSION_CODE < KERNEL_VERSION(6, 1, 0))
+	err = nss_dp_port_attr_set(netdev, port_attr_info->attr
+				   ,port_attr_info->trans);
+#else
+	err = nss_dp_port_attr_set(netdev, port_attr_info->attr);
+#endif
 
 	port_attr_info->handled = true;
 	return notifier_from_errno(err);
@@ -368,7 +379,11 @@ static int nss_dp_bridge_attr_set(struct net_device *dev,
 
 	switch (attr->id) {
 	case SWITCHDEV_ATTR_ID_PORT_PRE_BRIDGE_FLAGS:
+#if (LINUX_VERSION_CODE < KERNEL_VERSION(6, 1, 0))
 		return attr->u.brport_flags & ~(BR_LEARNING);
+#else
+		return attr->u.brport_flags.val & ~(BR_LEARNING);
+#endif
 	case SWITCHDEV_ATTR_ID_BRIDGE_AGEING_TIME:
 		if (attr->u.ageing_time == 0) {
 			netdev_dbg(dev, "Ageing time 0 is not supported\n");
@@ -383,7 +398,11 @@ static int nss_dp_bridge_attr_set(struct net_device *dev,
 		break;
 
 	case SWITCHDEV_ATTR_ID_PORT_BRIDGE_FLAGS:
+#if (LINUX_VERSION_CODE < KERNEL_VERSION(6, 1, 0))
 		learning = attr->u.brport_flags & (BR_LEARNING);
+#else
+		learning = attr->u.brport_flags.val & (BR_LEARNING);
+#endif
 		iface = ppe_drv_iface_get_by_dev(dev);
 		if (!iface) {
 			netdev_dbg(dev, "Failed to get iface for interface %s\n", dev->name);
@@ -424,6 +443,15 @@ static int nss_dp_fdb_event(struct switchdev_notifier_fdb_info *fdb_info,
 	if (!fdb_info->added_by_user)
 		return 0;
 
+	/*
+	 * Update FDB only for devices managed by DP driver.
+	 */
+	if (!nss_dp_is_phy_dev(dev)) {
+		netdev_dbg(dev, "FDB event on non-physical port\n");
+		ret = NOTIFY_DONE;
+		goto out;
+	}
+
 	rcu_read_lock();
 	br_dev = netdev_master_upper_dev_get_rcu(dev);
 	rcu_read_unlock();
@@ -450,6 +478,8 @@ static int nss_dp_fdb_event(struct switchdev_notifier_fdb_info *fdb_info,
 			ret = notifier_from_errno(-EIO);
 			goto out;
 		}
+
+		netdev_dbg(dev, "static fdb entry added MAC:%pM ID:%d\n", fdb_info->addr, dp_priv->macid);
 		break;
 
 	case SWITCHDEV_FDB_DEL_TO_DEVICE:
@@ -461,6 +491,8 @@ static int nss_dp_fdb_event(struct switchdev_notifier_fdb_info *fdb_info,
 			ret = notifier_from_errno(-EIO);
 			goto out;
 		}
+
+		netdev_dbg(dev, "static fdb entry deleted MAC:%pM ID:%d\n", fdb_info->addr, dp_priv->macid);
 		break;
 	}
 

@@ -1,13 +1,6 @@
-/* Copyright (c) 2015-2019, The Linux Foundation. All rights reserved.
- *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License version 2 and
- * only version 2 as published by the Free Software Foundation.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
+/* SPDX-License-Identifier: GPL-2.0-only */
+/* Copyright (c) 2015-2021, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2024 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #ifndef DIAGFWD_SOCKET_H
@@ -30,7 +23,7 @@ enum {
 	SOCKET_ADSP,
 	SOCKET_WCNSS,
 	SOCKET_SLPI,
-	SOCKET_CDSP,
+	SOCKET_CDSP = 5,
 	SOCKET_NPU,
 	SOCKET_APPS,
 	NUM_SOCKET_SUBSYSTEMS,
@@ -41,6 +34,7 @@ struct diag_socket_info {
 	uint8_t type;
 	uint8_t port_type;
 	uint8_t inited;
+	uint8_t reset_flag;
 	atomic_t opened;
 	atomic_t diag_state;
 	uint32_t pkt_len;
@@ -76,4 +70,5 @@ int diag_socket_check_state(void *ctxt);
 int diag_socket_init(void);
 void diag_socket_exit(void);
 int diag_socket_init_peripheral(uint8_t peripheral);
+struct diag_socket_info *diag_get_socket_info_ptr(int type, int peripheral);
 #endif

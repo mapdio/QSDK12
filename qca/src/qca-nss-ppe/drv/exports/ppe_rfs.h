@@ -28,14 +28,24 @@
 #define PPE_RFS_V4_RULE_FLAG_BRIDGE_FLOW 0x1
 #define PPE_RFS_V4_RULE_FLAG_RETURN_VALID 0x2
 #define PPE_RFS_V4_RULE_FLAG_FLOW_VALID 0x4
+#define PPE_RFS_V4_RULE_FLAG_QOS_VALID 0x8
 
 #define PPE_RFS_V6_RULE_FLAG_BRIDGE_FLOW 0x10
 #define PPE_RFS_V6_RULE_FLAG_RETURN_VALID 0x20
 #define PPE_RFS_V6_RULE_FLAG_FLOW_VALID 0x40
+#define PPE_RFS_V6_RULE_FLAG_QOS_VALID 0x80
 
 enum ppe_rfs_ret {
 	PPE_RFS_RET_SUCCESS = 0,	/**< RFS operation succeeded */
 	PPE_RFS_RET_FAILURE = 1,	/**< RFS operation failed */
+};
+
+/**
+ * QoS connection rule structure.
+ */
+struct ppe_rfs_qos_rule {
+	u32 flow_qos_tag;	/**< QoS tag associated with this rule for flow direction. */
+	u32 return_qos_tag;	/**< QoS tag associated with this rule for return direction. */
 };
 
 /**
@@ -77,6 +87,7 @@ struct ppe_rfs_ipv4_rule_create_msg {
 	u16 rule_flags;					/**< Bit flags associated with the rule. */
 	struct ppe_rfs_ipv4_5tuple tuple;		/**< Holds values of 5-tuple. */
 	struct ppe_rfs_ipv4_connection_rule conn_rule;  /**< Basic connection-specific data. */
+	struct ppe_rfs_qos_rule qos_rule;			/**< Holds qos tag information */
 };
 
 /**
@@ -124,6 +135,7 @@ struct ppe_rfs_ipv6_rule_create_msg {
 	u16 rule_flags;					/**< Bit flags associated with the rule. */
 	struct ppe_rfs_ipv6_5tuple tuple;		/**< Holds values of the ppe_ipv6_5tuple tuple. */
 	struct ppe_rfs_ipv6_connection_rule conn_rule;	/**< Basic connection-specific data. */
+	struct ppe_rfs_qos_rule qos_rule;			/**< Holds qos tag information */
 };
 
 /**

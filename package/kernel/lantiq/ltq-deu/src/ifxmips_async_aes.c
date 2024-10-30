@@ -100,11 +100,7 @@ extern char debug_level;
 
 
 static int disable_multiblock = 0;
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(2,4,0)
 module_param(disable_multiblock, int, 0);
-#else
-MODULE_PARM_DESC(disable_multiblock, "Disable encryption of whole multiblock buffers");
-#endif
 
 static int disable_deudma = 1;
 
@@ -968,7 +964,7 @@ static struct lq_aes_alg aes_drivers_alg[] = {
          .alg = {
            .cra_name 	    = "aes",
            .cra_driver_name = "ifxdeu-aes",
-           .cra_flags       = CRYPTO_ALG_TYPE_ABLKCIPHER | CRYPTO_ALG_ASYNC,
+           .cra_flags       = CRYPTO_ALG_TYPE_ABLKCIPHER | CRYPTO_ALG_KERN_DRIVER_ONLY | CRYPTO_ALG_ASYNC,
            .cra_blocksize   = AES_BLOCK_SIZE,
            .cra_ctxsize     = sizeof(struct aes_ctx),
            .cra_type        = &crypto_ablkcipher_type,
@@ -988,7 +984,7 @@ static struct lq_aes_alg aes_drivers_alg[] = {
      .alg = {
            .cra_name        = "ecb(aes)",
            .cra_driver_name = "ifxdeu-ecb(aes)",
-           .cra_flags       = CRYPTO_ALG_TYPE_ABLKCIPHER | CRYPTO_ALG_ASYNC,
+           .cra_flags       = CRYPTO_ALG_TYPE_ABLKCIPHER | CRYPTO_ALG_KERN_DRIVER_ONLY | CRYPTO_ALG_ASYNC,
            .cra_blocksize   = AES_BLOCK_SIZE,
            .cra_ctxsize     = sizeof(struct aes_ctx),
            .cra_type        = &crypto_ablkcipher_type,
@@ -1008,7 +1004,7 @@ static struct lq_aes_alg aes_drivers_alg[] = {
          .alg = {
            .cra_name        = "cbc(aes)",
            .cra_driver_name = "ifxdeu-cbc(aes)",
-           .cra_flags       = CRYPTO_ALG_TYPE_ABLKCIPHER | CRYPTO_ALG_ASYNC,
+           .cra_flags       = CRYPTO_ALG_TYPE_ABLKCIPHER | CRYPTO_ALG_KERN_DRIVER_ONLY | CRYPTO_ALG_ASYNC,
            .cra_blocksize   = AES_BLOCK_SIZE,
            .cra_ctxsize     = sizeof(struct aes_ctx),
            .cra_type        = &crypto_ablkcipher_type,
@@ -1028,7 +1024,7 @@ static struct lq_aes_alg aes_drivers_alg[] = {
          .alg = {
            .cra_name        = "ctr(aes)",
            .cra_driver_name = "ifxdeu-ctr(aes)",
-           .cra_flags       = CRYPTO_ALG_TYPE_ABLKCIPHER | CRYPTO_ALG_ASYNC,
+           .cra_flags       = CRYPTO_ALG_TYPE_ABLKCIPHER | CRYPTO_ALG_KERN_DRIVER_ONLY | CRYPTO_ALG_ASYNC,
            .cra_blocksize   = AES_BLOCK_SIZE,
            .cra_ctxsize     = sizeof(struct aes_ctx),
            .cra_type        = &crypto_ablkcipher_type,
@@ -1048,7 +1044,7 @@ static struct lq_aes_alg aes_drivers_alg[] = {
      .alg = {
            .cra_name        = "rfc3686(ctr(aes))",
            .cra_driver_name = "ifxdeu-rfc3686(ctr(aes))",
-           .cra_flags       = CRYPTO_ALG_TYPE_ABLKCIPHER | CRYPTO_ALG_ASYNC,
+           .cra_flags       = CRYPTO_ALG_TYPE_ABLKCIPHER | CRYPTO_ALG_KERN_DRIVER_ONLY | CRYPTO_ALG_ASYNC,
            .cra_blocksize   = AES_BLOCK_SIZE,
            .cra_ctxsize     = sizeof(struct aes_ctx),
            .cra_type        = &crypto_ablkcipher_type,

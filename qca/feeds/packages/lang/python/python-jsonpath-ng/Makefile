@@ -5,15 +5,17 @@
 include $(TOPDIR)/rules.mk
 
 PKG_NAME:=python-jsonpath-ng
-PKG_VERSION:=1.4.3
+PKG_VERSION:=1.5.3
 PKG_RELEASE:=1
 PKG_MAINTAINER:=Karel Kočí <cynerd@email.cz>
 
-PKG_SOURCE_URL:=https://pypi.python.org/packages/source/j/jsonpath-ng/
-PKG_SOURCE:=jsonpath-ng-$(PKG_VERSION).tar.gz
-PKG_HASH:=b1fc75b877e9b2f46845a455fbdcfb0f0d9c727c45c19a745d02db620a9ef0be
-PKG_BUILD_DIR:=$(BUILD_DIR)/jsonpath-ng-$(PKG_VERSION)
+PYPI_NAME:=jsonpath-ng
+PKG_HASH:=a273b182a82c1256daab86a313b937059261b5c5f8c4fa3fc38b882b344dd567
 
+PKG_LICENSE:=Apache-2.0
+PKG_LICENSE_FILES:=LICENSE
+
+include ../pypi.mk
 include $(INCLUDE_DIR)/package.mk
 include ../python3-package.mk
 
@@ -22,9 +24,23 @@ define Package/python3-jsonpath-ng
   CATEGORY:=Languages
   SUBMENU:=Python
   URL:=https://github.com/h2non/jsonpath-ng
-  TITLE:=python3-jsonpath-ng
-  DEPENDS:=+python3-ply +python3-six +python3-decorator
-  VARIANT:=python3
+  TITLE:=Standard compliant implementation of JSONPath
+  DEPENDS:= \
+    +python3-light \
+    +python3-logging \
+    +python3-ply \
+    +python3-six \
+    +python3-decorator
+endef
+
+define Package/python3-jsonpath-ng/description
+A final implementation of JSONPath for Python that aims to be standard
+compliant, including arithmetic and binary comparison operators, as
+defined in the original JSONPath proposal.
+
+This packages merges both jsonpath-rw and jsonpath-rw-ext and provides
+several AST API enhancements, such as the ability to update or removes
+nodes in the tree.
 endef
 
 $(eval $(call Py3Package,python3-jsonpath-ng))

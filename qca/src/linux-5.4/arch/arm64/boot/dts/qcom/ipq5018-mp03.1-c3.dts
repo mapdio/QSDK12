@@ -30,6 +30,7 @@
 			/delete-node/ethernet-phy@1;
 			/delete-node/ethernet-phy@2;
 			/delete-node/ethernet-phy@3;
+			/delete-node/switch0@10;
 		};
 
 		ess-instance {

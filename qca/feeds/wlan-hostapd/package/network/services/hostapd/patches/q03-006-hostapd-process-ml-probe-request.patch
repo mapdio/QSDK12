@@ -35,7 +35,7 @@ Signed-off-by: Sriram R <quic_srirrama@quicinc.com>
  #ifdef NEED_AP_MLME
  
  static u8 * hostapd_eid_bss_load(struct hostapd_data *hapd, u8 *eid, size_t len)
-@@ -595,11 +602,281 @@ static u8 * hostapd_ext_capab_mbssid(str
+@@ -595,11 +602,240 @@ static u8 * hostapd_ext_capab_mbssid(str
  	return eid;
  }
  
@@ -79,12 +79,10 @@ Signed-off-by: Sriram R <quic_srirrama@quicinc.com>
 +	const u8 *oelem_data, *lelem_data;
 +	u8 *own_data, *link_data;
 +	const struct element *oelem, *lelem;
-+	bool is_ext, ie_found;
++	bool is_ext;
 +	/* extra len used in the logic incudes the element id and len */
 +	u8 extra_len = 2;
 +	size_t sta_profile_len = 0;
-+	u8 ninherit_elemlist[254] = {0}, ninherit_elemlist_len = 0;
-+	u8 ninherit_elemextlist[254] = {0}, ninherit_elemextlist_len = 0;
 +
 +	if (sta_profile) {
 +		memcpy(sta_profile, &own_fdata->u.probe_resp.capab_info, sizeof(le16));
@@ -106,7 +104,6 @@ Signed-off-by: Sriram R <quic_srirrama@quicinc.com>
 +	 * the sta profile.
 +	 */
 +	for_each_element(oelem, own_data, own_data_len) {
-+		ie_found = false;
 +		is_ext = false;
 +		oelem_data = oelem->data;
 +		oelen = oelem->datalen;
@@ -135,7 +132,6 @@ Signed-off-by: Sriram R <quic_srirrama@quicinc.com>
 +			}
 +
 +			if (oeid == leid) {
-+				ie_found = true;
 +				if (oelen != lelen ||
 +				    memcmp(oelem->data, lelem->data, oelen)) {
 +					if (sta_profile) {
@@ -152,12 +148,6 @@ Signed-off-by: Sriram R <quic_srirrama@quicinc.com>
 +
 +				break;
 +			}
-+		}
-+		if (!ie_found) {
-+			if (is_ext)
-+				ninherit_elemextlist[ninherit_elemextlist_len++] = oeid;
-+			else
-+				ninherit_elemlist[ninherit_elemlist_len++] = oeid;
 +		}
 +	}
 +
@@ -185,37 +175,6 @@ Signed-off-by: Sriram R <quic_srirrama@quicinc.com>
 +		}
 +		sta_profile_len += lelen + extra_len;
 +	}
-+
-+	if (sta_profile && (ninherit_elemlist_len || ninherit_elemextlist_len)) {
-+		*sta_profile = WLAN_EID_EXTENSION;
-+		sta_profile++;
-+
-+		*sta_profile = ninherit_elemlist_len + ninherit_elemextlist_len + 3;
-+		sta_profile++;
-+
-+		*sta_profile = WLAN_EID_EXT_NON_INHERITANCE;
-+		sta_profile++;
-+
-+		*sta_profile = ninherit_elemlist_len;
-+		sta_profile++;
-+		if (ninherit_elemlist_len)
-+			memcpy(sta_profile, ninherit_elemlist, ninherit_elemlist_len);
-+		sta_profile += ninherit_elemlist_len;
-+
-+		*sta_profile = ninherit_elemextlist_len;
-+		sta_profile++;
-+		if (ninherit_elemextlist_len)
-+			memcpy(sta_profile, ninherit_elemextlist, ninherit_elemextlist_len);
-+		sta_profile += ninherit_elemextlist_len;
-+
-+	}
-+
-+	/* Non-Inheritance IE = EID_EXT(1byte) + Total len field(1byte) +
-+	 * Ext tag number (1byte) + ninherit_elemlist_len(1byte) + ninherit_elemextlist_len(1byte) +
-+	 * data
-+	 */
-+	if (ninherit_elemlist_len || ninherit_elemextlist_len)
-+		sta_profile_len += 3 + 2 + ninherit_elemlist_len + ninherit_elemextlist_len;
 +
 +	return sta_profile_len;
 +}
@@ -318,7 +277,7 @@ Signed-off-by: Sriram R <quic_srirrama@quicinc.com>
  {
  	struct ieee80211_mgmt *resp;
  	u8 *pos, *epos, *csa_pos, *ext_cap_pos;
-@@ -654,8 +931,9 @@ static u8 * hostapd_gen_probe_resp(struc
+@@ -654,8 +890,9 @@ static u8 * hostapd_gen_probe_resp(struc
  		buflen += 3 + sizeof(struct ieee80211_eht_operation);
  		if (hapd->iconf->ru_punct_bitmap)
  			buflen +=  DISABLED_SUBCHANNEL_BITMAP_BYTES_SIZE;
@@ -330,7 +289,7 @@ Signed-off-by: Sriram R <quic_srirrama@quicinc.com>
  	}
  #endif /* CONFIG_IEEE80211BE */
  
-@@ -815,9 +1093,10 @@ static u8 * hostapd_gen_probe_resp(struc
+@@ -815,9 +1052,10 @@ static u8 * hostapd_gen_probe_resp(struc
  	if (hapd->iconf->ieee80211be && !hapd->conf->disable_11be) {
  		pos = hostapd_eid_eht_capab(hapd, pos, IEEE80211_MODE_AP);
  		pos = hostapd_eid_eht_operation(hapd, pos, IEEE80211_MODE_AP);
@@ -344,7 +303,7 @@ Signed-off-by: Sriram R <quic_srirrama@quicinc.com>
  	}
  #endif /* CONFIG_IEEE80211BE */
  
-@@ -1328,7 +1607,7 @@ void handle_probe_req(struct hostapd_dat
+@@ -1328,7 +1566,7 @@ void handle_probe_req(struct hostapd_dat
  		return;
  
  	if (elems.mle)
@@ -353,7 +312,7 @@ Signed-off-by: Sriram R <quic_srirrama@quicinc.com>
  				  &elems, &ml_data);
  
  	wpa_msg_ctrl(hapd->msg_ctx, MSG_INFO, RX_PROBE_REQUEST "sa=" MACSTR
-@@ -1338,7 +1617,7 @@ void handle_probe_req(struct hostapd_dat
+@@ -1338,7 +1576,7 @@ void handle_probe_req(struct hostapd_dat
  				      &resp_len,
  				      elems.mbssid_known_bss,
  				      elems.mbssid_known_bss_len,
@@ -362,7 +321,7 @@ Signed-off-by: Sriram R <quic_srirrama@quicinc.com>
  	if (resp == NULL)
  		return;
  
-@@ -1409,7 +1688,7 @@ static u8 * hostapd_probe_resp_offloads(
+@@ -1409,7 +1647,7 @@ static u8 * hostapd_probe_resp_offloads(
  
  	/* Generate a Probe Response template for the non-P2P case */
  	return hostapd_gen_probe_resp(hapd, NULL, 0, resp_len,
@@ -371,7 +330,7 @@ Signed-off-by: Sriram R <quic_srirrama@quicinc.com>
  }
  #endif /* NEED_AP_MLME */
  
-@@ -1439,7 +1718,7 @@ static u8 * hostapd_unsol_bcast_probe_re
+@@ -1427,7 +1665,7 @@ static u8 * hostapd_unsol_bcast_probe_re
  
  	return hostapd_gen_probe_resp(hapd, NULL, 0,
  				      &params->unsol_bcast_probe_resp_tmpl_len,
@@ -380,7 +339,7 @@ Signed-off-by: Sriram R <quic_srirrama@quicinc.com>
  }
  #endif /* CONFIG_IEEE80211AX */
  
-@@ -2298,6 +2577,9 @@ int ieee802_11_set_beacon(struct hostapd
+@@ -2273,6 +2511,9 @@ int ieee802_11_set_beacon(struct hostapd
  		}
  	}
  
@@ -392,7 +351,7 @@ Signed-off-by: Sriram R <quic_srirrama@quicinc.com>
  
 --- a/src/ap/hostapd.c
 +++ b/src/ap/hostapd.c
-@@ -387,6 +387,28 @@ static int hostapd_broadcast_wep_set(str
+@@ -385,6 +385,28 @@ static int hostapd_broadcast_wep_set(str
  #endif /* CONFIG_WEP */
  
  
@@ -421,7 +380,7 @@ Signed-off-by: Sriram R <quic_srirrama@quicinc.com>
  void hostapd_free_hapd_data(struct hostapd_data *hapd)
  {
  	os_free(hapd->probereq_cb);
-@@ -2825,6 +2847,8 @@ void hostapd_mld_unlink_bss(struct hosta
+@@ -2733,6 +2755,8 @@ void hostapd_mld_unlink_bss(struct hosta
  	if (!tbss || !tbss->mld)
  		return;
  
@@ -430,7 +389,7 @@ Signed-off-by: Sriram R <quic_srirrama@quicinc.com>
  	bss = tbss->mld->bss;
  
  	if (bss == tbss) {
-@@ -2844,6 +2868,7 @@ void hostapd_mld_unlink_bss(struct hosta
+@@ -2752,6 +2776,7 @@ void hostapd_mld_unlink_bss(struct hosta
  
  unlink:
  	tbss->mld->num_links--;
@@ -461,7 +420,7 @@ Signed-off-by: Sriram R <quic_srirrama@quicinc.com>
  /**
   * struct hostapd_data - hostapd per-BSS data structure
   */
-@@ -475,6 +482,8 @@ struct hostapd_data {
+@@ -473,6 +480,8 @@ struct hostapd_data {
  #ifdef CONFIG_CTRL_IFACE_UDP
         unsigned char ctrl_iface_cookie[CTRL_IFACE_COOKIE_LEN];
  #endif /* CONFIG_CTRL_IFACE_UDP */
@@ -472,7 +431,7 @@ Signed-off-by: Sriram R <quic_srirrama@quicinc.com>
  
 --- a/src/ap/ieee802_11.c
 +++ b/src/ap/ieee802_11.c
-@@ -8025,6 +8025,107 @@ u8 * hostapd_eid_rnr(struct hostapd_data
+@@ -8012,6 +8012,107 @@ u8 * hostapd_eid_rnr(struct hostapd_data
  }
  
  
@@ -580,7 +539,7 @@ Signed-off-by: Sriram R <quic_srirrama@quicinc.com>
  size_t hostapd_eid_basic_mle_len(struct hostapd_data *hapd, u32 type,
  				 struct multi_link_data *ml_data)
  {
-@@ -8048,7 +8149,10 @@ size_t hostapd_eid_basic_mle_len(struct
+@@ -8035,7 +8136,10 @@ size_t hostapd_eid_basic_mle_len(struct
  		return total_len;
  	}
  
@@ -592,7 +551,7 @@ Signed-off-by: Sriram R <quic_srirrama@quicinc.com>
  	return total_len;
  }
  
-@@ -8106,19 +8210,91 @@ u8 * hostapd_eid_basic_mle(struct hostap
+@@ -8093,19 +8197,91 @@ u8 * hostapd_eid_basic_mle(struct hostap
  		return eid;
  	}
  
@@ -686,7 +645,7 @@ Signed-off-by: Sriram R <quic_srirrama@quicinc.com>
  		return;
  
  	ml_data->present = true;
-@@ -8127,7 +8303,10 @@ void hostapd_parse_mle(struct hostapd_da
+@@ -8114,7 +8290,10 @@ void hostapd_parse_mle(struct hostapd_da
  
  	os_memcpy(&ml_data->control, mle, sizeof(struct multi_link_control));
  

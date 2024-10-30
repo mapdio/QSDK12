@@ -1,4 +1,3 @@
-# Copyright (c) 2013 The Linux Foundation. All rights reserved.
 # allow for local directory containing source to be used
 
 LOCAL_SRC ?= $(TOPDIR)/qca/src/$(PKG_NAME)

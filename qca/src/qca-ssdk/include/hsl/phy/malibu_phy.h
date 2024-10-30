@@ -1,16 +1,18 @@
 /*
  * Copyright (c) 2015, 2017, 2019, The Linux Foundation. All rights reserved.
- * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
- * Permission to use, copy, modify, and/or distribute this software for
- * any purpose with or without fee is hereby granted, provided that the
- * above copyright notice and this permission notice appear in all copies.
+ * Copyright (c) 2022-2024 Qualcomm Innovation Center, Inc. All rights reserved.
+ *
+ * Permission to use, copy, modify, and/or distribute this software for any
+ * purpose with or without fee is hereby granted, provided that the above
+ * copyright notice and this permission notice appear in all copies.
+ *
  * THE SOFTWARE IS PROVIDED "AS IS" AND THE AUTHOR DISCLAIMS ALL WARRANTIES
  * WITH REGARD TO THIS SOFTWARE INCLUDING ALL IMPLIED WARRANTIES OF
  * MERCHANTABILITY AND FITNESS. IN NO EVENT SHALL THE AUTHOR BE LIABLE FOR
  * ANY SPECIAL, DIRECT, INDIRECT, OR CONSEQUENTIAL DAMAGES OR ANY DAMAGES
  * WHATSOEVER RESULTING FROM LOSS OF USE, DATA OR PROFITS, WHETHER IN AN
- * ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT
- * OF OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
+ * ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF
+ * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  */
 
 #ifndef _MALIBU_PHY_H_
@@ -165,7 +167,9 @@ extern "C"
 #define MALIBU_PHY_PSGMII_AMDET              0x3
 #define MALIBU_PHY_SGMII_BASET              0x4
 
-#define MALIBU_PHY4_PREFER_FIBER  0x400
+#define MALIBU_PHY4_PREFER_FIBER     0x400
+#define MALIBU_PHY4_PREFER_COPPER    0x8000
+
 #define PHY4_PREFER_COPPER                0x0
 #define PHY4_PREFER_FIBER                 0x1
 
@@ -547,24 +551,20 @@ extern "C"
 #define MALIBU_INTR_DUPLEX_CHANGE             0x2000
 #define MALIBU_INTR_STATUS_UP_CHANGE          0x0400
 #define MALIBU_INTR_STATUS_DOWN_CHANGE        0x0800
-#define MALIBU_INTR_BX_FX_STATUS_DOWN_CHANGE        0x0100
-#define MALIBU_INTR_BX_FX_STATUS_UP_CHANGE        0x0080
-#define MALIBU_INTR_MEDIA_STATUS_CHANGE             0x1000
-#define MALIBU_INTR_WOL             0x0001
-#define MALIBU_INTR_POE             0x0002
+#define MALIBU_INTR_BX_FX_STATUS_DOWN_CHANGE  0x0100
+#define MALIBU_INTR_BX_FX_STATUS_UP_CHANGE    0x0080
+#define MALIBU_INTR_MEDIA_STATUS_CHANGE       0x1000
+#define MALIBU_INTR_WOL                       0x0001
+#define MALIBU_INTR_POE                       0x0002
 
-#define RUN_CDT 0x8000
-#define CABLE_LENGTH_UNIT 0x0400
+#define RUN_CDT                               0x8000
+#define CABLE_LENGTH_UNIT                     0x0400
 
-/** Phy preferred medium type */
-  typedef enum
-  {
-    MALIBU_PHY_MEDIUM_COPPER = 0,
-				       /**< Copper */
-    MALIBU_PHY_MEDIUM_FIBER = 1,
-				       /**< Fiber */
+#define MALIBU_PHY_MMD7_LED_100_N_MAP_CTRL    0x8074
+#define MALIBU_PHY_MMD7_LED_1000_N_MAP_CTRL   0x8076
 
-  } malibu_phy_medium_t;
+#define MALIBU_PHY_MMD7_LED_100_N_FORCE_CTRL  0x8075
+#define MALIBU_PHY_MMD7_LED_1000_N_FORCE_CTRL 0x8077
 
 /** Phy pages */
   typedef enum
@@ -663,10 +663,6 @@ extern "C"
   sw_error_t
   malibu_phy_set_8023az(a_uint32_t dev_id, a_uint32_t phy_id,
 			a_bool_t enable);
-
-  sw_error_t
-  malibu_phy_get_phy_id(a_uint32_t dev_id, a_uint32_t phy_id,
-		  a_uint32_t *phy_data);
 #endif
   int malibu_phy_init(a_uint32_t dev_id, a_uint32_t port_bmp);
 

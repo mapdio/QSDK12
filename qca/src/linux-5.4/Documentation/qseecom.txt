@@ -127,6 +127,12 @@ The steps to use AES and RSA APIs are as below:
 RSA API: (qseecom_props function = RSA_SEC_KEY)
 It is used for encrypting/decrypting data based on RSA algorithm in TZ.
 
+RSA pad scheme:
+Select the required RSA padding scheme with the below sysfs entry (1 -> PKCS, 2 -> PSS)
+(1) eg: echo 1 > /sys/rsa_sec_key/rsa_pad_scheme
+View the selected RSA pad scheme as shown below
+(2) cat /sys/rsa_sec_key/rsa_pad_scheme
+
 RSA Generate Key blob:
 (1) cat /sys/rsa_sec_key/rsa_generate > key_blob.txt
 
@@ -156,7 +162,9 @@ RSA Sign data:
     or
     cat import_key_blob.txt > /sys/rsa_sec_key/rsa_key_blob
 (2) echo -n "data.txt" > /sys/rsa_sec_key/rsa_sign
-    (Note: data.txt is the input file that can contain plain data upto size 8k)
+    (Note: data.txt is the input file that can contains plain data.
+     8k plain data size is supported only in IPQ807x platform.
+     For other platforms the plain data max size is 2k bytes.)
 (3) cat /sys/rsa_sec_key/rsa_sign > signed_data.txt
 
 RSA Verification of Signature:
@@ -164,10 +172,21 @@ RSA Verification of Signature:
     or
     cat import_key_blob.txt > /sys/rsa_sec_key/rsa_key_blob
 (2) echo -n "data.txt" > /sys/rsa_sec_key/rsa_sign
-    (Note: data.txt is the input file that can contain plain data upto size 8k)
+    (Note: data.txt is the input file that can contains plain data.
+     8k plain data size is supported only in IPQ807x platform.
+     For other platforms the plain data max size is 2k bytes.)
 (3) cat signed_data.txt > /sys/rsa_sec_key/rsa_verify
 (4) cat /sys/rsa_sec_key/rsa_verify > verification_result.txt
 (5) cat verification_result.txt
+
+RSA Update key blob:
+Use these steps to update the padding scheme present in a key blob
+(1) cat key_blob.txt > /sys/rsa_sec_key/rsa_key_blob
+    or
+    cat import_key_blob.txt > /sys/rsa_sec_key/rsa_key_blob
+    Note: Users can also input an externally saved key blob which was not created
+          using Generate/Import commands
+(2) cat /sys/rsa_sec_key/rsa_update_keyblob > updated_key_blob.txt
 
 RSA TZAPP API: (qseecom_props function = RSA_TZAPP)
 It is used for encrypting/decrypting data based on RSA algorithm in TZapp.
@@ -276,6 +295,11 @@ To derive the key with given inputs:
 (4) cat /sys/sec_key/derive_aes_key > key_handle.txt
 (5) cat key_handle.txt
 
+(or)
+
+To derive the key for 128 byte context:
+(4) cat /sys/sec_key/derive_aes_max_ctxt_key > key_handle.txt
+(5) cat key_handle.txt
 clear key API:
 
 Note:

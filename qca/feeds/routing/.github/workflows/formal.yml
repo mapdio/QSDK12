@@ -11,7 +11,7 @@ jobs:
       fail-fast: false
 
     steps:
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v3
         with:
           ref: ${{ github.event.pull_request.head.sha }}
           fetch-depth: 0
@@ -31,14 +31,6 @@ jobs:
             info "=== Checking commit '$commit'"
             if git show --format='%P' -s $commit | grep -qF ' '; then
               err "Pull request should not include merge commits"
-              RET=1
-            fi
-
-            author="$(git show -s --format=%aN $commit)"
-            if echo $author | grep -q '\S\+\s\+\S\+'; then
-              success "Author name ($author) seems ok"
-            else
-              err "Author name ($author) need to be your real name 'firstname lastname'"
               RET=1
             fi
 

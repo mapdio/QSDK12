@@ -9,7 +9,7 @@ include $(TOPDIR)/rules.mk
 
 PKG_NAME:=dcwapd
 PKG_VERSION:=1.1.0
-PKG_RELEASE:=2
+PKG_RELEASE:=4
 
 PKG_SOURCE:=$(PKG_NAME)-$(PKG_VERSION).tar.gz
 PKG_SOURCE_URL:=https://codeload.github.com/ewsi/$(PKG_NAME)/tar.gz/v$(PKG_VERSION)?
@@ -22,8 +22,8 @@ PKG_LICENSE_FILES:=COPYING
 PKG_FIXUP:=autoreconf
 PKG_INSTALL:=1
 PKG_BUILD_PARALLEL:=1
+PKG_BUILD_FLAGS:=gc-sections lto
 
-include $(INCLUDE_DIR)/uclibc++.mk
 include $(INCLUDE_DIR)/package.mk
 
 define Package/dcwapd
@@ -32,7 +32,7 @@ define Package/dcwapd
   SUBMENU:=Routing and Redirection
   TITLE:=Dual-Channel WiFi AP daemon
   URL:=https://www.edgewaterwireless.com
-  DEPENDS:=$(CXX_DEPENDS) +kmod-macremapper +libdcwsocket +libdcwproto +mrmctl +libuci
+  DEPENDS:=+libstdcpp +kmod-macremapper +libdcwsocket +libdcwproto +mrmctl +libuci
 endef
 
 define Package/dcwapd/description
@@ -43,12 +43,16 @@ CONFIGURE_ARGS += \
 	--enable-platform=linuxjsonstatic \
 	--enable-shared
 
-TARGET_CXXFLAGS += -std=c++11 -DRAPIDJSON_HAS_CXX11_RVALUE_REFS=0 -ffunction-sections -fdata-sections -flto
-TARGET_LDFLAGS += -ldcwproto -ldcwsocket -lmrmfilterparser -luci -Wl,--gc-sections,--as-needed
+TARGET_CXXFLAGS += -std=c++11 -DRAPIDJSON_HAS_CXX11_RVALUE_REFS=0
+TARGET_LDFLAGS += -ldcwproto -ldcwsocket -lmrmfilterparser -luci -Wl,--as-needed
 
 define Build/InstallDev
 	$(INSTALL_DIR) $(1)/usr/lib
 	$(CP) $(PKG_INSTALL_DIR)/usr/lib/* $(1)/usr/lib/
+endef
+
+define Package/dcwapd/conffiles
+/etc/config/dcwapd
 endef
 
 define Package/dcwapd/install

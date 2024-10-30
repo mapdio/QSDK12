@@ -1,3 +1,16 @@
+Package/brcmfmac-firmware-4339-sdio = $(call Package/firmware-default,Broadcom 4339 FullMAC SDIO firmware)
+define Package/brcmfmac-firmware-4339-sdio/install
+	$(INSTALL_DIR) $(1)/lib/firmware/cypress
+	$(INSTALL_DATA) \
+		$(PKG_BUILD_DIR)/cypress/cyfmac4339-sdio.bin \
+		$(1)/lib/firmware/cypress/
+	$(INSTALL_DIR) $(1)/lib/firmware/brcm
+	$(LN) \
+		../cypress/cyfmac4339-sdio.bin \
+		$(1)/lib/firmware/brcm/brcmfmac4339-sdio.bin
+endef
+$(eval $(call BuildPackage,brcmfmac-firmware-4339-sdio))
+
 Package/brcmfmac-firmware-43602a1-pcie = $(call Package/firmware-default,Broadcom 43602a1 FullMAC PCIe firmware)
 define Package/brcmfmac-firmware-43602a1-pcie/install
 	$(INSTALL_DIR) $(1)/lib/firmware/brcm
@@ -34,23 +47,53 @@ define Package/brcmfmac-firmware-4329-sdio/install
 endef
 $(eval $(call BuildPackage,brcmfmac-firmware-4329-sdio))
 
-Package/brcmfmac-firmware-43362-sdio = $(call Package/firmware-default,Broadcom BCM43362 FullMac SDIO firmware)
-define Package/brcmfmac-firmware-43362-sdio/install
+Package/brcmfmac-nvram-43430-sdio = $(call Package/firmware-default,Broadcom BCM43430 SDIO NVRAM)
+define Package/brcmfmac-nvram-43430-sdio/install
 	$(INSTALL_DIR) $(1)/lib/firmware/brcm
 	$(INSTALL_DATA) \
-		$(PKG_BUILD_DIR)/brcm/brcmfmac43362-sdio.bin \
-		$(1)/lib/firmware/brcm/brcmfmac43362-sdio.bin
-endef
-$(eval $(call BuildPackage,brcmfmac-firmware-43362-sdio))
-
-Package/brcmfmac-firmware-43430-sdio = $(call Package/firmware-default,Broadcom BCM43430 FullMac SDIO firmware)
-define Package/brcmfmac-firmware-43430-sdio/install
-	$(INSTALL_DIR) $(1)/lib/firmware/brcm
+		$(PKG_BUILD_DIR)/brcm/brcmfmac43430-sdio.AP6212.txt \
+		$(1)/lib/firmware/brcm/
+	$(LN) \
+		brcmfmac43430-sdio.AP6212.txt \
+		$(1)/lib/firmware/brcm/brcmfmac43430-sdio.sinovoip,bpi-m2-plus.txt
+	$(LN) \
+		brcmfmac43430-sdio.AP6212.txt \
+		$(1)/lib/firmware/brcm/brcmfmac43430-sdio.sinovoip,bpi-m2-zero.txt
+	$(LN) \
+		brcmfmac43430-sdio.AP6212.txt \
+		$(1)/lib/firmware/brcm/brcmfmac43430-sdio.sinovoip,bpi-m2-ultra.txt
+	$(LN) \
+		brcmfmac43430-sdio.AP6212.txt \
+		$(1)/lib/firmware/brcm/brcmfmac43430-sdio.sinovoip,bpi-m3.txt
+	$(LN) \
+		brcmfmac43430-sdio.AP6212.txt \
+		$(1)/lib/firmware/brcm/brcmfmac43430-sdio.friendlyarm,nanopi-r1.txt
+	$(LN) \
+		brcmfmac43430-sdio.AP6212.txt \
+		$(1)/lib/firmware/brcm/brcmfmac43430-sdio.starfive,visionfive-v1.txt
+	$(LN) \
+		brcmfmac43430-sdio.AP6212.txt \
+		$(1)/lib/firmware/brcm/brcmfmac43430-sdio.beagle,beaglev-starlight-jh7100-a1.txt
+	$(LN) \
+		brcmfmac43430-sdio.AP6212.txt \
+		$(1)/lib/firmware/brcm/brcmfmac43430-sdio.beagle,beaglev-starlight-jh7100-r0.txt
 	$(INSTALL_DATA) \
-		$(PKG_BUILD_DIR)/brcm/brcmfmac43430-sdio.bin \
-		$(1)/lib/firmware/brcm/brcmfmac43430-sdio.bin
+		$(PKG_BUILD_DIR)/brcm/brcmfmac43430-sdio.Hampoo-D2D3_Vi8A1.txt \
+		$(1)/lib/firmware/brcm/
+	$(INSTALL_DATA) \
+		$(PKG_BUILD_DIR)/brcm/brcmfmac43430-sdio.MUR1DX.txt \
+		$(1)/lib/firmware/brcm/
+	$(INSTALL_DATA) \
+		$(PKG_BUILD_DIR)/brcm/brcmfmac43430-sdio.raspberrypi,3-model-b.txt \
+		$(1)/lib/firmware/brcm/
+	$(LN) \
+		brcmfmac43430-sdio.raspberrypi,3-model-b.txt \
+		$(1)/lib/firmware/brcm/brcmfmac43430-sdio.raspberrypi,model-zero-w.txt
+	$(LN) \
+		brcmfmac43430-sdio.raspberrypi,3-model-b.txt \
+		$(1)/lib/firmware/brcm/brcmfmac43430-sdio.raspberrypi,model-zero-2-w.txt
 endef
-$(eval $(call BuildPackage,brcmfmac-firmware-43430-sdio))
+$(eval $(call BuildPackage,brcmfmac-nvram-43430-sdio))
 
 Package/brcmfmac-firmware-43430a0-sdio = $(call Package/firmware-default,Broadcom BCM43430a0 FullMac SDIO firmware)
 define Package/brcmfmac-firmware-43430a0-sdio/install
@@ -61,14 +104,50 @@ define Package/brcmfmac-firmware-43430a0-sdio/install
 endef
 $(eval $(call BuildPackage,brcmfmac-firmware-43430a0-sdio))
 
-Package/brcmfmac-firmware-43455-sdio = $(call Package/firmware-default,Broadcom BCM43455 FullMac SDIO firmware)
-define Package/brcmfmac-firmware-43455-sdio/install
+Package/brcmfmac-nvram-43455-sdio = $(call Package/firmware-default,Broadcom BCM43455 SDIO NVRAM)
+define Package/brcmfmac-nvram-43455-sdio/install
 	$(INSTALL_DIR) $(1)/lib/firmware/brcm
 	$(INSTALL_DATA) \
-		$(PKG_BUILD_DIR)/brcm/brcmfmac43455-sdio.bin \
-		$(1)/lib/firmware/brcm/brcmfmac43455-sdio.bin
+		$(PKG_BUILD_DIR)/brcm/brcmfmac43455-sdio.acepc-t8.txt \
+		$(1)/lib/firmware/brcm/
+	$(INSTALL_DATA) \
+		$(PKG_BUILD_DIR)/brcm/brcmfmac43455-sdio.raspberrypi,3-model-b-plus.txt \
+		$(1)/lib/firmware/brcm/
+	$(LN) \
+		brcmfmac43455-sdio.raspberrypi,3-model-b-plus.txt \
+		$(1)/lib/firmware/brcm/brcmfmac43455-sdio.raspberrypi,3-model-a-plus.txt
+	$(INSTALL_DATA) \
+		$(PKG_BUILD_DIR)/brcm/brcmfmac43455-sdio.raspberrypi,4-model-b.txt \
+		$(1)/lib/firmware/brcm/
+	$(LN) \
+		brcmfmac43455-sdio.raspberrypi,4-model-b.txt \
+		$(1)/lib/firmware/brcm/brcmfmac43455-sdio.raspberrypi,4-compute-module.txt
+	$(LN) \
+		brcmfmac43455-sdio.raspberrypi,4-model-b.txt \
+		$(1)/lib/firmware/brcm/brcmfmac43455-sdio.Raspberry\ Pi\ Foundation-Raspberry\ Pi\ 4\ Model\ B.txt
+	$(LN) \
+		brcmfmac43455-sdio.raspberrypi,4-model-b.txt \
+		$(1)/lib/firmware/brcm/brcmfmac43455-sdio.Raspberry\ Pi\ Foundation-Raspberry\ Pi\ Compute\ Module\ 4.txt
+	$(INSTALL_DATA) \
+		$(PKG_BUILD_DIR)/brcm/brcmfmac43455-sdio.MINIX-NEO\ Z83-4.txt \
+		$(1)/lib/firmware/brcm/
+	$(INSTALL_DATA) \
+		$(PKG_BUILD_DIR)/brcm/brcmfmac43455-sdio.AW-CM256SM.txt \
+		$(1)/lib/firmware/brcm/
+	$(LN) \
+		brcmfmac43455-sdio.AW-CM256SM.txt \
+		$(1)/lib/firmware/brcm/brcmfmac43455-sdio.beagle,am5729-beagleboneai.txt
+	$(LN) \
+		brcmfmac43455-sdio.AW-CM256SM.txt \
+		$(1)/lib/firmware/brcm/brcmfmac43455-sdio.pine64,pinebook-pro.txt
+	$(LN) \
+		brcmfmac43455-sdio.AW-CM256SM.txt \
+		$(1)/lib/firmware/brcm/brcmfmac43455-sdio.pine64,pinephone-pro.txt
+	$(LN) \
+		brcmfmac43455-sdio.AW-CM256SM.txt \
+		$(1)/lib/firmware/brcm/brcmfmac43455-sdio.pine64,quartz64-b.txt
 endef
-$(eval $(call BuildPackage,brcmfmac-firmware-43455-sdio))
+$(eval $(call BuildPackage,brcmfmac-nvram-43455-sdio))
 
 Package/brcmfmac-firmware-usb = $(call Package/firmware-default,Broadcom BCM43xx fullmac USB firmware)
 define Package/brcmfmac-firmware-usb/install
@@ -100,3 +179,12 @@ define Package/bnx2-firmware/install
 		$(1)/lib/firmware/bnx2/
 endef
 $(eval $(call BuildPackage,bnx2-firmware))
+
+Package/bnx2x-firmware = $(call Package/firmware-default,=QLogic 5771x/578xx firmware)
+define Package/bnx2x-firmware/install
+	$(INSTALL_DIR) $(1)/lib/firmware/bnx2x
+	$(INSTALL_DATA) \
+		$(PKG_BUILD_DIR)/bnx2x/* \
+		$(1)/lib/firmware/bnx2x/
+endef
+$(eval $(call BuildPackage,bnx2x-firmware))

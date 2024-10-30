@@ -484,7 +484,7 @@ Signed-off-by: P Praneesh <quic_ppranees@quicinc.com>
 +
 +		if (unlikely(!msdu)) {
 +			ath12k_warn(ar->ab,
-+				    "mon buf_addr: dest desc with inval buf_id %d\n",
++				    "montior destination with invalid buf_id %d\n",
 +				    buf_id);
 +			return;
 +		}
@@ -498,7 +498,7 @@ Signed-off-by: P Praneesh <quic_ppranees@quicinc.com>
 +
 +		msdu_count = ppdu_info->mon_mpdu[ppdu_info->mpdu_count].msdu_count;
 +		if (ath12k_dp_pkt_set_pktlen(msdu, offset) ||
-+		    msdu_count >= HAL_RX_MAX_MSDU) {
++		    msdu_count > HAL_RX_MAX_MSDU) {
 +			dev_kfree_skb_any(msdu);
 +			return;
 +		}
@@ -619,17 +619,7 @@ Signed-off-by: P Praneesh <quic_ppranees@quicinc.com>
  	}
  	return hal_status;
  }
-@@ -1262,7 +1490,8 @@ int ath12k_dp_mon_buf_replenish(struct a
- 	struct sk_buff *skb;
- 	struct hal_srng *srng;
- 	dma_addr_t paddr;
--	u32 cookie, buf_id;
-+	u32 cookie;
-+	int buf_id;
- 
- 	srng = &ab->hal.srng_list[buf_ring->refill_buf_ring.ring_id];
- 	spin_lock_bh(&srng->lock);
-@@ -2468,8 +2697,9 @@ move_next:
+@@ -2468,8 +2696,9 @@ move_next:
  						log_type, rx_buf_sz);
  
  		if (flag == ATH12K_DP_RX_MONITOR_MODE)
@@ -641,7 +631,7 @@ Signed-off-by: P Praneesh <quic_ppranees@quicinc.com>
  		else
  			hal_status =
  				ath12k_dp_mon_tx_parse_mon_status(ar, pmon, mac_id,
-@@ -2610,7 +2840,7 @@ move_next:
+@@ -2610,7 +2839,7 @@ move_next:
  
  	while ((skb = __skb_dequeue(&skb_list))) {
  

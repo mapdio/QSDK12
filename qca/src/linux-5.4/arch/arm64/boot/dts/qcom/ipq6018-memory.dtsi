@@ -136,6 +136,10 @@
 			no-map;
 			reg = <0x0 0x60000 0x0 0x6000>;
 		};
+
+		minidump_mem: minidump_mem@0 {
+			no-map;
+		};
 	};
 
 #elif __IPQ_MEM_PROFILE_512_MB__
@@ -259,6 +263,10 @@
 		rpm_msg_ram: rpm_msg_ram@0x60000 {
 			no-map;
 			reg = <0x0 0x60000 0x0 0x6000>;
+		};
+
+		minidump_mem: minidump_mem@0 {
+			no-map;
 		};
 	};
 
@@ -386,6 +394,10 @@
 		rpm_msg_ram: rpm_msg_ram@0x60000 {
 			no-map;
 			reg = <0x0 0x60000 0x0 0x6000>;
+		};
+
+		minidump_mem: minidump_mem@0 {
+			no-map;
 		};
 	};
 #endif

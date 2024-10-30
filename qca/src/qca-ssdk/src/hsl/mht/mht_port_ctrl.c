@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2021-2023 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2021-2024 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for any
  * purpose with or without fee is hereby granted, provided that the above
@@ -31,6 +31,9 @@
 #include "ssdk_mht_clk.h"
 #include "mht_port_ctrl.h"
 #include "mht_interface_ctrl.h"
+#include "ssdk_mht.h"
+#include "ssdk_dts.h"
+#include "ssdk_interrupt.h"
 
 #ifndef IN_PORTCONTROL_MINI
 #define PORT0_MAX_VIRT_RING	8
@@ -1115,6 +1118,111 @@ _mht_port_flowctrl_set(a_uint32_t dev_id, fal_port_t port_id, a_bool_t enable)
 }
 
 sw_error_t
+_mht_port_erp_power_mode_set(a_uint32_t dev_id, fal_port_t port_id,
+	fal_port_erp_power_mode_t power_mode)
+{
+	a_uint32_t i = 0, pbmp = 0;
+	phy_info_t *phy_info = NULL;
+	fal_mac_config_t mac_config = {0};
+	struct qca_phy_priv *priv = ssdk_phy_priv_data_get(dev_id);
+	SW_RTN_ON_NULL(priv);
+
+	switch (power_mode) {
+	case FAL_ERP_LOW_POWER:
+		if (hsl_port_feature_get(dev_id, port_id, PHY_F_ERP_LOW_POWER)) {
+			SSDK_INFO("port %d is already in low power mode\n", port_id);
+			return SW_OK;
+		}
+
+		/* off phy */
+		hsl_port_phy_pll_off(dev_id, port_id);
+		hsl_port_phy_power_off(dev_id, port_id);
+		hsl_port_feature_set(dev_id, port_id, PHY_F_ERP_LOW_POWER);
+
+		/* off serdes and switch core */
+		pbmp = ssdk_wan_bmp_get(dev_id) | ssdk_lan_bmp_get(dev_id);
+		while (pbmp) {
+			if (pbmp & 1) {
+				/* there is active channel port, only powr off current phy */
+				if (!hsl_port_feature_get(dev_id, i, PHY_F_ERP_LOW_POWER)) {
+					/* off LDO */
+					hsl_port_phy_ldo_set(dev_id, port_id, A_FALSE);
+					return SW_OK;
+				}
+			}
+			pbmp >>= 1;
+			i++;
+		}
+
+		/* pause intr task */
+		qca_intr_work_pause(priv);
+
+		/* manually excute polling task to finish all ports up to down sequence */
+		mutex_lock(&priv->qm_lock);
+		qca_mht_sw_mac_polling_task(priv);
+		mutex_unlock(&priv->qm_lock);
+
+		SSDK_DEBUG("disable manhattan switch core and serdes1\n");
+		/* pause mib task */
+		qca_phy_mib_work_pause(priv);
+		/* disable switch core */
+		SW_RTN_ON_ERROR(ssdk_mht_clk_disable(dev_id, MHT_SWITCH_CORE_CLK));
+
+		/* switch ahb to xo */
+		SW_RTN_ON_ERROR(ssdk_mht_clk_parent_set(dev_id, MHT_AHB_CLK, MHT_P_XO));
+		SW_RTN_ON_ERROR(ssdk_mht_clk_rate_set(dev_id, MHT_AHB_CLK, MHT_XO_CLK_RATE_50M));
+		/* assert serdes1 */
+		SW_RTN_ON_ERROR(ssdk_mht_clk_assert(dev_id, MHT_SRDS1_SYS_CLK));
+		/* off LDO */
+		hsl_port_phy_ldo_set(dev_id, port_id, A_FALSE);
+		break;
+	case FAL_ERP_ACTIVE:
+		if (!hsl_port_feature_get(dev_id, port_id, PHY_F_ERP_LOW_POWER)) {
+			SSDK_INFO("port %d is already in active mode\n", port_id);
+			return SW_OK;
+		}
+		/* on LDO */
+		hsl_port_phy_ldo_set(dev_id, port_id, A_TRUE);
+		/* resume serdes and switch core */
+		if (ssdk_mht_clk_is_asserted(dev_id, MHT_SRDS1_SYS_CLK)) {
+			SSDK_DEBUG("configure manhattan serdes1 and enable switch core\n");
+			/* configure serdes1 as sgmii plus mode */
+			phy_info = hsl_phy_info_get(dev_id);
+			phy_info->port_mode[SSDK_PHYSICAL_PORT0] = PORT_SGMII_PLUS;
+			mac_config.mac_mode = FAL_MAC_MODE_SGMII_PLUS;
+			mac_config.config.sgmii.clock_mode = FAL_INTERFACE_CLOCK_MAC_MODE;
+			mac_config.config.sgmii.auto_neg = A_FALSE;
+			mac_config.config.sgmii.force_speed = FAL_SPEED_2500;
+			SW_RTN_ON_ERROR(mht_interface_mac_mode_set(dev_id,
+					SSDK_PHYSICAL_PORT0, &mac_config));
+
+			/* switch ahb back to serdes1 */
+			SW_RTN_ON_ERROR(ssdk_mht_clk_parent_set(dev_id,
+					MHT_AHB_CLK, MHT_P_UNIPHY1_TX312P5M));
+			SW_RTN_ON_ERROR(ssdk_mht_clk_rate_set(dev_id,
+					MHT_AHB_CLK, MHT_AHB_CLK_RATE_104P17M));
+
+			/* enable switch core */
+			SW_RTN_ON_ERROR(ssdk_mht_clk_enable(dev_id, MHT_SWITCH_CORE_CLK));
+			/* resume mib task */
+			qca_phy_mib_work_resume(priv);
+
+			/* resume intr task */
+			qca_intr_work_resume(priv);
+		}
+		/* on phy */
+		hsl_port_phy_pll_on(dev_id, port_id);
+		hsl_port_phy_power_on(dev_id, port_id);
+		hsl_port_feature_clear(dev_id, port_id, PHY_F_ERP_LOW_POWER);
+		break;
+	default:
+		SSDK_ERROR("not support power mode %d\n", power_mode);
+		return SW_NOT_SUPPORTED;
+	}
+	return SW_OK;
+}
+
+sw_error_t
 mht_port_rxfc_status_set(a_uint32_t dev_id, fal_port_t port_id, a_bool_t enable)
 {
 	sw_error_t rv;
@@ -1292,6 +1400,18 @@ mht_port_flowctrl_forcemode_get(a_uint32_t dev_id, fal_port_t port_id,
 	return rv;
 }
 
+sw_error_t
+mht_port_erp_power_mode_set(a_uint32_t dev_id, fal_port_t port_id,
+	fal_port_erp_power_mode_t power_mode)
+{
+	sw_error_t rv;
+
+	HSL_API_LOCK;
+	rv = _mht_port_erp_power_mode_set(dev_id, port_id, power_mode);
+	HSL_API_UNLOCK;
+	return rv;
+}
+
 static sw_error_t
 mht_port_interface_mode_switch(a_uint32_t dev_id, a_uint32_t port_id)
 {
@@ -1338,6 +1458,11 @@ mht_port_link_update(struct qca_phy_priv *priv, a_uint32_t port_id,
 			(A_TRUE == hsl_port_phy_connected(priv->device_id, port_id))) {
 		rv = mht_port_interface_mode_switch(priv->device_id, port_id);
 		SW_RTN_ON_ERROR (rv);
+	}
+	if (phy_status.link_status == PORT_LINK_DOWN) {
+		/* configure speed to 1G to avoid qm issue */
+		phy_status.speed = FAL_SPEED_1000;
+		phy_status.duplex = FAL_FULL_DUPLEX;
 	}
 	/* configure gcc uniphy and mac speed frequency*/
 	rv = mht_port_speed_clock_set(priv->device_id, port_id, phy_status.speed);

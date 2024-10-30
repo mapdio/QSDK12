@@ -76,6 +76,8 @@ endchoice
 
 config PREEMPT_COUNT
        bool
+       default y if IPQ_FLASH_16M_PROFILE
+
 
 config PREEMPTION
        bool

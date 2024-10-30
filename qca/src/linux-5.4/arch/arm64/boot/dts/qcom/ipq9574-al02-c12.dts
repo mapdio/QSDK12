@@ -56,7 +56,7 @@
 };
 
 &mlo_global_mem0 {
-	size = <0x0 0x1100000>;
+	size = <0x0 0x1200000>;
 	status = "ok";
 };
 
@@ -70,17 +70,20 @@
 &wifi5 {
 	hremote_node = <&qcn9224_pcie1>;
 	board_id = <0x11>;
+	hw_link_id = <0 0>;
 	status = "ok";
 };
 
 &wifi6 {
 	hremote_node = <&qcn9224_pcie2>;
 	board_id = <0x04>;
+	hw_link_id = <1 0>;
 	status = "ok";
 };
 
 &wifi7 {
 	hremote_node = <&qcn9224_pcie3>;
 	board_id = <0x12>;
+	hw_link_id = <2 0>;
 	status = "ok";
 };

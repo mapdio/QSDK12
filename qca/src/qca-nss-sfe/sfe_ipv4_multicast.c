@@ -83,14 +83,27 @@ int sfe_ipv4_forward_multicast(struct sfe_ipv4 *si, struct sk_buff *skb, unsigne
 			if (likely(udp_csum)) {
 				u32 sum;
 
+				/*
+				 * Get the 1's compliment of udp_csum here
+				 * instead of inline in the next step to prevent
+				 * compilier from doing a 32bit 1's compliment.
+				 */
+				udp_csum = ~udp_csum;
 				if (unlikely(skb->ip_summed == CHECKSUM_PARTIAL)) {
 					sum = udp_csum + mc_xmit_dev->xlate_src_partial_csum_adjustment;
 				} else {
 					sum = udp_csum + mc_xmit_dev->xlate_src_csum_adjustment;
 				}
 
+				/*
+				 * Since we used 32bits to store the 1's compliment sum,
+				 * when converting it back to 16bits, we need to add the
+				 * carry to lsb as well. This is taken care by the 2nd
+				 * iteration of sum.
+				 */
 				sum = (sum & 0xffff) + (sum >> 16);
-				udph->check = (u16)sum;
+				sum = (sum & 0xffff) + (sum >> 16);
+				udph->check = (u16)~sum;
 			}
 		}
 	}
@@ -213,6 +226,20 @@ int sfe_ipv4_recv_multicast(struct sfe_ipv4 *si, struct sk_buff *skb,
 	atomic_add(len, &cm->rx_byte_count);
 
 	/*
+	 * Temporary WAR to avoid SKB leak where mc_list is NULL at this point
+	 */
+	if (list_empty(&cm->mc_list)) {
+		return 0;
+	}
+
+	/*
+	 * duplicated packet with VLan Passthrough
+	 */
+	if (unlikely((cm->flags & SFE_IPV4_CONNECTION_MATCH_FLAG_BRIDGE_VLAN_PASSTHROUGH) && !l2_info->vlan_hdr_cnt)) {
+		return 0;
+	}
+
+	/*
 	 * Update DSCP
 	 */
 	if (unlikely(cm->flags & SFE_IPV4_CONNECTION_MATCH_FLAG_DSCP_REMARK)) {
@@ -243,7 +270,7 @@ int sfe_ipv4_recv_multicast(struct sfe_ipv4 *si, struct sk_buff *skb,
 		 * Update service class stats if SAWF is valid.
 		 */
 		if (likely(cm->sawf_valid)) {
-			service_class_id = SFE_GET_SAWF_SERVICE_CLASS(cm->mark);
+			service_class_id = cm->svc_id;
 			sfe_ipv4_service_class_stats_inc(si, service_class_id, len);
 		}
 	}
@@ -267,7 +294,7 @@ int sfe_ipv4_recv_multicast(struct sfe_ipv4 *si, struct sk_buff *skb,
 		if (mc_xmit_dev->list.next == &cm->mc_list) {
 			nskb = skb;
 		} else if ((!bridge_flow && !tun_outer) || (mc_xmit_dev->flags & SFE_IPV4_CONNECTION_MATCH_FLAG_MULTICAST_CHANGED)) {
-			nskb = skb_copy(skb, GFP_ATOMIC);
+			nskb = pskb_copy(skb, GFP_ATOMIC);
 		} else {
 			nskb = skb_clone(skb, GFP_ATOMIC);
 		}

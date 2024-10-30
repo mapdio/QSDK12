@@ -21,6 +21,6 @@ EIP_IPSEC_INCLUDE = -I$(obj)/../../driver/exports
 ccflags-y += $(EIP_IPSEC_INCLUDE)
 ccflags-y += -Wall -Werror
 
-ifeq ($(SoC), $(filter $(SoC), ipq95xx ipq95xx_32))
+ifeq ($(SoC), $(filter $(SoC), ipq95xx ipq95xx_32 ipq53xx ipq53xx_32))
 	ccflags-y += -DEIP_IPSEC_HYBRID
 endif

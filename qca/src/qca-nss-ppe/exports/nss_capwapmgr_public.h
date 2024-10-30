@@ -1,7 +1,7 @@
 /*
  **************************************************************************
  * Copyright (c) 2014-2020, The Linux Foundation. All rights reserved.
- * Copyright (c) 2022-2023 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2024 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
@@ -66,12 +66,14 @@ struct nss_capwapmgr_response {
  */
 struct nss_capwapmgr_tunnel {
 	struct net_device *dtls_dev;		/**< DTLS netdevice */
-	struct net_device *internal_dev;	/**< Internal device for VP allocation. */
+	struct net_device *internal_dev_encap;	/**< Internal device for UL VP allocation. */
+	struct net_device *internal_dev_decap;	/**< Internal device for DL VP allocation. */
 	uint32_t if_num_inner;			/**< Interface number of the INNER CAPWAP node. */
 	uint32_t if_num_outer;			/**< Interface number of the OUTER CAPWAP node. */
 	uint32_t tunnel_state;			/**< Tunnel state. */
 	uint16_t type_flags;			/**< Tunnel Type to determine header size. */
-	ppe_vp_num_t vp_num;			/**< VP number associated with the tunnel. */
+	ppe_vp_num_t vp_num_encap;		/**< UL VP number associated with the tunnel. */
+	ppe_vp_num_t vp_num_decap;		/**< DL VP number associated with the tunnel. */
 	uint8_t tunnel_id;			/**< TrustSec Tx tunnel id. */
 	union {
 		struct nss_ipv4_create v4;	/**< IPv4 rule structure. */
@@ -89,6 +91,21 @@ struct nss_capwapmgr_priv {
 	struct nss_capwapmgr_tunnel *tunnel;	/**< Pointer to tunnel data. */
 	uint8_t *if_num_to_tunnel_id;		/**< Mapping table from if_num to tunnel_id. */
 	struct nss_capwapmgr_response *resp;	/**< Response housekeeping. */
+};
+
+/**
+ * nss_capwapmgr_flow_info
+ *	Inner flow information.
+ */
+struct nss_capwapmgr_flow_info {
+	uint16_t ip_version;	/**< IP version. */
+	uint16_t protocol;	/**< Protocol. */
+	uint32_t src_ip[4];	/**< Source IP address. */
+	uint32_t dst_ip[4];	/**< Destination IP address. */
+	uint16_t src_port;	/**< Source port. */
+	uint16_t dst_port;	/**< Destination port. */
+	struct nss_capwap_flow_attr flow_attr;
+				/**< Flow attributes. */
 };
 
 /**
@@ -129,8 +146,12 @@ typedef enum {
 	NSS_CAPWAPMGR_FAILURE_IP_DESTROY_RULE,		/**< Destroy IP rule failed. */
 	NSS_CAPWAPMGR_FAILURE_CAPWAP_DESTROY_RULE,	/**< Destroy capwap rule failed. */
 	NSS_CAPWAPMGR_FAILURE_INVALID_TYPE_FLAG,	/**< Invalid type. */
-	NSS_CAPWAPMGR_FAILRUE_INTERNAL_NETDEV_ALLOC_FAILED,	/**< Internal Netdevice alloc failed. */
-	NSS_CAPWAPMGR_FAILURE_VP_ALLOC,			/**< PPE VP alloc failed. */
+	NSS_CAPWAPMGR_FAILRUE_INTERNAL_DECAP_NETDEV_ALLOC_FAILED,
+							/**< Internal DL netdevice alloc failed. */
+	NSS_CAPWAPMGR_FAILRUE_INTERNAL_ENCAP_NETDEV_ALLOC_FAILED,
+  							/**< Internal UL netdevice alloc failed. */
+	NSS_CAPWAPMGR_FAILURE_DECAP_VP_ALLOC,		/**< DL PPE VP alloc failed. */
+	NSS_CAPWAPMGR_FAILURE_ENCAP_VP_ALLOC,		/**< UL PPE VP alloc failed. */
 	NSS_CAPWAPMGR_FAILURE_VP_FREE,			/**<PPE VP free failed. */
 	NSS_CAPWAPMGR_FAILURE_VP_MTU_SET,		/**< PPE VP MTU set failed. */
 	NSS_CAPWAPMGR_FAILURE_UPDATE_VP_NUM,	/**< Update VP number failed. */
@@ -148,12 +169,12 @@ typedef enum {
 	NSS_CAPWAPMGR_FAILURE_DSCP_RULE_DELETE_FAILED,	/**< DSCP rule delete failed. */
 	NSS_CAPWAPMGR_FAILURE_CONFIG_TRUSTSEC_RX,	/**< Failed to configure trustsec receive node. */
 	NSS_CAPWAPMGR_FAILURE_BIND_ACL_RULE,		/**< Failed to bind the acl to the physical port. */
-	NSS_CAPWAPMGR_FAILURE_TRUSTSEC_BIND_VPORT,	/**< Failed to bind the virtual port to the physical port. */
-	NSS_CAPWAPMGR_FAILURE_TRUSTSEC_UNBIND_VPORT,	/**< Failed to unbind the virtual port from the physical port. */
+	NSS_CAPWAPMGR_FAILURE_BIND_VPORT,		/**< Failed to bind the virtual port to the physical port. */
+	NSS_CAPWAPMGR_FAILURE_UNBIND_VPORT,		/**< Failed to unbind the virtual port from the physical port. */
 	NSS_CAPWAPMGR_FAILURE_TRUSTSEC_RULE_EXISTS,	/**< TrustSec rule already exists. */
-	NSS_CAPWAPMGR_FAILURE_TRUSTSEC_PORT_GET,	/**< Failed to get the physical port associated to the virtual port. */
-	NSS_CAPWAPMGR_FAILURE_TRUSTSEC_TUNNEL_ID_SET,	/**< Failed to set TrustSec tunnel id. */
-	NSS_CAPWAPMGR_FAILURE_TRUSTSEC_TUNNEL_ID_GET,	/**< Failed to get the tunnel id associated to the TrustSec tunnel. */
+	NSS_CAPWAPMGR_FAILURE_TX_PORT_GET,		/**< Failed to get the physical port associated to the UL virtual port. */
+	NSS_CAPWAPMGR_FAILURE_TUNNEL_ID_SET,		/**< Failed to set UL tunnel id. */
+	NSS_CAPWAPMGR_FAILURE_TUNNEL_ID_GET,		/**< Failed to get the tunnel id associated to the UL virtual port. */
 	NSS_CAPWAPMGR_FAILURE_TUNNEL_ENCAP_ENTRY_ADD,	/**< Failed to add tunnel encap entry. */
 	NSS_CAPWAPMGR_FAILURE_TUNNEL_ENCAP_ENTRY_GET,	/**< Failed to get tunnel encap entry. */
 	NSS_CAPWAPMGR_FAILURE_TUNNEL_ENCAP_ENTRY_DELETE,	/**< Failed to delete tunnel encap entry. */
@@ -340,20 +361,12 @@ extern nss_capwapmgr_status_t nss_capwapmgr_tunnel_destroy(struct net_device *de
  *
  * @param[in] netdevice	CAPWAP netdevice.
  * @param[in] tunnel_id	Tunnel ID of the tunnel.
- * @param[in] ip_version	IP protocol version.
- * @param[in] protocol	L4 protocol.
- * @param[in] src_ip	Source IP address.
- * @param[in] dst_ip	Destination IP address.
- * @param[in] src_port	Source Port.
- * @param[in] dst_port	Destination Port.
- * @param[in] flow_id	Flow Id.
+ * @param[in] flow_info	Flow information.
  *
  * @return
  * nss_capwapmgr_status_t
  */
-extern nss_capwapmgr_status_t nss_capwapmgr_add_flow_rule(struct net_device *dev, uint8_t tunnel_id, uint16_t ip_version,
-						uint16_t protocol, uint32_t *src_ip, uint32_t *dst_ip,
-						uint16_t src_port, uint16_t dst_port, uint32_t flow_id);
+extern nss_capwapmgr_status_t nss_capwapmgr_add_flow_rule(struct net_device *dev, uint8_t tunnel_id, struct nss_capwapmgr_flow_info *flow_info);
 
 /**
  * nss_capwapmgr_del_flow_rule
@@ -364,19 +377,13 @@ extern nss_capwapmgr_status_t nss_capwapmgr_add_flow_rule(struct net_device *dev
  *
  * @param[in] netdevice	CAPWAP netdevice.
  * @param[in] tunnel_id	Tunnel ID of the tunnel.
- * @param[in] ip_version	IP protocol version.
- * @param[in] protocol	L4 protocol.
- * @param[in] src_ip	Source IP address.
- * @param[in] dst_ip	Destination IP address.
- * @param[in] src_port	Source Port.
- * @param[in] dst_port	Destination Port.
+ * @param[in] flow_info Flow information.
  *
  * @return
  * nss_capwapmgr_status_t
  */
-extern nss_capwapmgr_status_t nss_capwapmgr_del_flow_rule(struct net_device *dev, uint8_t tunnel_id, uint16_t ip_version,
-						uint16_t protocol, uint32_t *src_ip, uint32_t *dst_ip,
-						uint16_t src_port, uint16_t dst_port);
+extern nss_capwapmgr_status_t nss_capwapmgr_del_flow_rule(struct net_device *dev, uint8_t tunnel_id, struct nss_capwapmgr_flow_info *flow_info);
+
 /**
  * @brief Delete a DSCP prioritization rule that was created.
  *

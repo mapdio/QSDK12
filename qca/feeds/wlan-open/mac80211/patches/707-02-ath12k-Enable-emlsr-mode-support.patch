@@ -19,7 +19,7 @@ Signed-off-by: Ramasamy Kaliappan <quic_rkaliapp@quicinc.com>
 
 --- a/drivers/net/wireless/ath/ath12k/mac.c
 +++ b/drivers/net/wireless/ath/ath12k/mac.c
-@@ -3068,6 +3068,8 @@ static void ath12k_peer_assoc_h_mlo(stru
+@@ -3070,6 +3070,8 @@ static void ath12k_peer_assoc_h_mlo(stru
  	ml->ml_peer_id = ahsta->ml_peer_id;
  	ml->ieee_link_id = arsta->link_id;
  	ml->num_partner_links = 0;
@@ -105,12 +105,10 @@ Signed-off-by: Ramasamy Kaliappan <quic_rkaliapp@quicinc.com>
  	tlv = ptr;
  	tlv->header = FIELD_PREP(WMI_TLV_TAG, WMI_TAG_ARRAY_STRUCT) |
  		      FIELD_PREP(WMI_TLV_LEN, sizeof(*ml_params));
-@@ -2404,13 +2451,35 @@ int ath12k_wmi_send_peer_assoc_cmd(struc
- 			   FIELD_PREP(ATH12K_WMI_FLAG_MLO_LOGICAL_LINK_IDX_VALID,
+@@ -2405,12 +2452,34 @@ int ath12k_wmi_send_peer_assoc_cmd(struc
  				      param->ml.logical_link_idx_valid) |
  			   FIELD_PREP(ATH12K_WMI_FLAG_MLO_PEER_ID_VALID,
--				      param->ml.peer_id_valid);
-+				      param->ml.peer_id_valid) |
+ 				      param->ml.peer_id_valid);
 +			   FIELD_PREP(ATH12K_WMI_FLAG_MLO_EMLSR_SUPPORT,
 +				      emlsr_support);
  
@@ -145,7 +143,7 @@ Signed-off-by: Ramasamy Kaliappan <quic_rkaliapp@quicinc.com>
  
 --- a/drivers/net/wireless/ath/ath12k/wmi.h
 +++ b/drivers/net/wireless/ath/ath12k/wmi.h
-@@ -4075,6 +4075,23 @@ struct wmi_rate_set_arg {
+@@ -4070,6 +4070,23 @@ struct wmi_rate_set_arg {
  	u8 rates[WMI_MAX_SUPPORTED_RATES];
  };
  
@@ -169,7 +167,7 @@ Signed-off-by: Ramasamy Kaliappan <quic_rkaliapp@quicinc.com>
  struct peer_assoc_mlo_params {
  	bool enabled;
  	bool assoc_link;
-@@ -4087,6 +4104,7 @@ struct peer_assoc_mlo_params {
+@@ -4082,6 +4099,7 @@ struct peer_assoc_mlo_params {
  	u32 ieee_link_id;
  	u8 num_partner_links;
  	struct wmi_ml_partner_info partner_info[ATH12K_WMI_MLO_MAX_LINKS];

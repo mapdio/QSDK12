@@ -7,14 +7,14 @@
 include $(TOPDIR)/rules.mk
 
 PKG_NAME:=nss
-PKG_VERSION:=3.55
-PKG_RELEASE:=2
+PKG_VERSION:=3.89.1
+PKG_RELEASE:=1
 
 PKG_SOURCE:=$(PKG_NAME)-$(PKG_VERSION).tar.gz
 PKG_SOURCE_URL:= \
     https://download.cdn.mozilla.net/pub/security/$(PKG_NAME)/releases/NSS_$(subst .,_,$(PKG_VERSION))_RTM/src \
     https://archive.mozilla.org/pub/security/$(PKG_NAME)/releases/NSS_$(subst .,_,$(PKG_VERSION))_RTM/src
-PKG_HASH:=fc692e3db45a082ee6328cd989e795c171a00df9c518df090937f7604f850004
+PKG_HASH:=3adaedb9e70c3c5f40603bf60a01e336190a6dbe01929d395f16b01fe84a0156
 
 PKG_MAINTAINER:=Lucian Cristian <lucian.cristian@gmail.com>
 PKG_LICENCE:=MPL-2.0
@@ -80,7 +80,7 @@ MAKE_FLAGS += \
 	NSS_USE_SYSTEM_SQLITE=1 \
 	OS_ARCH=Linux \
 	OS_TEST=$(ARCH) \
-	fpic=$(FPIC) \
+	fpic="$(FPIC)" \
 	NSPR_INCLUDE_DIR=$(STAGING_DIR)/usr/include/nspr \
 	SEED_ONLY_DEV_URANDOM=1 \
 	NS_USE_GCC=1 \
@@ -91,8 +91,7 @@ MAKE_FLAGS += \
 	OS_REL_CFLAGS="$(TARGET_CFLAGS)"
 
 #native compile nsinstall
-define Build/Prepare
-	$(call Build/Prepare/Default)
+define Build/Configure
 	USE_NATIVE=1 OS_REL_CFLAGS="$(HOST_CFLAGS)" LDFLAGS="$(HOST_LDFLAGS)" \
 	CC="$(HOSTCC)" CPU_ARCH="$(HOST_ARCH)" \
 	    $(MAKE) -C $(PKG_BUILD_DIR)/nss/coreconf/nsinstall
@@ -108,6 +107,8 @@ endef
 
 define Build/InstallDev
 	$(INSTALL_DIR) \
+	 $(2)/bin \
+	 $(1)/usr/bin \
 	 $(1)/usr/include/nss \
 	 $(1)/usr/lib \
 	 $(1)/usr/lib/pkgconfig
@@ -119,6 +120,12 @@ define Build/InstallDev
 	  $(1)/usr/lib/
 	$(CP) $(PKG_BUILD_DIR)/nss/config/*.pc \
 	  $(1)/usr/lib/pkgconfig/
+	$(CP) $(PKG_BUILD_DIR)/nss/config/nss-config \
+	  $(1)/usr/bin/
+	$(SED) 's,^\(prefix\)=.*,\1=$(STAGING_DIR)/usr,g' \
+	  $(1)/usr/bin/nss-config
+	$(LN) ../../usr/bin/nss-config \
+	  $(2)/bin/
 endef
 
 define Package/nss-utils/install

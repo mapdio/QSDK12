@@ -817,11 +817,10 @@ static bool ecm_db_should_keep_connection(
 	struct ecm_classifier_instance *assignments[ECM_CLASSIFIER_TYPES];
 
 	/*
-	 * In case of STA join event, we need to keep all connections apart from
-	 * the connections with SAWF classifier. So we will make should_keep_connection
-	 * flag true by default, and let the relevent classifier take the decision.
+	 * Keep should_keep_connection false by default. Classifier can update based
+	 * on the event being sent to it.
 	 */
-	info->should_keep_connection = (info->type == ECM_DB_CONNECTION_DEFUNCT_TYPE_STA_JOIN) ? true : false;
+	info->should_keep_connection = false;
 
 	assignment_count =
 		ecm_db_connection_classifier_assignments_get_and_ref(ci, assignments);
@@ -1207,7 +1206,7 @@ keep_sni_conn:
  */
 bool ecm_db_node_init(struct dentry *dentry)
 {
-	if (!debugfs_create_u32("node_count", S_IRUGO, dentry,
+	if (!ecm_debugfs_create_u32("node_count", S_IRUGO, dentry,
 					(u32 *)&ecm_db_node_count)) {
 		DEBUG_ERROR("Failed to create ecm db node count file in debugfs\n");
 		return false;

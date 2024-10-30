@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2024 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for any
  * purpose with or without fee is hereby granted, provided that the above
@@ -15,6 +15,7 @@
  */
 
 #include <linux/ipv6.h>
+#include <linux/ppp_defs.h>
 #include <ppe_drv_tun_cmn_ctx.h>
 #include <ppe_drv_tun_public.h>
 #include "ppe_drv_tun_encap.h"
@@ -22,6 +23,7 @@
 #include "ppe_drv_tun_encap_xlate_rule.h"
 #include "ppe_drv_tun_decap_xlate_rule.h"
 #include "ppe_drv_tun_l3_if.h"
+#include "ppe_drv_tun_prgm_prsr.h"
 
 #define PPE_DRV_TUN_BIT(x)	(1UL << x)
 #define PPE_DRV_TUN_MAX_CTX	128
@@ -151,7 +153,52 @@ struct ppe_drv_tun {
 	uint8_t tun_idx;					/**< Tunnel context ID >*/
 	uint8_t xmit_port;					/**< Egress I/O port for tunnel> */
 	atomic_t flow_count;					/**< Number of active flows >*/
+	uint8_t encap_hdr_bitmap;				/**< Bitmap of feilds enabled in encap header control >**/
 };
+
+/*
+ * ppe_drv_tun_dp_port_ds
+ * 	Check if destination port is wifi DS vp port
+ */
+static inline bool ppe_drv_tun_dp_port_ds(struct ppe_drv_port *pp)
+{
+	if (pp->user_type == PPE_DRV_PORT_USER_TYPE_DS) {
+		return true;
+	}
+
+	return false;
+}
+
+/*
+ * ppe_drv_tun_dp_port_active_vp
+ *	Check if destination port is wifi Active vp port
+ */
+static inline bool ppe_drv_tun_dp_port_active_vp(struct ppe_drv_port *pp)
+{
+	if (pp->user_type == PPE_DRV_PORT_USER_TYPE_ACTIVE_VP) {
+		return true;
+	}
+
+	return false;
+}
+
+/*
+ * ppe_drv_tun_is_dest_port_wifi
+ *	Check if destination port of a tunnel is a DS/Active wifi port
+ */
+static inline bool ppe_drv_tun_is_dest_port_wifi(uint16_t dest_port)
+{
+	struct ppe_drv_port *pp = NULL;
+
+	pp = ppe_drv_port_from_port_num(dest_port);
+
+	if (pp && (pp->user_type == PPE_DRV_PORT_USER_TYPE_DS
+				|| pp->user_type == PPE_DRV_PORT_USER_TYPE_ACTIVE_VP)) {
+		return true;
+	}
+
+	return false;
+}
 
 bool ppe_drv_tun_global_init(struct ppe_drv *p);
 bool ppe_drv_tun_check_support(uint8_t protocol);

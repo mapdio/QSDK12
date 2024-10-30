@@ -1,21 +1,23 @@
 /*
  * Copyright (c) 2014, 2018, The Linux Foundation. All rights reserved.
- * Permission to use, copy, modify, and/or distribute this software for
- * any purpose with or without fee is hereby granted, provided that the
- * above copyright notice and this permission notice appear in all copies.
+ * Copyright (c) 2023 Qualcomm Innovation Center, Inc. All rights reserved.
+ *
+ * Permission to use, copy, modify, and/or distribute this software for any
+ * purpose with or without fee is hereby granted, provided that the above
+ * copyright notice and this permission notice appear in all copies.
+ *
  * THE SOFTWARE IS PROVIDED "AS IS" AND THE AUTHOR DISCLAIMS ALL WARRANTIES
  * WITH REGARD TO THIS SOFTWARE INCLUDING ALL IMPLIED WARRANTIES OF
  * MERCHANTABILITY AND FITNESS. IN NO EVENT SHALL THE AUTHOR BE LIABLE FOR
  * ANY SPECIAL, DIRECT, INDIRECT, OR CONSEQUENTIAL DAMAGES OR ANY DAMAGES
  * WHATSOEVER RESULTING FROM LOSS OF USE, DATA OR PROFITS, WHETHER IN AN
- * ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT
- * OF OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
+ * ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF
+ * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  */
 
 #ifndef _NSS_MACSEC_SECY_TX_H_
 #define _NSS_MACSEC_SECY_TX_H_
 
-#include "nss_macsec_types.h"
 
 #define NSS_SECY_CONFIDENTIALITY_OFFSET_00 0
 #define NSS_SECY_CONFIDENTIALITY_OFFSET_30 30
@@ -139,79 +141,6 @@ struct fal_tx_udf_filt_t {
 	u16 offset;
 };
 
-/**
-* @param[in] secy_id
-* @param[in] addr
-* @param[out] pvalue
-**/
-u32 nss_macsec_secy_tx_reg_get(u32 secy_id, u32 addr, u32 *pvalue);
-
-/**
-* @param[in] secy_id
-* @param[in] addr
-* @param[in] value
-**/
-u32 nss_macsec_secy_tx_reg_set(u32 secy_id, u32 addr, u32 value);
-
-/**
-* @param[in] secy_id
-* @param[out] penable
-**/
-u32 nss_macsec_secy_tx_drop_sc_sa_invalid_get(u32 secy_id, bool *penable);
-
-/**
-* @param[in] secy_id
-* @param[in] enable
-**/
-u32 nss_macsec_secy_tx_drop_sc_sa_invalid_set(u32 secy_id, bool enable);
-
-/**
-* @param[in] secy_id
-* @param[out] penable
-**/
-u32 nss_macsec_secy_tx_unmatched_use_sc_0_get(u32 secy_id, bool *penable);
-
-/**
-* @param[in] secy_id
-* @param[in] enable
-**/
-u32 nss_macsec_secy_tx_unmatched_use_sc_0_set(u32 secy_id, bool enable);
-
-/**
-* @param[in] secy_id
-* @param[out] penable
-**/
-u32 nss_macsec_secy_tx_gcm_start_get(u32 secy_id, bool *penable);
-
-/**
-* @param[in] secy_id
-* @param[in] enable
-**/
-u32 nss_macsec_secy_tx_gcm_start_set(u32 secy_id, bool enable);
-
-/**
-* @param[in] secy_id
-* @param[out] penable
-**/
-u32 nss_macsec_secy_tx_drop_class_miss_get(u32 secy_id, bool *penable);
-
-/**
-* @param[in] secy_id
-* @param[in] enable
-**/
-u32 nss_macsec_secy_tx_drop_class_miss_set(u32 secy_id, bool enable);
-
-/**
-* @param[in] secy_id
-* @param[out] penable
-**/
-u32 nss_macsec_secy_tx_drop_kay_pkt_get(u32 secy_id, bool *penable);
-
-/**
-* @param[in] secy_id
-* @param[in] enable
-**/
-u32 nss_macsec_secy_tx_drop_kay_pkt_set(u32 secy_id, bool enable);
 
 /**
 * @param[in] secy_id
@@ -315,21 +244,6 @@ u32 nss_macsec_secy_tx_sc_an_get(u32 secy_id, u32 channel, u32 *pan);
 **/
 u32 nss_macsec_secy_tx_sc_an_set(u32 secy_id, u32 channel, u32 an);
 
-/**
-* @param[in] secy_id
-* @param[in] channel
-* @param[out] penable
-**/
-u32 nss_macsec_secy_tx_sc_an_roll_over_en_get(u32 secy_id, u32 channel,
-                                             bool *penable);
-
-/**
-* @param[in] secy_id
-* @param[in] channel
-* @param[in] enable
-**/
-u32 nss_macsec_secy_tx_sc_an_roll_over_en_set(u32 secy_id, u32 channel,
-                                             bool enable);
 
 /**
 * @param[in] secy_id
@@ -390,24 +304,6 @@ u32 nss_macsec_secy_tx_sc_protect_set(u32 secy_id, u32 channel, bool enable);
 **/
 u32 nss_macsec_secy_tx_sc_sci_get(u32 secy_id, u32 channel,
                                  u8 *psci, u32 sci_len); /* [16] */
-
-/**
-* @param[in] secy_id
-* @param[in] channel
-* @param[out] p_start_time
-* @param[out] p_stop_time
-**/
-u32 nss_macsec_secy_tx_sc_start_stop_time_get(u32 secy_id, u32 channel,
-                                u32 *p_start_time, u32 *p_stop_time);
-
-/**
-* @param[in] secy_id
-* @param[in] channel
-* @param[in] start_time
-* @param[in] stop_time
-**/
-u32 nss_macsec_secy_tx_sc_start_stop_time_set(u32 secy_id, u32 channel,
-                                u32 start_time, u32 stop_time);
 
 /**
 * @param[in] secy_id
@@ -475,26 +371,6 @@ u32 nss_macsec_secy_tx_sa_in_used_get(u32 secy_id, u32 channel,
 * @param[in] secy_id
 * @param[in] channel
 * @param[in] an
-* @param[out] p_start_time
-* @param[out] p_stop_time
-**/
-u32 nss_macsec_secy_tx_sa_start_stop_time_get(u32 secy_id, u32 channel, u32 an,
-                        u32 *p_start_time, u32 *p_stop_time);
-
-/**
-* @param[in] secy_id
-* @param[in] channel
-* @param[in] an
-* @param[in] start_time
-* @param[in] stop_time
-**/
-u32 nss_macsec_secy_tx_sa_start_stop_time_set(u32 secy_id, u32 channel, u32 an,
-                        u32 start_time, u32 stop_time);
-
-/**
-* @param[in] secy_id
-* @param[in] channel
-* @param[in] an
 * @param[out] pentry
 **/
 u32 nss_macsec_secy_tx_sak_get(u32 secy_id, u32 channel,
@@ -508,42 +384,6 @@ u32 nss_macsec_secy_tx_sak_get(u32 secy_id, u32 channel,
 **/
 u32 nss_macsec_secy_tx_sak_set(u32 secy_id, u32 channel,
                               u32 an, fal_tx_sak_t *pentry);
-
-/**
-* @param[in] secy_id
-* @param[in] pentry
-**/
-u32 nss_macsec_secy_tx_qtag_parse_set(u32 secy_id, fal_tx_vlan_parse_t *pentry);
-
-/**
-* @param[in] secy_id
-* @param[out] pentry
-**/
-u32 nss_macsec_secy_tx_qtag_parse_get(u32 secy_id, fal_tx_vlan_parse_t *pentry);
-
-/**
-* @param[in] secy_id
-* @param[in] pentry
-**/
-u32 nss_macsec_secy_tx_stag_parse_set(u32 secy_id, fal_tx_vlan_parse_t *pentry);
-
-/**
-* @param[in] secy_id
-* @param[out] pentry
-**/
-u32 nss_macsec_secy_tx_stag_parse_get(u32 secy_id, fal_tx_vlan_parse_t *pentry);
-
-/**
-* @param[in] secy_id
-* @param[out] p_pn_threshold
-**/
-u32 nss_macsec_secy_tx_pn_threshold_get(u32 secy_id, u32 *p_pn_threshold);
-
-/**
-* @param[in] secy_id
-* @param[in] pn_threshold
-**/
-u32 nss_macsec_secy_tx_pn_threshold_set(u32 secy_id, u32 pn_threshold);
 
 u32 nss_macsec_secy_tx_sa_next_xpn_get(u32 secy_id, u32 channel,
 u32 an, u32 *p_next_xpn);

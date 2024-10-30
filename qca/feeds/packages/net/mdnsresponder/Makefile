@@ -8,12 +8,12 @@
 include $(TOPDIR)/rules.mk
 
 PKG_NAME:=mDNSResponder
-PKG_VERSION:=878.200.35
-PKG_RELEASE:=1
+PKG_VERSION:=IETF104
+PKG_RELEASE:=5
 
 PKG_SOURCE:=mDNSResponder-$(PKG_VERSION).tar.gz
-PKG_SOURCE_URL:=https://opensource.apple.com/tarballs/mDNSResponder/
-PKG_HASH:=e777b4d7dbf5eb1552cb80090ad1ede319067ab6e45e3990d68aabf6e8b3f5a0
+PKG_SOURCE_URL:=https://opensource.apple.com/tarballs/mDNSResponder/IETF/
+PKG_HASH:=b3a76fd35cf2d561546c2fbeaea1e5998b7e04b8330afb918ea5fbdeb202162c
 PKG_MAINTAINER:=
 PKG_LICENSE:=Apache-2.0
 PKG_CPE_ID:=cpe:/a:apple:mdnsresponder
@@ -122,9 +122,10 @@ endef
 
 define Build/InstallDev
 	$(INSTALL_DIR) $(1)/usr/include
-	$(CP) $(PKG_BUILD_DIR)/mDNSShared/dns_sd.h $(1)/usr/include/
+	$(CP) $(PKG_INSTALL_DIR)/usr/include/dns_sd.h $(1)/usr/include/
 	$(INSTALL_DIR) $(1)/usr/lib
-	$(CP) $(PKG_BUILD_DIR)/mDNSPosix/build/prod/*.so* $(1)/usr/lib/
+	$(CP) $(PKG_INSTALL_DIR)/usr/lib/libdns_sd.so.1 $(1)/usr/lib/
+	$(LN) -s libdns_sd.so.1 $(1)/usr/lib/libdns_sd.so
 endef
 
 define Package/mdns-utils/install

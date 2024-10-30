@@ -27,6 +27,7 @@
 #include "eip_tk.h"
 #include "eip_tr.h"
 #include "eip_tr_ipsec.h"
+#include "eip_tr_dtls.h"
 
 #define EIP_MAX_STR_LEN 25U		/* Maximum string length */
 #define EIP_DEBUGFS_MAX_NAME 128U	/* Maximum string length for debugfs */

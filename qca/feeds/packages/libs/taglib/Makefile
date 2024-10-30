@@ -6,19 +6,19 @@
 include $(TOPDIR)/rules.mk
 
 PKG_NAME:=taglib
-PKG_VERSION:=1.12-beta-1
-PKG_RELEASE:=1
+PKG_VERSION:=1.13
+PKG_RELEASE:=2
 
 PKG_SOURCE:=$(PKG_NAME)-$(PKG_VERSION).tar.gz
 PKG_SOURCE_URL:=https://codeload.github.com/taglib/taglib/tar.gz/v$(PKG_VERSION)?
-PKG_HASH:=d2a44be7ca8b7682b218affc9910dcfb027481f402f7c30bd2996392b2429ae4
+PKG_HASH:=58f08b4db3dc31ed152c04896ee9172d22052bc7ef12888028c01d8b1d60ade0
 
 PKG_MAINTAINER:=
 PKG_LICENSE:=LGPL-2.1-or-later
 PKG_LICENSE_FILES:=COPYING.LGPL
 PKG_CPE_ID:=cpe:/a:taglib:taglib
 
-PKG_BUILD_PARALLEL:=1
+PKG_BUILD_FLAGS:=lto
 
 include $(INCLUDE_DIR)/package.mk
 include $(INCLUDE_DIR)/cmake.mk
@@ -28,8 +28,7 @@ define Package/taglib
   CATEGORY:=Libraries
   TITLE:=taglib
   URL:=https://github.com/taglib/taglib
-  DEPENDS:=+libstdcpp
-  BUILDONLY:=1
+  DEPENDS:=+zlib +libstdcpp
 endef
 
 define Package/taglib/description
@@ -40,18 +39,26 @@ define Package/taglib/description
 endef
 
 CMAKE_OPTIONS += \
+	-DBUILD_SHARED_LIBS=ON
 	-DBUILD_TESTS=OFF \
 	-DBUILD_EXAMPLES=OFF \
 	-DBUILD_BINDINGS=OFF \
 	-DNO_ITUNES_HACKS=ON
 
-TARGET_CXXFLAGS += -flto
-
 define Build/InstallDev
 	$(call Build/InstallDev/cmake,$(1))
 	$(SED) '/^prefix=\|^exec_prefix=/s|/usr|$(STAGING_DIR)/usr|' $(1)/usr/bin/taglib-config
+	$(SED) '/^includedir=/s|/usr|$(STAGING_DIR)/usr|' $(1)/usr/bin/taglib-config
+	$(SED) '/^libdir=/s|/usr|$(STAGING_DIR)/usr|' $(1)/usr/bin/taglib-config
 	$(SED) 's,/usr/include,$$$${prefix}/include,g' $(1)/usr/lib/pkgconfig/taglib.pc
 	$(SED) 's,/usr/lib,$$$${exec_prefix}/lib,g' $(1)/usr/lib/pkgconfig/taglib.pc
+	$(INSTALL_DIR) $(2)/bin
+	$(LN) ../../usr/bin/taglib-config $(2)/bin/taglib-config
+endef
+
+define Package/taglib/install
+	$(INSTALL_DIR) $(1)/usr/lib
+	$(CP) $(PKG_INSTALL_DIR)/usr/lib/libtag.so.* $(1)/usr/lib/
 endef
 
 $(eval $(call BuildPackage,taglib))

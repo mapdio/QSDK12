@@ -9,18 +9,18 @@ include $(TOPDIR)/rules.mk
 
 PKG_NAME:=quagga
 PKG_VERSION:=1.2.4
-PKG_RELEASE:=1
+PKG_RELEASE:=2
 
 PKG_SOURCE:=$(PKG_NAME)-$(PKG_VERSION).tar.gz
 PKG_SOURCE_URL:=@SAVANNAH/quagga/
 PKG_HASH:=e364c082c3309910e1eb7b068bf39ee298e2f2f3f31a6431a5c115193bd653d3
+
 PKG_MAINTAINER:=Vasilis Tsiligiannis <acinonyx@openwrt.gr>
 PKG_LICENSE:=GPL-2.0-or-later
-PKG_LICENSE_FILES:=COPYING
 
-PKG_BUILD_PARALLEL:=1
 PKG_FIXUP:=autoreconf
 PKG_INSTALL:=1
+PKG_BUILD_PARALLEL:=1
 
 PKG_CONFIG_DEPENDS:= \
 	CONFIG_IPV6 \
@@ -41,9 +41,9 @@ define Package/quagga/Default
   SECTION:=net
   CATEGORY:=Network
   SUBMENU:=Routing and Redirection
+  DEPENDS:=quagga
   TITLE:=The Quagga Software Routing Suite
   URL:=https://www.quagga.net
-  DEPENDS:=quagga +libcares
 endef
 
 define Package/quagga
@@ -177,6 +177,7 @@ CONFIGURE_ARGS+= \
 	--disable-ospfclient \
 	--disable-capabilities \
 	--disable-doc \
+	--disable-nhrpd \
 	$(call autoconf_bool,CONFIG_PACKAGE_quagga-libzebra,zebra) \
 	$(call autoconf_bool,CONFIG_PACKAGE_quagga-libospf,ospfd) \
 	$(call autoconf_bool,CONFIG_PACKAGE_quagga-bgpd,bgpd) \
@@ -194,8 +195,6 @@ define Package/quagga/install
 	$(INSTALL_BIN) ./files/quagga $(1)/usr/sbin/quagga.init
 	$(INSTALL_DIR) $(1)/etc/init.d
 	$(INSTALL_BIN) ./files/quagga.init $(1)/etc/init.d/quagga
-	$(INSTALL_DIR) $(1)/etc/hotplug.d/iface
-	$(INSTALL_DATA) ./files/quagga.hotplug $(1)/etc/hotplug.d/iface/70-quagga
 endef
 
 define Package/quagga-watchquagga/install
@@ -249,8 +248,6 @@ define Package/quagga-ripd/install
 	$(INSTALL_DIR) $(1)/etc/quagga
 	chmod 0750 $(1)/etc/quagga
 	$(INSTALL_CONF) ./files/quagga.conf $(1)/etc/quagga/ripd.conf
-	$(INSTALL_DIR) $(1)/etc/config
-	$(INSTALL_CONF) ./files/ripd.config $(1)/etc/config/ripd
 endef
 
 define Package/quagga-ripngd/install

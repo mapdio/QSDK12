@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2022-2023 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2024 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for any
  * purpose with or without fee is hereby granted, provided that the above
@@ -15,6 +15,7 @@
  */
 
 #include <fal_tunnel.h>
+#include <linux/if_vlan.h>
 #include <ppe_drv/ppe_drv.h>
 #include "ppe_drv_tun.h"
 
@@ -85,7 +86,7 @@ static void ppe_drv_tun_encap_xlate_rule_free(struct kref *kref)
  */
 bool ppe_drv_tun_encap_xlate_rule_deref(struct ppe_drv_tun_encap_xlate_rule *ptecxr)
 {
-	uint8_t rule_index = ptecxr->rule_index;
+	uint8_t rule_index __maybe_unused = ptecxr->rule_index;
 
 	ppe_drv_assert(kref_read(&ptecxr->ref), "%p: ref count under run for encap_xlate_rule", ptecxr);
 	if (kref_put(&ptecxr->ref, ppe_drv_tun_encap_xlate_rule_free)) {
@@ -146,16 +147,16 @@ bool ppe_drv_tun_encap_xlate_rule_configure(struct ppe_drv_tun_encap_xlate_rule 
 	}
 
 	/*
-	 *			PL=96   PL=64   PL=56   PL=48   PL=40   PL=32
+	 *	                PL=96   PL=64   PL=56   PL=48   PL=40   PL=32
 	 *	SRC1                    Dst IPv6 address location
-	 *	SRC2              1       1       1       1       1 	  1
-	 *	VALID2_0          1	  1       1       1       1       1
+	 *	SRC2              1       1       1       1       1       1
+	 *	VALID2_0          1       1       1       1       1       1
 	 *	START2_0          0       0       0       0       0       0
 	 *	WIDTH2_0         31      31      23      15       7      31
-	 *	POS2_0            0      24      32      40      48      74
+	 *	POS2_0            0      24      32      40      48      64
 	 *	VALID2_1          0       0       1       1       1       0
 	 *	START2_1          0       0      24      16       8       0
-	 *	WIDTH2_1          0       0       7       7      23       0
+	 *	WIDTH2_1          0       0       7      15      23       0
 	 *	POS2_1            0       0      64      64      64       0
 	 */
 
@@ -182,7 +183,7 @@ bool ppe_drv_tun_encap_xlate_rule_configure(struct ppe_drv_tun_encap_xlate_rule 
 	mapt_edit_rule.src1_start = l2_offset + daddr_offset;
 	mapt_edit_rule.src1_sel = FAL_TUNNEL_RULE_SRC1_FROM_HEADER_DATA;
 	mapt_edit_rule.src2_sel = FAL_TUNNEL_RULE_SRC2_PKT_DATA0;
-	mapt_edit_rule.src2_entry[0].enable = true;
+	mapt_edit_rule.src2_entry[0].enable = A_TRUE;
 
 	switch (rule->ipv6_prefix_len) {
 	case 96:
@@ -197,7 +198,7 @@ bool ppe_drv_tun_encap_xlate_rule_configure(struct ppe_drv_tun_encap_xlate_rule 
 	case 56:
 		mapt_edit_rule.src2_entry[0].src_width = 24;
 		mapt_edit_rule.src2_entry[0].dest_pos = 32;
-		mapt_edit_rule.src2_entry[1].enable = true;
+		mapt_edit_rule.src2_entry[1].enable = A_TRUE;
 		mapt_edit_rule.src2_entry[1].src_start = 24;
 		mapt_edit_rule.src2_entry[1].src_width = 8;
 		mapt_edit_rule.src2_entry[1].dest_pos = 64;
@@ -206,16 +207,16 @@ bool ppe_drv_tun_encap_xlate_rule_configure(struct ppe_drv_tun_encap_xlate_rule 
 	case 48:
 		mapt_edit_rule.src2_entry[0].src_width = 16;
 		mapt_edit_rule.src2_entry[0].dest_pos = 40;
-		mapt_edit_rule.src2_entry[1].enable = true;
+		mapt_edit_rule.src2_entry[1].enable = A_TRUE;
 		mapt_edit_rule.src2_entry[1].src_start = 16;
-		mapt_edit_rule.src2_entry[1].src_width = 8;
+		mapt_edit_rule.src2_entry[1].src_width = 16;
 		mapt_edit_rule.src2_entry[1].dest_pos = 64;
 		break;
 
 	case 40:
 		mapt_edit_rule.src2_entry[0].src_width = 8;
 		mapt_edit_rule.src2_entry[0].dest_pos = 48;
-		mapt_edit_rule.src2_entry[1].enable = true;
+		mapt_edit_rule.src2_entry[1].enable = A_TRUE;
 		mapt_edit_rule.src2_entry[1].src_start = 8;
 		mapt_edit_rule.src2_entry[1].src_width = 24;
 		mapt_edit_rule.src2_entry[1].dest_pos = 64;
@@ -223,7 +224,7 @@ bool ppe_drv_tun_encap_xlate_rule_configure(struct ppe_drv_tun_encap_xlate_rule 
 
 	case 32:
 		mapt_edit_rule.src2_entry[0].src_width = 32;
-		mapt_edit_rule.src2_entry[0].dest_pos = 74;
+		mapt_edit_rule.src2_entry[0].dest_pos = 64;
 		break;
 
 	default:

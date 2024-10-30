@@ -129,6 +129,10 @@
 			no-map;
 			reg = <0x0 0x4d900000 0x0 0x100000>;
 		};
+
+		minidump_mem: minidump_mem@0 {
+			no-map;
+		};
 	};
 	#elif __IPQ_MEM_PROFILE_512_MB__
 	/*                      512 MB Profile
@@ -248,6 +252,10 @@
 		m3_dump@4e800000 {
 			no-map;
 			reg = <0x0 0x4e800000 0x0 0x100000>;
+		};
+
+		minidump_mem: minidump_mem@0 {
+			no-map;
 		};
 	};
 	#else
@@ -374,6 +382,10 @@
 		m3_dump@51000000 {
 			no-map;
 			reg = <0x0 0x51000000 0x0 0x100000>;
+		};
+
+		minidump_mem: minidump_mem@0 {
+			no-map;
 		};
 
 	};

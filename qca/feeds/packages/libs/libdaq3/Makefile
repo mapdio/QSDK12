@@ -8,16 +8,17 @@
 include $(TOPDIR)/rules.mk
 
 PKG_NAME:=libdaq3
-PKG_VERSION:=3.0.0
-PKG_RELEASE:=2
+PKG_VERSION:=3.0.11
+PKG_RELEASE:=1
 
-PKG_SOURCE:=libdaq-$(PKG_VERSION).tar.gz
-PKG_SOURCE_URL:=https://www.snort.org/downloads/snortplus/
-PKG_HASH:=4de807ab8c622e9ef8e0cfaa8dbd9231ece17d14dc9ebaa63add800475347b99
-PKG_BUILD_DIR:=$(BUILD_DIR)/libdaq-$(PKG_VERSION)
+PKG_MAINTAINER:=W. Michael Petullo <mike@flyn.org>
 
 PKG_LICENSE:=GPL-2.0-only
-PKG_MAINTAINER:=W. Michael Petullo <mike@flyn.org>
+
+PKG_SOURCE:=libdaq-$(PKG_VERSION).tar.gz
+PKG_SOURCE_URL:=https://codeload.github.com/snort3/libdaq/tar.gz/v$(PKG_VERSION)?
+PKG_HASH:=c9b691e113960cc19c4df6e93eacbdb45c96491da9c81471f3e419b91c04579a
+PKG_BUILD_DIR:=$(BUILD_DIR)/libdaq-$(PKG_VERSION)
 
 PKG_FIXUP:=autoreconf
 PKG_INSTALL:=1
@@ -30,7 +31,7 @@ define Package/libdaq3
   CATEGORY:=Libraries
   TITLE:=DAQ library
   URL:=$(PKG_SOURCE_URL)
-  DEPENDS:=+libdnet +libpcap +libstdcpp
+  DEPENDS:=+libdnet +libpcap +libstdcpp +libmnl +libnetfilter-queue
 endef
 
 define Package/libdaq3/description
@@ -39,7 +40,7 @@ endef
 
 CONFIGURE_ARGS+= \
 	--disable-static \
-	--disable-nfq-module \
+	--enable-nfq-module \
 	--with-dnet-includes="$(STAGING_DIR)/usr/include" \
 	--with-dnet-libraries="$(STAGING_DIR)/usr/lib" \
 	--with-libpcap-includes="$(STAGING_DIR)/usr/include" \

@@ -1,0 +1,26 @@
+Author: Suhas N Bhargav <quic_sbhargav@quicinc.com>
+Date:   Wed Mar 13 14:18:47 2024 +0530
+
+    openvswitch: Add support for ovs_vport_attr UPCALL_STATS
+
+    openvswitch packet flow needs to be analysed to create rules to push
+    to ECM from openvswitch stack. This change is required, such that OVS
+    netlink messaging is consistent with Kernel v6.6.
+
+    Change-Id: Ifb72cc10bc495131fe72dd11bb3de71b1a843668
+    Signed-off-by: Suhas N Bhargav <quic_sbhargav@quicinc.com>
+---
+Index: openvswitch-2.17.0/datapath/linux/compat/include/linux/openvswitch.h
+===================================================================
+--- openvswitch-2.17.0.orig/datapath/linux/compat/include/linux/openvswitch.h
++++ openvswitch-2.17.0/datapath/linux/compat/include/linux/openvswitch.h
+@@ -301,6 +301,9 @@ enum ovs_vport_attr {
+ 	OVS_VPORT_ATTR_PAD,
+ 	OVS_VPORT_ATTR_IFINDEX,
+ 	OVS_VPORT_ATTR_NETNSID,
++#ifdef LINUX_VERSION_SRC_6_6
++	OVS_VPORT_ATTR_UPCALL_STATS,
++#endif
+ 	OVS_VPORT_ATTR_MASTER,
+ 	__OVS_VPORT_ATTR_MAX
+ };

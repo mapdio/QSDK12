@@ -1,13 +1,6 @@
-/* Copyright (c) 2014-2017, 2019-2020, The Linux Foundation. All rights reserved.
- *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License version 2 and
- * only version 2 as published by the Free Software Foundation.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
+// SPDX-License-Identifier: GPL-2.0-only
+/* Copyright (c) 2014-2020, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2024 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #include <linux/slab.h>
@@ -32,9 +25,9 @@
 #include "diag_ipc_logging.h"
 
 struct diag_mux_state_t *diag_mux;
-static struct diag_logger_t usb_logger;
 static struct diag_logger_t md_logger;
-
+#ifdef CONFIG_DIAG_OVER_USB
+static struct diag_logger_t usb_logger;
 static struct diag_logger_ops usb_log_ops = {
 	.open = diag_usb_connect_all,
 	.close = diag_usb_disconnect_all,
@@ -45,6 +38,7 @@ static struct diag_logger_ops usb_log_ops = {
 	.write = diag_usb_write,
 	.close_peripheral = NULL
 };
+#endif
 
 static struct diag_logger_ops md_log_ops = {
 	.open = diag_md_open_all,
@@ -59,57 +53,41 @@ static struct diag_logger_ops md_log_ops = {
 
 int diag_mux_init(void)
 {
+#ifdef CONFIG_DIAG_OVER_USB
 	int proc;
+#endif
 	diag_mux = kzalloc(sizeof(struct diag_mux_state_t),
 			 GFP_KERNEL);
 	if (!diag_mux)
 		return -ENOMEM;
 	kmemleak_not_leak(diag_mux);
-
+#ifdef CONFIG_DIAG_OVER_USB
 	usb_logger.mode = DIAG_USB_MODE;
 	usb_logger.log_ops = &usb_log_ops;
-
+#endif
 	md_logger.mode = DIAG_MEMORY_DEVICE_MODE;
 	md_logger.log_ops = &md_log_ops;
 	diag_md_init();
+
 	/*
 	 * Set USB logging as the default logger. This is the mode
 	 * Diag should be in when it initializes.
 	 */
-	diag_mux->usb_ptr = &usb_logger;
 	diag_mux->md_ptr = &md_logger;
-
+#ifdef CONFIG_DIAG_OVER_USB
+	diag_mux->usb_ptr = &usb_logger;
 	for (proc = 0; proc < NUM_MUX_PROC; proc++) {
 		diag_mux->logger[proc] = &usb_logger;
-		diag_mux->mode[proc] = DIAG_USB_MODE;
 		diag_mux->mux_mask[proc] = 0;
+		diag_mux->mode[proc] = DIAG_USB_MODE;
 	}
-
+#endif
 	return 0;
 }
 
 void diag_mux_exit(void)
 {
 	kfree(diag_mux);
-}
-
-int diag_usb_register_ops(int proc, int ctx, struct diag_mux_ops *ops)
-{
-	int err = 0;
-
-	if (!ops)
-		return -EINVAL;
-
-	if (proc < 0 || proc >= NUM_MUX_PROC)
-		return 0;
-	usb_logger.ops[proc] = ops;
-	err = diag_usb_register(proc, ctx, ops);
-	if (err) {
-		pr_err("diag: MUX: unable to register usb operations for proc: %d, err: %d\n",
-		       proc, err);
-		return err;
-	}
-	return 0;
 }
 
 int diag_mux_register(int proc, int ctx, struct diag_mux_ops *ops)
@@ -121,12 +99,17 @@ int diag_mux_register(int proc, int ctx, struct diag_mux_ops *ops)
 
 	if (proc < 0 || proc >= NUM_MUX_PROC)
 		return 0;
-	err = diag_usb_register_ops(proc, ctx, ops);
+
+#ifdef CONFIG_DIAG_OVER_USB
+	/* Register with USB logger */
+	usb_logger.ops[proc] = ops;
+	err = diag_usb_register(proc, ctx, ops);
 	if (err) {
-		pr_err("diag: MUX: unable to register USB operations for proc: %d, err: %d\n",
-		proc, err);
+		pr_err("diag: MUX: unable to register usb operations for proc: %d, err: %d\n",
+		       proc, err);
 		return err;
 	}
+#endif
 	md_logger.ops[proc] = ops;
 	err = diag_md_register(proc, ctx, ops);
 	if (err) {
@@ -134,6 +117,7 @@ int diag_mux_register(int proc, int ctx, struct diag_mux_ops *ops)
 		       proc, err);
 		return err;
 	}
+
 	return 0;
 }
 
@@ -288,7 +272,9 @@ int diag_mux_switch_logging(int proc, int *req_mode, int *peripheral_mask)
 	switch (diag_mux->mode[proc]) {
 	case DIAG_USB_MODE:
 		if (*req_mode == DIAG_MEMORY_DEVICE_MODE) {
-			diag_mux->usb_ptr->log_ops->close_device(proc);
+			if (diag_mux->usb_ptr)
+				diag_mux->usb_ptr->log_ops->close_device(proc);
+
 			diag_mux->logger[proc] = diag_mux->md_ptr;
 			diag_mux->md_ptr->log_ops->open_device(proc);
 		} else if (*req_mode == DIAG_MULTI_MODE) {
@@ -297,21 +283,23 @@ int diag_mux_switch_logging(int proc, int *req_mode, int *peripheral_mask)
 		}
 		break;
 	case DIAG_MEMORY_DEVICE_MODE:
-		if (*req_mode == DIAG_USB_MODE) {
+		if (diag_mux->usb_ptr && *req_mode == DIAG_USB_MODE) {
 			diag_mux->md_ptr->log_ops->close_device(proc);
 			diag_mux->logger[proc] = diag_mux->usb_ptr;
 			diag_mux->usb_ptr->log_ops->open_device(proc);
-		} else if (*req_mode == DIAG_MULTI_MODE) {
+		} else if (diag_mux->usb_ptr && *req_mode == DIAG_MULTI_MODE) {
 			diag_mux->usb_ptr->log_ops->open_device(proc);
 			diag_mux->logger[proc] = NULL;
 		}
 		break;
 	case DIAG_MULTI_MODE:
-		if (*req_mode == DIAG_USB_MODE) {
+		if (diag_mux->usb_ptr && *req_mode == DIAG_USB_MODE) {
 			diag_mux->md_ptr->log_ops->close_device(proc);
 			diag_mux->logger[proc] = diag_mux->usb_ptr;
 		} else if (*req_mode == DIAG_MEMORY_DEVICE_MODE) {
-			diag_mux->usb_ptr->log_ops->close_device(proc);
+			if (diag_mux->usb_ptr)
+				diag_mux->usb_ptr->log_ops->close_device(proc);
+
 			diag_mux->logger[proc] = diag_mux->md_ptr;
 		}
 		break;

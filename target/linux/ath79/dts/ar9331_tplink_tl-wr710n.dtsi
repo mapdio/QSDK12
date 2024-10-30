@@ -1,13 +1,12 @@
 // SPDX-License-Identifier: GPL-2.0-or-later OR MIT
 
+#include "ar9331.dtsi"
+
 #include <dt-bindings/gpio/gpio.h>
 #include <dt-bindings/input/input.h>
 
-#include "ar9331.dtsi"
-
 / {
 	aliases {
-		serial0 = &uart;
 		led-boot = &led_system;
 		led-failsafe = &led_system;
 		led-running = &led_system;
@@ -15,8 +14,7 @@
 	};
 
 	keys {
-		compatible = "gpio-keys-polled";
-		poll-interval = <20>;
+		compatible = "gpio-keys";
 
 		reset {
 			label = "reset";
@@ -30,7 +28,7 @@
 		compatible = "gpio-leds";
 
 		led_system: system {
-			label = "tl-wr710n:green:system";
+			label = "green:system";
 			gpios = <&gpio 27 GPIO_ACTIVE_LOW>;
 		};
 	};
@@ -48,8 +46,6 @@
 &eth0 {
 	status = "okay";
 
-	mtd-mac-address = <&uboot 0x1fc00>;
-
 	gmac-config {
 		device = <&gmac>;
 
@@ -59,17 +55,6 @@
 };
 
 &eth1 {
-	status = "okay";
-
-	mtd-mac-address = <&uboot 0x1fc00>;
-	mtd-mac-address-increment = <(-1)>;
-};
-
-&gpio {
-	status = "okay";
-};
-
-&uart {
 	status = "okay";
 };
 
@@ -86,7 +71,4 @@
 
 &wmac {
 	status = "okay";
-
-	mtd-cal-data = <&art 0x1000>;
-	mtd-mac-address = <&uboot 0x1fc00>;
 };

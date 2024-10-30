@@ -22,7 +22,7 @@ Signed-off-by: Harshitha Prem <quic_hprem@quicinc.com>
 
 --- a/drivers/net/wireless/ath/ath12k/core.h
 +++ b/drivers/net/wireless/ath/ath12k/core.h
-@@ -872,6 +872,7 @@ struct ath12k {
+@@ -871,6 +871,7 @@ struct ath12k {
  	bool fw_stats_done;
  
  	struct completion mvr_complete;
@@ -30,18 +30,17 @@ Signed-off-by: Harshitha Prem <quic_hprem@quicinc.com>
  };
  
  struct ath12k_band_cap {
-@@ -903,6 +904,8 @@ struct ath12k_pdev_cap {
+@@ -902,6 +903,7 @@ struct ath12k_pdev_cap {
  	u32 rx_chain_mask;
  	u32 tx_chain_mask_shift;
  	u32 rx_chain_mask_shift;
-+	u32 chainmask_table_id;
 +	u32 adfs_chain_mask;
  	struct ath12k_band_cap band[NUM_NL80211_BANDS];
  	bool nss_ratio_enabled;
  	u8 nss_ratio_info;
 --- a/drivers/net/wireless/ath/ath12k/mac.c
 +++ b/drivers/net/wireless/ath/ath12k/mac.c
-@@ -9745,6 +9745,23 @@ ath12k_mac_vdev_config_after_start(struc
+@@ -9699,6 +9699,23 @@ ath12k_mac_vdev_config_after_start(struc
  	if (ret)
  		ath12k_warn(ab, "failed to set 6G non-ht dup conf for vdev %d: %d\n",
  		            arvif->vdev_id, ret);
@@ -65,7 +64,7 @@ Signed-off-by: Harshitha Prem <quic_hprem@quicinc.com>
  
  	return ret;
  }
-@@ -12923,6 +12940,123 @@ err_fallback:
+@@ -12852,6 +12869,123 @@ err_fallback:
  	return 0;
  }
  
@@ -189,7 +188,7 @@ Signed-off-by: Harshitha Prem <quic_hprem@quicinc.com>
  static const struct ieee80211_ops ath12k_ops = {
  	.tx				= ath12k_mac_op_tx,
  	.start                          = ath12k_mac_op_start,
-@@ -12965,6 +13099,7 @@ static const struct ieee80211_ops ath12k
+@@ -12894,6 +13028,7 @@ static const struct ieee80211_ops ath12k
  	.sta_add_debugfs		= ath12k_debugfs_sta_op_add,
  #endif
  	.get_txpower			= ath12k_mac_op_get_txpower,
@@ -197,7 +196,7 @@ Signed-off-by: Harshitha Prem <quic_hprem@quicinc.com>
  };
  
  static void ath12k_mac_update_ch_list(struct ath12k *ar,
-@@ -13400,6 +13535,11 @@ static int __ath12k_mac_register(struct
+@@ -13329,6 +13464,11 @@ static int __ath12k_mac_register(struct
  				      NL80211_EXT_FEATURE_UNSOL_BCAST_PROBE_RESP);
  	}
  
@@ -209,7 +208,7 @@ Signed-off-by: Harshitha Prem <quic_hprem@quicinc.com>
  	return 0;
  }
  static int ath12k_setup_per_hw_if_comb(struct ath12k_hw *ah) {
-@@ -14017,3 +14157,42 @@ u16 ath12k_calculate_subchannel_count(en
+@@ -13943,3 +14083,35 @@ u16 ath12k_calculate_subchannel_count(en
  	}
  	return width_num/20;
  }
@@ -220,7 +219,6 @@ Signed-off-by: Harshitha Prem <quic_hprem@quicinc.com>
 +	struct ath12k_vif *ahvif;
 +	struct ath12k_link_vif *arvif;
 +	bool arvif_found = false;
-+	int ret = 0;
 +
 +	list_for_each_entry(arvif, &ar->arvifs, list) {
 +		ahvif = arvif->ahvif;
@@ -237,18 +235,12 @@ Signed-off-by: Harshitha Prem <quic_hprem@quicinc.com>
 +	if (ev == ATH12K_BGDFS_RADAR) {
 +		cfg80211_background_radar_event(ar->ah->hw->wiphy, &ar->agile_chandef, GFP_ATOMIC);
 +		lockdep_assert_held(&ar->conf_mutex);
-+		ret = ath12k_wmi_vdev_adfs_ocac_abort_cmd_send(ar, arvif->vdev_id);
++		if (!(ath12k_wmi_vdev_adfs_ocac_abort_cmd_send(ar,arvif->vdev_id))) {
++			memset(&ar->agile_chandef, 0, sizeof(struct cfg80211_chan_def));
++			ar->agile_chandef.chan = NULL;
++		}
 +	} else if (ev == ATH12K_BGDFS_ABORT) {
 +		cfg80211_background_cac_abort(ar->ah->hw->wiphy);
-+	}
-+
-+	if (!ret) {
-+		memset(&ar->agile_chandef, 0, sizeof(struct cfg80211_chan_def));
-+		ar->agile_chandef.chan = NULL;
-+	} else {
-+		ath12k_dbg(ar->ab, ATH12K_DBG_MAC,
-+			   "ADFS state can't be reset (ret=%d)\n",
-+			   ret);
 +	}
 +}
 +
@@ -325,15 +317,7 @@ Signed-off-by: Harshitha Prem <quic_hprem@quicinc.com>
  static int
  ath12k_wmi_tlv_iter(struct ath12k_base *ab, const void *ptr, size_t len,
  		    int (*iter)(struct ath12k_base *ab, u16 tag, u16 len,
-@@ -491,6 +526,7 @@ ath12k_pull_mac_phy_cap_svc_ready_ext(st
- 
- 	pdev_cap->supported_bands |= mac_phy_caps->supported_bands;
- 	pdev_cap->ampdu_density = mac_phy_caps->ampdu_density;
-+	pdev_cap->chainmask_table_id = mac_phy_caps->chainmask_table_id;
- 
- 	/* Take non-zero tx/rx chainmask. If tx/rx chainmask differs from
- 	 * band to band for a single radio, need to see how this should be
-@@ -4677,6 +4713,102 @@ static void ath12k_wmi_pdev_dma_ring_buf
+@@ -4668,6 +4703,93 @@ static void ath12k_wmi_pdev_dma_ring_buf
  	}
  }
  
@@ -367,25 +351,16 @@ Signed-off-by: Harshitha Prem <quic_hprem@quicinc.com>
 +                        cmask_table->cap_list[j].chainmask = cmask_caps->chainmask;
 +                        cmask_table->cap_list[j].supported_caps = cmask_caps->supported_flags;
 +                        cmask_caps++;
-+			ath12k_dbg(soc, ATH12K_DBG_WMI,"[id %d] chainmask %x supported_caps %x",
-+				   cmask_table->table_id, cmask_table->cap_list[j].chainmask,
-+				   cmask_table->cap_list[j].supported_caps);
 +		}
 +	}
 +
-+	for (i = 0; i < soc->num_radios; i++) {
++	for (i = 0; i < svc_rdy_ext->tot_phy_id; i++) {
 +		pdev_cap = &soc->pdevs[i].cap;
-+		for (j = 0; j < svc_rdy_ext->n_mac_phy_chainmask_combo; j++) {
-+			cmask_table = &svc_rdy_ext->param.chainmask_table[j];
-+			if (cmask_table->table_id == pdev_cap->chainmask_table_id)
-+				break;
-+		}
++		cmask_table = &svc_rdy_ext->param.chainmask_table[i];
 +		for (j = 0; j < cmask_table->num_valid_chainmasks; j++) {
 +                        if (cmask_table->cap_list[j].supported_caps & WMI_SUPPORT_CHAIN_MASK_ADFS)
 +				pdev_cap->adfs_chain_mask |= (1 << cmask_table->cap_list[j].chainmask);
 +		}
-+		ath12k_dbg(soc, ATH12K_DBG_WMI, "updated adfs chain mask %x for pdev %d",
-+			   pdev_cap->adfs_chain_mask, i);
 +	}
 +	return 0;
 +}
@@ -436,7 +411,7 @@ Signed-off-by: Harshitha Prem <quic_hprem@quicinc.com>
  static int ath12k_wmi_tlv_hw_mode_caps_parse(struct ath12k_base *soc,
  					     u16 tag, u16 len,
  					     const void *ptr, void *data)
-@@ -4984,6 +5116,7 @@ static int ath12k_wmi_tlv_svc_rdy_ext_pa
+@@ -4975,6 +5097,7 @@ static int ath12k_wmi_tlv_svc_rdy_ext_pa
  	case WMI_TAG_SOC_MAC_PHY_HW_MODE_CAPS:
  		svc_rdy_ext->hw_caps = (struct wmi_soc_mac_phy_hw_mode_caps *)ptr;
  		svc_rdy_ext->param.num_hw_modes = svc_rdy_ext->hw_caps->num_hw_modes;
@@ -444,7 +419,7 @@ Signed-off-by: Harshitha Prem <quic_hprem@quicinc.com>
  		break;
  
  	case WMI_TAG_SOC_HAL_REG_CAPABILITIES:
-@@ -5020,8 +5153,21 @@ static int ath12k_wmi_tlv_svc_rdy_ext_pa
+@@ -5011,8 +5134,21 @@ static int ath12k_wmi_tlv_svc_rdy_ext_pa
  
  			svc_rdy_ext->ext_hal_reg_done = true;
  		} else if (!svc_rdy_ext->mac_phy_chainmask_combo_done) {
@@ -466,7 +441,7 @@ Signed-off-by: Harshitha Prem <quic_hprem@quicinc.com>
  			svc_rdy_ext->mac_phy_chainmask_cap_done = true;
  		} else if (!svc_rdy_ext->oem_dma_ring_cap_done) {
  			svc_rdy_ext->oem_dma_ring_cap_done = true;
-@@ -5059,9 +5205,12 @@ static int ath12k_service_ready_ext_even
+@@ -5050,6 +5186,7 @@ static int ath12k_service_ready_ext_even
  		complete(&ab->wmi_ab.service_ready);
  
  	kfree(svc_rdy_ext.mac_phy_caps);
@@ -474,12 +449,7 @@ Signed-off-by: Harshitha Prem <quic_hprem@quicinc.com>
  	return 0;
  
  err:
-+	kfree(svc_rdy_ext.mac_phy_caps);
-+	ath12k_wmi_free_chainmask_caps(&svc_rdy_ext);
- 	ath12k_wmi_free_dbring_caps(ab);
- 	return ret;
- }
-@@ -8264,10 +8413,15 @@ static void ath12k_dfs_calculate_subchan
+@@ -8254,10 +8391,15 @@ static void ath12k_dfs_calculate_subchan
  
  	arg.ar = ar;
  	arg.def = NULL;
@@ -498,7 +468,7 @@ Signed-off-by: Harshitha Prem <quic_hprem@quicinc.com>
  		ath12k_err(ab, "Channel information not available\n");
  		return;
  	}
-@@ -8311,7 +8465,12 @@ static void ath12k_dfs_calculate_subchan
+@@ -8301,7 +8443,12 @@ static void ath12k_dfs_calculate_subchan
  		   radar_bitmap,subchannel_count);
  
  mark_radar:
@@ -512,7 +482,7 @@ Signed-off-by: Harshitha Prem <quic_hprem@quicinc.com>
  }
  
  static void
-@@ -9732,6 +9891,58 @@ static void ath12k_wmi_event_mvr_respons
+@@ -9725,6 +9872,55 @@ static void ath12k_wmi_event_mvr_respons
  	ath12k_wmi_process_mvr_event(ab, parse.vdev_id_bm, parse.num_vdevs_bm);
  }
  
@@ -557,12 +527,9 @@ Signed-off-by: Harshitha Prem <quic_hprem@quicinc.com>
 +        ath12k_dbg(ar->ab, ATH12K_DBG_WMI,"aDFS ocac complete event in vdev %d\n",
 +                   ev->vdev_id);
 +
-+        if (ev->status) {
++        if (ev->status)
 +            ath12k_mac_background_dfs_event(ar, ATH12K_BGDFS_ABORT);
-+	} else {
-+		memset(&ar->agile_chandef, 0, sizeof(struct cfg80211_chan_def));
-+		ar->agile_chandef.chan = NULL;
-+	}
++
 +exit:
 +        kfree(tb);
 +}
@@ -571,7 +538,7 @@ Signed-off-by: Harshitha Prem <quic_hprem@quicinc.com>
  static void ath12k_wmi_tlv_op_rx(struct ath12k_base *ab, struct sk_buff *skb)
  {
  	struct wmi_cmd_hdr *cmd_hdr;
-@@ -9881,6 +10092,9 @@ static void ath12k_wmi_tlv_op_rx(struct
+@@ -9874,6 +10070,9 @@ static void ath12k_wmi_tlv_op_rx(struct
  	case WMI_PDEV_MULTIPLE_VDEV_RESTART_RESP_EVENTID:
  		ath12k_wmi_event_mvr_response(ab, skb);
  		break;
@@ -581,7 +548,7 @@ Signed-off-by: Harshitha Prem <quic_hprem@quicinc.com>
  	/* TODO: Add remaining events */
  	default:
  		ath12k_dbg(ab, ATH12K_DBG_WMI, "Unknown eventid: 0x%x\n", id);
-@@ -10416,3 +10630,96 @@ int ath12k_wmi_pdev_multiple_vdev_restar
+@@ -10409,3 +10608,95 @@ int ath12k_wmi_pdev_multiple_vdev_restar
  
  	return ret;
  }
@@ -607,11 +574,10 @@ Signed-off-by: Harshitha Prem <quic_hprem@quicinc.com>
 +
 +	if (ar->ab->dfs_region == ATH12K_DFS_REG_ETSI) {
 +		cmd->ocac_mode = WMI_ADFS_MODE_QUICK_OCAC;
-+		cmd->min_duration_ms = cfg80211_chandef_dfs_cac_time(ar->ah->hw->wiphy,
-+								     def,
-+								     true);
 +
-+		if (cmd->min_duration_ms == MIN_WEATHER_RADAR_CHAN_PRECAC_TIMEOUT)
++		/* For ETSI, Agile CAC minimum time = 6 * CAC time */
++		cmd->min_duration_ms = 6 * def->chan->dfs_cac_ms;
++		if (def->chan->dfs_cac_ms != IEEE80211_DFS_MIN_CAC_TIME_MS)
 +			cmd->max_duration_ms = MAX_WEATHER_RADAR_CHAN_PRECAC_TIMEOUT;
 +		else
 +			cmd->max_duration_ms = MAX_PRECAC_TIMEOUT;
@@ -729,7 +695,7 @@ Signed-off-by: Harshitha Prem <quic_hprem@quicinc.com>
  #define PSOC_HOST_MAX_MAC_SIZE (2)
  #define PSOC_HOST_MAX_PHY_SIZE (3)
  #define ATH12K_11B_SUPPORT                 BIT(0)
-@@ -5026,6 +5054,9 @@ enum wmi_host_channel_width {
+@@ -5020,6 +5048,9 @@ enum wmi_host_channel_width {
          WMI_HOST_CHAN_WIDTH_80    = 2,
          WMI_HOST_CHAN_WIDTH_160   = 3,
          WMI_HOST_CHAN_WIDTH_80P80 = 4,
@@ -739,7 +705,7 @@ Signed-off-by: Harshitha Prem <quic_hprem@quicinc.com>
  };
  
  enum wmi_dcs_interference_chan_segment {
-@@ -6432,6 +6463,59 @@ struct wmi_critical_update_arg {
+@@ -6426,6 +6457,59 @@ struct wmi_critical_update_arg {
  #define ATH12K_GET_LOWER_32_BITS(val)		(val & ATH12K_LOWER_32_MASK)
  #define ATH12K_GET_UPPER_32_BITS(val)		((val & ATH12K_UPPER_32_MASK) >> 32)
  
@@ -799,7 +765,7 @@ Signed-off-by: Harshitha Prem <quic_hprem@quicinc.com>
  #define ATH12K_FW_STATS_BUF_SIZE (1024 * 1024)
  
  void ath12k_wmi_init_qcn9274(struct ath12k_base *ab,
-@@ -6603,4 +6687,7 @@ int ath12k_wmi_mlo_teardown(struct ath12
+@@ -6597,4 +6681,7 @@ int ath12k_wmi_mlo_teardown(struct ath12
  bool ath12k_wmi_is_mvr_supported(struct ath12k_base *ab);
  int ath12k_wmi_pdev_multiple_vdev_restart(struct ath12k *ar,
  					  struct wmi_pdev_multiple_vdev_restart_req_arg *arg);

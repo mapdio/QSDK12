@@ -19,7 +19,7 @@ define Package/$(PKG_NAME)
   SECTION:=utils
   CATEGORY:=Utilities
   TITLE:=qdl software
-  DEPENDS:=@TARGET_ipq95xx||TARGET_ipq_ipq807x||TARGET_ipq_ipq807x_64||TARGET_ipq807x||TARGET_ipq50xx +libudev-fbsd +libxml2
+  DEPENDS:=@TARGET_ipq95xx||TARGET_ipq_ipq807x||TARGET_ipq_ipq807x_64||TARGET_ipq807x||TARGET_ipq50xx +libudev-zero +libxml2
 endef
 
 define Package/$(PKG_NAME)/Description

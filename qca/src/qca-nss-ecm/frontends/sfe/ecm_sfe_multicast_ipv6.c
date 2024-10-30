@@ -1,7 +1,7 @@
 /*
  **************************************************************************
  * Copyright (c) 2014-2021, The Linux Foundation. All rights reserved.
- * Copyright (c) 2022-2023 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2024 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
@@ -58,6 +58,9 @@
 #include <net/netfilter/nf_conntrack_core.h>
 #include <net/netfilter/ipv6/nf_conntrack_ipv6.h>
 #include <net/netfilter/ipv6/nf_defrag_ipv6.h>
+#ifdef ECM_INTERFACE_BOND_ENABLE
+#include <net/bonding.h>
+#endif
 #include <net/vxlan.h>
 #ifdef ECM_INTERFACE_VLAN_ENABLE
 #include <linux/../../net/8021q/vlan.h>
@@ -323,6 +326,9 @@ static void ecm_sfe_multicast_ipv6_connection_create_callback(void *app_data, st
 	ecm_sfe_ipv6_accelerated_count++;		/* General running counter */
 
 	if (!_ecm_sfe_ipv6_accel_pending_clear(feci, ECM_FRONT_END_ACCELERATION_MODE_ACCEL)) {
+		int assignment_count;
+		int aci_index;
+		struct ecm_classifier_instance *assignments[ECM_CLASSIFIER_TYPES];
 		/*
 		 * Increement the no-action counter, this is reset if offload action is seen
 		 */
@@ -330,6 +336,20 @@ static void ecm_sfe_multicast_ipv6_connection_create_callback(void *app_data, st
 
 		spin_unlock_bh(&ecm_sfe_ipv6_lock);
 		spin_unlock_bh(&feci->lock);
+
+		/*
+		 * Get the assigned classifiers and call their create notify callbacks. If they are interested in this type of
+		 * create, they will handle the event.
+		 */
+		assignment_count = ecm_db_connection_classifier_assignments_get_and_ref(feci->ci, assignments);
+		for (aci_index = 0; aci_index < assignment_count; ++aci_index) {
+			struct ecm_classifier_instance *aci;
+			aci = assignments[aci_index];
+			if (aci->notify_create) {
+				aci->notify_create(aci, NULL);
+			}
+		}
+		ecm_db_connection_assignments_release(assignment_count, assignments);
 
 		/*
 		 * Release the connection.
@@ -826,8 +846,15 @@ static int ecm_sfe_multicast_ipv6_connection_update_accelerate(struct ecm_front_
 	/*
 	 * Same approach as above for port information
 	 */
-	create->tuple.flow_ident = ecm_db_connection_port_get(feci->ci, ECM_DB_OBJ_DIR_FROM);
-	create->tuple.return_ident = ecm_db_connection_port_get(feci->ci, ECM_DB_OBJ_DIR_TO);
+	create->tuple.flow_ident = htons(ecm_db_connection_port_get(feci->ci, ECM_DB_OBJ_DIR_FROM));
+	create->tuple.return_ident = htons(ecm_db_connection_port_get(feci->ci, ECM_DB_OBJ_DIR_TO));
+
+	/*
+	 * Get mac addresses.
+	 * The src_mac is the mac address of the node that established the connection.
+	 * This will work whether the from_node is LAN (egress) or WAN (ingress).
+	 */
+	ecm_db_connection_node_address_get(feci->ci, ECM_DB_OBJ_DIR_FROM, (uint8_t *)create->conn_rule.flow_mac);
 
 	/*
 	 * Destination Node(MAC) address. This address will be same for all to side intefaces
@@ -941,8 +968,10 @@ static void ecm_sfe_multicast_ipv6_connection_accelerate(struct ecm_front_end_co
 {
 	uint16_t regen_occurrances;
 	struct ecm_db_iface_instance *from_ifaces[ECM_DB_IFACE_HEIRARCHY_MAX];
+	struct ecm_db_iface_instance *from_nat_ifaces[ECM_DB_IFACE_HEIRARCHY_MAX];
 	struct ecm_db_iface_instance *from_sfe_iface;
 	int32_t from_ifaces_first;
+	int32_t from_nat_ifaces_first;
 	struct ecm_db_iface_instance *to_ifaces;
 	struct ecm_db_iface_instance *ii_temp;
 	struct ecm_db_iface_instance *ii_single;
@@ -950,6 +979,7 @@ static void ecm_sfe_multicast_ipv6_connection_accelerate(struct ecm_front_end_co
 	struct sfe_ipv6_msg *nim;
 	int32_t *to_ifaces_first;
 	int32_t *to_ii_first;
+	int32_t from_nat_ifaces_identifier = 0;
 	int32_t from_sfe_iface_id;
 	int32_t to_sfe_iface_id;
 	uint8_t from_sfe_iface_address[ETH_ALEN];
@@ -1254,12 +1284,17 @@ static void ecm_sfe_multicast_ipv6_connection_accelerate(struct ecm_front_end_co
 		return;
 	}
 
+	from_nat_ifaces_first = ecm_db_connection_interfaces_get_and_ref(feci->ci, from_nat_ifaces, ECM_DB_OBJ_DIR_FROM_NAT);
+	from_nat_ifaces_identifier = ecm_db_iface_interface_identifier_get(from_nat_ifaces[ECM_DB_IFACE_HEIRARCHY_MAX - 1]);
+	ecm_db_connection_interfaces_deref(from_nat_ifaces, from_nat_ifaces_first);
+
 	/*
 	 * Now examine the TO / DEST heirarchy list to construct the destination part of the rule
 	 */
 	DEBUG_TRACE("%px: Examine to/dest heirarchy list\n", feci);
 	rule_invalid = false;
 	for (vif = 0; vif < ECM_DB_MULTICAST_IF_MAX; vif++) {
+		int32_t found_nat_ii_match = 0;
 		int32_t to_mtu = 0;
 #ifdef ECM_INTERFACE_PPPOE_ENABLE
 		struct ecm_db_interface_info_pppoe pppoe_info;
@@ -1284,15 +1319,24 @@ static void ecm_sfe_multicast_ipv6_connection_accelerate(struct ecm_front_end_co
 
 		for (list_index = *to_ii_first; !rule_invalid && (list_index < ECM_DB_IFACE_HEIRARCHY_MAX); list_index++) {
 			struct ecm_db_iface_instance *ii;
+			int32_t ii_identifier;
 			ecm_db_iface_type_t ii_type;
 			char *ii_name;
-			struct net_device *dev = NULL;
 
 			ii_single = ecm_db_multicast_if_instance_get_at_index(ii_temp, list_index);
 			ifaces = (struct ecm_db_iface_instance **)ii_single;
 			ii = *ifaces;
 			ii_type = ecm_db_iface_type_get(ii);
 			ii_name = ecm_db_interface_type_to_string(ii_type);
+			ii_identifier = ecm_db_iface_interface_identifier_get(ii);
+
+			/*
+			 * Find match for NAT interface in Multicast destination interface list.
+			 * If found match, set the found_nat_ii_match flag here.
+			 */
+			if (ii_identifier == from_nat_ifaces_identifier) {
+				found_nat_ii_match = 1;
+			}
 
 			DEBUG_TRACE("%px: list_index: %d, ii: %px, type: %d (%s)\n", feci, list_index, ii, ii_type, ii_name);
 
@@ -1357,6 +1401,21 @@ static void ecm_sfe_multicast_ipv6_connection_accelerate(struct ecm_front_end_co
 				DEBUG_TRACE("%px: Ethernet - mac: %pM\n", feci, to_sfe_iface_address);
 				break;
 			case ECM_DB_IFACE_TYPE_LAG:
+			{
+#ifdef ECM_INTERFACE_BOND_ENABLE
+				struct net_device *dev;
+				DEBUG_TRACE("%px: LAG : %s\n", feci, dev->name);
+				if (interface_type_counts[ii_type] != 0) {
+
+					/*
+					 * Ignore additional mac addresses, these are usually as a result of address propagation
+					 * from bridges down to ports etc.
+					 */
+					DEBUG_TRACE("%px: LAG - ignore additional\n", feci);
+					rule_invalid = true;
+					break;
+				}
+
 				dev = dev_get_by_index(&init_net, ecm_db_iface_interface_identifier_get(ii));
 				if (!dev) {
 					DEBUG_TRACE("%px: LAG device is not present\n", feci);
@@ -1374,18 +1433,6 @@ static void ecm_sfe_multicast_ipv6_connection_accelerate(struct ecm_front_end_co
 					break;
 				}
 
-				DEBUG_TRACE("%px: LAG : %s\n", feci, dev->name);
-				if (interface_type_counts[ii_type] != 0) {
-
-					/*
-					 * Ignore additional mac addresses, these are usually as a result of address propagation
-					 * from bridges down to ports etc.
-					 */
-					DEBUG_TRACE("%px: LAG - ignore additional\n", feci);
-					dev_put(dev);
-					rule_invalid = true;
-					break;
-				}
 
 				/*
 				 * Can only handle one MAC, the first outermost mac.
@@ -1395,15 +1442,18 @@ static void ecm_sfe_multicast_ipv6_connection_accelerate(struct ecm_front_end_co
 				to_sfe_iface_id = ecm_db_iface_ae_interface_identifier_get(ii);
 				if (to_sfe_iface_id < 0) {
 					DEBUG_TRACE("%px: to_sfe_iface_id: %d\n", feci, to_sfe_iface_id);
-					ecm_db_multicast_connection_to_interfaces_deref_all(to_ifaces, to_ifaces_first);
-					kfree(nim);
 					dev_put(dev);
-					return;
+					rule_invalid = true;
+					break;
 			        }
 				DEBUG_TRACE("%px: LAG - mac: %pM, mtu %d\n", feci, to_sfe_iface_address, to_mtu);
 				dev_put(dev);
+#else
+				DEBUG_TRACE("%px: LAG not supported\n", feci);
+				rule_invalid = true;
+#endif
 				break;
-
+			}
 			case ECM_DB_IFACE_TYPE_PPPOE:
 #ifdef ECM_INTERFACE_PPPOE_ENABLE
 				/*
@@ -1518,6 +1568,7 @@ static void ecm_sfe_multicast_ipv6_connection_accelerate(struct ecm_front_end_co
 			DEBUG_WARN("%px: to/dest Rule invalid\n", feci);
 			ecm_db_multicast_connection_to_interfaces_deref_all(to_ifaces, to_ifaces_first);
 			kfree(nim);
+			ecm_sfe_ipv6_accel_pending_clear(feci, ECM_FRONT_END_ACCELERATION_MODE_FAIL_RULE);
 			return;
 		}
 
@@ -1527,6 +1578,27 @@ static void ecm_sfe_multicast_ipv6_connection_accelerate(struct ecm_front_end_co
 		 */
 		if (to_sfe_iface_id != -1) {
 			bool is_bridge;
+
+			/*
+			 * Set a rule for NAT if found_nat_ii_match flag is set
+			 */
+			if (found_nat_ii_match) {
+				ip_addr_t xlate_sip;
+				uint32_t xlate_src_ip[4];
+
+				ecm_db_connection_address_get(feci->ci, ECM_DB_OBJ_DIR_FROM_NAT, xlate_sip);
+				ecm_db_connection_address_get(feci->ci, ECM_DB_OBJ_DIR_FROM, addr);
+				if (!ECM_IP_ADDR_MATCH(xlate_sip, addr)) {
+					ECM_IP_ADDR_TO_SFE_IPV6_ADDR(xlate_src_ip, xlate_sip);
+					create->if_rule[valid_vif_idx].xlate_src_ip[0] = xlate_src_ip[0];
+					create->if_rule[valid_vif_idx].xlate_src_ip[1] = xlate_src_ip[1];
+					create->if_rule[valid_vif_idx].xlate_src_ip[2] = xlate_src_ip[2];
+					create->if_rule[valid_vif_idx].xlate_src_ip[3] = xlate_src_ip[3];
+					create->if_rule[valid_vif_idx].xlate_src_ident = ecm_db_connection_port_get(feci->ci, ECM_DB_OBJ_DIR_FROM_NAT);
+					create->if_rule[valid_vif_idx].valid_flags |= SFE_MC_RULE_CREATE_IF_FLAG_NAT_VALID;
+				}
+			}
+
 			create->if_rule[valid_vif_idx].rule_flags |= SFE_MC_RULE_CREATE_IF_FLAG_JOIN;
 			create->if_rule[valid_vif_idx].if_num = to_sfe_iface_id;
 			create->if_rule[valid_vif_idx].if_mtu = to_mtu;
@@ -1603,6 +1675,33 @@ static void ecm_sfe_multicast_ipv6_connection_accelerate(struct ecm_front_end_co
 	if (pr->process_actions & ECM_CLASSIFIER_PROCESS_ACTION_EMESH_SP_FLOW) {
 		create->rule_flags |= SFE_MC_RULE_CREATE_FLAG_MC_EMESH_SP;
 	}
+
+	/*
+	 * SAWF information
+	 */
+	if (pr->process_actions & ECM_CLASSIFIER_PROCESS_ACTION_EMESH_SAWF_TAG) {
+		create->sawf_rule.flow_mark = pr->flow_sawf_metadata;
+		create->sawf_rule.return_mark = pr->return_sawf_metadata;
+	}
+
+	/*
+         * VLAN pcp remark set in SAWF classifer, we modify the pcp value in VLAN tag
+         * and send the update VLAN tag to SFE.
+         */
+        if (pr->process_actions & ECM_CLASSIFIER_PROCESS_ACTION_EMESH_SAWF_VLAN_PCP_REMARK) {
+                if (pr->flow_vlan_pcp != SFE_INVALID_VLAN_PCP &&
+                                create->vlan_primary_rule.egress_vlan_tag != SFE_VLAN_ID_NOT_CONFIGURED) {
+                        create->vlan_primary_rule.egress_vlan_tag &= ~VLAN_PRIO_MASK;
+                        create->vlan_primary_rule.egress_vlan_tag |= pr->flow_vlan_pcp << VLAN_PRIO_SHIFT;
+                }
+
+                if (pr->return_vlan_pcp != SFE_INVALID_VLAN_PCP &&
+                                create->vlan_primary_rule.ingress_vlan_tag != SFE_VLAN_ID_NOT_CONFIGURED) {
+                        create->vlan_primary_rule.ingress_vlan_tag &= ~VLAN_PRIO_MASK;
+                        create->vlan_primary_rule.ingress_vlan_tag |= pr->return_vlan_pcp << VLAN_PRIO_SHIFT;
+                }
+        }
+
 #endif
 
 #ifdef ECM_CLASSIFIER_OVS_ENABLE
@@ -1622,28 +1721,56 @@ static void ecm_sfe_multicast_ipv6_connection_accelerate(struct ecm_front_end_co
 	memcpy(create->dest_mac, dest_mac, ETH_ALEN);
 
 	/*
+	 * Bridge vlan passthrough
+	 */
+	if ((create->rule_flags & SFE_RULE_CREATE_FLAG_BRIDGE_FLOW) && (!(create->valid_flags & SFE_RULE_CREATE_VLAN_VALID))) {
+		if (skb_vlan_tag_present(skb)) {
+			create->rule_flags |= SFE_RULE_CREATE_FLAG_BRIDGE_VLAN_PASSTHROUGH;
+		}
+	}
+
+	/*
 	 * Set protocol
 	 */
 	create->tuple.protocol = IPPROTO_UDP;
 
 	/*
-	 * The src_ip is where the connection established from
+	 * The flow_ip is where the connection established from
 	 */
 	ecm_db_connection_address_get(feci->ci, ECM_DB_OBJ_DIR_FROM, addr);
 	ECM_IP_ADDR_TO_SFE_IPV6_ADDR(create->tuple.flow_ip, addr);
+
+	/*
+	 * The return_ip is where the connection is established to, however, in the case of ingress
+	 * the return_ip would be the routers WAN IP - i.e. the NAT'ed version.
+	 * Getting the NAT'ed version here works for ingress or egress packets, for egress
+	 * the NAT'ed version would be the same as the normal address
+	 */
+	ecm_db_connection_address_get(feci->ci, ECM_DB_OBJ_DIR_TO_NAT, addr);
+	ECM_IP_ADDR_TO_SFE_IPV6_ADDR(create->tuple.return_ip, addr);
+
+	/*
+	 * When the packet is forwarded to the next interface get the address the source IP of the
+	 * packet should be translated to.  For egress this is the NAT'ed from address.
+	 * This also works for ingress as the NAT'ed version of the WAN host would be the same as non-NAT'ed
+	 */
+	ecm_db_connection_address_get(feci->ci, ECM_DB_OBJ_DIR_FROM_NAT, addr);
+	ECM_IP_ADDR_TO_SFE_IPV6_ADDR(create->conn_rule.flow_ip_xlate, addr);
 
 	/*
 	 * The destination address is what the destination IP is translated to as it is forwarded to the next interface.
 	 * For egress this would yield the normal wan host and for ingress this would correctly NAT back to the LAN host
 	 */
 	ecm_db_connection_address_get(feci->ci, ECM_DB_OBJ_DIR_TO, addr);
-	ECM_IP_ADDR_TO_SFE_IPV6_ADDR(create->tuple.return_ip, addr);
+	ECM_IP_ADDR_TO_SFE_IPV6_ADDR(create->conn_rule.return_ip_xlate, addr);
 
 	/*
 	 * Same approach as above for port information
 	 */
 	create->tuple.flow_ident = htons(ecm_db_connection_port_get(feci->ci, ECM_DB_OBJ_DIR_FROM));
-	create->tuple.return_ident = htons(ecm_db_connection_port_get(feci->ci,	ECM_DB_OBJ_DIR_TO));
+	create->tuple.return_ident = htons(ecm_db_connection_port_get(feci->ci, ECM_DB_OBJ_DIR_TO_NAT));
+	create->conn_rule.flow_ident_xlate = htons(ecm_db_connection_port_get(feci->ci, ECM_DB_OBJ_DIR_FROM_NAT));
+	create->conn_rule.return_ident_xlate = htons(ecm_db_connection_port_get(feci->ci, ECM_DB_OBJ_DIR_TO));
 
 	/*
 	 * Get mac addresses.
@@ -1685,6 +1812,7 @@ static void ecm_sfe_multicast_ipv6_connection_accelerate(struct ecm_front_end_co
 			"to_mtu: %u\n"
 			"from_ip: " ECM_IP_ADDR_OCTAL_FMT ":%d\n"
 			"to_ip: " ECM_IP_ADDR_OCTAL_FMT ":%d\n"
+			"xlate_ip: " ECM_IP_ADDR_OCTAL_FMT ":%d\n"
 			"to_mac: %pM\n"
 			"dest_iface_num: %u\n"
 			"in_vlan[0] %x\n"
@@ -1698,6 +1826,7 @@ static void ecm_sfe_multicast_ipv6_connection_accelerate(struct ecm_front_end_co
 			create->if_rule[vif].if_mtu,
 			ECM_IP_ADDR_TO_OCTAL(create->tuple.flow_ip), create->tuple.flow_ident,
 			ECM_IP_ADDR_TO_OCTAL(create->tuple.return_ip), create->tuple.return_ident,
+			ECM_IP_ADDR_TO_OCTAL(create->if_rule[vif].xlate_src_ip), create->if_rule[vif].xlate_src_ident,
 			create->if_rule[vif].if_mac,
 			create->if_rule[vif].if_num,
 			create->vlan_primary_rule.ingress_vlan_tag,
@@ -1859,6 +1988,7 @@ static void ecm_sfe_multicast_ipv6_connection_destroy_callback(void *app_data, s
 	if (feci->accel_mode != ECM_FRONT_END_ACCELERATION_MODE_DECEL_PENDING) {
 		spin_unlock_bh(&feci->lock);
 
+		ecm_db_multicast_connection_to_interfaces_clear(feci->ci);
 		/*
 		 * Release the connections.
 		 */
@@ -1892,6 +2022,8 @@ static void ecm_sfe_multicast_ipv6_connection_destroy_callback(void *app_data, s
 	ecm_sfe_ipv6_accelerated_count--;		/* General running counter */
 	DEBUG_ASSERT(ecm_sfe_ipv6_accelerated_count >= 0, "Bad accel counter\n");
 	spin_unlock_bh(&ecm_sfe_ipv6_lock);
+
+	ecm_db_multicast_connection_to_interfaces_clear(feci->ci);
 
 	/*
 	 * Release the connections.
@@ -1954,11 +2086,6 @@ static bool ecm_sfe_multicast_ipv6_connection_decelerate_msg_send(struct ecm_fro
 			feci, feci->ci,
 			ECM_IP_ADDR_TO_OCTAL(src_ip), nirdm->tuple.flow_ident,
 			ECM_IP_ADDR_TO_OCTAL(dest_ip), nirdm->tuple.return_ident);
-
-	/*
-	 * Right place to free the multicast destination interfaces list.
-	 */
-	ecm_db_multicast_connection_to_interfaces_clear(feci->ci);
 
 	/*
 	 * Take a ref to the feci->ci so that it will persist until we get a response from the SFE.
@@ -2368,11 +2495,11 @@ process_packet:
 			 * No updates to this multicast flow. Move on to the next
 			 * flow for the same group
 			 */
+			ecm_front_end_connection_deref(feci);
 			goto find_next_tuple;
 		}
 
 		DEBUG_TRACE("BRIDGE UPDATE callback ===> leave_cnt %d, join_cnt %d\n", mc_sync.if_leave_cnt, mc_sync.if_join_cnt);
-		feci = ecm_db_connection_front_end_get_and_ref(ci);
 
 		/*
 		 * Do we have any new interfaces that have joined?
@@ -2505,7 +2632,6 @@ find_next_tuple:
 		ecm_db_multicast_connection_deref(ti);
 		ti = ti_next;
 	}
-
 }
 
 /*
@@ -2927,11 +3053,8 @@ static void ecm_sfe_multicast_ipv6_mfc_update_event_callback(struct in6_addr *gr
  */
 bool ecm_sfe_multicast_ipv6_debugfs_init(struct dentry *dentry)
 {
-	struct dentry *multicast_dentry;
-
-	multicast_dentry = debugfs_create_u32("multicast_accelerated_count", S_IRUGO, dentry,
-						&ecm_sfe_multicast_ipv6_accelerated_count);
-	if (!multicast_dentry) {
+	if (!ecm_debugfs_create_u32("multicast_accelerated_count", S_IRUGO, dentry,
+						&ecm_sfe_multicast_ipv6_accelerated_count)) {
 		DEBUG_ERROR("Failed to create ecm sfe ipv6 multicast_accelerated_count file in debugfs\n");
 		return false;
 	}
@@ -2953,7 +3076,7 @@ void ecm_sfe_multicast_ipv6_stop(int num)
  */
 int ecm_sfe_multicast_ipv6_init(struct dentry *dentry)
 {
-	if (!debugfs_create_u32("ecm_sfe_multicast_ipv6_stop", S_IRUGO | S_IWUSR, dentry,
+	if (!ecm_debugfs_create_u32("ecm_sfe_multicast_ipv6_stop", S_IRUGO | S_IWUSR, dentry,
 					(u32 *)&ecm_front_end_ipv6_mc_stopped)) {
 		DEBUG_ERROR("Failed to create ecm front end ipv6 mc stop file in debugfs\n");
 		return -1;

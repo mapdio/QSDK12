@@ -1,22 +1,21 @@
+# SPDX-License-Identifier: GPL-2.0-or-later
 #
-# Copyright (C) 2007-2009 OpenWrt.org
-#
-# This is free software, licensed under the GNU General Public License v2.
-# See /LICENSE for more information.
+# Copyright (C) 2007-2021 OpenWrt.org
 #
 
 include $(TOPDIR)/rules.mk
 
 PKG_NAME:=babeld
-PKG_VERSION:=1.9.2
+PKG_VERSION:=1.13.1
 PKG_RELEASE:=1
 
 PKG_SOURCE:=$(PKG_NAME)-$(PKG_VERSION).tar.gz
 PKG_SOURCE_URL:=https://www.irif.fr/~jch/software/files/
-PKG_HASH:=154f00e0a8bf35d6ea9028886c3dc5c3c342dd1a367df55ef29a547b75867f07
+PKG_HASH:=15f24d26da0ccfc073abcdef0309f281e4684f2aa71126f826572c4c845e8dd9
 
 PKG_MAINTAINER:=Gabriel Kerneis <gabriel@kerneis.info>, \
-	Baptiste Jonglez <openwrt-pkg@bitsofnetworks.org>
+	Baptiste Jonglez <openwrt-pkg@bitsofnetworks.org>, \
+	Nick Hainke <vincent@systemli.org>
 PKG_LICENSE:=MIT
 PKG_LICENSE_FILES:=LICENCE
 
@@ -28,7 +27,7 @@ define Package/babeld
   SUBMENU:=Routing and Redirection
   TITLE:=A loop-avoiding distance-vector routing protocol
   URL:=https://www.irif.fr/~jch/software/babel/
-  DEPENDS:=@IPV6
+  DEPENDS:=@IPV6 +libubus +libubox
 endef
 
 define Package/babeld/description
@@ -36,7 +35,7 @@ define Package/babeld/description
   with fast convergence properties. It is based on the ideas in DSDV, AODV and
   Cisco's EIGRP, but is designed to work well not only in wired networks but
   also in wireless mesh networks, and has been extended with support for
-  overlay networks. Babel is in the process of becoming an IETF Standard.
+  overlay networks. Babel is an IETF standard protocol (RFC 8966).
 endef
 
 define Package/babeld/conffiles
@@ -47,6 +46,7 @@ endef
 MAKE_FLAGS+= \
 	CFLAGS="$(TARGET_CFLAGS)" \
 	LDLIBS="" \
+	LDLIBS+="-lubus -lubox"
 
 define Package/babeld/install
 	$(INSTALL_DIR) $(1)/usr/sbin

@@ -7,9 +7,10 @@ PKG_RELEASE=1
 PKG_SOURCE_PROTO:=git
 PKG_SOURCE_URL:=https://chromium.googlesource.com/breakpad/breakpad
 PKG_SOURCE_SUBDIR:=$(PKG_NAME)-$(PKG_VERSION)
-PKG_SOURCE_VERSION:=c46151db0ffd1a8dae914e45f1212ef427f61ed3
+PKG_SOURCE_VERSION:=41a11409d6ba04e308adc66f5a33115e2d7c9174
 PKG_SOURCE:=$(PKG_NAME)-$(PKG_VERSION)-$(PKG_SOURCE_VERSION).tar.gz
 PKG_MD5SUM:=skip
+PKG_MIRROR_HASH:=skip
 
 PKG_BUILD_DEPENDS:=breakpad/host
 PKG_BUILD_DIR:=$(BUILD_DIR)/$(PKG_NAME)-$(PKG_VERSION)
@@ -34,12 +35,10 @@ define Download/lss
   URL=https://chromium.googlesource.com/linux-syscall-support
   SUBDIR=lss-1.0
   FILE=lss-1.0.tar.gz
-  VERSION=8048ece6c16c91acfe0d36d1d3cc0890ab6e945c
+  VERSION=1d387f43f3702818f7fc04d334539a2f05cafccd
 endef
 
 TARGET_CFLAGS+=-I$(STAGING_DIR)/usr/include \
-	-DTARGET="native"  \
-	-DTARGET_NAME=\''native'\' \
 	-I$(STAGING_DIR)/usr/include/ \
 	-I$(STAGING_DIR)/usr/include/breakpad
 
@@ -101,6 +100,7 @@ define Build/InstallDev
 	$(CP) $(PKG_BUILD_DIR)/src/google_breakpad/common/minidump_exception_ps3.h $(STAGING_DIR)/usr/include/breakpad/google_breakpad/common
 	$(CP) $(PKG_BUILD_DIR)/src/google_breakpad/common/minidump_exception_solaris.h $(STAGING_DIR)/usr/include/breakpad/google_breakpad/common
 	$(CP) $(PKG_BUILD_DIR)/src/google_breakpad/common/minidump_exception_win32.h $(STAGING_DIR)/usr/include/breakpad/google_breakpad/common
+	$(CP) $(PKG_BUILD_DIR)/src/google_breakpad/common/minidump_exception_fuchsia.h $(STAGING_DIR)/usr/include/breakpad/google_breakpad/common
 
 	$(INSTALL_DIR) $(STAGING_DIR)/usr/include/breakpad/third_party/lss
 	$(CP) $(PKG_BUILD_DIR)/src/third_party/lss/linux_syscall_support.h $(STAGING_DIR)/usr/include/breakpad/third_party/lss

@@ -98,12 +98,16 @@ def section_mem_map_addr(ramdump, section):
     return result & ~((1 << 2) - 1)
 
 
-def pfn_to_section_nr(pfn):
-    return pfn >> (30 - 12)
+def pfn_to_section_nr(ramdump, pfn):
+    if ramdump.kernel_version >= (6, 1, 0):
+        section_size_bits = 27
+    else:
+        section_size_bits = 30
+    return pfn >> (section_size_bits - 12)
 
 
 def pfn_to_section(ramdump, pfn):
-    return nr_to_section(ramdump, pfn_to_section_nr(pfn))
+    return nr_to_section(ramdump, pfn_to_section_nr(ramdump, pfn))
 
 
 def pfn_to_page_sparse(ramdump, pfn):
@@ -131,9 +135,16 @@ def get_vmemmap(ramdump):
     else:
         va_bits_min = 48
     PAGE_SHIFT = 12
+    STRUCT_PAGE_MAX_SHIFT = 6
     SZ_2M = 2097152
-    vmemmap_size = -(1 << va_bits_min) - (-(1 << va_bits_min + 1)) >> (PAGE_SHIFT - 6)
-    vmemmap_start = -vmemmap_size - SZ_2M
+
+    if ramdump.kernel_version >= (6, 1, 0):
+        vmemmap_start = -(1 << ( (va_bits_min + 1) - \
+                              (PAGE_SHIFT- STRUCT_PAGE_MAX_SHIFT)))
+    else:
+        vmemmap_size = -(1 << va_bits_min) - (-(1 << va_bits_min + 1)) >> \
+                           (PAGE_SHIFT - STRUCT_PAGE_MAX_SHIFT)
+        vmemmap_start = -vmemmap_size - SZ_2M
     memstart_addr = ramdump.read_s64('memstart_addr')
     vmemmap = vmemmap_start - ((memstart_addr >> PAGE_SHIFT) * 64)
     # To convert unsigned long value and with 0xffffffffffffffff
@@ -145,7 +156,7 @@ def page_to_pfn_vmemmap(ramdump, page):
     else:
         mem_map = 0xffffffbdbf000000
     page_size = ramdump.sizeof('struct page')
-    return ((page - mem_map) / page_size)
+    return ((page - mem_map) // page_size)
 
 
 def pfn_to_page_vmemmap(ramdump, pfn):
@@ -297,12 +308,12 @@ class mm_page_ext:
             self.sections_per_root = 4096 // self.memsection_struct_size
 
             min_pfn = self.get_min_pfn()
-            min_sec_nr = pfn_to_section_nr(min_pfn)
+            min_sec_nr = pfn_to_section_nr(ramdump, min_pfn)
             min_sec_nr_root = min_sec_nr // self.sections_per_root
             min_mask = min_sec_nr & (self.sections_per_root - 1)
 
             max_pfn = self.get_max_pfn()
-            max_sec_nr = pfn_to_section_nr(max_pfn)
+            max_sec_nr = pfn_to_section_nr(ramdump, max_pfn)
             max_sec_nr_root = max_sec_nr // self.sections_per_root
             max_mask = max_sec_nr & (self.sections_per_root - 1)
 
@@ -325,7 +336,7 @@ class mm_page_ext:
     def lookup_page_ext(self, pfn):
         if self.ramdump.arm64:
             if self.ramdump.kernel_version >= (5, 4, 0):
-                sec_num = pfn_to_section_nr(pfn)
+                sec_num = pfn_to_section_nr(self.ramdump, pfn)
                 sect_nr_to_root = sec_num // self.sections_per_root
                 masked = sec_num & (self.sections_per_root - 1)
                 offset = self.memsection_struct_size * (sect_nr_to_root *
@@ -334,11 +345,13 @@ class mm_page_ext:
                 section = self.ramdump.read_word(section_addr - offset)
                 page_ext_base = self.ramdump.read_word(section + offset +
                                             self.page_ext_offset)
-                return page_ext_base + (self.page_ext_offset +
-                                            self.page_ext_size) * pfn
+                if self.ramdump.kernel_version >= (6, 1, 0):
+                    return page_ext_base + (self.page_ext_offset * (self.page_ext_size -4)) * pfn
+                else:
+                    return page_ext_base + (self.page_ext_offset + self.page_ext_size) * pfn
             else:
-                sec_nr_root = pfn_to_section_nr(pfn) // self.sections_per_root
-                sec_mask = pfn_to_section_nr(pfn) & (self.sections_per_root - 1)
+                sec_nr_root = pfn_to_section_nr(ramdump, pfn) // self.sections_per_root
+                sec_mask = pfn_to_section_nr(ramdump, pfn) & (self.sections_per_root - 1)
                 return self.page_ext[sec_nr_root][sec_mask] + pfn *           \
                                             self.page_ext_size
         else:

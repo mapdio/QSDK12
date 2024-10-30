@@ -24,9 +24,8 @@ config ARM_GIC_MAX_NR
 
 config ARM_GIC_V2M
 	bool
-	depends on PCI
 	select ARM_GIC
-	select PCI_MSI
+	select PCI_MSI if PCI
 
 config GIC_NON_BANKED
 	bool

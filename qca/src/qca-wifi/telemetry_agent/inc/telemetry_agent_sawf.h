@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2022, Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2024, Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for any
  * purpose with or without fee is hereby granted, provided that the above
@@ -23,9 +23,6 @@
 
 #define SAWF_MIN_SVC_CLASS 1
 #define SAWF_MAX_SVC_CLASS 128
-#define SAWF_MAX_TID 8
-#define SAWF_MAXQ_PTID 2
-#define SAWF_MAX_QUEUES (SAWF_MAX_TID * SAWF_MAXQ_PTID)
 #define SAWF_MAX_LATENCY_TYPE 3
 
 #define MSEC_TO_JIFFIES(x) jiffies + msecs_to_jiffies(x)
@@ -35,7 +32,7 @@
 #define pr_sawf_dbg(...) printk(KERN_DEBUG "SAWF Telemetry: " __VA_ARGS__)
 
 #define DELAY_BOUND_UNIT 1000
-#define THROUGHPUT_UNIT 1024
+#define THROUGHPUT_UNIT (1000/8)
 #define MSDU_LOSS_UNIT 1/1000000
 
 #define MAC_ADDR_SIZE 6
@@ -129,13 +126,13 @@ enum telemetry_sawf_param {
  * @msdu_rate_loss:  msdu-loss rate
  */
 struct telemetry_sawf_svc_class_param {
-	uint8_t min_thruput_rate;
-	uint8_t max_thruput_rate;
-	uint8_t burst_size;
-	uint8_t service_interval;
-	uint8_t delay_bound;
-	uint8_t msdu_ttl;
-	uint8_t msdu_rate_loss;
+	uint32_t min_thruput_rate;
+	uint32_t max_thruput_rate;
+	uint32_t burst_size;
+	uint32_t service_interval;
+	uint32_t delay_bound;
+	uint32_t msdu_ttl;
+	uint32_t msdu_rate_loss;
 };
 
 /**
@@ -172,7 +169,7 @@ struct telemetry_sawf_sla_detect_cfg {
  * @sla_params: sla-params
  * @vc_class: service class params
  * @sla: sla config array for all service-classes
- * @sla_detect: sla-detect config
+ * @sla_detect: which type of SLA detections are enabled for a svc-class
  * @per_sec_timer: per-second timer list
  * @num_sec_timer: per-n-second timer list
  * @peer_list: list of peers
@@ -315,7 +312,7 @@ struct sawf_msduq {
  */
 struct peer_sawf_queue {
 	DECLARE_BITMAP(active_queue, SAWF_MAX_QUEUES);
-	uint8_t msduq_map[SAWF_MAX_TID][SAWF_MAXQ_PTID];
+	uint8_t msduq_map[NUM_TIDS][SAWF_MAXQ_PTID];
 	struct sawf_msduq msduq[SAWF_MAX_QUEUES];
 };
 
@@ -476,6 +473,29 @@ int telemetry_sawf_update_queue_info(void *telemetry_ctx,
 				     uint8_t svc_id, uint8_t tid,
 				     uint8_t msduq);
 
+/**
+ * telemetry_sawf_update_msdu_queue_info- Update msdu-queue info
+ * @telemetry_ctx: pointer to sawf-peer-telemetry ctx
+ * @hostq_id: host queue id
+ * @tid: tid no
+ * @msduq: msdu-queue no
+ * @svc-id: service-class id
+ *
+ * Return: 0 on success
+ */
+int telemetry_sawf_update_msdu_queue_info(void *telemetry_ctx,
+					  uint8_t hostq_id, uint8_t tid,
+					  uint8_t msduq, uint8_t svc_id);
+
+/**
+ * telemetry_sawf_clear_msdu_queue_info- CLear Msduq active bit
+ * @telemetry_ctx: pointer to sawf-peer-telemetry ctx
+ * @hostq_id: host queue id
+ *
+ * Return: 0 on success
+ */
+int telemetry_sawf_clear_msdu_queue_info(void *telemetry_ctx,
+					 uint8_t host_q_id);
 /**
  * telemetry_sawf_free_peer - Free telemetry-peer context
  * @telemetry_peer_ctx: telemetry-peer context

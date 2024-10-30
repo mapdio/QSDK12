@@ -35,11 +35,7 @@ endef
 
 define Package/$(PKG_NAME)/install
 	$(INSTALL_DIR) $(1)/usr/sbin
-	$(INSTALL_DIR) $(1)/etc/init.d
-	$(INSTALL_BIN) $(PKG_BUILD_DIR)/qrtr-cfg $(1)/usr/sbin/
-	$(INSTALL_BIN) $(PKG_BUILD_DIR)/qrtr-ns $(1)/usr/sbin/
 	$(INSTALL_BIN) $(PKG_BUILD_DIR)/qrtr-lookup $(1)/usr/sbin/
-	$(INSTALL_BIN) ./files/qrtr.init $(1)/etc/init.d/qrtr
 endef
 
 $(eval $(call BuildPackage,$(PKG_NAME)))

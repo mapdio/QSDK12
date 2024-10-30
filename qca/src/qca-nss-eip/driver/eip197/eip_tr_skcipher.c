@@ -24,7 +24,12 @@
 #include <asm/cacheflush.h>
 
 #include <crypto/md5.h>
+#if (LINUX_VERSION_CODE < KERNEL_VERSION(6, 1, 0))
 #include <crypto/sha.h>
+#else
+#include <crypto/sha1.h>
+#include <crypto/sha2.h>
+#endif
 #include <crypto/sha3.h>
 #include <crypto/aes.h>
 #include <crypto/des.h>
@@ -113,13 +118,15 @@ bool eip_tr_skcipher_init(struct eip_tr *tr, struct eip_tr_info *info, const str
 	tr->crypto.enc.tk_fill = algo->enc_tk_fill;
 	tr->crypto.enc.cb = crypto->enc_cb;
 	tr->crypto.enc.err_cb = crypto->enc_err_cb;
+	tr->crypto.enc.app_data = crypto->app_data;
 	tr->crypto.dec.tk_fill = algo->dec_tk_fill;
 	tr->crypto.dec.cb = crypto->dec_cb;
 	tr->crypto.dec.err_cb = crypto->dec_err_cb;
+	tr->crypto.dec.app_data = crypto->app_data;
 	tr->crypto.auth.tk_fill = NULL;
 	tr->crypto.auth.cb = NULL;
 	tr->crypto.auth.err_cb = NULL;
-	tr->crypto.app_data = crypto->app_data;
+	tr->crypto.auth.app_data = NULL;
 
 	/*
 	 * For crypto, Control words are in tokens.
@@ -200,7 +207,7 @@ static void eip_tr_skcipher_enc_done(struct eip_tr *tr, struct eip_hw_desc *hw, 
 	eip_req_t eip_req = sw->req;
 	struct eip_ctx *ctx = tr->ctx;
 	eip_tr_callback_t cb = tr->crypto.enc.cb;
-	void *app_data = tr->crypto.app_data;
+	void *app_data = tr->crypto.enc.app_data;
 
 	/*
 	 * Free token and sw cache.
@@ -228,7 +235,7 @@ static void eip_tr_skcipher_enc_err(struct eip_tr *tr, struct eip_hw_desc *hw, s
 	eip_req_t eip_req = sw->req;
 	struct eip_ctx *ctx = tr->ctx;
 	eip_tr_err_callback_t cb = tr->crypto.enc.err_cb;
-	void *app_data = tr->crypto.app_data;
+	void *app_data = tr->crypto.enc.app_data;
 	int err = 0;
 
 	/*
@@ -262,7 +269,7 @@ static void eip_tr_skcipher_dec_done(struct eip_tr *tr, struct eip_hw_desc *hw, 
 	eip_req_t eip_req = sw->req;
 	struct eip_ctx *ctx = tr->ctx;
 	eip_tr_callback_t cb = tr->crypto.dec.cb;
-	void *app_data = tr->crypto.app_data;
+	void *app_data = tr->crypto.dec.app_data;
 
 	/*
 	 * Free token and sw cache.
@@ -290,7 +297,7 @@ static void eip_tr_skcipher_dec_err(struct eip_tr *tr, struct eip_hw_desc *hw, s
 	eip_req_t eip_req = sw->req;
 	struct eip_ctx *ctx = tr->ctx;
 	eip_tr_err_callback_t cb = tr->crypto.dec.err_cb;
-	void *app_data = tr->crypto.app_data;
+	void *app_data = tr->crypto.dec.app_data;
 	int err = 0;
 
 	/*
@@ -322,7 +329,7 @@ static void eip_tr_skcipher_dec_err(struct eip_tr *tr, struct eip_hw_desc *hw, s
 int eip_tr_skcipher_enc(struct eip_tr *tr, struct skcipher_request *req)
 {
 	struct eip_ctx *ctx = tr->ctx;
-	uint32_t cmd_token_hdr = 0;
+	uint32_t tk_hdr = 0;
 	struct eip_sw_desc *sw;
 	struct eip_dma *dma;
 	struct eip_tk *tk;
@@ -341,7 +348,7 @@ int eip_tr_skcipher_enc(struct eip_tr *tr, struct skcipher_request *req)
 	/*
 	 * Fill token for encryption and hmac.
 	 */
-	tk_words = tr->crypto.enc.tk_fill(tk, tr, req, &cmd_token_hdr);
+	tk_words = EIP_TR_FILL_TOKEN(tr, &tr->crypto.enc, tk, req, &tk_hdr);
 
 	dmac_clean_range(tk, tk + 1);
 
@@ -362,7 +369,7 @@ int eip_tr_skcipher_enc(struct eip_tr *tr, struct skcipher_request *req)
 	sw->tk = tk;
 	sw->comp = &eip_tr_skcipher_enc_done;
 	sw->err_comp = &eip_tr_skcipher_enc_err;
-	sw->cmd_token_hdr = cmd_token_hdr;
+	sw->tk_hdr = tk_hdr;
 	sw->tk_addr = virt_to_phys(tk);
 	sw->tr_addr_type = tr->tr_addr_type;
 	sw->tk_words = tk_words;
@@ -394,7 +401,7 @@ EXPORT_SYMBOL(eip_tr_skcipher_enc);
 int eip_tr_skcipher_dec(struct eip_tr *tr, struct skcipher_request *req)
 {
 	struct eip_ctx *ctx = tr->ctx;
-	uint32_t cmd_token_hdr = 0;
+	uint32_t tk_hdr = 0;
 	struct eip_sw_desc *sw;
 	struct eip_dma *dma;
 	struct eip_tk *tk;
@@ -413,7 +420,7 @@ int eip_tr_skcipher_dec(struct eip_tr *tr, struct skcipher_request *req)
 	/*
 	 * Fill token for hmac and decryption.
 	 */
-	tk_words = tr->crypto.dec.tk_fill(tk, tr, req, &cmd_token_hdr);
+	tk_words = EIP_TR_FILL_TOKEN(tr, &tr->crypto.dec, tk, req, &tk_hdr);
 
 	dmac_clean_range(tk, tk + 1);
 
@@ -434,7 +441,7 @@ int eip_tr_skcipher_dec(struct eip_tr *tr, struct skcipher_request *req)
 	sw->tk = tk;
 	sw->comp = &eip_tr_skcipher_dec_done;
 	sw->err_comp = &eip_tr_skcipher_dec_err;
-	sw->cmd_token_hdr = cmd_token_hdr;
+	sw->tk_hdr = tk_hdr;
 	sw->tk_addr = virt_to_phys(tk);
 	sw->tr_addr_type = tr->tr_addr_type;
 	sw->tk_words = tk_words;

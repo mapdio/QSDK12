@@ -1,0 +1,48 @@
+commit b0acc8f63bb8ab98f1b7fd075633ac5049666f74
+Author: Murat Sezgin <quic_msezgin@quicinc.com>
+Date:   Tue Aug 22 11:31:34 2023 -0700
+
+    firewall4: add conntrack flush patch
+
+    The patch flushes the conntarck table when firewall
+    stops, starts, restarts or reloads to reflect the new changes
+    in the firewall config to the conntrack table (e.g: SNAT enable/disable).
+
+    Change-Id: Id260208dead71ff781b9f0658f7f8dadb753b7b4
+    Signed-off-by: Murat Sezgin <quic_msezgin@quicinc.com>
+
+Index: firewall4-2023-03-23-04a06bd7/root/etc/init.d/firewall
+===================================================================
+--- firewall4-2023-03-23-04a06bd7.orig/root/etc/init.d/firewall
++++ firewall4-2023-03-23-04a06bd7/root/etc/init.d/firewall
+@@ -10,18 +10,30 @@ service_triggers() {
+ 
+ restart() {
+ 	fw4 restart
++
++	#flush conntrack table
++	echo f > /proc/net/nf_conntrack
+ }
+ 
+ start_service() {
+ 	fw4 ${QUIET} start
++
++	#flush conntrack table
++	echo f > /proc/net/nf_conntrack
+ }
+ 
+ stop_service() {
+ 	fw4 flush
++
++	#flush conntrack table
++	echo f > /proc/net/nf_conntrack
+ }
+ 
+ reload_service() {
+ 	fw4 reload
++
++	#flush conntrack table
++	echo f > /proc/net/nf_conntrack
+ }
+ 
+ boot() {

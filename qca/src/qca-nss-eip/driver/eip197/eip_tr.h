@@ -25,6 +25,8 @@
 #define EIP_TR_CTRL_CONTEXT_WORDS(x) (((x) & 0x3FU) << 8)
 #define EIP_TR_REDIR_EN (0x1U << 11) /* Redirect enable */
 #define EIP_TR_REDIR_IFACE(i) (((i) & 0xFU) << 12) /* Redirect destination interface */
+#define EIP_TR_FILL_TOKEN(tr, ops, tk, req, tk_hdr) ((ops)->tk_fill(tk, tr, req, tk_hdr)) /* Call Token fill function */
+#define EIP_MAX_PKT_LEN	9216 /* Bytes */
 
 struct eip_svc_entry;
 typedef bool (*eip_tr_init_t) (struct eip_tr *tr, struct eip_tr_info *info, const struct eip_svc_entry *algo);
@@ -66,7 +68,7 @@ typedef bool (*eip_tr_init_t) (struct eip_tr *tr, struct eip_tr_info *info, cons
 #define EIP_TR_IPSEC_DECAP_TOKEN_VERIFY 0xd0060000U
 #define EIP_TR_IPSEC_DECAP_TOKEN_VERIFY_SEQ 0x8000000U
 #define EIP_TR_IPSEC_DECAP_TOKEN_VERIFY_PAD 0x5000000U
-#define EIP_TR_IPSEC_DECAP_TOKEN_VERIFY_HMAC 0x1000cU
+#define EIP_TR_IPSEC_DECAP_TOKEN_VERIFY_HMAC 0x10000U
 #define EIP_TR_IPSEC_REPLAY_WINDOW_SZ_32 (1U << 8);
 #define EIP_TR_IPSEC_REPLAY_WINDOW_SZ_64 (2U << 8);
 #define EIP_TR_IPSEC_REPLAY_WINDOW_SZ_128 (4U << 8);
@@ -118,6 +120,7 @@ struct eip_tr_stats {
 	uint64_t tx_frags;	/* Total buffer fragments sent via this TR */
 	uint64_t tx_pkts;	/* Total buffer sent via this TR */
 	uint64_t tx_bytes;	/* Total bytes via this TR */
+	uint64_t tx_error_len;	/* Total packets dropped for exceeding max jumbo limit */
 	uint64_t rx_frags;	/* Total buffer fragments received via this TR */
 	uint64_t rx_pkts;	/* Total buffer received via this TR */
 	uint64_t rx_bytes;	/* Total bytes recieved via this TR */
@@ -125,11 +128,12 @@ struct eip_tr_stats {
 };
 
 /*
- * eip_tr_template
+ * eip_tr_ops
  *	Template to hold callbacks.
  */
-struct eip_tr_template {
-	eip_tk_fill_t tk_fill;		/* cached Token fill method */
+struct eip_tr_ops {
+	eip_tk_proc_t tk_fill;		/* cached Token fill method */
+	void *app_data;			/* App data passed for callback */
 	eip_tr_callback_t cb;		/* completion callback to client */
 	eip_tr_err_callback_t err_cb;	/* completion with error callback to client */
 };
@@ -139,10 +143,9 @@ struct eip_tr_template {
  *	Crypto specific information.
  */
 struct eip_tr_crypto {
-	struct eip_tr_template enc;		/* Encode operation */
-	struct eip_tr_template dec;		/* Decode operation */
-	struct eip_tr_template auth;		/* Auth operation */
-	void *app_data;			/* Opaque to pass with callback */
+	struct eip_tr_ops enc;		/* Encode operation */
+	struct eip_tr_ops dec;		/* Decode operation */
+	struct eip_tr_ops auth;		/* Auth operation */
 };
 
 /*
@@ -150,7 +153,7 @@ struct eip_tr_crypto {
  *	IPsec specific information.
  */
 struct eip_tr_ipsec {
-	struct eip_tr_template op;	/* Transformation operation callback */
+	struct eip_tr_ops ops;		/* Transformation operation callback */
 	void *app_data;			/* Opaque to pass with callback */
 };
 
@@ -175,6 +178,7 @@ struct eip_tr {
 	uint32_t tr_flags;			/* Flags for TR */
 	uint16_t iv_len;			/* IV length for configured algo */
 	uint16_t digest_len;			/* HMAC length for configured algo */
+	uint16_t blk_len;			/* Cipher block length for configured algo */
 
 	struct eip_tr_stats __percpu *stats_pcpu;	/* Statistisc */
 	struct kref ref;			/* Reference incremented per packet */

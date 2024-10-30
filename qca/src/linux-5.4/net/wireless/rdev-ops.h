@@ -1344,4 +1344,19 @@ rdev_set_fils_aad(struct cfg80211_registered_device *rdev,
 	return ret;
 }
 
+static inline int
+rdev_add_link_station(struct cfg80211_registered_device *rdev,
+		      struct net_device *dev,
+		      struct link_station_parameters *params)
+{
+	int ret;
+
+	if (!rdev->ops->add_link_station)
+		return -EOPNOTSUPP;
+	trace_rdev_add_link_station(&rdev->wiphy, dev, params);
+	ret = rdev->ops->add_link_station(&rdev->wiphy, dev, params);
+	trace_rdev_return_int(&rdev->wiphy, ret);
+	return ret;
+}
+
 #endif /* __CFG80211_RDEV_OPS */

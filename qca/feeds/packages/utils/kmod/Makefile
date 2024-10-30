@@ -8,19 +8,20 @@
 include $(TOPDIR)/rules.mk
 
 PKG_NAME:=kmod
-PKG_VERSION:=20
-PKG_RELEASE:=2
+PKG_VERSION:=31
+PKG_RELEASE:=1
 
 PKG_SOURCE:=$(PKG_NAME)-$(PKG_VERSION).tar.xz
-PKG_SOURCE_URL:=@KERNEL/linux/utils/kernel/kmod/
-PKG_HASH:=89c1a1a2193c31f9ebe582640bfa2bd401341dc24119f5a7f702588116fadaa0
+PKG_SOURCE_URL:=@KERNEL/linux/utils/kernel/kmod
+PKG_HASH:=f5a6949043cc72c001b728d8c218609c5a15f3c33d75614b78c79418fcf00d80
+
 PKG_MAINTAINER:=Jeff Waugh <jdub@bethesignal.org>
 PKG_LICENSE:=LGPL-2.1-or-later
 PKG_LICENSE_FILES:=COPYING
-PKG_FIXUP:=autoreconf
 
-PKG_BUILD_PARALLEL:=1
+PKG_FIXUP:=autoreconf
 PKG_INSTALL:=1
+PKG_BUILD_PARALLEL:=1
 
 include $(INCLUDE_DIR)/package.mk
 
@@ -38,6 +39,13 @@ endef
 define Package/kmod
 $(call Package/kmod/Default)
   TITLE+= (tools)
+  ALTERNATIVES:=\
+    200:/sbin/depmod:/sbin/kmod \
+    200:/sbin/insmod:/sbin/kmod \
+    200:/sbin/lsmod:/sbin/kmod \
+    200:/sbin/modinfo:/sbin/kmod \
+    200:/sbin/modprobe:/sbin/kmod \
+    200:/sbin/rmmod:/sbin/kmod
 endef
 
 define Package/kmod/description
@@ -46,21 +54,9 @@ Linux kernel module handling
  insert, remove, list, check properties, resolve dependencies and aliases.
 endef
 
-LEGACY_BINARIES:= \
-	depmod \
-	insmod \
-	lsmod \
-	modinfo \
-	modprobe \
-	rmmod
-
 define Package/kmod/install
 	$(INSTALL_DIR) $(1)/sbin
 	$(CP) $(PKG_INSTALL_DIR)/usr/bin/kmod $(1)/sbin
-
-	for b in $(LEGACY_BINARIES); do \
-		ln -sf kmod $(1)/sbin/$$$$b ; \
-	done
 endef
 
 
@@ -86,6 +82,8 @@ define Build/InstallDev
 
 	$(INSTALL_DIR) $(1)/usr/lib/pkgconfig
 	$(CP) $(PKG_INSTALL_DIR)/usr/lib/pkgconfig/libkmod.pc $(1)/usr/lib/pkgconfig/
+	$(SED) 's,/usr/include,$$$${prefix}/include,g' $(1)/usr/lib/pkgconfig/libkmod.pc
+	$(SED) 's,/usr/lib,$$$${exec_prefix}/lib,g' $(1)/usr/lib/pkgconfig/libkmod.pc
 endef
 
 

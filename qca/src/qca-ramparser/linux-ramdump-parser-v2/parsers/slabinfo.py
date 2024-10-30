@@ -88,6 +88,8 @@ class struct_member_offset(object):
              'struct kmem_cache', 'red_left_pad')
         self.kmemcache_cpu_page = ramdump.field_offset(
             'struct kmem_cache_cpu', 'page')
+        self.kmemcache_cpu_slab = ramdump.field_offset(
+            'struct kmem_cache_cpu', 'slab')
         self.kmemcpucache_cpu_slab = ramdump.field_offset(
             'struct kmem_cache', 'cpu_slab')
         self.kmemcachenode_partial = ramdump.field_offset(
@@ -98,6 +100,8 @@ class struct_member_offset(object):
             'struct kmem_cache_node', 'total_objects')
         self.page_lru = ramdump.field_offset(
                             'struct page', 'lru')
+        self.slab_lru = ramdump.field_offset(
+                            'struct slab', 'slab_list')
         self.page_flags = ramdump.field_offset(
                             'struct page', 'flags')
         if (ramdump.kernel_version <= (4, 14)):
@@ -106,10 +110,18 @@ class struct_member_offset(object):
         else:
             self.page_mapcount = ramdump.field_offset(
                                 'struct page', 'counters')
+            self.slab_mapcount = ramdump.field_offset(
+                                'struct slab', 'counters')
         self.track_addrs = ramdump.field_offset(
                             'struct track', 'addrs')
+        self.track_handle = ramdump.field_offset(
+                            'struct track', 'handle')
+        self.track_addr = ramdump.field_offset(
+                            'struct track', 'addr')
         self.page_freelist = ramdump.field_offset(
                             'struct page', 'freelist')
+        self.slab_freelist = ramdump.field_offset(
+                            'struct slab', 'freelist')
         self.sizeof_struct_track = ramdump.sizeof(
                                             'struct track')
         self.sizeof_void_pointer = ramdump.sizeof(
@@ -134,7 +146,10 @@ class Slabinfo(RamParser):
         return (p - addr) // slab.size
 
     def get_map(self, ramdump, slab, page, bitarray):
-        freelist = self.ramdump.read_word(page + g_offsetof.page_freelist)
+        if ramdump.kernel_version >= (6, 1, 0):
+            freelist = self.ramdump.read_word(page + g_offsetof.slab_freelist)
+        else:
+            freelist = self.ramdump.read_word(page + g_offsetof.page_freelist)
         p = freelist
         addr = page_address(self.ramdump, page)
         seen = {}
@@ -160,16 +175,47 @@ class Slabinfo(RamParser):
         stack = []
         stackstr = ""
         track_addrs_offset = g_offsetof.track_addrs
+        track_handle_offset = g_offsetof.track_handle
         pointer_size = g_offsetof.sizeof_unsignedlong
+        track_addr_offset = g_offsetof.track_addr
 
         p = self.get_track(ramdump, slab, obj, track_type)
-        start = p + track_addrs_offset
-        for i in range(0, 16):
-            a = self.ramdump.read_word(start + pointer_size * i)
-            if a == 0:
-                continue
-            stack += [a]
-            stackstr += str(a)
+
+        if ramdump.kernel_version >= (6, 1, 0):
+            SLAB_INDEX_START = 1
+            SLAB_INDEX_BIT  = 16
+            SLAB_OFFSET_START = 17
+            SLAB_OFFSET_BIT = 10
+            PAGE_SHIFT = 4
+
+            stack_size =  ramdump.field_offset('struct stack_record', 'size')
+            entry_offset = ramdump.field_offset('struct stack_record', 'entries')
+            trace_entry_size = ramdump.sizeof("void *")
+            handle =  p + track_handle_offset
+            if ramdump.read_u32(handle) is None:
+                return
+            handle = ramdump.read_word(handle)
+            slab_index = (((1 << SLAB_INDEX_BIT) - 1) & (handle >> (SLAB_INDEX_START - 1)))
+            slab_offset = (((1 << SLAB_OFFSET_BIT) - 1) & (handle >> (SLAB_OFFSET_START - 1)))
+            offset = slab_offset << PAGE_SHIFT
+            stack_slab_addr = ramdump.read_word('stack_slabs[' + str(slab_index) + ']')
+            stack_addr = stack_slab_addr +  offset
+            nr_entries = ramdump.read_u32(stack_addr + stack_size)
+
+            for i in range(0, nr_entries):
+                entry = ramdump.read_word(stack_addr + entry_offset + i * trace_entry_size)
+                if entry == 0:
+                    continue
+                stack += [entry]
+                stackstr += str(entry)
+        else:
+            start = p + track_addrs_offset
+            for i in range(0, 16):
+                a = self.ramdump.read_word(start + pointer_size * i)
+                if a == 0:
+                    continue
+                stack += [a]
+                stackstr += str(a)
 
         if len(stack) != 0:
             self.slabinfo_ranked.insert([slab_name], [p], stack, slab.size, "S", track_type)
@@ -181,7 +227,10 @@ class Slabinfo(RamParser):
 
         page_addr = page_address(ramdump, page)
         p = page_addr
-        n_objects = self.ramdump.read_word(page + g_offsetof.page_mapcount)
+        if ramdump.kernel_version >= (6, 1, 0):
+            n_objects = self.ramdump.read_word(page + g_offsetof.slab_mapcount)
+        else:
+            n_objects = self.ramdump.read_word(page + g_offsetof.page_mapcount)
         if n_objects is None:
             return
 
@@ -253,10 +302,17 @@ class Slabinfo(RamParser):
             if page > max_page:
                 return
             seen[page] = 1
-            page = page - g_offsetof.page_lru
+
+            if ramdump.kernel_version >= (6, 1, 0):
+                page = page - g_offsetof.slab_lru
+            else:
+                page = page - g_offsetof.page_lru
             self.print_slab(
                 self.ramdump, slab_name, slab_obj, page, out_file, map_fn, out_slabs_addrs)
-            page = self.ramdump.read_word(page + g_offsetof.page_lru)
+            if ramdump.kernel_version >= (6, 1, 0):
+                page = self.ramdump.read_word(page + g_offsetof.slab_lru)
+            else:
+                page = self.ramdump.read_word(page + g_offsetof.page_lru)
 
     def print_per_cpu_slab_info(
             self, ramdump, slab_name, slab, slab_node, start, out_file, map_fn):

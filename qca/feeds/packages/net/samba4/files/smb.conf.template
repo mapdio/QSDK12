@@ -47,7 +47,7 @@
 	## Note that it happens only for non-chained and non-chaining reads and when not using write cache.
 	## The only reasonable values for this parameter are 0 (no async I/O) and 1 (always do async I/O).
 	## (1/0)
-	#aio read size = 0
+	aio read size = 0
 	#aio write size = 0
 
 	## If Samba has been built with asynchronous I/O support, Samba will not wait until write requests are finished before returning the result to the client for files listed in this parameter.
@@ -58,7 +58,7 @@
 	## lower CPU useage if supported and aio is disabled (aio read size = 0 ; aio write size = 0)
 	## is this still broken? issue is from 2019 (NOTE: see https://bugzilla.samba.org/show_bug.cgi?id=14095 )
 	## (no, yes)
-	#use sendfile = yes
+	use sendfile = yes
 
 	## samba will behave as previous versions of Samba would and will fail the lock request immediately if the lock range cannot be obtained.
 	#blocking locks = No

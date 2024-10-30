@@ -1,6 +1,6 @@
 /*
  * Copyright (c) 2016-2017, The Linux Foundation. All rights reserved.
- * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2023 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
@@ -3263,6 +3263,7 @@ hppe_lpi_dbg_data_set(
 				index * LPI_DBG_DATA_INC,
 				value->val);
 }
+#endif
 sw_error_t
 hppe_lpi_cnt_get(
 		a_uint32_t dev_id,
@@ -3288,7 +3289,6 @@ hppe_lpi_cnt_set(
 				index * LPI_CNT_INC,
 				value->val);
 }
-#endif
 
 sw_error_t
 hppe_drop_cnt_get(
@@ -3296,7 +3296,7 @@ hppe_drop_cnt_get(
 		a_uint32_t index,
 		union drop_cnt_u *value)
 {
-	if (index >= DROP_CNT_MAX_ENTRY)
+	if (index >= DROP_CNT_NUM)
 		return SW_OUT_OF_RANGE;
 	return hppe_reg_get(
 				dev_id,

@@ -5,16 +5,15 @@
 include $(TOPDIR)/rules.mk
 
 PKG_NAME:=python-appdirs
-PKG_VERSION:=1.4.3
+PKG_VERSION:=1.4.4
 PKG_RELEASE:=1
 PKG_MAINTAINER:=Karel Kočí <cynerd@email.cz>
 
-PKG_SOURCE_URL:=https://pypi.python.org/packages/source/a/appdirs/
-PKG_SOURCE:=appdirs-$(PKG_VERSION).tar.gz
-PKG_HASH:=9e5896d1372858f8dd3344faf4e5014d21849c756c8d5701f78f8a103b372d92
+PYPI_NAME:=appdirs
+PKG_HASH:=7d5d0167b2b1ba821647616af46a749d1c653740dd0d2415100fe26e27afdf41
 PKG_LICENSE:=MIT
-PKG_BUILD_DIR:=$(BUILD_DIR)/appdirs-$(PKG_VERSION)
 
+include ../pypi.mk
 include $(INCLUDE_DIR)/package.mk
 include ../python3-package.mk
 
@@ -23,13 +22,13 @@ define Package/python3-appdirs
   CATEGORY:=Languages
   SUBMENU:=Python
   URL:=https://github.com/ActiveState/appdirs
-  TITLE:=python3-appdirs
+  TITLE:=Determining platform-specific dirs
   DEPENDS:=+python3-light
-  VARIANT:=python3
 endef
 
 define Package/python-appdirs/description
-  The Universal Character Encoding Detector
+  A small Python module for determining appropriate platform-specific
+  dirs, e.g. a "user data dir".
 endef
 
 $(eval $(call Py3Package,python3-appdirs))

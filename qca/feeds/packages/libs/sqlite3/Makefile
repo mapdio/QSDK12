@@ -8,32 +8,30 @@
 include $(TOPDIR)/rules.mk
 
 PKG_NAME:=sqlite
-PKG_VERSION:=3310100
+PKG_VERSION:=3410200
 PKG_RELEASE:=1
 
 PKG_SOURCE:=$(PKG_NAME)-autoconf-$(PKG_VERSION).tar.gz
-PKG_HASH:=62284efebc05a76f909c580ffa5c008a7d22a1287285d68b7825a2b6b51949ae
-PKG_SOURCE_URL:=https://www.sqlite.org/2020/
-
-PKG_LICENSE:=PUBLICDOMAIN
-PKG_LICENSE_FILES:=
-
-PKG_BUILD_DIR:=$(BUILD_DIR)/$(PKG_NAME)-autoconf-$(PKG_VERSION)
-
-PKG_BUILD_PARALLEL:=1
+PKG_SOURCE_URL:=https://www.sqlite.org/2023/
+PKG_HASH:=e98c100dd1da4e30fa460761dab7c0b91a50b785e167f8c57acc46514fae9499
 
 PKG_CPE_ID:=cpe:/a:sqlite:sqlite
+PKG_LICENSE:=PUBLICDOMAIN
+PKG_LICENSE_FILES:=
+PKG_MAINTAINER:=
 
+PKG_BUILD_DIR:=$(BUILD_DIR)/$(PKG_NAME)-autoconf-$(PKG_VERSION)
+PKG_BUILD_PARALLEL:=1
 PKG_FIXUP:=autoreconf
-
 PKG_INSTALL:=1
 
 PKG_CONFIG_DEPENDS := \
+	CONFIG_SQLITE3_BATCH_ATOMIC_WRITE \
+	CONFIG_SQLITE3_COLUMN_METADATA \
 	CONFIG_SQLITE3_DYNAMIC_EXTENSIONS \
 	CONFIG_SQLITE3_FTS3 \
 	CONFIG_SQLITE3_FTS4 \
 	CONFIG_SQLITE3_FTS5 \
-	CONFIG_SQLITE3_JSON1 \
 	CONFIG_SQLITE3_LIBEDIT \
 	CONFIG_SQLITE3_READLINE \
 	CONFIG_SQLITE3_RTREE \
@@ -42,10 +40,9 @@ PKG_CONFIG_DEPENDS := \
 include $(INCLUDE_DIR)/package.mk
 
 define Package/sqlite3/Default
-  SUBMENU:=database
+  SUBMENU:=Database
   TITLE:=SQLite (v3.x) database engine
   URL:=http://www.sqlite.org/
-  MAINTAINER:=Sebastian Kemper <sebastian_ml@gmx.net>
 endef
 
 define Package/sqlite3/Default/description
@@ -98,7 +95,9 @@ endef
 TARGET_CFLAGS += \
 	-DHAVE_ISNAN \
 	-DHAVE_MALLOC_USABLE_SIZE \
-	-DSQLITE_ENABLE_UNLOCK_NOTIFY
+	-DSQLITE_ENABLE_UNLOCK_NOTIFY \
+	$(if $(CONFIG_SQLITE3_BATCH_ATOMIC_WRITE),-DSQLITE_ENABLE_BATCH_ATOMIC_WRITE) \
+	$(if $(CONFIG_SQLITE3_COLUMN_METADATA),-DSQLITE_ENABLE_COLUMN_METADATA)
 
 CONFIGURE_ARGS += \
 	--disable-debug \
@@ -108,9 +107,8 @@ CONFIGURE_ARGS += \
 	--enable-threadsafe \
 	$(if $(CONFIG_SQLITE3_DYNAMIC_EXTENSIONS),--enable-dynamic-extensions,--disable-dynamic-extensions) \
 	$(if $(CONFIG_SQLITE3_FTS3),--enable-fts3,--disable-fts3) \
-	$(if $(CONFIG_SQLITE3_FTS3),--enable-fts4,--disable-fts4) \
-	$(if $(CONFIG_SQLITE3_FTS3),--enable-fts5,--disable-fts5) \
-	$(if $(CONFIG_SQLITE3_JSON1),--enable-json1,--disable-json1) \
+	$(if $(CONFIG_SQLITE3_FTS4),--enable-fts4,--disable-fts4) \
+	$(if $(CONFIG_SQLITE3_FTS5),--enable-fts5,--disable-fts5) \
 	$(if $(CONFIG_SQLITE3_RTREE),--enable-rtree,--disable-rtree) \
 	$(if $(CONFIG_SQLITE3_SESSION),--enable-session,--disable-session)
 

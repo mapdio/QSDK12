@@ -52,6 +52,20 @@
 				output-low;
 			};
 
+			pcie0_wake_pins: pcie0_wake_gpio {
+				pins = "gpio24";
+				function = "pcie0_wake";
+				drive-strength = <8>;
+				bias-pull-up;
+			};
+
+			pcie2_wake_pins: pcie2_wake_gpio {
+				pins = "gpio30";
+				function = "pcie2_wake";
+				drive-strength = <8>;
+				bias-pull-up;
+			};
+
 			blsp1_uart2_pins: blsp1_uart2_pinmux {
 				pins = "gpio34", "gpio35";
 				function = "blsp2_uart";
@@ -177,6 +191,7 @@
 			local-mac-address = [000000000000];
 			qcom,phy-mdio-addr = <1>;
 			phy-mode = "sgmii";
+			qcom,ppe-offload-disabled = <1>;
 		};
 
 		dp2 {
@@ -189,6 +204,7 @@
 			local-mac-address = [000000000000];
 			qcom,phy-mdio-addr = <2>;
 			phy-mode = "sgmii";
+			qcom,ppe-offload-disabled = <1>;
 		};
 
 		dp3 {
@@ -201,6 +217,7 @@
 			local-mac-address = [000000000000];
 			qcom,phy-mdio-addr = <3>;
 			phy-mode = "sgmii";
+			qcom,ppe-offload-disabled = <1>;
 		};
 
 		dp4 {
@@ -213,6 +230,7 @@
 			local-mac-address = [000000000000];
 			qcom,phy-mdio-addr = <4>;
 			phy-mode = "sgmii";
+			qcom,ppe-offload-disabled = <1>;
 		};
 
 		dp5 {
@@ -225,11 +243,6 @@
 			local-mac-address = [000000000000];
 			qcom,phy-mdio-addr = <0>;
 			phy-mode = "sgmii";
-		};
-
-		license_manager {
-			compatible = "qti,license-manager-service";
-			device-license-termination;
 		};
 
 		qpic_bam: dma@7984000 {
@@ -309,8 +322,11 @@
 		};
 
 		pcie0_x1: pci@28000000 {
-			pinctrl-0 = <&pci0_pin>;
+			pinctrl-0 = <&pcie0_wake_pins &pci0_pin>;
 			pinctrl-names = "default";
+			interrupts-extended = <&tlmm 24 IRQ_TYPE_LEVEL_HIGH>,
+					      <&intc GIC_SPI 51 IRQ_TYPE_LEVEL_HIGH>;
+			interrupt-names = "wake_gpio", "global_irq";
 			perst-gpio = <&tlmm 23 1>;
 			status = "ok";
 			pcie0_rp {
@@ -338,8 +354,11 @@
 		};
 
 		pcie2_x2: pci@20000000 {
-			pinctrl-0 = <&pci2_pin>;
+			pinctrl-0 = <&pcie2_wake_pins &pci2_pin>;
 			pinctrl-names = "default";
+			interrupts-extended = <&tlmm 30 IRQ_TYPE_LEVEL_HIGH>,
+					      <&intc GIC_SPI 125 IRQ_TYPE_LEVEL_HIGH>;
+			interrupt-names = "wake_gpio", "global_irq";
 			perst-gpio = <&tlmm 29 1>;
 			status = "ok";
 			pcie2_rp {
@@ -564,7 +583,7 @@
 				   <0 352 4>,			/* Rx desc ring id #21 IRQ info */
 				   <0 353 4>,			/* Rx desc ring id #22 IRQ info */
 				   <0 354 4>,			/* Rx desc ring id #23 IRQ info */
-				   <0 261 4>,			/* Misc error IRQ info */
+				   <0 499 4>,			/* Misc error IRQ info */
 				   <0 364 4>,			/* PPEDS Node #1(TxComp ring id #1) TxComplete IRQ info */
 				   <0 332 4>,			/* PPEDS Node #1(Rx Desc ring id #1) Rx Desc IRQ info */
 				   <0 356 4>,			/* PPEDS Node #1(RxFill Desc ring id #1) Rx Fill IRQ info */
@@ -575,6 +594,65 @@
 				   <0 334 4>,			/* PPEDS Node #3(Rx Desc ring id #3) Rx Desc IRQ info */
 				   <0 358 4>;			/* PPEDS Node #3(RxFill Desc ring id #3) Rx Fill IRQ info */
 
+		};
+
+		apc_rail: apc-gpio-regulator {
+			compatible = "regulator-gpio";
+			regulator-name = "vdd-apc";
+			regulator-type = "voltage";
+			regulator-boot-on;
+			regulator-always-on;
+			regulator-min-microvolt = <850000>;
+			regulator-max-microvolt = <925000>;
+			regulator-ramp-delay = <250>; /* 20ms */
+			gpios = <&tlmm 57 GPIO_ACTIVE_HIGH>;
+			gpios-states = <0x1>;
+			states = <850000 0>, <925000 1>;
+		};
+
+		cx_rail: cx-gpio-regulator {
+			compatible = "regulator-gpio";
+			regulator-name = "vdd-cx";
+			regulator-type = "voltage";
+			regulator-boot-on;
+			regulator-always-on;
+			regulator-min-microvolt = <800000>;
+			regulator-max-microvolt = <863000>;
+			regulator-ramp-delay = <250>; /* 20ms */
+			gpios = <&tlmm 47 GPIO_ACTIVE_HIGH>;
+			gpios-states = <0x1>;
+			states = <800000 0>, <863000 1>;
+		};
+
+		mx_rail: mx-gpio-regulator {
+			compatible = "regulator-gpio";
+			regulator-name = "vdd-mx";
+			regulator-type = "voltage";
+			regulator-boot-on;
+			regulator-always-on;
+			regulator-min-microvolt = <850000>;
+			regulator-max-microvolt = <925000>;
+			regulator-ramp-delay = <250>; /* 20ms */
+			gpios = <&tlmm 45 GPIO_ACTIVE_HIGH>;
+			gpios-states = <0x1>;
+			states = <850000 0>, <925000 1>;
+		};
+
+		qcom,gpio-regulator {
+			compatible = "qcom,ipq9574-gpio-regulator";
+			reg = <0xa4000 0x1000>;
+			reg-names = "fuse_base";
+			apc-supply = <&apc_rail>;
+			cx-supply = <&cx_rail>;
+			mx-supply = <&mx_rail>;
+			/* AL01 RDP's scaled voltage can only support upto CPU Freq
+			 * 1.8 GHz. But SKUs like IPQ9574/IPQ9570 supports 2.2GHz of
+			 * CPU freq. So, if we do scaling on AL01 + IPQ9574/IPQ9570,
+			 * then voltage becomes insufficient when CPU operates at 2.2GHz.
+			 * Below quirk disables the voltage scaling if AL01 has
+			 * IPQ9574/IPQ9570
+			 */
+			skip-voltage-scaling-turboL1-sku-quirk;
 		};
 	};
 };
@@ -655,7 +733,7 @@
 };
 
 &mlo_global_mem0 {
-	size = <0x0 0xD00000>;
+	size = <0x0 0xE00000>;
 	status = "ok";
 };
 

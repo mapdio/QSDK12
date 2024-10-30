@@ -2,7 +2,7 @@
 /*
  * IPQ9574 AL02-C19 board device tree source
  *
- * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2023 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 /dts-v1/;
@@ -66,6 +66,34 @@
 				drive-strength = <8>;
 				bias-pull-up;
 				output-low;
+			};
+
+			pcie0_wake_pins: pcie0_wake_gpio {
+				pins = "gpio24";
+				function = "pcie0_wake";
+				drive-strength = <8>;
+				bias-pull-up;
+			};
+
+			pcie1_wake_pins: pcie1_wake_gpio {
+				pins = "gpio27";
+				function = "pcie1_wake";
+				drive-strength = <8>;
+				bias-pull-up;
+			};
+
+			pcie2_wake_pins: pcie2_wake_gpio {
+				pins = "gpio30";
+				function = "pcie2_wake";
+				drive-strength = <8>;
+				bias-pull-up;
+			};
+
+			pcie3_wake_pins: pcie3_wake_gpio {
+				pins = "gpio33";
+				function = "pcie3_wake";
+				drive-strength = <8>;
+				bias-pull-up;
 			};
 
 			blsp1_uart2_pins: blsp1_uart2_pinmux {
@@ -234,26 +262,11 @@
 					bias-pull-down;
 				};
 
-				ap2mdm_status {
-					pins = "gpio42";
-					function = "gpio";
-					drive-strength = <8>;
-					bias-pull-up;
-					output-high;
-				};
-
 				mdm2ap_e911_status {
 					pins = "gpio43";
 					drive-strength = <8>;
 					bias-pull-down;
 				};
-			};
-
-			pcie3_wake_pins: pcie3_wake_gpio {
-				pins = "gpio33";
-				function = "pcie3_wake";
-				drive-strength = <8>;
-				bias-pull-up;
 			};
 		};
 
@@ -300,6 +313,7 @@
 			local-mac-address = [000000000000];
 			qcom,phy-mdio-addr = <16>;
 			phy-mode = "sgmii";
+			qcom,ppe-offload-disabled = <1>;
 		};
 
 		dp2 {
@@ -312,6 +326,7 @@
 			local-mac-address = [000000000000];
 			qcom,phy-mdio-addr = <17>;
 			phy-mode = "sgmii";
+			qcom,ppe-offload-disabled = <1>;
 		};
 
 		dp3 {
@@ -324,6 +339,7 @@
 			local-mac-address = [000000000000];
 			qcom,phy-mdio-addr = <18>;
 			phy-mode = "sgmii";
+			qcom,ppe-offload-disabled = <1>;
 		};
 
 		dp4 {
@@ -336,6 +352,7 @@
 			local-mac-address = [000000000000];
 			qcom,phy-mdio-addr = <19>;
 			phy-mode = "sgmii";
+			qcom,ppe-offload-disabled = <1>;
 		};
 
 		dp5 {
@@ -360,11 +377,6 @@
 			local-mac-address = [000000000000];
 			qcom,phy-mdio-addr = <0>;
 			phy-mode = "sgmii";
-		};
-
-		license_manager {
-			compatible = "qti,license-manager-service";
-			device-license-termination;
 		};
 
 		qpic_bam: dma@7984000 {
@@ -477,8 +489,11 @@
 		};
 
 		pcie0_x1: pci@28000000 {
-			pinctrl-0 = <&pci0_pin>;
+			pinctrl-0 = <&pcie0_wake_pins &pci0_pin>;
 			pinctrl-names = "default";
+			interrupts-extended = <&tlmm 24 IRQ_TYPE_LEVEL_HIGH>,
+					      <&intc GIC_SPI 51 IRQ_TYPE_LEVEL_HIGH>;
+			interrupt-names = "wake_gpio", "global_irq";
 			perst-gpio = <&tlmm 23 1>;
 			max-payload-size = <1>; // 1-256 TLP bytes for WKK
 			status = "ok";
@@ -555,8 +570,11 @@
 		};
 
 		pcie2_x2: pci@20000000 {
-			pinctrl-0 = <&pci2_pin>;
+			pinctrl-0 = <&pcie2_wake_pins &pci2_pin>;
 			pinctrl-names = "default";
+			interrupts-extended = <&tlmm 30 IRQ_TYPE_LEVEL_HIGH>,
+					      <&intc GIC_SPI 125 IRQ_TYPE_LEVEL_HIGH>;
+			interrupt-names = "wake_gpio", "global_irq";
 			perst-gpio = <&tlmm 29 1>;
 			max-payload-size = <1>; // 1-256 TLP bytes for WKK
 			status = "ok";
@@ -611,8 +629,9 @@
 			e911-gpio =  <&tlmm 43 GPIO_ACTIVE_HIGH>;
 
 			interrupts-extended = <&tlmm 33 IRQ_TYPE_LEVEL_HIGH>,
-					      <&tlmm 43 IRQ_TYPE_LEVEL_HIGH>;
-			interrupt-names = "wake_gpio", "mdm2ap_e911";
+					      <&tlmm 43 IRQ_TYPE_LEVEL_HIGH>,
+					      <&intc GIC_SPI 188 IRQ_TYPE_LEVEL_HIGH>;
+			interrupt-names = "wake_gpio", "mdm2ap_e911", "global_irq";
 			slot_id = <2>;
 
 			pcie3_rp {
@@ -627,9 +646,6 @@
 
 				mhi_0: qcom,mhi@0 {
 					reg = <0 0 0 0 0 >;
-
-					ap2mdm-gpio = <&tlmm 42 0>;
-					mdm2ap-gpio = <&tlmm 45 0>;
 
 					// controller specific configuration
 					qcom,iommu-dma = "disabled";
@@ -827,7 +843,7 @@
 				   <0 352 4>,			/* Rx desc ring id #21 IRQ info */
 				   <0 353 4>,			/* Rx desc ring id #22 IRQ info */
 				   <0 354 4>,			/* Rx desc ring id #23 IRQ info */
-				   <0 261 4>,			/* Misc error IRQ info */
+				   <0 499 4>,			/* Misc error IRQ info */
 				   <0 364 4>,			/* PPEDS Node #1(TxComp ring id #1) TxComplete IRQ info */
 				   <0 332 4>,			/* PPEDS Node #1(Rx Desc ring id #1) Rx Desc IRQ info */
 				   <0 356 4>,			/* PPEDS Node #1(RxFill Desc ring id #1) Rx Fill IRQ info */
@@ -895,7 +911,7 @@
 
 /* MLO GLOBAL MEM REGION size is 12MB for RDP with 2 QCN224 radios */
 &mlo_global_mem0 {
-	size = <0x0 0xC00000>;
+	size = <0x0 0xD00000>;
 	status = "ok";
 };
 

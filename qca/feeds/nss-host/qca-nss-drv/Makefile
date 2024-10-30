@@ -122,7 +122,6 @@ DRV_MAKE_OPTS+=NSS_DRV_C2C_ENABLE=n \
         NSS_DRV_OAM_ENABLE=n \
         NSS_DRV_PPTP_ENABLE=n \
         NSS_DRV_PORTID_ENABLE=n \
-        NSS_DRV_PVXLAN_ENABLE=n \
         NSS_DRV_QRFS_ENABLE=n \
         NSS_DRV_QVPN_ENABLE=n \
         NSS_DRV_RMNET_ENABLE=n \
@@ -150,7 +149,8 @@ DRV_MAKE_OPTS+=NSS_DRV_CAPWAP_ENABLE=n \
 	NSS_DRV_TRUSTSEC_ENABLE=n \
 	NSS_DRV_TRUSTSEC_RX_ENABLE=n \
 	NSS_DRV_CRYPTO_ENABLE=n \
-	NSS_DRV_DTLS_ENABLE=n
+	NSS_DRV_DTLS_ENABLE=n \
+        NSS_DRV_PVXLAN_ENABLE=n
 endif
 
 ifeq ($(POINT_OFFLOAD_MAKE_OPTS),y)
@@ -176,9 +176,7 @@ define Build/Configure
 endef
 
 define Build/Compile
-	$(MAKE) -C "$(LINUX_DIR)" $(strip $(DRV_MAKE_OPTS)) \
-		CROSS_COMPILE="$(TARGET_CROSS)" \
-		ARCH="$(LINUX_KARCH)" \
+	$(KERNEL_MAKE) $(strip $(DRV_MAKE_OPTS)) \
 		M="$(PKG_BUILD_DIR)" \
 		EXTRA_CFLAGS="$(EXTRA_CFLAGS)" SoC="$(subtarget)" \
 		modules

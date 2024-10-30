@@ -27,6 +27,10 @@ endif
 ifeq ($(KVER),$(filter 6.1%,$(KVER)))
 	OS_VER=6_1
 endif
+ifeq ($(KVER),$(filter 6.6%,$(KVER)))
+	OS_VER=6_6
+endif
+
 ifeq ($(KVER), 3.4.0)
 	OS_VER=3_4
 endif
@@ -255,7 +259,7 @@ ifeq ($(SoC),$(filter $(SoC),ipq53xx ipq95xx ipq807x ipq60xx))
 	PTP_FEATURE=enable
 endif
 
-ifeq ($(SoC),$(filter $(SoC),ipq53xx ipq95xx))
+ifeq ($(SoC),$(filter $(SoC),ipq53xx ipq95xx ipq60xx))
 	MHT_ENABLE=enable
 endif
 
@@ -306,9 +310,15 @@ else ifeq (APPE, $(CHIP_TYPE))
 	IN_MALIBU_PHY=TRUE
 else ifeq (MPPE, $(CHIP_TYPE))
 	ifeq ($(LOWMEM_FLASH), enable)
-		IN_QCA803X_PHY=TRUE
-		ISISC_ENABLE=enable
-		MHT_ENABLE=disable
+		IN_QCA808X_PHY=TRUE
+		IN_SFP_PHY=TRUE
+		IN_SFP=TRUE
+	else ifeq ($(LOWMEM_256), enable)
+		LNX_LOCAL_CFLAGS += -DSW_MAX_NR_DEV=2 \
+			-DSW_MAX_NR_PORT=8
+		IN_QCA808X_PHY=TRUE
+		IN_SFP_PHY=TRUE
+		IN_SFP=TRUE
 	else
 		IN_AQUANTIA_PHY=TRUE
 		IN_QCA803X_PHY=TRUE
@@ -403,8 +413,13 @@ ifeq ($(MINI_SSDK), enable)
 	ifeq ($(MHT_ENABLE), enable)
 		IN_INTERFACECONTROL=TRUE
 		IN_NAT=TRUE
+		IN_IGMP=TRUE
 	endif
-	
+
+	ifeq ($(ISISC_ENABLE), enable)
+		IN_IGMP=TRUE
+	endif
+
 	ifeq ($(HNAT_FEATURE), enable)
 		IN_MISC_MINI=FALSE
 		IN_PORTVLAN_MINI=FALSE
@@ -444,12 +459,12 @@ ifeq (MP, $(CHIP_TYPE))
 		IN_QM=FALSE
 		IN_PPPOE=FALSE
 		IN_VSI=FALSE
-		IN_CTRLPKT=FALSE
 		IN_SERVCODE=FALSE
 		IN_BM=FALSE
 		IN_SHAPER=FALSE
 		IN_POLICER=FALSE
 	endif
+	IN_CTRLPKT=TRUE
 endif
 
 ifneq (, $(filter MPPE APPE , $(CHIP_TYPE)))
@@ -459,6 +474,11 @@ ifneq (, $(filter MPPE APPE , $(CHIP_TYPE)))
 	IN_GENEVE=TRUE
 	IN_TUNNEL_PROGRAM=TRUE
 	IN_MAPT=TRUE
+	ifeq ($(MINI_SSDK), enable)
+		IN_TUNNEL_MINI=TRUE
+		IN_VXLAN_MINI=TRUE
+		IN_GENEVE=FALSE
+	endif
 endif
 
 ifneq (, $(filter MPPE , $(CHIP_TYPE)))

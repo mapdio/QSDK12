@@ -27,7 +27,7 @@ Signed-off-by: P Praneesh <quic_ppranees@quicinc.com>
  			dma_unmap_single(ab->dev, ATH12K_SKB_CB(skb)->paddr,
  					 skb->len, DMA_TO_DEVICE);
 +
-+			if (tx_desc_info->skb_ext_desc) {
++			if (ATH12K_SKB_CB(skb)->paddr_ext_desc) {
 +				dma_unmap_single(ab->dev, ATH12K_SKB_CB(skb)->paddr_ext_desc,
 +						 tx_desc_info->skb_ext_desc->len, DMA_TO_DEVICE);
 +				dev_kfree_skb_any(tx_desc_info->skb_ext_desc);
@@ -118,7 +118,7 @@ Signed-off-by: P Praneesh <quic_ppranees@quicinc.com>
  	dma_unmap_single_attrs(ab->dev, skb_cb->paddr, msdu->len, DMA_TO_DEVICE,
  			     DMA_ATTR_SKIP_CPU_SYNC);
 -	if (unlikely(skb_cb->paddr_ext_desc))
-+	if (unlikely(skb_ext_desc)) {
++	if (unlikely(skb_cb->paddr_ext_desc)) {
  		dma_unmap_single_attrs(ab->dev, skb_cb->paddr_ext_desc,
 -				 sizeof(struct hal_tx_msdu_ext_desc),
 -				 DMA_TO_DEVICE, DMA_ATTR_SKIP_CPU_SYNC);
@@ -144,7 +144,7 @@ Signed-off-by: P Praneesh <quic_ppranees@quicinc.com>
  
  	dma_unmap_single(ab->dev, skb_cb->paddr, msdu->len, DMA_TO_DEVICE);
 -	if (unlikely(skb_cb->paddr_ext_desc))
-+	if (unlikely(skb_ext_desc)) {
++	if (unlikely(skb_cb->paddr_ext_desc)) {
  		dma_unmap_single(ab->dev, skb_cb->paddr_ext_desc,
 -				 sizeof(struct hal_tx_msdu_ext_desc), DMA_TO_DEVICE);
 +				 skb_ext_desc->len, DMA_TO_DEVICE);

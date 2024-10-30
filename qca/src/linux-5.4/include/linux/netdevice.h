@@ -1557,12 +1557,13 @@ enum netdev_priv_flags {
  *
  * @IFF_EXT_TUN_TAP: device is a TUN/TAP device
  * @IFF_EXT_PPP_L2TPV2: device is a L2TPV2 device
- * @IFF_EXT_PPP_L2TPV3: device is a L2TPV3 device
+ * @IFF_EXT_PPP_L2TPV3: device is a L2TPV3 PPP device
  * @IFF_EXT_PPP_PPTP: device is a PPTP device
  * @IFF_EXT_GRE_V4_TAP: device is a GRE IPv4 TAP device
  * @IFF_EXT_GRE_V6_TAP: device is a GRE IPv6 TAP device
  * @IFF_EXT_IFB: device is an IFB device
  * @IFF_EXT_MAPT: device is an MAPT device
+ * @IFF_EXT_L2TPV3: device is a L2TPV3 Ethernet device
  */
 enum netdev_priv_flags_ext {
 	IFF_EXT_TUN_TAP			= 1<<0,
@@ -1573,6 +1574,8 @@ enum netdev_priv_flags_ext {
 	IFF_EXT_GRE_V6_TAP		= 1<<5,
 	IFF_EXT_IFB				= 1<<6,
 	IFF_EXT_MAPT			= 1<<7,
+	IFF_EXT_HW_NO_OFFLOAD		= 1<<8,
+	IFF_EXT_ETH_L2TPV3		= 1<<9,
 };
 
 #define IFF_802_1Q_VLAN			IFF_802_1Q_VLAN
@@ -4424,6 +4427,8 @@ struct rtnl_link_stats64 *dev_get_stats(struct net_device *dev,
 					struct rtnl_link_stats64 *storage);
 void netdev_stats_to_stats64(struct rtnl_link_stats64 *stats64,
 			     const struct net_device_stats *netdev_stats);
+void dev_fetch_sw_netstats(struct rtnl_link_stats64 *s,
+			   const struct pcpu_sw_netstats __percpu *netstats);
 
 extern int		netdev_max_backlog;
 extern int		netdev_tstamp_prequeue;

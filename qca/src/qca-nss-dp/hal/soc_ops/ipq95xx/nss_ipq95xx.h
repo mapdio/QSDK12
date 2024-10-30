@@ -1,7 +1,7 @@
 /*
  * Copyright (c) 2021, The Linux Foundation. All rights reserved.
  *
- * Copyright (c) 2022-2023 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2024 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for any
  * purpose with or without fee is hereby granted, provided that the above
@@ -50,6 +50,13 @@
 #define NSS_DP_HAL_TX_NAPI_BUDGET	512
 
 /*
+ * Timestamp information for the latency measurement
+ */
+#define NSS_DP_GMAC_TS_ADDR_SEC(x)	((x) + 0xD08)
+#define NSS_DP_GMAC_TS_ADDR_NSEC(x)	((x) + 0xD0C)
+#define NSS_DP_EDMA_DEF_TSTAMP_PORT	6
+
+/*
  * EDMA clock's
  */
 #define NSS_DP_EDMA_CSR_CLK			"nss-csr-clk"
@@ -73,6 +80,7 @@
 #define NSS_DP_EDMA_TBU_CLK			"nss-tbu-clk"
 #define NSS_DP_EDMA_NSSNOC_MEM_NOC_1_CLK	"nss-nssnoc-mem-noc-1-clk"
 #define NSS_DP_EDMA_NSSNOC_MEMNOC_CLK		"nss-nssnoc-memnoc-clk"
+#define NSS_DP_EDMA_CLK				"nss-edma-clk"
 
 /*
  * EDMA clock's frequencies
@@ -121,6 +129,8 @@ struct nss_dp_hal_gmac_stats {
 	uint64_t tx_tso_drop_packets;	/**< Number of TX TCP segmentation dropped packets */
 	uint64_t tx_gso_packets;	/**< Number of TX SW GSO packets */
 	uint64_t tx_gso_drop_packets;	/**< Number of TX SW GSO dropped packets */
+	uint64_t tx_queue_stopped[NR_CPUS];
+			/**< Number of times Queue got stopped */
 };
 
 /**

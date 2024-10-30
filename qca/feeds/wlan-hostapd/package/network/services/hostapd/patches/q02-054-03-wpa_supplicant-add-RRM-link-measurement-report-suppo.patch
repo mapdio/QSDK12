@@ -1,0 +1,95 @@
+From 3116fc026100d11055e22b3e9ed6a98c3e27d673 Mon Sep 17 00:00:00 2001
+From: Raj Kumar Bhagat <quic_rajkbhag@quicinc.com>
+Date: Fri, 4 Nov 2022 15:15:23 +0530
+Subject: [PATCH] wpa_supplicant: add RRM link measurement report support
+
+RRM link measurement request/report management frames are used to get
+the radio link information between the connected stations.
+
+Add support in wpa_supplicant to handle the RRM link measurement
+request and send the requested RRM link measurement report.
+
+Signed-off-by: Raj Kumar Bhagat <quic_rajkbhag@quicinc.com>
+---
+ wpa_supplicant/driver_i.h |  8 ++++++++
+ wpa_supplicant/rrm.c      | 28 ++++++++++++++++++++++------
+ wpa_supplicant/sme.c      |  3 ++-
+ 3 files changed, 32 insertions(+), 7 deletions(-)
+
+--- a/wpa_supplicant/driver_i.h
++++ b/wpa_supplicant/driver_i.h
+@@ -539,6 +539,14 @@ static inline int wpa_drv_channel_info(s
+ 	return -1;
+ }
+ 
++static inline int wpa_drv_txpower_info(struct wpa_supplicant *wpa_s,
++				       struct wpa_txpower_info *txp_info)
++{
++	if(wpa_s->driver->txpower_info)
++		return wpa_s->driver->txpower_info(wpa_s->drv_priv, txp_info);
++	return -1;
++}
++
+ static inline int wpa_drv_pktcnt_poll(struct wpa_supplicant *wpa_s,
+ 				      struct hostap_sta_driver_data *sta)
+ {
+--- a/wpa_supplicant/rrm.c
++++ b/wpa_supplicant/rrm.c
+@@ -1433,9 +1433,10 @@ void wpas_rrm_handle_link_measurement_re
+ 		return;
+ 	}
+ 
+-	if (!(wpa_s->drv_rrm_flags & WPA_DRIVER_FLAGS_TX_POWER_INSERTION)) {
++	if (!(wpa_s->drv_rrm_flags & WPA_DRIVER_FLAGS_TX_POWER_INSERTION) &&
++	    !(wpa_s->drv_rrm_flags & WPA_DRIVER_FLAGS_TX_POWER_REPORTING)) {
+ 		wpa_printf(MSG_INFO,
+-			   "RRM: Measurement report failed. TX power insertion not supported");
++			   "RRM: Measurement report failed. TX power insertion or reporting not supported");
+ 		return;
+ 	}
+ 
+@@ -1450,10 +1451,28 @@ void wpas_rrm_handle_link_measurement_re
+ 	report.dialog_token = req->dialog_token;
+ 	report.tpc.eid = WLAN_EID_TPC_REPORT;
+ 	report.tpc.len = 2;
+-	/* Note: The driver is expected to update report.tpc.tx_power and
+-	 * report.tpc.link_margin subfields when sending out this frame.
+-	 * Similarly, the driver would need to update report.rx_ant_id and
+-	 * report.tx_ant_id subfields. */
++
++	if ((wpa_s->drv_rrm_flags & WPA_DRIVER_FLAGS_TX_POWER_REPORTING) &&
++	    !(wpa_s->drv_rrm_flags & WPA_DRIVER_FLAGS_TX_POWER_INSERTION)) {
++		struct wpa_txpower_info txpower;
++		if(wpa_drv_txpower_info(wpa_s, &txpower) != 0) {
++			wpa_printf(MSG_DEBUG,
++				   "RRM: Link measurement report failed. Unable to get tx power");
++			return;
++		}
++		report.tpc.tx_power = (u8) txpower.cur_txpower;
++		/* TO DO: report.tpc.link_margin, report.rx_ant_id and
++		 * report.tx_ant_id
++		 */
++		report.tpc.link_margin = 0; /* link margin is not available */
++		report.rx_ant_id = 0; /* rx_ant_id is not available */
++		report.tx_ant_id = 0; /* tx_ant_id is not available */
++	}
++	/* Note: If The driver is capable of tx power insertion it is expected
++	 * to update report.tpc.tx_power and report.tpc.link_margin subfields
++	 * when sending out this frame. Similarly, the driver would need to
++	 * update report.rx_ant_id and report.tx_ant_id subfields.
++	 */
+ 	report.rsni = 255; /* 255 indicates that RSNI is not available */
+ 	report.rcpi = rssi_to_rcpi(rssi);
+ 
+--- a/wpa_supplicant/sme.c
++++ b/wpa_supplicant/sme.c
+@@ -310,7 +310,8 @@ static void sme_auth_handle_rrm(struct w
+ 	*pos++ = rrm_ie_len;
+ 
+ 	/* Set supported capabilities flags */
+-	if (wpa_s->drv_rrm_flags & WPA_DRIVER_FLAGS_TX_POWER_INSERTION)
++	if ((wpa_s->drv_rrm_flags & WPA_DRIVER_FLAGS_TX_POWER_INSERTION) ||
++	    (wpa_s->drv_rrm_flags & WPA_DRIVER_FLAGS_TX_POWER_REPORTING))
+ 		*pos |= WLAN_RRM_CAPS_LINK_MEASUREMENT;
+ 
+ 	*pos |= WLAN_RRM_CAPS_BEACON_REPORT_PASSIVE |

@@ -33,8 +33,8 @@ define KernelPackage/qca-nss-eip
   SECTION:=kernel
   CATEGORY:=Kernel modules
   SUBMENU:=Network Devices
-  DEPENDS:=@TARGET_ipq95xx||TARGET_ipq53xx\
-		+TARGET_ipq95xx:qca-nss-fw-eip-al\
+  DEPENDS:=@TARGET_ipq95xx||TARGET_ipq53xx \
+		+TARGET_ipq95xx:qca-nss-fw-eip-al \
 		+TARGET_ipq95xx:kmod-qca-nss-ppe
   TITLE:=Kernel driver for NSS EIP driver
   FILES:=$(PKG_BUILD_DIR)/driver/$(NSS_EIP_DIR)/qca-nss-eip.ko
@@ -56,8 +56,8 @@ define KernelPackage/qca-nss-eip-crypto
   SECTION:=kernel
   CATEGORY:=Kernel modules
   SUBMENU:=Network Devices
-  DEPENDS:=@TARGET_ipq95xx||TARGET_ipq_ipq95xx_32||TARGET_ipq53xx\
-		+kmod-qca-nss-eip\
+  DEPENDS:=@TARGET_ipq95xx||TARGET_ipq_ipq95xx_32||TARGET_ipq53xx \
+		+kmod-qca-nss-eip \
 		+kmod-crypto-authenc
   TITLE:=Kernel NSS EIP crypto client
   FILES:=$(PKG_BUILD_DIR)/clients/crypto/qca-nss-eip-crypto.ko
@@ -67,17 +67,10 @@ define KernelPackage/qca-nss-eip-crypto/Description
 This package contains a NSS EIP crypto client for QCA chipset
 endef
 
-define Build/InstallDev/qca-nss-eip-crypto
+define Build/InstallDev
 	$(INSTALL_DIR) $(1)/usr/include/qca-nss-eip
 	$(CP) $(PKG_BUILD_DIR)/clients/exports/* $(1)/usr/include/qca-nss-eip
-endef
-
-define Build/InstallDev
-	$(call Build/InstallDev/qca-nss-eip,$(1))
-endef
-
-define Build/InstallDev
-	$(call Build/InstallDev/qca-nss-eip-crypto,$(1))
+	$(CP) $(PKG_BUILD_DIR)/driver/exports/* $(1)/usr/include/qca-nss-eip
 endef
 
 define KernelPackage/qca-nss-eip-ipsec
@@ -87,7 +80,8 @@ define KernelPackage/qca-nss-eip-ipsec
   DEPENDS:=@TARGET_ipq95xx||TARGET_ipq53xx \
 	  	+kmod-qca-nss-eip \
 		kmod-qca-nss-ecm \
-		+TARGET_ipq95xx:kmod-qca-nss-ppe-vp
+		+TARGET_ipq95xx:kmod-qca-nss-ppe-vp \
+		+TARGET_ipq53xx:kmod-qca-nss-ppe-vp
   TITLE:=Kernel IPsec client for NSS EIP driver
   FILES:=$(PKG_BUILD_DIR)/clients/ipsec/qca-nss-eip-ipsec.ko
 endef
@@ -106,7 +100,7 @@ endef
 EXTRA_CFLAGS+= \
 	-I$(STAGING_DIR)/usr/include/qca-nss-eip
 
-ifneq ($(CONFIG_TARGET_ipq95xx),)
+ifneq ($(CONFIG_TARGET_ipq95xx)$(CONFIG_TARGET_ipq53xx),)
 EXTRA_CFLAGS+= -I$(STAGING_DIR)/usr/include/qca-nss-ppe
 endif
 
@@ -117,10 +111,8 @@ MAKE_OPTS+=eip_ipsec=m
 endif
 
 define Build/Compile
-	$(MAKE) -C "$(LINUX_DIR)" $(strip $(MAKE_OPTS)) \
+	$(KERNEL_MAKE) $(strip $(MAKE_OPTS)) \
 		CC="$(TARGET_CC)" \
-		CROSS_COMPILE="$(TARGET_CROSS)" \
-		ARCH="$(LINUX_KARCH)" \
 		M="$(PKG_BUILD_DIR)" \
 		EXTRA_CFLAGS="$(EXTRA_CFLAGS)" \
 		NSS_EIP_DIR=$(NSS_EIP_DIR) \

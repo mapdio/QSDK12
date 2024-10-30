@@ -1,6 +1,6 @@
 /*
  **************************************************************************
- * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2023 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
@@ -589,7 +589,7 @@ static int __nss_hal_common_reset(struct platform_device *nss_dev)
 		return -EFAULT;
 	}
 
-	nss_info_always("%p: Common clocks initialized successfully.\n", nss_dev);
+	nss_info("%p: Common clocks initialized successfully.\n", nss_dev);
 
 	/*
 	 * Get reference to NSS common device node
@@ -615,7 +615,7 @@ static int __nss_hal_common_reset(struct platform_device *nss_dev)
 	}
 
 	nss_top_main.nss_hal_common_init_done = true;
-	nss_info_always("nss_hal_common_reset Done\n");
+	nss_info("nss_hal_common_reset Done\n");
 
 	return 0;
 }
@@ -648,7 +648,7 @@ static int __nss_hal_clock_configure(struct nss_ctx_instance *nss_ctx, struct pl
 		return -EFAULT;
 	}
 
-	nss_info_always("%p: Core %d clocks initialized successfully.\n", nss_dev, nss_ctx->id);
+	nss_info("%p: Core %d clocks initialized successfully.\n", nss_dev, nss_ctx->id);
 
 	/*
 	 * For IPQ95xx, any rate above 1497 is Turbo Voltage
@@ -678,7 +678,7 @@ static int __nss_hal_clock_configure(struct nss_ctx_instance *nss_ctx, struct pl
 		nss_runtime_samples.freq_scale[NSS_FREQ_LOW_SCALE].frequency = NSS_FREQ_748;
 		nss_runtime_samples.freq_scale[NSS_FREQ_MID_SCALE].frequency = NSS_FREQ_1497;
 		nss_runtime_samples.freq_scale[NSS_FREQ_HIGH_SCALE].frequency = NSS_FREQ_1689;
-		nss_info_always("Running default frequencies\n");
+		nss_info("Running default frequencies\n");
 	}
 
 	default_freq = nss_runtime_samples.freq_scale[NSS_FREQ_HIGH_SCALE].frequency;
@@ -689,7 +689,7 @@ static int __nss_hal_clock_configure(struct nss_ctx_instance *nss_ctx, struct pl
 		}
 	}
 
-	nss_info_always("%p: Set UBI core %d frequency to frequency %u.\n", nss_dev, nss_ctx->id, default_freq);
+	nss_info("%p: Set UBI core %d frequency to frequency %u.\n", nss_dev, nss_ctx->id, default_freq);
 
 	/*
 	 * Setup ranges, test frequency, and display.
@@ -911,7 +911,7 @@ void __nss_hal_init_imem(struct nss_ctx_instance *nss_ctx)
 	mem_ctx->imem_end = mem_ctx->imem_head + NSS_IMEM_SIZE;
 	mem_ctx->imem_tail = mem_ctx->imem_head;
 
-	nss_info_always("%px: IMEM init: head: 0x%x end: 0x%x tail: 0x%x\n", nss_ctx,
+	nss_info("%px: IMEM init: head: 0x%x end: 0x%x tail: 0x%x\n", nss_ctx,
 					mem_ctx->imem_head, mem_ctx->imem_end, mem_ctx->imem_tail);
 }
 

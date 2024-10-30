@@ -1,6 +1,6 @@
 /*
  * Copyright (c) 2012, 2015-2019, 2021, The Linux Foundation. All rights reserved.
- * Copyright (c) 2021-2022, Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2021-2024, Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for any
  * purpose with or without fee is hereby granted, provided that the above
@@ -28,8 +28,6 @@ extern "C" {
 #define SW_API_SWITCH_INIT         (0  + SW_API_INIT_OFFSET)
 #define SW_API_SWITCH_RESET        (1  + SW_API_INIT_OFFSET)
 #define SW_API_SSDK_CFG            (2  + SW_API_INIT_OFFSET)
-#define SW_API_MODULE_FUNC_CTRL_SET   (3  + SW_API_INIT_OFFSET)
-#define SW_API_MODULE_FUNC_CTRL_GET   (4  + SW_API_INIT_OFFSET)
 #define SW_API_PPE_CAPACITY_GET       (5  + SW_API_INIT_OFFSET)
 
     /*port ctrl*/
@@ -142,6 +140,7 @@ extern "C" {
 #define SW_API_PT_CNT_GET		(94 + SW_API_PORT_OFFSET)
 #define SW_API_PT_CNT_FLUSH		(95 + SW_API_PORT_OFFSET)
 #define SW_API_PT_COMBO_LINK_STATUS_GET	(96 + SW_API_PORT_OFFSET)
+#define SW_API_PT_ERP_POWER_MODE_SET	(97 + SW_API_PORT_OFFSET)
 
     /*vlan*/
 #define SW_API_VLAN_OFFSET         130
@@ -344,6 +343,7 @@ extern "C" {
 #define SW_API_ACL_VPGROUP_GET			(27  + SW_API_ACL_OFFSET)
 #define SW_API_ACL_MAC_ENTRY_SET		(28  + SW_API_ACL_OFFSET)
 #define SW_API_ACL_MAC_ENTRY_DUMP		(29  + SW_API_ACL_OFFSET)
+#define SW_API_ACL_COUNTER_GET			(30  + SW_API_ACL_OFFSET)
 
     /*qos*/
 #define SW_API_QOS_OFFSET             500
@@ -573,6 +573,8 @@ extern "C" {
 #define SW_API_LED_OFFSET             1300
 #define SW_API_LED_PATTERN_SET        (0  + SW_API_LED_OFFSET)
 #define SW_API_LED_PATTERN_GET        (1  + SW_API_LED_OFFSET)
+#define SW_API_LED_PT_SRC_PATTERN_SET (2  + SW_API_LED_OFFSET)
+#define SW_API_LED_PT_SRC_PATTERN_GET (3  + SW_API_LED_OFFSET)
 
     /* cosmap */
 #define SW_API_COSMAP_OFFSET              1400
@@ -785,8 +787,6 @@ extern "C" {
 #define SW_API_INTERFACE_OFFSET        1900
 #define SW_API_MAC_MODE_SET            (0  + SW_API_INTERFACE_OFFSET)
 #define SW_API_MAC_MODE_GET            (1  + SW_API_INTERFACE_OFFSET)
-#define SW_API_PORT_3AZ_STATUS_SET     (2  + SW_API_INTERFACE_OFFSET)
-#define SW_API_PORT_3AZ_STATUS_GET     (3  + SW_API_INTERFACE_OFFSET)
 #define SW_API_PHY_MODE_SET            (4  + SW_API_INTERFACE_OFFSET)
 #define SW_API_PHY_MODE_GET            (5  + SW_API_INTERFACE_OFFSET)
 #define SW_API_FX100_CTRL_SET          (6  + SW_API_INTERFACE_OFFSET)
@@ -879,11 +879,29 @@ extern "C" {
 #define SW_API_FLOW_ENTRY_EN_GET	(26  + SW_API_FLOW_OFFSET)
 #define SW_API_FLOW_QOS_SET		(27  + SW_API_FLOW_OFFSET)
 #define SW_API_FLOW_QOS_GET		(28  + SW_API_FLOW_OFFSET)
+#define SW_API_FLOW_NPT66_PREFIX_ADD	(29  + SW_API_FLOW_OFFSET)
+#define SW_API_FLOW_NPT66_PREFIX_GET	(30  + SW_API_FLOW_OFFSET)
+#define SW_API_FLOW_NPT66_PREFIX_DEL	(31  + SW_API_FLOW_OFFSET)
+#define SW_API_FLOW_NPT66_IID_CAL		(32  + SW_API_FLOW_OFFSET)
+#define SW_API_FLOW_NPT66_IID_ADD		(33  + SW_API_FLOW_OFFSET)
+#define SW_API_FLOW_NPT66_IID_GET		(34  + SW_API_FLOW_OFFSET)
+#define SW_API_FLOW_NPT66_IID_DEL		(35  + SW_API_FLOW_OFFSET)
+#define SW_API_FLOW_NPT66_STATUS_GET	(36  + SW_API_FLOW_OFFSET)
+#define SW_API_FLOW_NPT66_STATUS_SET	(37  + SW_API_FLOW_OFFSET)
+
 
 /* rss hash */
 #define SW_API_RSS_HASH_OFFSET		2400
 #define SW_API_RSS_HASH_CONFIG_SET	(0 + SW_API_RSS_HASH_OFFSET)
 #define SW_API_RSS_HASH_CONFIG_GET	(1 + SW_API_RSS_HASH_OFFSET)
+#define SW_API_TOEPLITZ_HASH_SECRET_KEY_SET		(2 + SW_API_RSS_HASH_OFFSET)
+#define SW_API_TOEPLITZ_HASH_SECRET_KEY_GET		(3 + SW_API_RSS_HASH_OFFSET)
+#define SW_API_TOEPLITZ_HASH_RSS_ALGM_SET		(4 + SW_API_RSS_HASH_OFFSET)
+#define SW_API_TOEPLITZ_HASH_RSS_ALGM_GET		(5 + SW_API_RSS_HASH_OFFSET)
+#define SW_API_TOEPLITZ_HASH_CONFIG_ADD			(6 + SW_API_RSS_HASH_OFFSET)
+#define SW_API_TOEPLITZ_HASH_CONFIG_DEL			(7 + SW_API_RSS_HASH_OFFSET)
+#define SW_API_TOEPLITZ_HASH_CONFIG_GETFIRST	(8 + SW_API_RSS_HASH_OFFSET)
+#define SW_API_TOEPLITZ_HASH_CONFIG_GETNEXT		(9 + SW_API_RSS_HASH_OFFSET)
 
     /* Ctrlpkt Control */
 #define SW_API_CTRLPKT_OFFSET        2500
@@ -1152,6 +1170,11 @@ extern "C" {
 #define SW_API_PORT_ATHTAG_RX_GET		(5 + SW_API_ATHTAG_OFFSET)
 #define SW_API_PORT_ATHTAG_TX_SET		(6 + SW_API_ATHTAG_OFFSET)
 #define SW_API_PORT_ATHTAG_TX_GET		(7 + SW_API_ATHTAG_OFFSET)
+
+/* pktedit */
+#define SW_API_PKTEDIT_OFFSET			4000
+#define SW_API_PKTEDIT_PADDING_SET		(0 + SW_API_PKTEDIT_OFFSET)
+#define SW_API_PKTEDIT_PADDING_GET		(1 + SW_API_PKTEDIT_OFFSET)
 
 /* auto_insert_flag */
 /*qca808x_start*/

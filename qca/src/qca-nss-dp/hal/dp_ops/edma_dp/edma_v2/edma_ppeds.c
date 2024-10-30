@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2022-2023 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2024 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for any
  * purpose with or without fee is hereby granted, provided that the above
@@ -20,6 +20,9 @@
 #include "edma_regs.h"
 #include "edma_debug.h"
 #include "nss_dp_dev.h"
+#include "edma_cfg_rx.h"
+#include "edma_cfg_tx.h"
+#include <ppe_drv.h>
 
 static char edma_ppeds_txcmpl_irq_name[EDMA_PPEDS_MAX_NODES][EDMA_IRQ_NAME_SIZE];
 static char edma_ppeds_rxdesc_irq_name[EDMA_PPEDS_MAX_NODES][EDMA_IRQ_NAME_SIZE];
@@ -176,6 +179,7 @@ static uint32_t edma_ppeds_tx_complete(uint32_t work_to_do, struct edma_txcmpl_r
 	struct edma_txcmpl_desc *txcmpl;
 	uint32_t cons_idx, prod_idx, data, avail;
 	uint16_t count;
+	struct edma_gbl_ctx *egc = &edma_gbl_ctx;
 
 	cons_idx = txcmpl_ring->cons_idx;
 
@@ -188,6 +192,11 @@ static uint32_t edma_ppeds_tx_complete(uint32_t work_to_do, struct edma_txcmpl_r
 	avail = EDMA_DESC_AVAIL_COUNT(prod_idx, cons_idx, txcmpl_ring->count);
 	if (!avail) {
 		return 0;
+	}
+
+	if (unlikely(egc->enable_ring_util_stats)) {
+		edma_update_ring_stats(avail, ppeds_node->txcmpl_ring.count,
+				       &ppeds_node->txcmpl_ring.tx_cmpl_stats.ring_stats);
 	}
 
 	avail = min(avail, work_to_do);
@@ -284,11 +293,11 @@ static void edma_ppeds_rx_alloc_buffer(struct edma_rxfill_ring *rxfill_ring, int
 		rxfill_desc->word2 = rx_fill_arr[num_alloc].opaque_lo;
 		rxfill_desc->word3 = rx_fill_arr[num_alloc].opaque_hi;
 		EDMA_RXFILL_PACKET_LEN_SET(rxfill_desc,
-			cpu_to_le32((uint32_t)
-			(rx_alloc_size - headroom)
+			((uint32_t)(rx_alloc_size - headroom)
 			& EDMA_RXFILL_BUF_SIZE_MASK));
 
 		prod_idx = (prod_idx + 1) & ring_size_mask;
+		EDMA_RXFILL_ENDIAN_SET(rxfill_desc);
 		num_alloc++;
 	}
 
@@ -310,11 +319,17 @@ static int edma_ppeds_rxfill_napi_poll(struct napi_struct *napi, int budget)
 	struct edma_rxfill_ring *rxfill_ring = (struct edma_rxfill_ring *)napi;
 	struct edma_ppeds *ppeds_node = container_of(rxfill_ring, struct edma_ppeds, rxfill_ring);
 	uint32_t alloc_size = rxfill_ring->alloc_size;
+	struct edma_gbl_ctx *egc = &edma_gbl_ctx;
 	uint32_t headroom = EDMA_RX_SKB_HEADROOM + NET_IP_ALIGN;
 
 	cons_idx = edma_reg_read(EDMA_REG_RXFILL_CONS_IDX(rxfill_ring->ring_id)) &
 				EDMA_RXFILL_CONS_IDX_MASK;
 	work_to_do = (cons_idx - rxfill_ring->prod_idx + rxfill_ring->count - 1) & (rxfill_ring->count - 1);
+
+	if (unlikely(egc->enable_ring_util_stats)) {
+		edma_update_ring_stats(work_to_do, rxfill_ring->count,
+				       &rxfill_ring->rx_fill_stats.ring_stats);
+	}
 
 	if (work_to_do > budget) {
 		work_to_do = budget;
@@ -331,6 +346,13 @@ static int edma_ppeds_rxfill_napi_poll(struct napi_struct *napi, int budget)
 						ppeds_node->ppeds_handle.rx_fill_arr, headroom);
 
 	edma_reg_read(EDMA_REG_RXFILL_INT_STAT(rxfill_ring->ring_id));
+
+	if (work_to_do < budget) {
+		goto napi_complete;
+	}
+
+	return budget;
+
 napi_complete:
 	napi_complete(napi);
 	if (!ppeds_node->umac_reset_inprogress) {
@@ -423,6 +445,9 @@ static void edma_ppeds_set_rx_mapping(uint32_t rxfill_ring_id, uint32_t rx_ring_
 			if (num_ppe_queues == 0) {
 				break;
 			}
+#if GCC_VERSION > 70500
+			fallthrough;
+#endif
 			/* fall through */
 		case 1:
 			data &= (~EDMA_RX_RING_ID_QUEUE1_MASK);
@@ -431,6 +456,9 @@ static void edma_ppeds_set_rx_mapping(uint32_t rxfill_ring_id, uint32_t rx_ring_
 			if (num_ppe_queues == 0) {
 				break;
 			}
+#if GCC_VERSION > 70500
+			fallthrough;
+#endif
 			/* fall through */
 		case 2:
 			data &= (~EDMA_RX_RING_ID_QUEUE2_MASK);
@@ -439,6 +467,9 @@ static void edma_ppeds_set_rx_mapping(uint32_t rxfill_ring_id, uint32_t rx_ring_
 			if (num_ppe_queues == 0) {
 				break;
 			}
+#if GCC_VERSION > 70500
+			fallthrough;
+#endif
 			/* fall through */
 		case 3:
 			data &= (~EDMA_RX_RING_ID_QUEUE3_MASK);
@@ -637,7 +668,7 @@ static void edma_ppeds_cfg_rx(struct edma_ppeds *ppeds_node)
 			(uint32_t)(rxfill_ring->dma & EDMA_RING_DMA_MASK));
 
 	ring_sz = rxfill_ring->count & EDMA_RXFILL_RING_SIZE_MASK;
-	edma_reg_write(EDMA_REG_RXFILL_RING_SIZE(rxfill_ring->ring_id), ring_sz);
+	edma_reg_write(EDMA_RXFILL_RING_SIZE(rxfill_ring->ring_id), ring_sz);
 
 	rxfill_ring->prod_idx = edma_reg_read(EDMA_REG_RXFILL_PROD_IDX(rxfill_ring->ring_id));
 
@@ -648,8 +679,15 @@ static void edma_ppeds_cfg_rx(struct edma_ppeds *ppeds_node)
 			(uint32_t)(rxdesc_ring->sdma & EDMA_RXDESC_PREHEADER_BA_MASK));
 
 	data = rxdesc_ring->count & EDMA_RXDESC_RING_SIZE_MASK;
+
+	/*
+	 * For SOC's where Rxdesc ring register do not contain PL offset
+	 * fields, skip writing that data into the Register.
+	 */
+#if !defined(NSS_DP_EDMA_SKIP_PL_OFFSET)
 	data |= (EDMA_RXDESC_PL_DEFAULT_VALUE & EDMA_RXDESC_PL_OFFSET_MASK)
 		 << EDMA_RXDESC_PL_OFFSET_SHIFT;
+#endif
 	edma_reg_write(EDMA_REG_RXDESC_RING_SIZE(rxdesc_ring->ring_id), data);
 
 	/*
@@ -774,14 +812,14 @@ bool edma_ppeds_inst_register(nss_dp_ppeds_handle_t *ppeds_handle)
 	}
 
 	ppeds_handle->rx_fill_arr =
-		(struct nss_dp_ppeds_rx_fill_elem *)kzalloc(sizeof(struct nss_dp_ppeds_rx_fill_elem) * rx_ring_size, GFP_KERNEL);
+		(struct nss_dp_ppeds_rx_fill_elem *)kzalloc(sizeof(struct nss_dp_ppeds_rx_fill_elem) * ppeds_node->rxfill_ring.count, GFP_KERNEL);
 	if (!ppeds_handle->rx_fill_arr) {
 		goto rx_fill_arr_alloc_failed;
 		return false;
 	}
 
 	ppeds_handle->tx_cmpl_arr =
-		(struct nss_dp_ppeds_tx_cmpl_elem *)kzalloc(sizeof(struct nss_dp_ppeds_tx_cmpl_elem) * tx_ring_size, GFP_KERNEL);
+		(struct nss_dp_ppeds_tx_cmpl_elem *)kzalloc(sizeof(struct nss_dp_ppeds_tx_cmpl_elem) * ppeds_node->txcmpl_ring.count, GFP_KERNEL);
 	if (!ppeds_handle->tx_cmpl_arr) {
 		goto tx_cmpl_arr_alloc_failed;
 		return false;
@@ -808,8 +846,13 @@ bool edma_ppeds_inst_register(nss_dp_ppeds_handle_t *ppeds_handle)
 		goto txcomp_irq_fail;
 	}
 
+#if (LINUX_VERSION_CODE < KERNEL_VERSION(6, 1, 0))
 	netif_napi_add(&ppeds_node->napi_ndev, &ppeds_node->txcmpl_ring.napi,
 			edma_ppeds_txcomp_napi_poll, ppeds_handle->eth_txcomp_budget);
+#else
+	netif_napi_add_weight(&ppeds_node->napi_ndev, &ppeds_node->txcmpl_ring.napi,
+			edma_ppeds_txcomp_napi_poll, ppeds_handle->eth_txcomp_budget);
+#endif
 
 	/*
 	 * Setup RxDesc IRQ and NAPI
@@ -841,8 +884,13 @@ bool edma_ppeds_inst_register(nss_dp_ppeds_handle_t *ppeds_handle)
 
 	}
 
+#if (LINUX_VERSION_CODE < KERNEL_VERSION(6, 1, 0))
 	netif_napi_add(&ppeds_node->napi_ndev, &ppeds_node->rx_ring.napi,
 			edma_ppeds_rx_napi_poll, EDMA_PPEDS_RX_WEIGHT);
+#else
+	netif_napi_add_weight(&ppeds_node->napi_ndev, &ppeds_node->rx_ring.napi,
+		edma_ppeds_rx_napi_poll, EDMA_PPEDS_RX_WEIGHT);
+#endif
 
 	/*
 	 * Setup RxFill IRQ and NAPI
@@ -861,8 +909,13 @@ bool edma_ppeds_inst_register(nss_dp_ppeds_handle_t *ppeds_handle)
 
 	}
 
+#if (LINUX_VERSION_CODE < KERNEL_VERSION(6, 1, 0))
 	netif_napi_add(&ppeds_node->napi_ndev, &ppeds_node->rxfill_ring.napi,
 			edma_ppeds_rxfill_napi_poll, EDMA_PPEDS_RXFILL_WEIGHT);
+#else
+	netif_napi_add_weight(&ppeds_node->napi_ndev, &ppeds_node->rxfill_ring.napi,
+			edma_ppeds_rxfill_napi_poll, EDMA_PPEDS_RXFILL_WEIGHT);
+#endif
 
 	ret = edma_ppeds_rx_secondary_alloc(&ppeds_node->rx_ring);
 	if (ret) {
@@ -997,8 +1050,18 @@ bool edma_ppeds_get_ppe_queues(nss_dp_ppeds_handle_t *ppeds_handle, uint32_t *pp
 void edma_ppeds_set_tx_prod_idx(nss_dp_ppeds_handle_t *ppeds_handle, uint16_t tx_prod_idx)
 {
 	struct edma_ppeds *ppeds_node = container_of(ppeds_handle, struct edma_ppeds, ppeds_handle);
+	uint32_t cons_idx;
+	struct edma_gbl_ctx *egc = &edma_gbl_ctx;
+	uint32_t work_to_do = 0;
 
 	edma_reg_write(EDMA_REG_TXDESC_PROD_IDX(ppeds_node->tx_ring.id), tx_prod_idx);
+
+	if (unlikely(egc->enable_ring_util_stats)) {
+		cons_idx = edma_reg_read(EDMA_REG_TXDESC_CONS_IDX(ppeds_node->tx_ring.id)) & EDMA_TXDESC_CONS_IDX_MASK;
+		work_to_do = EDMA_DESC_AVAIL_COUNT(tx_prod_idx, cons_idx, ppeds_node->tx_ring.count);
+		edma_update_ring_stats(work_to_do, ppeds_node->tx_ring.count,
+				       &ppeds_node->tx_ring.tx_desc_stats.ring_stats);
+	}
 }
 
 /*
@@ -1008,8 +1071,18 @@ void edma_ppeds_set_tx_prod_idx(nss_dp_ppeds_handle_t *ppeds_handle, uint16_t tx
 void edma_ppeds_set_rx_cons_idx(nss_dp_ppeds_handle_t *ppeds_handle, uint16_t rx_cons_idx)
 {
 	struct edma_ppeds *ppeds_node = container_of(ppeds_handle, struct edma_ppeds, ppeds_handle);
+	uint32_t prod_idx;
+	struct edma_gbl_ctx *egc = &edma_gbl_ctx;
+	uint32_t work_to_do = 0;
 
 	edma_reg_write(EDMA_REG_RXDESC_CONS_IDX(ppeds_node->rx_ring.ring_id), rx_cons_idx);
+
+	if (unlikely(egc->enable_ring_util_stats)) {
+		prod_idx = edma_reg_read(EDMA_REG_RXDESC_PROD_IDX(ppeds_node->rx_ring.ring_id)) & EDMA_RXDESC_PROD_IDX_MASK;
+		work_to_do = EDMA_DESC_AVAIL_COUNT(prod_idx, rx_cons_idx, ppeds_node->rx_ring.count);
+		edma_update_ring_stats(work_to_do, ppeds_node->rx_ring.count,
+				       &ppeds_node->rx_ring.rx_desc_stats.ring_stats);
+	}
 }
 
 /*
@@ -1078,7 +1151,8 @@ int edma_ppeds_inst_start(nss_dp_ppeds_handle_t *ppeds_handle, uint8_t intr_enab
 				struct nss_ppe_ds_ctx_info_handle *info_hdl)
 {
 	uint32_t data;
-	struct edma_ppeds_drv *drv = &edma_gbl_ctx.ppeds_drv;
+	struct edma_gbl_ctx *egc = &edma_gbl_ctx;
+	struct edma_ppeds_drv *drv = &egc->ppeds_drv;
 	struct edma_ppeds *ppeds_node = container_of(ppeds_handle, struct edma_ppeds, ppeds_handle);
 	struct edma_ppeds_node_cfg *node_cfg = &(drv->ppeds_node_cfg[ppeds_node->db_idx]);
 
@@ -1145,13 +1219,23 @@ int edma_ppeds_inst_start(nss_dp_ppeds_handle_t *ppeds_handle, uint8_t intr_enab
 	data &= ~EDMA_RXFILL_RING_DISABLE;
 	edma_reg_write(EDMA_REG_RXFILL_DISABLE(ppeds_node->rxfill_ring.ring_id), data);
 
-
 	/*
 	 * Enable Tx Ring.
 	 */
 	data = edma_reg_read(EDMA_REG_TXDESC_CTRL(ppeds_node->tx_ring.id));
 	data |= EDMA_TXDESC_TX_ENABLE;
 	edma_reg_write(EDMA_REG_TXDESC_CTRL(ppeds_node->tx_ring.id), data);
+
+	/*
+	 * If the ring reset is supported,
+	 * Enable the queues that are disabled at the time of inst stop.
+	 */
+	if (edma_dp_per_ring_reset_support()) {
+		if (!edma_cfg_rx_ring_en_mapped_queues(egc, ppeds_node->rx_ring.ring_id, true)) {
+			edma_err("%px: Failed to enable the queue", ppeds_node);
+			return 0;
+		}
+	}
 
 	write_lock_bh(&drv->lock);
 	node_cfg->node_state = EDMA_PPEDS_NODE_STATE_START_DONE;
@@ -1169,7 +1253,8 @@ void edma_ppeds_inst_stop(nss_dp_ppeds_handle_t *ppeds_handle, uint8_t intr_enab
 				struct nss_ppe_ds_ctx_info_handle *info_hdl)
 {
 	uint32_t data;
-	struct edma_ppeds_drv *drv = &edma_gbl_ctx.ppeds_drv;
+	struct edma_gbl_ctx *gbl_ctx = &edma_gbl_ctx;
+	struct edma_ppeds_drv *drv = &gbl_ctx->ppeds_drv;
 	struct edma_ppeds *ppeds_node = container_of(ppeds_handle, struct edma_ppeds, ppeds_handle);
 	struct edma_ppeds_node_cfg *node_cfg = &(drv->ppeds_node_cfg[ppeds_node->db_idx]);
 
@@ -1196,6 +1281,22 @@ void edma_ppeds_inst_stop(nss_dp_ppeds_handle_t *ppeds_handle, uint8_t intr_enab
 	} while (data);
 
 	/*
+	 * Reset the TX ring if Hardware support is present.
+	 */
+	if (edma_dp_per_ring_reset_support()) {
+		edma_cfg_tx_ring_reset(&ppeds_node->tx_ring);
+
+		/*
+		 * Disable the PPE queues corresponding to RX ring to stop the incoming
+		 * traffic on the ring.
+		 */
+		if (!edma_cfg_rx_ring_en_mapped_queues(gbl_ctx, ppeds_node->rx_ring.ring_id, false)) {
+			edma_err("%px: Failed to disable the queue", ppeds_node);
+			return;
+		}
+	}
+
+	/*
 	 * Clear enable bit, set disable bit and wait untill Rx Desc ring is disabled.
 	 */
 	data = edma_reg_read(EDMA_REG_RXDESC_CTRL(ppeds_node->rx_ring.ring_id));
@@ -1209,6 +1310,12 @@ void edma_ppeds_inst_stop(nss_dp_ppeds_handle_t *ppeds_handle, uint8_t intr_enab
 	do {
 		data = edma_reg_read(EDMA_REG_RXDESC_DISABLE_DONE(ppeds_node->rx_ring.ring_id));
 	} while (!data);
+
+	/*
+	 * Reset the ring if Hardware support is present.
+	 */
+	if (edma_dp_per_ring_reset_support())
+		edma_cfg_rx_ring_reset(&ppeds_node->rx_ring);
 
 	/*
 	 * Disable Tx complete interrupt and NAPI
@@ -1405,12 +1512,22 @@ void edma_ppeds_deinit(struct edma_ppeds_drv *drv)
 }
 
 /*
+ * edma_ppeds_get_queue_start_for_node()
+ *	PPEDS get queue_start for a particular node id.
+ */
+static int edma_ppeds_get_queue_start_for_node(struct edma_ppeds_drv *drv, int i)
+{
+	return ((uint8_t) drv->ppeds_node_cfg[i].node_map[EDMA_PPEDS_ENTRY_QID_START_IDX]);
+}
+
+/*
  * edma_ppeds_init()
  *	PPEDS init
  */
 int edma_ppeds_init(struct edma_ppeds_drv *drv)
 {
 	uint32_t i;
+	uint8_t queue_start;
 
 	rwlock_init(&drv->lock);
 
@@ -1422,6 +1539,10 @@ int edma_ppeds_init(struct edma_ppeds_drv *drv)
 				drv->ppeds_node_cfg[i].node_map[j] =
 					 edma_gbl_ctx.ppeds_node_map[i][j];
 			}
+
+			queue_start = edma_ppeds_get_queue_start_for_node(drv, i);
+			ppe_drv_ds_map_node_to_queue(i, queue_start);
+
 			drv->ppeds_node_cfg[i].node_state = EDMA_PPEDS_NODE_STATE_AVAIL;
 			continue;
 		}

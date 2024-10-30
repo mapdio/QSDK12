@@ -9,7 +9,7 @@ include $(TOPDIR)/rules.mk
 
 PKG_NAME:=python3-packages
 PKG_VERSION:=1.0
-PKG_RELEASE:=1
+PKG_RELEASE:=2
 
 PKG_MAINTAINER:=Yousong Zhou <yszhou4tech@gmail.com>
 
@@ -30,6 +30,8 @@ PKG_CONFIG_DEPENDS:= \
 	CONFIG_PACKAGE_python3-packages-pip-opts \
 
 PKG_BUILD_DEPENDS:=python3 python3/host
+
+PYTHON3_PKG_BUILD:=0
 
 include $(INCLUDE_DIR)/package.mk
 include ../python3-host.mk
@@ -101,13 +103,13 @@ HOST_PYTHON3_PIP_INSTALL_CLEANUP:=$(call HOST_PYTHON3_PIP_INSTALL,$(PKG_INSTALL_
 
 define Build/Compile
 	$(foreach pkg,$(CONFIG_PACKAGE_python3-packages-list-host),
-		$(call Build/Compile/HostPy3RunHost,,$(HOST_PYTHON3_PIP_INSTALL_HOST) $(pkg))
+		$(call HostPython3/Run,,$(HOST_PYTHON3_PIP_INSTALL_HOST) $(pkg))
 	)
 	$(foreach pkg,$(CONFIG_PACKAGE_python3-packages-list),
-		$(call Build/Compile/HostPy3RunTarget,,$(call HOST_PYTHON3_PIP_INSTALL_TARGET,$(pkg)) $(pkg),$(CONFIG_PACKAGE_python3-packages-envs))
+		$(call Python3/Run,,$(call HOST_PYTHON3_PIP_INSTALL_TARGET,$(pkg)) $(pkg),$(CONFIG_PACKAGE_python3-packages-envs))
 	)
 	$(foreach pkg,$(CONFIG_PACKAGE_python3-packages-list-cleanup),
-		$(call Build/Compile/HostPy3RunTarget,,$(HOST_PYTHON3_PIP_INSTALL_CLEANUP) $(pkg),$(CONFIG_PACKAGE_python3-packages-envs))
+		$(call Python3/Run,,$(HOST_PYTHON3_PIP_INSTALL_CLEANUP) $(pkg),$(CONFIG_PACKAGE_python3-packages-envs))
 	)
 endef
 

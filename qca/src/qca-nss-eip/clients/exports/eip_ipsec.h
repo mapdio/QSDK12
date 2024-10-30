@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2022, Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2023, Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for any
  * purpose with or without fee is hereby granted, provided that the above
@@ -62,6 +62,7 @@ struct eip_ipsec_base {
 struct eip_ipsec_data {
 	struct eip_ipsec_base base;		/* Base meta information */
 	uint32_t replay_win;			/* SA replay window */
+	uint32_t mtu;				/* WAN mtu */
 	uint8_t df;				/* Default DF value for outer IP */
 	uint8_t dscp;				/* Default dscp value for outer IP */
 	uint8_t hop_limit;			/* Default TTL limit for outer IP */

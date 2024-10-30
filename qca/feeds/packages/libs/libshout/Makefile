@@ -6,15 +6,15 @@
 include $(TOPDIR)/rules.mk
 
 PKG_NAME:=libshout
-PKG_VERSION:=2.4.3
+PKG_VERSION:=2.4.6
 PKG_RELEASE:=1
 
 PKG_SOURCE:=$(PKG_NAME)-$(PKG_VERSION).tar.gz
 PKG_SOURCE_URL:=https://downloads.us.xiph.org/releases/libshout/
-PKG_HASH:=0d8af55d1141bf90710bcd41a768c9cc5adb251502a0af1dd22c8da215d40dfe
+PKG_HASH:=39cbd4f0efdfddc9755d88217e47f8f2d7108fa767f9d58a2ba26a16d8f7c910
 
 PKG_MAINTAINER:=Ted Hess <thess@kitschensync.net>
-PKG_LICENSE:=LGPL-2.0-or-later
+PKG_LICENSE:=LGPL-2.1-or-later
 PKG_LICENSE_FILES:=COPYING
 PKG_CPE_ID:=cpe:/a:libshout:libshout
 

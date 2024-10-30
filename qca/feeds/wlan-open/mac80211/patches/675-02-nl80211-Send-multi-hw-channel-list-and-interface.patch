@@ -13,7 +13,7 @@ Signed-off-by: Vasanthakumar Thiagarajan <quic_vthiagar@quicinc.com>
 
 --- a/include/uapi/linux/nl80211.h
 +++ b/include/uapi/linux/nl80211.h
-@@ -2803,6 +2803,11 @@ enum nl80211_commands {
+@@ -2801,6 +2801,12 @@ enum nl80211_commands {
   *	indicates that the sub-channel is punctured, set 0 indicates that the
   *	channel is active.
   *
@@ -22,10 +22,11 @@ Signed-off-by: Vasanthakumar Thiagarajan <quic_vthiagar@quicinc.com>
 + *     multiple physical hardware under a wiphy can use this attribute,
 + *     see &enum nl80211_multi_hw_mac_attrs.
 + *
-  * @NUM_NL80211_ATTR: total number of nl80211_attrs available
++ *
   * @NL80211_ATTR_MAX: highest attribute number currently defined
   * @__NL80211_ATTR_AFTER_LAST: internal use
-@@ -3353,6 +3358,7 @@ enum nl80211_attrs {
+  */
+@@ -3350,6 +3356,7 @@ enum nl80211_attrs {
  
  	NL80211_ATTR_AP_PS,
  
@@ -33,7 +34,7 @@ Signed-off-by: Vasanthakumar Thiagarajan <quic_vthiagar@quicinc.com>
  	/* add attributes here, update the policy in nl80211.c */
  
  	__NL80211_ATTR_AFTER_LAST,
-@@ -5918,6 +5924,10 @@ enum nl80211_iface_limit_attrs {
+@@ -5915,6 +5922,10 @@ enum nl80211_iface_limit_attrs {
   * @NL80211_IFACE_COMB_BI_MIN_GCD: u32 attribute specifying the minimum GCD of
   *	different beacon intervals supported by all the interface combinations
   *	in this group (if not present, all beacon intervals be identical).
@@ -44,7 +45,7 @@ Signed-off-by: Vasanthakumar Thiagarajan <quic_vthiagar@quicinc.com>
   * @NUM_NL80211_IFACE_COMB: number of attributes
   * @MAX_NL80211_IFACE_COMB: highest attribute number
   *
-@@ -5934,7 +5944,18 @@ enum nl80211_iface_limit_attrs {
+@@ -5931,7 +5942,18 @@ enum nl80211_iface_limit_attrs {
   *	numbers = [ #{STA} <= 1, #{P2P-client,P2P-GO} <= 3 ], max = 4
   *	=> allows a STA plus three P2P interfaces
   *
@@ -64,7 +65,7 @@ Signed-off-by: Vasanthakumar Thiagarajan <quic_vthiagar@quicinc.com>
   * within the %NL80211_ATTR_INTERFACE_COMBINATIONS attribute to indicate
   * that any of these groups must match.
   *
-@@ -5953,12 +5974,44 @@ enum nl80211_if_combination_attrs {
+@@ -5950,12 +5972,44 @@ enum nl80211_if_combination_attrs {
  	NL80211_IFACE_COMB_RADAR_DETECT_WIDTHS,
  	NL80211_IFACE_COMB_RADAR_DETECT_REGIONS,
  	NL80211_IFACE_COMB_BI_MIN_GCD,
@@ -109,7 +110,7 @@ Signed-off-by: Vasanthakumar Thiagarajan <quic_vthiagar@quicinc.com>
  
  /**
   * enum nl80211_plink_state - state of a mesh peer link finite state machine
-@@ -7898,4 +7951,46 @@ enum nl80211_beacon_tx_mode {
+@@ -7895,4 +7949,46 @@ enum nl80211_beacon_tx_mode {
  	NL80211_BEACON_STAGGERED_MODE = 1,
  	NL80211_BEACON_BURST_MODE = 2,
  };

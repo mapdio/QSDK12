@@ -1,7 +1,7 @@
 /*
  **************************************************************************
  * Copyright (c) 2016-2017, 2020, The Linux Foundation. All rights reserved.
- * Copyright (c) 2022, Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2024, Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
@@ -38,6 +38,8 @@
 		pr_warn("%s[%d]:" s, __func__, __LINE__, ##__VA_ARGS__)
 #define nss_ppe_lag_info(s, ...) \
 		pr_notice("%s[%d]:" s, __func__, __LINE__, ##__VA_ARGS__)
+#define nss_ppe_lag_trace(s, ...) \
+		pr_debug("%s[%d]:" s, __func__, __LINE__, ##__VA_ARGS__)
 #else /* CONFIG_DYNAMIC_DEBUG */
 /*
  * Statically compile messages at different levels
@@ -54,6 +56,13 @@
 #else
 #define nss_ppe_lag_info(s, ...) \
 		pr_notice("%s[%d]:" s, __func__, __LINE__, ##__VA_ARGS__)
+#endif
+
+#if (NSS_PPE_LAG_MGR_DEBUG_LEVEL < 4)
+#define nss_ppe_lag_trace(s, ...)
+#else
+#define nss_ppe_lag_trace(s, ...) \
+                pr_info("%s[%d]:" s, __func__, __LINE__, ##__VA_ARGS__)
 #endif
 #endif /* CONFIG_DYNAMIC_DEBUG */
 
@@ -123,12 +132,12 @@ static int nss_ppe_lag_update_slave(struct netdev_notifier_info *info)
 	struct netdev_notifier_changeupper_info *cu_info = (struct netdev_notifier_changeupper_info *)info;
 
 	if (!cu_info->upper_dev) {
-		nss_ppe_lag_warn("%px: Upper dev not present for dev: %s\n", info, slave_dev->name);
+		nss_ppe_lag_trace("%px: Upper dev not present for dev: %s\n", info, slave_dev->name);
 		return NOTIFY_DONE;
 	}
 
 	if (!netif_is_bond_master(cu_info->upper_dev)) {
-		nss_ppe_lag_warn("%px: Upper dev is not LAG for dev: %s\n", info, slave_dev->name);
+		nss_ppe_lag_trace("%px: Upper dev is not LAG for dev: %s\n", info, slave_dev->name);
 		return NOTIFY_DONE;
 	}
 
@@ -285,6 +294,15 @@ static int nss_ppe_lag_unregister_event(struct netdev_notifier_info *info)
 
 	spin_lock(&nss_ppe_lag_spinlock);
 	entry = &bond_entry[bond_id];
+
+	/*
+	 * Make sure the bond device has a valid ppe interface.
+	 */
+	if (!entry->iface) {
+		spin_unlock(&nss_ppe_lag_spinlock);
+		nss_ppe_lag_warn("%px: Lag device is not a valid ppe interface\n", bond_dev);
+		return NOTIFY_DONE;
+	}
 
 	/*
 	 * There may be active slaves while the lag interface is deleted.
@@ -473,7 +491,7 @@ static int nss_ppe_lag_changemtu_event(struct netdev_notifier_info *info)
 	ret = ppe_drv_iface_mtu_set(entry->iface, bond_dev->mtu);
 	if (ret != PPE_DRV_RET_SUCCESS) {
 		nss_ppe_lag_warn("%px: failed to set mtu, error = %d \n", bond_dev, ret);
-		return NOTIFY_DONE;
+		return NOTIFY_BAD;
 	}
 
 	spin_lock(&nss_ppe_lag_spinlock);
@@ -523,7 +541,7 @@ static int nss_ppe_lag_changeaddr_event(struct netdev_notifier_info *info)
 		return NOTIFY_DONE;
 	}
 
-	ret = ppe_drv_iface_mac_addr_set(entry->iface, bond_dev->dev_addr);
+	ret = ppe_drv_iface_mac_addr_set(entry->iface, (uint8_t *)bond_dev->dev_addr);
 	if (ret != PPE_DRV_RET_SUCCESS) {
 		nss_ppe_lag_warn("%px: failed to set mac_addr, error = %d \n", bond_dev, ret);
 		return NOTIFY_DONE;

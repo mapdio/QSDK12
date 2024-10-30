@@ -8,29 +8,21 @@
 include $(TOPDIR)/rules.mk
 
 PKG_NAME:=flashrom
-PKG_VERSION:=1.0
-PKG_RELEASE:=2
+PKG_VERSION:=1.2.1
+PKG_RELEASE:=1
 
-PKG_SOURCE:=$(PKG_NAME)-$(PKG_VERSION).tar.bz2
+PKG_SOURCE:=$(PKG_NAME)-v$(PKG_VERSION).tar.bz2
 PKG_SOURCE_URL:=https://download.flashrom.org/releases
-PKG_SOURCE_SUBDIR:=$(PKG_NAME)-$(PKG_VERSION)
-PKG_HASH:=3702fa215ba5fb5af8e54c852d239899cfa1389194c1e51cb2a170c4dc9dee64
+PKG_HASH:=89a7ff5beb08c89b8795bbd253a51b9453547a864c31793302296b56bbc56d65
+PKG_BUILD_DIR:=$(BUILD_DIR)/$(PKG_NAME)-$(BUILD_VARIANT)/$(PKG_NAME)-v$(PKG_VERSION)
 
 PKG_MAINTAINER:=Álvaro Fernández Rojas <noltari@gmail.com>
 PKG_LICENSE:=GPL-2.0-or-later
 PKG_LICENSE_FILES:=COPYING
 
-PKG_INSTALL:=1
-PKG_BUILD_PARALLEL:=1
-
 include $(INCLUDE_DIR)/package.mk
+include $(INCLUDE_DIR)/meson.mk
 include flashrom.mk
-
-TARGET_CFLAGS+= \
-	-std=gnu89
-
-MAKE_FLAGS+= \
-	PREFIX="/usr"
 
 define Package/flashrom/default
   SECTION:=utils
@@ -46,7 +38,6 @@ define Package/flashrom
     +(TARGET_x86||TARGET_x86_64):dmidecode \
     +libftdi1 \
     +libusb-1.0 \
-    +libusb-compat \
     +pciutils
   VARIANT:=full
   DEFAULT_VARIANT:=1
@@ -72,8 +63,7 @@ define Package/flashrom-usb
   TITLE+= (usb)
   DEPENDS+= \
     +libftdi1 \
-    +libusb-1.0 \
-    +libusb-compat
+    +libusb-1.0
   VARIANT:=usb
 endef
 

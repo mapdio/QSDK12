@@ -14,9 +14,8 @@ PKG_MD5SUM:=skip
 WIFI_ath9k:=PACKAGE_kmod-ath9k
 WIFI_ath10k:=PACKAGE_kmod-ath10k
 WIFI_ath11k:=PACKAGE_kmod-ath11k
-WIFI_ath12k:=PACKAGE_kmod-ath12k
 WIFI_wigig:=PACKAGE_kmod-qca-wigig-driver
-WIFI_OPEN:=$(WIFI_ath9k)||$(WIFI_ath10k)||$(WIFI_ath11k)||$(WIFI_ath12k)||$(WIFI_wigig)
+WIFI_OPEN:=$(WIFI_ath9k)||$(WIFI_ath10k)||$(WIFI_ath11k)||$(WIFI_wigig)
 
 
 include $(INCLUDE_DIR)/local-development.mk

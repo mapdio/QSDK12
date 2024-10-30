@@ -19,7 +19,7 @@ include $(INCLUDE_DIR)/package.mk
 
 define Package/kernel-tests
   SECTION:=QTI
-  CATEGORY:=$(QTI_SOFTWARE_CATEGORY)
+  CATEGORY:=QTI software
   TITLE:=QTI Linux Kernel tests
   DEPENDS:=@TARGET_ipq807x||TARGET_ipq95xx +libpthread
 endef

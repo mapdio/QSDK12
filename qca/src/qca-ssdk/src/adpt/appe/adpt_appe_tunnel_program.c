@@ -1,5 +1,6 @@
 /*
  * Copyright (c) 2021, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2023 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for any
  * purpose with or without fee is hereby granted, provided that the above
@@ -13,7 +14,6 @@
  * ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  */
-
 
 /**
  * @defgroup
@@ -244,46 +244,6 @@ _is_program_entry_equal(a_uint32_t dev_id,
 	}
 }
 
-static a_bool_t
-_is_program_udf_rule_equal(a_uint32_t dev_id,
-		fal_tunnel_program_udf_t * udf1, fal_tunnel_program_udf_t * udf2)
-{
-	a_uint32_t idx;
-	if (udf1->field_flag == udf2->field_flag)
-	{
-		for (idx = 0; idx < TUNNEL_PROGRAM_UDF_NUM; idx++)
-		{
-			if((udf1->udf_val[idx] != udf2->udf_val[idx]) ||
-				(udf1->udf_mask[idx] != udf2->udf_mask[idx]))
-			{ /* not equal */
-				return A_FALSE;
-			}
-		}
-		/* equal */
-		return A_TRUE;
-	}
-	else
-	{ /* not equal */
-		return A_FALSE;
-	}
-}
-
-static a_bool_t
-_is_program_udf_action_equal(a_uint32_t dev_id,
-		fal_tunnel_program_udf_t * udf1, fal_tunnel_program_udf_t * udf2)
-{
-	if (udf1->action_flag == udf2->action_flag &&
-		udf1->inner_hdr_type == udf2->inner_hdr_type &&
-		udf1->udf_hdr_len == udf2->udf_hdr_len)
-	{ /* equal */
-		return A_TRUE;
-	}
-	else
-	{ /* not equal */
-		return A_FALSE;
-	}
-}
-
 static sw_error_t
 _get_program_entry_by_index(a_uint32_t dev_id,
 		a_uint32_t index, fal_tunnel_program_entry_t * entry)
@@ -343,6 +303,46 @@ _set_program_entry_by_index(a_uint32_t dev_id,
 	SW_RTN_ON_ERROR(appe_tpr_hdr_match_2_set(dev_id, index, &match_2));
 
 	return SW_OK;
+}
+
+static a_bool_t
+_is_program_udf_rule_equal(a_uint32_t dev_id,
+		fal_tunnel_program_udf_t * udf1, fal_tunnel_program_udf_t * udf2)
+{
+	a_uint32_t idx;
+	if (udf1->field_flag == udf2->field_flag)
+	{
+		for (idx = 0; idx < TUNNEL_PROGRAM_UDF_NUM; idx++)
+		{
+			if((udf1->udf_val[idx] != udf2->udf_val[idx]) ||
+				(udf1->udf_mask[idx] != udf2->udf_mask[idx]))
+			{ /* not equal */
+				return A_FALSE;
+			}
+		}
+		/* equal */
+		return A_TRUE;
+	}
+	else
+	{ /* not equal */
+		return A_FALSE;
+	}
+}
+
+static a_bool_t
+_is_program_udf_action_equal(a_uint32_t dev_id,
+		fal_tunnel_program_udf_t * udf1, fal_tunnel_program_udf_t * udf2)
+{
+	if (udf1->action_flag == udf2->action_flag &&
+		udf1->inner_hdr_type == udf2->inner_hdr_type &&
+		udf1->udf_hdr_len == udf2->udf_hdr_len)
+	{ /* equal */
+		return A_TRUE;
+	}
+	else
+	{ /* not equal */
+		return A_FALSE;
+	}
 }
 
 static sw_error_t
@@ -502,7 +502,7 @@ sw_error_t
 adpt_appe_tunnel_program_entry_add(a_uint32_t dev_id,
 		fal_tunnel_program_type_t type, fal_tunnel_program_entry_t * entry)
 {
-	a_uint32_t idx, entry_idx, entry_sign;
+	a_uint32_t idx, entry_idx=0, entry_sign;
 	a_int32_t program_port_bitmap, program_id;
 	fal_tunnel_program_entry_t temp_entry = {0};
 
@@ -746,7 +746,7 @@ sw_error_t
 adpt_appe_tunnel_program_udf_add(a_uint32_t dev_id,
 		fal_tunnel_program_type_t type, fal_tunnel_program_udf_t * udf)
 {
-	a_uint32_t idx, entry_idx;
+	a_uint32_t idx, entry_idx=0;
 	a_int32_t program_id, temp_program_id;
 	fal_tunnel_program_udf_t temp_udf = {0};
 	a_bool_t entry_sign = A_FALSE;
@@ -903,51 +903,6 @@ adpt_appe_tunnel_program_udf_getnext(a_uint32_t dev_id,
 	return _adpt_appe_tunnel_program_udf_get(dev_id, type, udf, A_FALSE);
 }
 
-void adpt_appe_tunnel_program_func_bitmap_init(a_uint32_t dev_id)
-{
-	adpt_api_t *p_adpt_api = NULL;
-
-	p_adpt_api = adpt_api_ptr_get(dev_id);
-
-	if(p_adpt_api == NULL)
-	{
-		return;
-	}
-
-	p_adpt_api->adpt_tunnel_program_func_bitmap = ((1<<FUNC_TUNNEL_PROGRAM_ENTRY_ADD) |
-						(1<<FUNC_TUNNEL_PROGRAM_ENTRY_DEL) |
-						(1<<FUNC_TUNNEL_PROGRAM_ENTRY_GETFIRST) |
-						(1<<FUNC_TUNNEL_PROGRAM_ENTRY_GETNEXT) |
-						(1<<FUNC_TUNNEL_PROGRAM_CFG_SET) |
-						(1<<FUNC_TUNNEL_PROGRAM_CFG_GET) |
-						(1<<FUNC_TUNNEL_PROGRAM_UDF_ADD) |
-						(1<<FUNC_TUNNEL_PROGRAM_UDF_DEL) |
-						(1<<FUNC_TUNNEL_PROGRAM_UDF_GETFIRST) |
-						(1<<FUNC_TUNNEL_PROGRAM_UDF_GETNEXT));
-	return;
-}
-
-static void adpt_appe_tunnel_program_func_unregister(a_uint32_t dev_id, adpt_api_t *p_adpt_api)
-{
-	if(p_adpt_api == NULL)
-	{
-		return;
-	}
-
-	p_adpt_api->adpt_tunnel_program_entry_add = NULL;
-	p_adpt_api->adpt_tunnel_program_entry_del = NULL;
-	p_adpt_api->adpt_tunnel_program_entry_getfirst = NULL;
-	p_adpt_api->adpt_tunnel_program_entry_getnext = NULL;
-	p_adpt_api->adpt_tunnel_program_cfg_set = NULL;
-	p_adpt_api->adpt_tunnel_program_cfg_get = NULL;
-	p_adpt_api->adpt_tunnel_program_udf_add = NULL;
-	p_adpt_api->adpt_tunnel_program_udf_del = NULL;
-	p_adpt_api->adpt_tunnel_program_udf_getfirst = NULL;
-	p_adpt_api->adpt_tunnel_program_udf_getnext = NULL;
-
-	return;
-}
-
 sw_error_t adpt_appe_tunnel_program_init(a_uint32_t dev_id)
 {
 	adpt_api_t *p_adpt_api = NULL;
@@ -956,52 +911,20 @@ sw_error_t adpt_appe_tunnel_program_init(a_uint32_t dev_id)
 
 	ADPT_NULL_POINT_CHECK(p_adpt_api);
 
-	adpt_appe_tunnel_program_func_unregister(dev_id, p_adpt_api);
-
-	if(p_adpt_api->adpt_tunnel_program_func_bitmap & (1<<FUNC_TUNNEL_PROGRAM_ENTRY_ADD))
-	{
-		p_adpt_api->adpt_tunnel_program_entry_add = adpt_appe_tunnel_program_entry_add;
-	}
-	if(p_adpt_api->adpt_tunnel_program_func_bitmap & (1<<FUNC_TUNNEL_PROGRAM_ENTRY_DEL))
-	{
-		p_adpt_api->adpt_tunnel_program_entry_del = adpt_appe_tunnel_program_entry_del;
-	}
-	if(p_adpt_api->adpt_tunnel_program_func_bitmap & (1<<FUNC_TUNNEL_PROGRAM_ENTRY_GETFIRST))
-	{
-		p_adpt_api->adpt_tunnel_program_entry_getfirst =
-							adpt_appe_tunnel_program_entry_getfirst;
-	}
-	if(p_adpt_api->adpt_tunnel_program_func_bitmap & (1<<FUNC_TUNNEL_PROGRAM_ENTRY_GETNEXT))
-	{
-		p_adpt_api->adpt_tunnel_program_entry_getnext =
-							adpt_appe_tunnel_program_entry_getnext;
-	}
-	if(p_adpt_api->adpt_tunnel_program_func_bitmap & (1<<FUNC_TUNNEL_PROGRAM_CFG_SET))
-	{
-		p_adpt_api->adpt_tunnel_program_cfg_set = adpt_appe_tunnel_program_cfg_set;
-	}
-	if(p_adpt_api->adpt_tunnel_program_func_bitmap & (1<<FUNC_TUNNEL_PROGRAM_CFG_GET))
-	{
-		p_adpt_api->adpt_tunnel_program_cfg_get = adpt_appe_tunnel_program_cfg_get;
-	}
-	if(p_adpt_api->adpt_tunnel_program_func_bitmap & (1<<FUNC_TUNNEL_PROGRAM_UDF_ADD))
-	{
-		p_adpt_api->adpt_tunnel_program_udf_add = adpt_appe_tunnel_program_udf_add;
-	}
-	if(p_adpt_api->adpt_tunnel_program_func_bitmap & (1<<FUNC_TUNNEL_PROGRAM_UDF_DEL))
-	{
-		p_adpt_api->adpt_tunnel_program_udf_del = adpt_appe_tunnel_program_udf_del;
-	}
-	if(p_adpt_api->adpt_tunnel_program_func_bitmap & (1<<FUNC_TUNNEL_PROGRAM_UDF_GETFIRST))
-	{
-		p_adpt_api->adpt_tunnel_program_udf_getfirst =
-							adpt_appe_tunnel_program_udf_getfirst;
-	}
-	if(p_adpt_api->adpt_tunnel_program_func_bitmap & (1<<FUNC_TUNNEL_PROGRAM_UDF_GETNEXT))
-	{
-		p_adpt_api->adpt_tunnel_program_udf_getnext =
-							adpt_appe_tunnel_program_udf_getnext;
-	}
+	p_adpt_api->adpt_tunnel_program_entry_add = adpt_appe_tunnel_program_entry_add;
+	p_adpt_api->adpt_tunnel_program_entry_del = adpt_appe_tunnel_program_entry_del;
+	p_adpt_api->adpt_tunnel_program_entry_getfirst =
+					adpt_appe_tunnel_program_entry_getfirst;
+	p_adpt_api->adpt_tunnel_program_entry_getnext =
+					adpt_appe_tunnel_program_entry_getnext;
+	p_adpt_api->adpt_tunnel_program_cfg_set = adpt_appe_tunnel_program_cfg_set;
+	p_adpt_api->adpt_tunnel_program_cfg_get = adpt_appe_tunnel_program_cfg_get;
+	p_adpt_api->adpt_tunnel_program_udf_add = adpt_appe_tunnel_program_udf_add;
+	p_adpt_api->adpt_tunnel_program_udf_del = adpt_appe_tunnel_program_udf_del;
+	p_adpt_api->adpt_tunnel_program_udf_getfirst =
+					adpt_appe_tunnel_program_udf_getfirst;
+	p_adpt_api->adpt_tunnel_program_udf_getnext =
+					adpt_appe_tunnel_program_udf_getnext;
 
 	return SW_OK;
 }

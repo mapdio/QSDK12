@@ -1,5 +1,6 @@
 /*
  * Copyright (c) 2016-2017, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2024, Qualcomm Innovation Center, Inc. All rights reserved.
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
  * above copyright notice and this permission notice appear in all copies.
@@ -247,3 +248,75 @@ fal_flow_qos_get(a_uint32_t dev_id, a_uint32_t flow_index, fal_flow_qos_t *flow_
 
 	return rv;
 }
+
+sw_error_t
+fal_flow_npt66_prefix_add(a_uint32_t dev_id, a_uint32_t l3_if_index, fal_ip6_addr_t *ip6, a_uint32_t prefix_len)
+{
+	sw_error_t rv = SW_OK;
+
+	rv = sw_uk_exec(SW_API_FLOW_NPT66_PREFIX_ADD, dev_id, l3_if_index, ip6, prefix_len);
+
+	return rv;
+}
+
+sw_error_t
+fal_flow_npt66_prefix_get(a_uint32_t dev_id, a_uint32_t l3_if_index, fal_ip6_addr_t *ip6, a_uint32_t *prefix_len)
+{
+	sw_error_t rv = SW_OK;
+
+	rv = sw_uk_exec(SW_API_FLOW_NPT66_PREFIX_GET, dev_id, l3_if_index, ip6, prefix_len);
+
+	return rv;
+}
+
+sw_error_t
+fal_flow_npt66_prefix_del(a_uint32_t dev_id, a_uint32_t l3_if_index)
+{
+	sw_error_t rv = SW_OK;
+
+	rv = sw_uk_exec(SW_API_FLOW_NPT66_PREFIX_DEL, dev_id, l3_if_index);
+
+	return rv;
+}
+
+sw_error_t
+fal_flow_npt66_iid_cal(a_uint32_t dev_id,            fal_flow_npt66_iid_calc_t *iid_cal, 
+								fal_flow_npt66_iid_t *iid_result)
+{
+	sw_error_t rv = SW_OK;
+
+	rv = sw_uk_exec(SW_API_FLOW_NPT66_IID_CAL, dev_id, iid_cal, iid_result);
+
+	return rv;
+}
+
+sw_error_t
+fal_flow_npt66_iid_add(a_uint32_t dev_id, a_uint32_t flow_index, fal_flow_npt66_iid_t *iid_entry)
+{
+	sw_error_t rv = SW_OK;
+
+	rv = sw_uk_exec(SW_API_FLOW_NPT66_IID_ADD, dev_id, flow_index, iid_entry);
+
+	return rv;
+}
+
+sw_error_t
+fal_flow_npt66_iid_get(a_uint32_t dev_id, a_uint32_t flow_index, fal_flow_npt66_iid_t *iid_entry)
+{
+	sw_error_t rv = SW_OK;
+
+	rv = sw_uk_exec(SW_API_FLOW_NPT66_IID_GET, dev_id, flow_index, iid_entry);
+
+	return rv;
+}
+
+sw_error_t
+fal_flow_npt66_iid_del(a_uint32_t dev_id, a_uint32_t flow_index)
+{
+	sw_error_t rv = SW_OK;
+
+	rv = sw_uk_exec(SW_API_FLOW_NPT66_IID_DEL, dev_id, flow_index);
+
+	return rv;
+}
+

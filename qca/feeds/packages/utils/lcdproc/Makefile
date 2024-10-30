@@ -9,20 +9,21 @@ include $(TOPDIR)/rules.mk
 
 PKG_NAME:=lcdproc
 PKG_VERSION:=0.5.9
-PKG_RELEASE:=2
+PKG_RELEASE:=8
 
 PKG_SOURCE:=$(PKG_NAME)-$(PKG_VERSION).tar.gz
 PKG_SOURCE_URL:=https://github.com/lcdproc/lcdproc/releases/download/v$(PKG_VERSION)/
 PKG_HASH:=d48a915496c96ff775b377d2222de3150ae5172bfb84a6ec9f9ceab962f97b83
+
 PKG_MAINTAINER:=Harald Geyer <harald@ccbib.org>, \
 		Philip Prindeville <philipp@redfish-solutions.com>
-PKG_LICENSE:=GPL-2.0
+PKG_LICENSE:=GPL-2.0-only
 PKG_LICENSE_FILES:=COPYING
 PKG_CPE_ID:=cpe:/a:lcdproc:lcdproc
 
-PKG_FIXUP:=autoreconf
-
 include $(INCLUDE_DIR)/package.mk
+
+DISABLE_NLS:=
 
 define Package/lcdproc/Default
   SECTION:=utils
@@ -61,7 +62,7 @@ endef
 define Package/lcdproc-server
   $(call Package/lcdproc/Default)
   TITLE:=LCD Display server
-  DEPENDS:=+libpthread
+  DEPENDS+= +libpthread
 endef
 
 define LCDPROC_CORE_DRIVERS_TEXT
@@ -89,16 +90,18 @@ endef
 define Package/lcdproc-drivers
   $(call Package/lcdproc/Default)
   TITLE:=LCD Display extra drivers
-  DEPENDS:=+lcdproc-server +libncurses +libusb-1.0 +libusb-compat +libftdi1 \
-	+GPIO_SUPPORT:libugpio
+  DEPENDS+= +lcdproc-server +libncurses +libusb-1.0 +libusb-compat +libftdi1 \
+	+GPIO_SUPPORT:libugpio +serdisplib
 endef
 
 define LCDPROC_OTHER_DRIVERS_TEXT
 curses futaba glcd hd44780 IOWarrior i2500vfd lis picolcd shuttleVFD ula200
 endef
 
-ifeq ($(CONFIG_PACKAGE_kmod-lp),y)
+ifneq ($(CONFIG_TARGET_x86_64)$(CONFIG_TARGET_x86),)
+  ifeq ($(CONFIG_PACKAGE_kmod-lp),y)
 LCDPROC_OTHER_DRIVERS_TEXT+=sdeclcd sed1330 sed1520 stv5730 t6963
+  endif
 endif
 
 LCDPROC_OTHER_DRIVERS:=$(strip $(LCDPROC_OTHER_DRIVERS_TEXT))
@@ -110,9 +113,13 @@ This package contains display drivers with external dependencies:
 $(LCDPROC_OTHER_DRIVERS_TEXT)
 endef
 
+CONFIGURE_VARS += \
+	ac_cv_mtab_file="/etc/mtab"
 
-# not everything groks --disable-nls
-DISABLE_NLS:=
+ifneq ($(CONFIG_TARGET_x86_64)$(CONFIG_TARGET_x86),)
+CONFIGURE_VARGS += \
+	ac_cv_port_have_lpt="yes"
+endif
 
 CONFIGURE_ARGS += \
 	--disable-libX11 \
@@ -120,9 +127,6 @@ CONFIGURE_ARGS += \
 	--disable-libpng \
 	--disable-freetype \
 	--enable-drivers='all,!g15,!g15driver,!glcdlib,!irman,!lirc,!mdm166a,!mx5000,!svga,!xosd'
-
-# can't use -Wformat=2 because MUSL is somewhat broken
-TARGET_CFLAGS+=-Wall
 
 MAKE_FLAGS += \
         CFLAGS="$(TARGET_CFLAGS)" \

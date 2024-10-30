@@ -1,0 +1,21 @@
+From 0618f2ebf146773087054b613810450b94c0158b Fri Jul 7 12:22:48 2023
+From: Naresh Pirati <quic_npirati@quicinc.com>
+Date: Fri, 7 Jul 2023 12:22:48 +0530
+Subject: [PATCH] wireless-tools: Copy patches from fig branch to ginger branch
+
+Change-Id: Ia7e2cdfd8fba56517b8783c15f48975ebe9c20c6
+Signed-off-by: Naresh Pirati <quic_npirati@quicinc.com>
+
+--- a/iwlib.c
++++ b/iwlib.c
+@@ -1132,7 +1132,8 @@ iw_print_bitrate(char *	buffer,
+ 		 int	buflen,
+ 		 int	bitrate)
+ {
+-  double	rate = bitrate;
++  /* Due to overrun, driver sends in Kbps, Convert in to bps */
++  double        rate = (double) bitrate * 1000;
+   char		scale;
+   int		divisor;
+ 
+

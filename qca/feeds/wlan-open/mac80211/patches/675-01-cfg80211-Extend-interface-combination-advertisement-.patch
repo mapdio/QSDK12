@@ -294,7 +294,7 @@ Signed-off-by: Vasanthakumar Thiagarajan <quic_vthiagar@quicinc.com>
   */
  struct wiphy {
  	struct mutex mtx;
-@@ -5525,6 +5673,9 @@ struct wiphy {
+@@ -5523,6 +5671,9 @@ struct wiphy {
  
  	enum nl80211_ru_punct_supp_bw ru_punct_supp_bw;
  
@@ -304,7 +304,7 @@ Signed-off-by: Vasanthakumar Thiagarajan <quic_vthiagar@quicinc.com>
  	char priv[] __aligned(NETDEV_ALIGN);
  };
  
-@@ -8682,9 +8833,32 @@ int cfg80211_check_combinations(struct w
+@@ -8680,9 +8831,32 @@ int cfg80211_check_combinations(struct w
  int cfg80211_iter_combinations(struct wiphy *wiphy,
  			       struct iface_combination_params *params,
  			       void (*iter)(const struct ieee80211_iface_combination *c,
@@ -338,7 +338,7 @@ Signed-off-by: Vasanthakumar Thiagarajan <quic_vthiagar@quicinc.com>
  /*
   * cfg80211_stop_iface - trigger interface disconnection
   *
-@@ -8878,6 +9052,16 @@ bool cfg80211_iftype_allowed(struct wiph
+@@ -8876,6 +9050,16 @@ bool cfg80211_iftype_allowed(struct wiph
  void cfg80211_assoc_comeback(struct net_device *netdev,
  			     const u8 *ap_addr, u32 timeout);
  
@@ -416,7 +416,7 @@ Signed-off-by: Vasanthakumar Thiagarajan <quic_vthiagar@quicinc.com>
  				return PTR_ERR(new_ctx);
 --- a/net/mac80211/ieee80211_i.h
 +++ b/net/mac80211/ieee80211_i.h
-@@ -2500,6 +2500,8 @@ void ieee80211_link_copy_chanctx_to_vlan
+@@ -2503,6 +2503,8 @@ void ieee80211_link_copy_chanctx_to_vlan
  					  bool clear);
  int ieee80211_chanctx_refcount(struct ieee80211_local *local,
  			       struct ieee80211_chanctx *ctx);
@@ -425,7 +425,7 @@ Signed-off-by: Vasanthakumar Thiagarajan <quic_vthiagar@quicinc.com>
  
  void ieee80211_recalc_smps_chanctx(struct ieee80211_local *local,
  				   struct ieee80211_chanctx *chanctx);
-@@ -2521,7 +2523,8 @@ int ieee80211_check_combinations(struct
+@@ -2524,7 +2526,8 @@ int ieee80211_check_combinations(struct
  				 const struct cfg80211_chan_def *chandef,
  				 enum ieee80211_chanctx_mode chanmode,
  				 u8 radar_detect);
@@ -1073,7 +1073,7 @@ Signed-off-by: Vasanthakumar Thiagarajan <quic_vthiagar@quicinc.com>
 +	for (i = 0; i < chans1->n_chans; i++)
 +		for (j = 0; j < chans2->n_chans; j++)
 +			if (chans1->chans[i].center_freq ==
-+			    chans2->chans[j].center_freq)
++			    chans2->chans[i].center_freq)
  				return -EINVAL;
 +	return 0;
 +}

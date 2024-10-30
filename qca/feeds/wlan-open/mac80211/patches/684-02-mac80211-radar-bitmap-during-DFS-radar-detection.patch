@@ -111,7 +111,7 @@ Signed-off-by: Nagarajan Maran <quic_nmaran@quicinc.com>
 +	struct ieee80211_local *local = hw_to_local(hw);
 +	struct channel_radar_info *radar_info;
 +
-+	radar_info = kzalloc(sizeof(*radar_info), GFP_ATOMIC);
++	radar_info = kzalloc(sizeof(*radar_info), GFP_KERNEL);
 +	if (!radar_info)
 +		return;
 +

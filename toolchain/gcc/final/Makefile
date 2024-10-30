@@ -4,13 +4,17 @@ include ../common.mk
 
 GCC_CONFIGURE += \
 	--with-headers=$(TOOLCHAIN_DIR)/include \
-	--disable-libsanitizer \
 	--enable-languages=$(TARGET_LANGUAGES) \
 	--enable-shared \
 	--enable-threads \
 	--with-slibdir=$(TOOLCHAIN_DIR)/lib \
+	--enable-plugins \
 	--enable-lto \
-	--with-libelf=$(TOPDIR)/staging_dir/host
+	--with-libelf=$(STAGING_DIR_HOST)
+
+ifndef CONFIG_USE_GLIBC
+  GCC_CONFIGURE += --disable-libsanitizer
+endif
 
 ifdef CONFIG_USE_MUSL
   GCC_MAKE += gcc_cv_libc_provides_ssp=yes

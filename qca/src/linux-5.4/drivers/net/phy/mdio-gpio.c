@@ -35,6 +35,8 @@ struct mdio_gpio_info {
 #if IS_ENABLED(CONFIG_MDIO_QCA)
 extern int qca_phy_reset(struct platform_device *pdev);
 extern void qca_mht_preinit(struct mii_bus *mii_bus);
+extern u32 qca_mii_read(struct mii_bus *mii_bus, u32 reg);
+extern void qca_mii_write(struct mii_bus *mii_bus, u32 reg, u32 val);
 #endif
 
 static int mdio_gpio_get_data(struct device *dev,
@@ -121,6 +123,8 @@ static struct mii_bus *mdio_gpio_bus_init(struct device *dev,
 	bitbang->ctrl.ops = &mdio_gpio_ops;
 #if IS_ENABLED(CONFIG_MDIO_QCA)
 	bitbang->ctrl.preinit = qca_mht_preinit;
+	bitbang->ctrl.sw_read = qca_mii_read;
+	bitbang->ctrl.sw_write = qca_mii_write;
 #endif
 
 	new_bus = alloc_mdio_bitbang(&bitbang->ctrl);

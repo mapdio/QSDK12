@@ -6,18 +6,17 @@
 include $(TOPDIR)/rules.mk
 
 PKG_NAME:=faad2
-PKG_VERSION:=2.9.2
 PKG_RELEASE:=1
 
-PKG_SOURCE:=$(PKG_NAME)-$(PKG_VERSION).tar.gz
-PKG_SOURCE_URL:=https://codeload.github.com/knik0/faad2/tar.gz/2_9_2?
-PKG_HASH:=9728b2b94f94ab49363cd229e7377fbe6ef3c311c5cd80da662d53ddb0ee091d
-PKG_BUILD_DIR:=$(BUILD_DIR)/$(PKG_NAME)-2_9_2
+PKG_SOURCE_PROTO:=git
+PKG_SOURCE_VERSION:=2.10.1
+PKG_SOURCE_URL:=https://github.com/knik0/faad2
+PKG_MIRROR_HASH:=8a42cbc5833bd3c076f92363f0cbbcf6f848231c59b2f17dbe5d151cb8684fe1
 
 PKG_MAINTAINER:=Ted Hess <thess@kitschensync.net>
 PKG_LICENSE:=GPL-2.0-or-later
 PKG_LICENSE_FILES:=COPYING
-PKG_CPE_ID:=cpe:/a:audiocoding:faad2
+PKG_CPE_ID:=cpe:/a:audiocoding:freeware_advanced_audio_decoder_2
 
 PKG_FIXUP:=autoreconf
 PKG_INSTALL:=1

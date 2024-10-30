@@ -1,18 +1,4 @@
 #!/bin/sh /etc/rc.common
-# Copyright (c) 2016 The Linux Foundation. All rights reserved.
-#
-# Permission to use, copy, modify, and/or distribute this software for any
-# purpose with or without fee is hereby granted, provided that the above
-# copyright notice and this permission notice appear in all copies.
-#
-# THE SOFTWARE IS PROVIDED "AS IS" AND THE AUTHOR DISCLAIMS ALL WARRANTIES
-# WITH REGARD TO THIS SOFTWARE INCLUDING ALL IMPLIED WARRANTIES OF
-# MERCHANTABILITY AND FITNESS. IN NO EVENT SHALL THE AUTHOR BE LIABLE FOR
-# ANY SPECIAL, DIRECT, INDIRECT, OR CONSEQUENTIAL DAMAGES OR ANY DAMAGES
-# WHATSOEVER RESULTING FROM LOSS OF USE, DATA OR PROFITS, WHETHER IN AN
-# ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF
-# OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
-
 # Copyright (C) 2014-2015 OpenWrt.org
 
 START=99
@@ -35,17 +21,6 @@ mcproxy_handle_instances() {
 	if [ $disabled -eq 1 ]; then
 		pre="# "
 	fi
-
-	#default WAN
-	[ -n "$upstreams" ] || {
-		upstreams=$(uci_get_state network wan ifname wan)
-	}
-
-	#default LAN
-	[ -n "$downstreams" ] || {
-		downstreams=$(uci_get_state network lan ifname lan)
-	}
-
 
 	local str_up=""
 	if [ -n "$upstreams" ]; then

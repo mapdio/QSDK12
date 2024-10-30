@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2022, Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2024, Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for any
  * purpose with or without fee is hereby granted, provided that the above
@@ -22,16 +22,16 @@
 #include <linux/if.h>
 #include <linux/rculist.h>
 #include <linux/netdevice.h>
-#include <linux/netdevice.h>
+#include <linux/etherdevice.h>
 #include <linux/debugfs.h>
 #include <net/addrconf.h>
 #include <net/dst_cache.h>
 #include <net/route.h>
 #include <net/ip.h>
 #include <net/ip6_route.h>
+#include <net/esp.h>
 
 #include "eip_ipsec_priv.h"
-
 
 /*
  * eip_ipsec_dev_get_summary_stats()
@@ -91,7 +91,6 @@ static ssize_t eip_ipsec_dev_read(struct file *fp, char __user *ubuf, size_t sz,
 		return 0;
 	}
 
-
 	/*
 	 * Create Stats strings.
 	 */
@@ -102,6 +101,7 @@ static ssize_t eip_ipsec_dev_read(struct file *fp, char __user *ubuf, size_t sz,
 	len += snprintf(buf + len, max_len - len, "\tTx bytes: %llu\n", stats.tx_bytes);
 	len += snprintf(buf + len, max_len - len, "\tTx VP Exception: %llu\n", stats.tx_vp_exp);
 	len += snprintf(buf + len, max_len - len, "\tTx host: %llu\n", stats.tx_host);
+	len += snprintf(buf + len, max_len - len, "\tTx vp: %llu\n", stats.tx_vp);
 	len += snprintf(buf + len, max_len - len, "\tTx Error: %llu\n", stats.tx_fail);
 	len += snprintf(buf + len, max_len - len, "\tTx Fail SA: %llu\n", stats.tx_fail_sa);
 	len += snprintf(buf + len, max_len - len, "\tTx Fail SA (VP Exception): %llu\n", stats.tx_fail_vp_sa);
@@ -110,6 +110,7 @@ static ssize_t eip_ipsec_dev_read(struct file *fp, char __user *ubuf, size_t sz,
 	len += snprintf(buf + len, max_len - len, "\tRx packets: %llu\n", stats.rx_pkts);
 	len += snprintf(buf + len, max_len - len, "\tRx bytes: %llu\n", stats.rx_bytes);
 	len += snprintf(buf + len, max_len - len, "\tRx host: %llu\n", stats.rx_host);
+	len += snprintf(buf + len, max_len - len, "\tRx vp: %llu\n", stats.rx_vp);
 	len += snprintf(buf + len, max_len - len, "\tRx Error: %llu\n", stats.rx_fail);
 	len += snprintf(buf + len, max_len - len, "\tRx Fail SA: %llu\n", stats.rx_fail_sa);
 
@@ -180,6 +181,96 @@ static int eip_ipsec_dev_mtu(struct net_device *ndev, int mtu)
 }
 
 /*
+ * eip_ipsec_dev_get_dst()
+ *	Find route for outgoing packet
+ */
+static struct dst_entry *eip_ipsec_dev_get_dst(struct eip_ipsec_sa *sa, struct sk_buff *skb)
+{
+	struct eip_ipsec_sa_stats *sa_stats = this_cpu_ptr(sa->stats_pcpu);
+	struct iphdr *iph = ip_hdr(skb);
+	struct dst_entry *dst;
+	struct ipv6hdr *ip6h;
+	struct flowi6 fl6;
+
+	/*
+	 * Update SA stats, since we are here
+	 */
+	sa_stats->dst_cache_miss++;
+
+	if (iph->version == IPVERSION) {
+		struct rtable *rt;
+
+		rt = ip_route_output(&init_net, iph->daddr, iph->saddr, 0, 0);
+		if (IS_ERR(rt)) {
+			sa_stats->fail_route++;
+			return NULL;
+		}
+
+		dst = &rt->dst;
+		dst_cache_set_ip4(&sa->dst_cache, dst, iph->saddr);
+		return dst;
+	}
+
+	ip6h = ipv6_hdr(skb);
+	memset(&fl6, 0, sizeof(struct flowi6));
+	memcpy(&fl6.daddr, &ip6h->daddr, sizeof(fl6.daddr));
+	memcpy(&fl6.saddr, &ip6h->saddr, sizeof(fl6.saddr));
+
+	dst = ip6_route_output(&init_net, NULL, &fl6);
+	if (IS_ERR(dst)) {
+		sa_stats->fail_route++;
+		return NULL;
+	}
+
+	dst_cache_set_ip6(&sa->dst_cache, dst, &fl6.saddr);
+	return dst;
+}
+
+/*
+ * eip_ipsec_dev_host_tx()
+ *	Transmit packet via host.
+ */
+static void eip_ipsec_dev_host_tx(struct eip_ipsec_sa *sa, struct sk_buff *skb, struct dst_entry *dst, uint16_t type)
+{
+	struct eip_ipsec_sa_stats *sa_stats;
+
+	sa_stats = this_cpu_ptr(sa->stats_pcpu);
+	skb_reset_mac_header(skb);
+	skb_reset_network_header(skb);
+
+	/*
+	 * Update SA statistics.
+	 */
+	sa_stats->rx_pkts++;
+	sa_stats->rx_bytes += skb->len;
+
+	/*
+	 * Drop existing dst and set new.
+	 */
+	skb_dst_drop(skb);
+	nf_reset_ct(skb);
+	skb_dst_set(skb, dst);
+
+	/*
+	 * Reset General SKB fields for further processing.
+	 */
+	skb->protocol = htons(type);
+	skb->skb_iif = sa->ndev->ifindex;
+	skb->ip_summed = CHECKSUM_COMPLETE;
+
+	if (type == ETH_P_IPV6) {
+		memset(IP6CB(skb), 0, sizeof(*IP6CB(skb)));
+		IP6CB(skb)->flags |= IP6SKB_XFRM_TRANSFORMED;
+		ip6_local_out(&init_net, NULL, skb);
+		return;
+	}
+
+	memset(IPCB(skb), 0, sizeof(*IPCB(skb)));
+	IPCB(skb)->flags |= IPSKB_XFRM_TRANSFORMED;
+	ip_local_out(&init_net, NULL, skb);
+}
+
+/*
  * eip_ipsec_dev_enc_err()
  *	Encapsulation error completion callback.
  */
@@ -212,7 +303,6 @@ void eip_ipsec_dev_enc_err(void *app_data, eip_req_t req, int err)
 	sa_stats->fail_transform++;
 
 	eip_ipsec_sa_deref(sa);
-	skb_dump(KERN_DEBUG, skb, false);
 	consume_skb(skb);
 }
 
@@ -225,7 +315,6 @@ void eip_ipsec_dev_enc_done_v6(void *app_data, eip_req_t req)
 	struct eip_ipsec_sa *sa = eip_ipsec_sa_ref_unless_zero((struct eip_ipsec_sa *)app_data);
 	struct sk_buff *skb = eip_req2skb(req);
 	struct eip_ipsec_dev_stats *dev_stats;
-	struct eip_ipsec_sa_stats *sa_stats;
 	struct eip_ipsec_dev *eid;
 	struct dst_entry *dst;
 
@@ -237,69 +326,36 @@ void eip_ipsec_dev_enc_done_v6(void *app_data, eip_req_t req)
 
 	eid = sa->eid;
 	dev_stats = this_cpu_ptr(eid->stats_pcpu);
-	sa_stats = this_cpu_ptr(sa->stats_pcpu);
-	skb_reset_mac_header(skb);
-	skb_reset_network_header(skb);
-
-	/*
-	 * Update SA statistics.
-	 */
-	sa_stats->rx_pkts++;
-	sa_stats->rx_bytes += skb->len;
 
 	dst = dst_cache_get(&sa->dst_cache);
 	if (unlikely(!dst)) {
-		struct ipv6hdr *ip6h = ipv6_hdr(skb);
-		struct flowi6 fl6;
-
-		memset(&fl6, 0, sizeof(struct flowi6));
-		memcpy(&fl6.daddr, &ip6h->daddr, sizeof(fl6.daddr));
-		memcpy(&fl6.saddr, &ip6h->saddr, sizeof(fl6.saddr));
-
-		dst = ip6_route_output(&init_net, NULL, &fl6);
-		if (IS_ERR(dst)) {
-			sa_stats->fail_route++;
+		dst = eip_ipsec_dev_get_dst(sa, skb);
+		if (unlikely(!dst)) {
 			goto consume;
 		}
-
-		sa_stats->dst_cache_miss++;
-		dst_cache_set_ip6(&sa->dst_cache, dst, &fl6.saddr);
 	}
 
 	/*
-	 * Drop existing dst and set new.
+	 * Send packet via host
 	 */
-	skb_dst_drop(skb);
-	skb_dst_set(skb, dst);
-
-	/*
-	 * Reset General SKB fields for further processing.
-	 */
-	skb->protocol = htons(ETH_P_IPV6);
-	skb->skb_iif = sa->ndev->ifindex;
-	skb->ip_summed = CHECKSUM_COMPLETE;
-
-	memset(IP6CB(skb), 0, sizeof(*IP6CB(skb)));
-	IP6CB(skb)->flags |= IP6SKB_XFRM_TRANSFORMED;
+	eip_ipsec_dev_host_tx(sa, skb, dst, ETH_P_IPV6);
 
 	/*
 	 * Update device statistics.
 	 */
 	dev_stats->tx_host++;
 
-	ip6_local_out(&init_net, NULL, skb);
 	eip_ipsec_sa_deref(sa);
 	return;
 
 consume:
 	dev_stats->tx_fail++;
 	eip_ipsec_sa_deref(sa);
-	skb_dump(KERN_DEBUG, skb, false);
 	consume_skb(skb);
 }
 
 /*
- * eip_ipsec_enc_done_v4()
+ * eip_ipsec_dev_enc_done_v4()
  *	Encapsulation completion callback.
  */
 void eip_ipsec_dev_enc_done_v4(void *app_data, eip_req_t req)
@@ -307,7 +363,6 @@ void eip_ipsec_dev_enc_done_v4(void *app_data, eip_req_t req)
 	struct eip_ipsec_sa *sa = eip_ipsec_sa_ref_unless_zero((struct eip_ipsec_sa *)app_data);
 	struct sk_buff *skb = eip_req2skb(req);
 	struct eip_ipsec_dev_stats *dev_stats;
-	struct eip_ipsec_sa_stats *sa_stats;
 	struct eip_ipsec_dev *eid;
 	struct dst_entry *dst;
 
@@ -319,9 +374,58 @@ void eip_ipsec_dev_enc_done_v4(void *app_data, eip_req_t req)
 
 	eid = sa->eid;
 	dev_stats = this_cpu_ptr(eid->stats_pcpu);
+
+	dst = dst_cache_get(&sa->dst_cache);
+	if (unlikely(!dst)) {
+		dst = eip_ipsec_dev_get_dst(sa, skb);
+		if (unlikely(!dst)) {
+			goto consume;
+		}
+	}
+
+	/*
+	 * Send packet via host
+	 */
+	eip_ipsec_dev_host_tx(sa, skb, dst, ETH_P_IP);
+
+	/*
+	 * Update device statistics.
+	 */
+	dev_stats->tx_host++;
+
+	eip_ipsec_sa_deref(sa);
+	return;
+
+consume:
+	dev_stats->tx_fail++;
+	eip_ipsec_sa_deref(sa);
+	consume_skb(skb);
+}
+
+
+#if defined(EIP_IPSEC_HYBRID)
+
+/*
+ * eip_ipsec_dev_enc_done_hy()
+ *	Encapsulation completion callback.
+ */
+void eip_ipsec_dev_enc_done_hy(void *app_data, eip_req_t req)
+{
+	struct eip_ipsec_sa *sa = eip_ipsec_sa_ref_unless_zero((struct eip_ipsec_sa *)app_data);
+	struct sk_buff *skb = eip_req2skb(req);
+	struct eip_ipsec_dev_stats *dev_stats;
+	struct eip_ipsec_sa_stats *sa_stats;
+	struct eip_ipsec_dev *eid;
+
+	if (unlikely(!sa)) {
+		pr_debug("%px: Failed to take reference on SA\n", sa);
+		consume_skb(skb);
+		return;
+	}
+
+	eid = sa->eid;
 	sa_stats = this_cpu_ptr(sa->stats_pcpu);
-	skb_reset_mac_header(skb);
-	skb_reset_network_header(skb);
+	dev_stats = this_cpu_ptr(eid->stats_pcpu);
 
 	/*
 	 * Update SA statistics.
@@ -329,78 +433,44 @@ void eip_ipsec_dev_enc_done_v4(void *app_data, eip_req_t req)
 	sa_stats->rx_pkts++;
 	sa_stats->rx_bytes += skb->len;
 
-	dst = dst_cache_get(&sa->dst_cache);
-	if (unlikely(!dst)) {
-		struct rtable *rt;
-
-		rt = ip_route_output(&init_net, ip_hdr(skb)->daddr, ip_hdr(skb)->saddr, 0, 0);
-		if (IS_ERR(rt)) {
-			sa_stats->fail_route++;
-			goto consume;
-		}
-
-		dst = &rt->dst;
-		sa_stats->dst_cache_miss++;
-		dst_cache_set_ip4(&sa->dst_cache, dst, ip_hdr(skb)->saddr);
+	/*
+	 * Send packet via PPE-VP
+	 */
+	if (unlikely(!ppe_vp_tx_to_ppe(eid->vp_num, skb))) {
+		goto consume;
 	}
-
-	/*
-	 * Drop existing dst and set new.
-	 */
-	skb_dst_drop(skb);
-	nf_reset_ct(skb);
-	skb_dst_set(skb, dst);
-
-	/*
-	 * Reset General SKB fields for further processing.
-	 */
-	skb->protocol = htons(ETH_P_IP);
-	skb->skb_iif = sa->ndev->ifindex;
-	skb->ip_summed = CHECKSUM_COMPLETE;
-
-	memset(IPCB(skb), 0, sizeof(*IPCB(skb)));
-	IPCB(skb)->flags |= IPSKB_XFRM_TRANSFORMED;
 
 	/*
 	 * Update device statistics.
 	 */
-	dev_stats->tx_host++;
+	dev_stats->tx_vp++;
 
-	ip_local_out(&init_net, NULL, skb);
 	eip_ipsec_sa_deref(sa);
 	return;
 
 consume:
 	dev_stats->tx_fail++;
 	eip_ipsec_sa_deref(sa);
-	skb_dump(KERN_DEBUG, skb, false);
 	consume_skb(skb);
 }
 
-#if defined(EIP_IPSEC_HYBRID)
-
 /*
- * eip_ipsec_dev_vp_dummy()
- *	VP callback after PPE lookup.
- */
-bool eip_ipsec_dev_vp_dummy(struct net_device *ndev, struct sk_buff *skb, void *cb_data)
-{
-	pr_warn("%px: Destination VP exception; Drop SKB\n", ndev);
-	consume_skb(skb);
-	return true;
-}
-
-/*
- * eip_ipsec_dev_vp_cb()
+ * eip_ipsec_dev_vp_except()
  *	VP callback for outer exception.
  */
-bool eip_ipsec_dev_vp_cb(struct net_device *ndev, struct sk_buff *skb, void *cb_data)
+bool eip_ipsec_dev_vp_except(struct ppe_vp_cb_info *info, void *cb_data)
 {
+	struct sk_buff *skb = info->skb;
+	struct net_device *ndev = skb->dev;
+
 	struct eip_ipsec_dev_stats *dev_stats;
 	struct eip_ipsec_dev *eid = cb_data;
 	struct eip_ipsec_sa *sa;
+	struct dst_entry *dst;
+	uint16_t type;
 
 	dev_stats = this_cpu_ptr(eid->stats_pcpu);
+	skb_reset_network_header(skb);
 
 	/*
 	 * First SA in the device encapsulation head is always selected.
@@ -414,9 +484,34 @@ bool eip_ipsec_dev_vp_cb(struct net_device *ndev, struct sk_buff *skb, void *cb_
 	}
 
 	dev_stats->tx_vp_exp++;
-	sa->cb(sa, skb);
+
+	dst = dst_cache_get(&sa->dst_cache);
+	if (unlikely(!dst)) {
+		dst = eip_ipsec_dev_get_dst(sa, skb);
+		if (unlikely(!dst)) {
+			goto consume;
+		}
+	}
+
+	/*
+	 * Send packet via host
+	 * skb->protocol is not set properly at this point
+	 */
+	type = (ip_hdr(skb)->version == IPVERSION) ? ETH_P_IP : ETH_P_IPV6;
+	eip_ipsec_dev_host_tx(sa, skb, dst, type);
+
+	/*
+	 * Update device statistics.
+	 */
+	dev_stats->tx_host++;
 
 	eip_ipsec_sa_deref(sa);
+	return true;
+
+consume:
+	dev_stats->tx_fail++;
+	eip_ipsec_sa_deref(sa);
+	consume_skb(skb);
 	return true;
 }
 
@@ -429,16 +524,26 @@ static ppe_vp_num_t eip_ipsec_dev_alloc_vp(struct net_device *ndev)
 	struct ppe_drv_iface *iface;
 	struct ppe_vp_ai vpai = {0};
 	ppe_vp_num_t vp_num;
+	bool is_inline = eip_is_inline_supported();
+	ppe_drv_eip_service_t eip_svc = PPE_DRV_EIP_SERVICE_IIPSEC;
 
 	/*
 	 * Allocate new VP
 	 */
 	vpai.type = PPE_VP_TYPE_SW_L3;
-	vpai.dst_cb = eip_ipsec_dev_vp_dummy;
-	vpai.dst_cb_data = netdev_priv(ndev);
-	vpai.src_cb = eip_ipsec_dev_vp_cb;
-	vpai.src_cb_data = netdev_priv(ndev);
 	vpai.queue_num = 0;
+	vpai.dst_cb = eip_ipsec_proto_vp_rx;
+	vpai.dst_cb_data = netdev_priv(ndev);
+	vpai.src_cb = eip_ipsec_dev_vp_except;
+	vpai.src_cb_data = netdev_priv(ndev);
+	vpai.flags |= PPE_VP_FLAG_DISABLE_TTL_DEC;
+	vpai.xmit_port = PPE_DRV_PORT_EIP197;
+
+	if (!is_inline) {
+		eip_svc = PPE_DRV_EIP_SERVICE_NONINLINE;
+		vpai.queue_num = ppe_drv_queue_from_core(eip_ipsec_core_id);
+		vpai.flags |= PPE_VP_FLAG_REDIR_ENABLE;
+	}
 
 	vp_num = ppe_vp_alloc(ndev, &vpai);
 	if (vp_num < 0) {
@@ -453,7 +558,7 @@ static ppe_vp_num_t eip_ipsec_dev_alloc_vp(struct net_device *ndev)
 		return -1;
 	}
 
-	if (ppe_drv_iface_eip_set(iface, PPE_DRV_EIP_SERVICE_IIPSEC, PPE_DRV_EIP_FEATURE_MTU_DISABLE) != PPE_DRV_RET_SUCCESS) {
+	if (ppe_drv_iface_eip_set(iface, eip_svc, PPE_DRV_EIP_FEATURE_MTU_DISABLE) != PPE_DRV_RET_SUCCESS) {
 		ppe_vp_free(vp_num);
 		pr_debug("%px: Failed set feature on iface)\n", iface);
 		return -1;
@@ -611,7 +716,8 @@ static void eip_ipsec_dev_setup(struct net_device *ndev)
 	/*
 	 * Assign random ethernet address.
 	 */
-	random_ether_addr(ndev->dev_addr);
+	eth_hw_addr_random(ndev);
+
 	memset(ndev->broadcast, 0xff, ndev->addr_len);
 	memcpy(ndev->perm_addr, ndev->dev_addr, ndev->addr_len);
 }
@@ -730,15 +836,10 @@ void eip_ipsec_dev_del(struct net_device *ndev)
 	/*
 	 * Bring down the device and unregister from linux.
 	 */
-	if (rtnl_is_locked()) {
-		dev_close(ndev);
-		unregister_netdevice(ndev);
-	} else {
-		rtnl_lock();
-		dev_close(ndev);
-		unregister_netdevice(ndev);
-		rtnl_unlock();
-	}
+	rtnl_lock();
+	dev_close(ndev);
+	unregister_netdevice(ndev);
+	rtnl_unlock();
 }
 EXPORT_SYMBOL(eip_ipsec_dev_del);
 
@@ -751,7 +852,6 @@ struct net_device *eip_ipsec_dev_add(void)
 	struct eip_ipsec_drv *drv = &eip_ipsec_drv_g;
 	struct eip_ipsec_dev *eid;
 	struct net_device *ndev;
-	bool rlock = false;
 	int status;
 
 	/*
@@ -785,11 +885,7 @@ struct net_device *eip_ipsec_dev_add(void)
 		return NULL;
 	}
 
-	if (!rtnl_is_locked()) {
-		rtnl_lock();
-		rlock = true;
-	}
-
+	rtnl_lock();
 	/*
 	 * Register netdevice with kernel.
 	 * kernels invoke the destructor upon failure
@@ -797,6 +893,7 @@ struct net_device *eip_ipsec_dev_add(void)
 	status = register_netdevice(ndev);
 	if (status < 0) {
 		pr_err("%px: Failed to register netdevce, error(%d)\n", ndev, status);
+		rtnl_unlock();
 		return NULL;
 	}
 
@@ -807,14 +904,12 @@ struct net_device *eip_ipsec_dev_add(void)
 	if (status < 0) {
 		pr_err("%px: Failed to Open netdevce, error(%d)\n", ndev, status);
 		unregister_netdevice(ndev);
-		if (rlock)
-			rtnl_unlock();
+		rtnl_unlock();
 
 		return NULL;
 	}
 
-	if (rlock)
-		rtnl_unlock();
+	rtnl_unlock();
 
 #if defined(EIP_IPSEC_HYBRID)
 	/*

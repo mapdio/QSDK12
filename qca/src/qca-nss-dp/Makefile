@@ -15,6 +15,10 @@ ifneq ($(CONFIG_NET_SWITCHDEV),)
 qca-nss-dp-objs += nss_dp_switchdev.o
 endif
 
+ifeq ($(SoC),$(filter $(SoC),ipq53xx))
+qca-nss-dp-objs += nss_dp_eawtp.o
+endif
+
 NSS_DP_INCLUDE = -I$(obj)/include -I$(obj)/exports -I$(obj)/hal/include \
 		 -I$(obj)/hal/dp_ops/include
 
@@ -35,6 +39,17 @@ endif
 ifeq ($(SoC),$(filter $(SoC),ipq60xx))
 ccflags-y += -DNSS_DP_IPQ60XX
 endif
+
+ifeq ($(SoC),$(filter $(SoC),ipq53xx))
+ccflags-y += -DNSS_DP_MHT_SW_PORT_MAP
+ccflags-y += -DNSS_DP_CONFIG_RST
+endif
+
+# Adding flag to enable physical port mirror support
+# in PPE - To be enabled when mirror support is needed.
+#ifeq ($(SoC),$(filter $(SoC),ipq95xx ipq53xx))
+#ccflags-y += -DNSS_DP_PORT_MIRROR_EN
+#endif
 
 ifeq ($(SoC),$(filter $(SoC),ipq50xx))
 qca-nss-dp-objs += hal/dp_ops/syn_gmac_dp/syn_dp_cfg_rx.o \
@@ -57,6 +72,7 @@ qca-nss-dp-objs += nss_dp_vp_main.o \
 		   hal/dp_ops/edma_dp/edma_v2/edma_dp.o \
 		   hal/dp_ops/edma_dp/edma_v2/edma_dp_vp.o \
 		   hal/dp_ops/edma_dp/edma_v2/edma_misc.o \
+		   hal/dp_ops/edma_dp/edma_v2/edma_procfs.o \
 		   hal/dp_ops/edma_dp/edma_v2/edma_rx.o \
 		   hal/dp_ops/edma_dp/edma_v2/edma_tx.o \
 		   hal/gmac_ops/qcom/qcom_if.o \
@@ -65,6 +81,16 @@ qca-nss-dp-objs += nss_dp_vp_main.o \
 ifeq ($(dp-ppe-ds),y)
 qca-nss-dp-objs += hal/dp_ops/edma_dp/edma_v2/edma_ppeds.o
 ccflags-y += -DNSS_DP_PPEDS_SUPPORT
+endif
+ifeq ($(dp-net-standby),y)
+qca-nss-dp-objs += nss_dp_netstandby.o
+ccflags-y += -DNSS_DP_NETSTANDBY
+endif
+
+ifeq ($(dp-loopback),y)
+qca-nss-dp-objs += hal/dp_ops/edma_dp/edma_v2/edma_cfg_rx_loopback.o \
+		   hal/dp_ops/edma_dp/edma_v2/edma_cfg_tx_loopback.o
+ccflags-y += -DNSS_DP_EDMA_LOOPBACK_SUPPORT
 endif
 NSS_DP_INCLUDE += -I$(obj)/hal/dp_ops/edma_dp/edma_v2
 NSS_DP_INCLUDE += -I$(obj)/hal/dp_ops/edma_dp/edma_v2/include

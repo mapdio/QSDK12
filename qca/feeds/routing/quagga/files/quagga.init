@@ -1,7 +1,7 @@
 #!/bin/sh /etc/rc.common
 # Copyright (C) 2006 OpenWrt.org
 
-START=90
+START=60
 
 . /lib/functions/network.sh
 

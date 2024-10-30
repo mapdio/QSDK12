@@ -118,6 +118,10 @@
 			no-map;
 			reg = <0x0 0x07000000 0x0 0x58000>;
 		};
+
+		minidump_mem: minidump_mem@0 {
+			no-map;
+		};
 	};
 	/*                      512 MB Profile
 	 * +=========+==============+========================+
@@ -208,6 +212,10 @@
 		bt_region: bt@7000000 {
 			no-map;
 			reg = <0x0 0x07000000 0x0 0x58000>;
+		};
+
+		minidump_mem: minidump_mem@0 {
+			no-map;
 		};
 	};
 	#endif

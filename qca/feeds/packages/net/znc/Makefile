@@ -8,21 +8,20 @@
 include $(TOPDIR)/rules.mk
 
 PKG_NAME:=znc
-PKG_VERSION:=1.7.4
-PKG_RELEASE:=1
+PKG_VERSION:=1.8.2
+PKG_RELEASE:=6
 
 PKG_SOURCE:=$(PKG_NAME)-$(PKG_VERSION).tar.gz
 PKG_SOURCE_URL:=https://znc.in/releases \
 		https://znc.in/releases/archive
-PKG_HASH:=b1a32921a8e6d79ee6c5900c8d07293026966db7c05aaac48984231befc49b71
+PKG_HASH:=ff238aae3f2ae0e44e683c4aee17dc8e4fdd261ca9379d83b48a7d422488de0d
 
 PKG_MAINTAINER:=Jonas Gorski <jonas.gorski@gmail.com>
 PKG_LICENSE:=Apache-2.0
 PKG_LICENSE_FILES:=LICENSE
 PKG_CPE_ID:=cpe:/a:znc:znc
 
-PKG_USE_MIPS16:=0
-PKG_BUILD_PARALLEL:=1
+PKG_BUILD_FLAGS:=no-mips16
 
 PKG_CONFIG_DEPENDS:= CONFIG_ZNC_ICU
 
@@ -58,7 +57,7 @@ endef
 
 define Package/znc/install
 	$(INSTALL_DIR) $(1)/usr/bin
-	$(INSTALL_BIN) $(PKG_BUILD_DIR)/znc $(1)/usr/bin/
+	$(INSTALL_BIN) $(PKG_INSTALL_DIR)/usr/bin/znc $(1)/usr/bin/
 	$(INSTALL_DIR) $(1)/etc/init.d
 	$(INSTALL_BIN) ./files/znc.init $(1)/etc/init.d/znc
 	$(INSTALL_DIR) $(1)/etc/config
@@ -83,11 +82,11 @@ define module
 
   define Package/znc-mod-$(strip $(1))/install
 	$(INSTALL_DIR) $$(1)/usr/lib/znc/
-	$(INSTALL_BIN) $$(PKG_BUILD_DIR)/modules/$(subst -,_,$(strip $(1))).so $$(1)/usr/lib/znc/
+	$(INSTALL_BIN) $$(PKG_INSTALL_DIR)/usr/lib/znc/$(subst -,_,$(strip $(1))).so $$(1)/usr/lib/znc/
 	# include webadmin page templates if existing
-	if [ -d $$(PKG_BUILD_DIR)/modules/data/$(subst -,_,$(strip $(1))) ]; then \
+	if [ -d $$(PKG_INSTALL_DIR)/usr/share/znc/modules/$(subst -,_,$(strip $(1))) ]; then \
 		$(INSTALL_DIR) $$(1)/usr/share/znc/modules ;\
-		$(CP) $$(PKG_BUILD_DIR)/modules/data/$(subst -,_,$(strip $(1))) $$(1)/usr/share/znc/modules ;\
+		$(CP) $$(PKG_INSTALL_DIR)/usr/share/znc/modules/$(subst -,_,$(strip $(1))) $$(1)/usr/share/znc/modules ;\
 	fi
   endef
 
@@ -108,11 +107,11 @@ define webadmin
 
   define Package/znc-mod-webadmin/install
 	$(INSTALL_DIR) $$(1)/usr/lib/znc/
-	$(INSTALL_BIN) $$(PKG_BUILD_DIR)/modules/webadmin.so $$(1)/usr/lib/znc/
+	$(INSTALL_BIN) $$(PKG_INSTALL_DIR)/usr/lib/znc/webadmin.so $$(1)/usr/lib/znc/
 	$(INSTALL_DIR) $$(1)/usr/share/znc/modules
-	$(CP) $$(PKG_BUILD_DIR)/modules/data/webadmin $$(1)/usr/share/znc/modules
+	$(CP) $$(PKG_INSTALL_DIR)/usr/share/znc/modules/webadmin $$(1)/usr/share/znc/modules
 	$(INSTALL_DIR) $$(1)/usr/share/znc/webskins/
-	$(CP) $$(PKG_BUILD_DIR)/webskins/_default_ $$(1)/usr/share/znc/webskins/
+	$(CP) $$(PKG_INSTALL_DIR)/usr/share/znc/webskins/_default_ $$(1)/usr/share/znc/webskins/
   endef
 
   ZNC_MODULES += znc-mod-webadmin
@@ -132,9 +131,80 @@ define webskin
 
   define Package/znc-webskin-$(strip $(1))/install
 	$(INSTALL_DIR) $$(1)/usr/share/znc/webskins/
-	$(CP) $$(PKG_BUILD_DIR)/webskins/$(strip $(1)) $$(1)/usr/share/znc/webskins/
+	$(CP) $$(PKG_INSTALL_DIR)/usr/share/znc/webskins/$(strip $(1)) $$(1)/usr/share/znc/webskins/
   endef
   ZNC_MODULES += znc-webskin-$(strip $(1))
+endef
+
+define playback
+  define Package/znc-mod-playback
+    $(Package/znc/default)
+    TITLE+= (playback plugin)
+    DEPENDS:=znc
+  endef
+
+  define Package/znc-mod-playback/description
+   Avoid repetitive playback buffers on re-connect with supported clients (e.g. mutter, colluquy)
+  endef
+
+  define Package/znc-mod-playback/install
+	$(INSTALL_DIR) $$(1)/usr/lib/znc/
+	$(INSTALL_BIN) $$(PKG_INSTALL_DIR)/usr/lib/znc/playback.so $$(1)/usr/lib/znc/
+  endef
+
+  ZNC_MODULES += znc-mod-playback
+  $(if $(CONFIG_PACKAGE_znc-mod-playback),ZNC_MODULE_TARGETS += playback.so)
+endef
+
+define Download/znc-playback
+  VERSION:=8dd128bfe2b24b2cc6a9ea2e2d28bfaa28d2a833
+  SUBDIR:=znc-mod-playback
+  FILE:=znc-playback-$$(VERSION).tar.xz
+  URL:=https://github.com/jpnurmi/znc-playback.git
+  MIRROR_HASH:=ac89d69048d62c5b15f39cc0d357a111ce4053816062e7bc1e553392b36fbd71
+  PROTO:=git
+endef
+
+define Prepare/znc-playback
+	$(eval $(Download/znc-playback))
+	xzcat $(DL_DIR)/$(FILE) | tar -C $(PKG_BUILD_DIR) $(TAR_OPTIONS)
+	$(LN) $(PKG_BUILD_DIR)/znc-mod-playback/playback.cpp $(PKG_BUILD_DIR)/modules/playback.cpp
+endef
+
+define push
+  define Package/znc-mod-push
+    $(Package/znc/default)
+    TITLE+= (push plugin)
+    DEPENDS:=znc
+  endef
+
+  define Package/znc-mod-push/description
+   Send push notification to connected and configured devices. Refer to project Documentation
+   on how to setup.
+  endef
+
+  define Package/znc-mod-push/install
+	$(INSTALL_DIR) $$(1)/usr/lib/znc/
+	$(INSTALL_BIN) $$(PKG_INSTALL_DIR)/usr/lib/znc/push.so $$(1)/usr/lib/znc/
+  endef
+
+  ZNC_MODULES += znc-mod-push
+  $(if $(CONFIG_PACKAGE_znc-mod-push),ZNC_MODULE_TARGETS += push.so)
+endef
+
+define Download/znc-push
+  VERSION:=23d84678de2696e0b1f51aa5074764d29a98d37b
+  SUBDIR:=znc-mod-push
+  FILE:=znc-push-$$(VERSION).tar.xz
+  URL:=https://github.com/amyreese/znc-push.git
+  MIRROR_HASH:=b1ec076ee8a37b8ff8cb530852d7639fbfce3df4a963cae29375056382020394
+  PROTO:=git
+endef
+
+define Prepare/znc-push
+	$(eval $(Download/znc-push))
+	xzcat $(DL_DIR)/$(FILE) | tar -C $(PKG_BUILD_DIR) $(TAR_OPTIONS)
+	$(LN) $(PKG_BUILD_DIR)/znc-mod-push/push.cpp $(PKG_BUILD_DIR)/modules/push.cpp
 endef
 
 , := ,
@@ -232,15 +302,7 @@ $(eval $(call module,notes,This modules stores and displays short notes using \
 $(eval $(call module,notify-connect,Sends a notice to all admins when a user \
 	logs in or out.))
 
-$(eval $(call module,partyline,Allows ZNC users to join internal channels and \
-	query other ZNC users on the same ZNC.))
-
 $(eval $(call module,perform,Performs commands on connect.))
-
-$(eval $(call module,playback,Avoid repetitive playback buffers on re-connect \
-	with supported clients (e.g. mutter, colluquy)))
-
-$(eval $(call module,q,Auths you with Q (and a little more).))
 
 $(eval $(call module,raw,View all of the raw traffic.))
 
@@ -269,6 +331,9 @@ $(eval $(call module,stickychan,Keeps you sticked to specific channels.))
 $(eval $(call module,watch,Monitor activity for specific text patterns from \
 	specific users and have the text sent to a special query window.))
 
+$(eval $(call playback))
+$(eval $(call push))
+
 $(eval $(call webadmin))
 
 $(eval $(call webskin,dark-clouds))
@@ -278,25 +343,32 @@ $(eval $(call webskin,ice))
 PKG_CONFIG_DEPENDS += $(patsubst %,CONFIG_PACKAGE_%,$(ZNC_MODULES))
 
 include $(INCLUDE_DIR)/package.mk
+include $(INCLUDE_DIR)/cmake.mk
 
-CONFIGURE_ARGS += \
-	$(if $(CONFIG_ZNC_ICU), --enable-charset, --disable-charset) \
-	--disable-cyrus \
-	--disable-debug \
-	--enable-largefile \
-	--disable-perl \
-	--enable-poll \
-	--disable-python \
-	--enable-openssl \
-	--disable-swig \
-	--disable-tcl \
-	--enable-tdns \
-	--enable-zlib
+CMAKE_OPTIONS += \
+	-DWANT_ICU=O$(if $(CONFIG_ZNC_ICU),N,FF) \
+	-DWANT_I18N=OFF \
+	-DWANT_CYRUS=OFF \
+	-DWANT_PERL=OFF \
+	-DWANT_SYSTEMD=OFF \
+	-DWANT_PYTHON=OFF \
+	-DWANT_OPENSSL=ON \
+	-DWANT_SWIG=OFF \
+	-DWANT_TCL=OFF \
+	-DWANT_ZLIB=ON
 
-define Build/Compile
-	$(call Build/Compile/Default,znc)
-	+$(MAKE_VARS) $(MAKE) $(PKG_JOBS) -C $(PKG_BUILD_DIR)/modules \
-		$(MAKE_FLAGS) $(ZNC_MODULE_TARGETS)
+define Build/Prepare
+  $(call Build/Prepare/Default)
+
+ifneq ($(CONFIG_PACKAGE_znc-mod-playback),)
+  $(eval $(call Download,znc-playback))
+  $(Prepare/znc-playback)
+endif
+
+ifneq ($(CONFIG_PACKAGE_znc-mod-push),)
+  $(eval $(call Download,znc-push))
+  $(Prepare/znc-push)
+endif
 endef
 
 $(eval $(call BuildPackage,znc))

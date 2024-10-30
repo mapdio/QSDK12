@@ -1,6 +1,6 @@
 /*
  **************************************************************************
- * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2024 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
@@ -43,7 +43,7 @@
  *  NSS UDP speedtest common parameters
  */
 struct nss_udp_st_cfg {
-	long time;                      /* time for speedtest */
+	int time;                       /* time for speedtest */
 	int handle;                     /* handle for NSS_UDP_ST_DEV */
 	int type;                       /* type ( tx/rx ) */
 	char mode[NSS_UDP_ST_MODESZ];   /* mode for speedtest */
@@ -68,6 +68,7 @@ struct nss_udp_st_stat {
 	struct nss_udp_st_pkt_stats p_stats;				/* Packet statistics */
 	atomic_llong timer_stats[NSS_UDP_ST_STATS_TIME_MAX];	/* Time statistics */
 	atomic_llong errors[NSS_UDP_ST_ERROR_MAX];				/* Error statistics */
+	bool first_pkt;						/* First packet flag */
 };
 
 #endif /*__NSS_UDP_ST_H*/

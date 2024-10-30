@@ -1,6 +1,6 @@
 /*
  * Copyright (c) 2019-2020, The Linux Foundation. All rights reserved.
- * Copyright (c) 2022-2023 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2024 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for any
  * purpose with or without fee is hereby granted, provided that the above
@@ -24,7 +24,7 @@
 #include "ssdk_clk.h"
 #include "hsl_phy.h"
 
-#ifdef IN_PORTCONTROL
+#if (defined(IN_PORTCONTROL) || defined(IN_LED))
 sw_error_t
 qca_mp_portctrl_hw_init(a_uint32_t dev_id)
 {
@@ -44,6 +44,8 @@ qca_mp_portctrl_hw_init(a_uint32_t dev_id)
 			/* init mac's lpi wake up timer to 70us */
 			fal_port_interface_eee_cfg_get(dev_id, i, &port_eee_cfg);
 			port_eee_cfg.lpi_wakeup_timer = MP_LPI_WAKEUP_TIMER;
+			port_eee_cfg.enable = A_FALSE;
+			port_eee_cfg.lpi_tx_enable = A_FALSE;
 			fal_port_interface_eee_cfg_set(dev_id, i, &port_eee_cfg);
 			fal_port_rxfc_status_set(dev_id, i, A_TRUE);
 			fal_port_txfc_status_set(dev_id, i, A_TRUE);
@@ -59,6 +61,9 @@ qca_mp_portctrl_hw_init(a_uint32_t dev_id)
 		qca_mac_port_status_init(dev_id, i);
 		/*enable ICC efuse loading*/
 		ssdk_mp_gephy_icc_efuse_load_enable(A_TRUE);
+#ifdef IN_LED
+		ssdk_led_init(dev_id, i);
+#endif
 	}
 	return rv;
 }
@@ -113,7 +118,7 @@ qca_mp_hw_init(a_uint32_t dev_id, ssdk_init_cfg *cfg)
 {
 	sw_error_t rv = SW_OK;
 
-#ifdef IN_PORTCONTROL
+#if (defined(IN_PORTCONTROL) || defined(IN_LED))
 	rv = qca_mp_portctrl_hw_init(dev_id);
 	SW_RTN_ON_ERROR(rv);
 #endif
@@ -123,9 +128,5 @@ qca_mp_hw_init(a_uint32_t dev_id, ssdk_init_cfg *cfg)
 #endif
 	rv = qca_mp_interface_mode_init(dev_id);
 	SW_RTN_ON_ERROR(rv)
-#ifdef IN_LED
-	/*init MP led*/
-	rv = ssdk_led_init(dev_id, cfg);
-#endif
 	return rv;
 }

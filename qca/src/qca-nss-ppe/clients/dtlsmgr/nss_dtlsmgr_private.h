@@ -1,7 +1,7 @@
 /*
  **************************************************************************
  * Copyright (c) 2017-2018, 2020, The Linux Foundation. All rights reserved.
- * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2023 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for any
  * purpose with or without fee is hereby granted, provided that the above
@@ -163,7 +163,8 @@ struct nss_dtlsmgr_ctx {
 	void *app_data;				/* Opaque data for callback */
 	nss_dtlsmgr_notify_callback_t notify_cb;/* Statistics notification callback. */
 	nss_dtlsmgr_data_callback_t data_cb;	/* Data callback. */
-	ppe_vp_num_t vp_num;			/**< VP number associated with the tunnel. */
+	ppe_vp_num_t vp_num_decap;		/**< DL VP number associated with the tunnel. */
+	ppe_vp_num_t vp_num_encap;		/**< UL VP number associated with the tunnel. */
 
 #if defined (NSS_DTLSMGR_DEBUG)
 	uint32_t magic;				/* Magic check. */

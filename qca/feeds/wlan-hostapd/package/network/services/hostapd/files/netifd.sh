@@ -142,7 +142,6 @@ hostapd_common_add_bss_config() {
 
 	config_add_boolean rsn_preauth auth_cache
 	config_add_int ieee80211w sae_pwe
-	config_add_int beacon_prot
 	config_add_string sae_password
 
 	config_add_string 'auth_server:host' 'server:host'
@@ -169,17 +168,8 @@ hostapd_common_add_bss_config() {
 
 	config_add_string wpa_psk_file
 
-	config_add_int multi_ap
-	config_add_string multi_ap_backhaul_ssid multi_ap_backhaul_key
-	config_add_int wps_cred_add_sae
-
-	config_add_boolean default_disabled
-
-	config_add_array 'sae_groups:list(saelist)'
-
 	config_add_boolean wps_pushbutton wps_label ext_registrar wps_pbc_in_m1
 	config_add_string wps_device_type wps_device_name wps_manufacturer wps_pin
-	config_add_int wps_independent
 
 	config_add_boolean ieee80211r pmk_r1_push
 	config_add_int r0_key_lifetime reassociation_deadline
@@ -226,16 +216,14 @@ hostapd_set_bss_options() {
 		maxassoc max_inactivity disassoc_low_ack isolate auth_cache \
 		wps_pushbutton wps_label ext_registrar wps_pbc_in_m1 \
 		wps_device_type wps_config wps_device_name wps_manufacturer wps_pin \
-		wps_independent wps_model_name wps_model_number wps_serial_number \
+		wps_model_name wps_model_number wps_serial_number \
 		macfilter ssid wmm uapsd hidden short_preamble rsn_preauth \
 		iapp_interface obss_interval vendor_elements \
 		bss_load_update_period rrm wnm wnm_sleep chan_util_avg_period \
-		multi_ap multi_ap_backhaul_ssid multi_ap_backhaul_key wps_cred_add_sae \
 		rnr
 
 	json_get_vars airtime_bss_weight airtime_bss_limit
 	json_get_values airtime_sta_weight_list airtime_sta_weight
-	json_get_values sae_groups sae_groups
 
 	set_default isolate 0
 	set_default maxassoc 256
@@ -249,8 +237,6 @@ hostapd_set_bss_options() {
 	set_default airtime_bss_weight 0
 	set_default airtime_bss_limit 0
 	set_default rnr 0
-	set_default multi_ap 0
-	set_default wps_cred_add_sae 0
 
 	append bss_conf "ctrl_interface=/var/run/hostapd"
 	if [ "$isolate" -gt 0 ]; then
@@ -271,7 +257,6 @@ hostapd_set_bss_options() {
 	append bss_conf "wmm_enabled=$wmm" "$N"
 	append bss_conf "ignore_broadcast_ssid=$hidden" "$N"
 	append bss_conf "uapsd_advertisement_enabled=$uapsd" "$N"
-	append bss_conf "multi_ap=$multi_ap" "$N"
 	[ $rnr -gt 0 ] && append bss_conf "rnr=$rnr" "$N"
 
 	[ "$wpa" -gt 0 ] && {
@@ -290,7 +275,6 @@ hostapd_set_bss_options() {
 		psk|sae*)
 			json_get_vars key wpa_psk_file
 			json_get_var ieee80211w ieee80211w
-			json_get_var beacon_prot
 			if [ ${#key} -lt 8 ]; then
 				wireless_setup_vif_failed INVALID_WPA_PSK
 				return 1
@@ -305,13 +289,9 @@ hostapd_set_bss_options() {
 			}
 			wps_possible=1
 			if [ $ieee80211w -eq 2 ] || [ $ieee80211w -eq 1 ]; then
-				append wpa_key_mgmt "WPA-PSK WPA-PSK-SHA256" "$N"
+				append wpa_key_mgmt "WPA-PSK WPA-PSK-SHA256"
 			else
-				append wpa_key_mgmt "WPA-PSK" "$N"
-			fi
-
-			if [ $ieee80211w -gt 0 ] && [ $beacon_prot -gt 0 ]; then
-				append bss_conf "beacon_prot=1" "$N"
+				append wpa_key_mgmt "WPA-PSK"
 			fi
 		;;
 		eap)
@@ -389,7 +369,6 @@ hostapd_set_bss_options() {
 			wpa_key_mgmt="SAE"
 			json_get_var sae_pwe sae_pwe
 			[ -n "$sae_pwe" ] && append bss_conf "sae_pwe=$sae_pwe" "$N"
-			[ -n "$sae_groups" ] && append bss_conf "sae_groups=$sae_groups" "$N"
 		;;
 		sae-mixed)
 			append bss_conf "ieee80211w=1" "$N"
@@ -397,13 +376,11 @@ hostapd_set_bss_options() {
 			append wpa_key_mgmt "SAE"
 			json_get_vars sae_password
 			[ -n "$sae_password" ] && append bss_conf "sae_password=$sae_password" "$N"
-			[ -n "$sae_groups" ] && append bss_conf "sae_groups=$sae_groups" "$N"
 		;;
 		owe)
 			append wpa_key_mgmt "OWE"
 			json_get_var ieee80211w ieee80211w
 			[ -n "$ieee80211w" ] && append bss_conf "ieee80211w=$ieee80211w" "$N"
-			[ -n "$sae_groups" ] && append bss_conf "sae_groups=$sae_groups" "$N"
 		;;
 	esac
 
@@ -420,9 +397,6 @@ hostapd_set_bss_options() {
 	[ "$wps_pushbutton" -gt 0 ] && append config_methods push_button
 	[ "$wps_label" -gt 0 ] && append config_methods label
 
-	# WPS not possible on Multi-AP backhaul-only SSID
-	[ "$multi_ap" = 1 ] && wps_possible=
-
 	[ -n "$wps_possible" -a -n "$config_methods" ] && {
 		set_default ext_registrar 0
 		set_default wps_device_type "6-0050F204-1"
@@ -432,7 +406,6 @@ hostapd_set_bss_options() {
 		set_default wps_model_number "123"
 		set_default wps_serial_number "12345"
 		set_default wps_pin "12345670"
-		set_default wps_independent 1
 
 		wps_state=2
 		[ -n "$wps_configured" ] && wps_state=1
@@ -450,24 +423,7 @@ hostapd_set_bss_options() {
 		append bss_conf "model_number=$wps_model_number" "$N"
 		append bss_conf "serial_number=$wps_serial_number" "$N"
 		append bss_conf "config_methods=$config_methods" "$N"
-		append bss_conf "wps_independent=$wps_independent" "$N"
 		[ "$wps_pbc_in_m1" -gt 0 ] && append bss_conf "pbc_in_m1=$wps_pbc_in_m1" "$N"
-
-		[ "$multi_ap" -gt 0 ] && [ -n "$multi_ap_backhaul_ssid" ] && {
-			append bss_conf "multi_ap_backhaul_ssid=\"$multi_ap_backhaul_ssid\"" "$N"
-			if [ -z "$multi_ap_backhaul_key" ]; then
-				:
-			elif [ ${#multi_ap_backhaul_key} -lt 8 ]; then
-				wireless_setup_vif_failed INVALID_WPA_PSK
-				return 1
-			elif [ ${#multi_ap_backhaul_key} -eq 64 ]; then
-				append bss_conf "multi_ap_backhaul_wpa_psk=$multi_ap_backhaul_key" "$N"
-			else
-				append bss_conf "multi_ap_backhaul_wpa_passphrase=$multi_ap_backhaul_key" "$N"
-			fi
-
-			[ "$wps_cred_add_sae" -gt 0 ] && append bss_conf "wps_cred_add_sae=$wps_cred_add_sae" "$N"
-                }
 	}
 
 	append bss_conf "ssid=$ssid" "$N"
@@ -659,7 +615,7 @@ wpa_supplicant_prepare_interface() {
 
 	_wpa_supplicant_common "$1"
 
-	json_get_vars mode wds multi_ap extsta
+	json_get_vars mode wds extsta
 
 	[ -n "$network_bridge" ] && {
 		fail=
@@ -668,7 +624,7 @@ wpa_supplicant_prepare_interface() {
 				fail=1
 			;;
 			sta)
-				[ "$wds" = 1 ] || [ "$multi_ap" = 1 ] || [ "$extsta" = 1 ] || fail=1
+				[ "$wds" = 1 ] || [ "$extsta" = 1 ] || fail=1
 			;;
 		esac
 
@@ -722,11 +678,7 @@ wpa_supplicant_add_network() {
 		ssid bssid key basic_rate mcast_rate ieee80211w \
 		wps_device_type wps_device_name wps_manufacturer \
 		wps_config wps_model_name wps_model_number \
-		wps_serial_number beacon_prot multi_ap wps_cred_add_sae default_disabled
-
-	set_default multi_ap 0
-	set_default wps_cred_add_sae 0
-	set_default default_disabled 0
+		wps_serial_number
 
 	local key_mgmt='NONE'
 	local enc_str=
@@ -749,12 +701,6 @@ wpa_supplicant_add_network() {
 		scan_ssid="scan_ssid=0"
 
 		[ "$_w_driver" = "nl80211" ] ||	wpa_key_mgmt="WPA-NONE"
-	}
-
-	[[ "$_w_mode" = "sta" ]] && {
-		[ -n "$freq_list" ] && {
-			freq_list="freq_list=$freq_list"
-		}
 	}
 
 	[[ "$_w_mode" = "mesh" ]] && {
@@ -782,21 +728,9 @@ wpa_supplicant_add_network() {
 		[ -n "$disable_csa_dfs" ] && {
 			disable_csa_dfs="disable_csa_dfs=$disable_csa_dfs"
 		}
-		[ -n "$freq_list" ] && {
-			freq_list="freq_list=$freq_list"
-		}
 	}
 
 	[[ "$_w_mode" = "adhoc" -o "$_w_mode" = "mesh" ]] && append network_data "$_w_modestr" "$N$T"
-
-	[ "$_w_mode" = "sta" ] && {
-		[ "$multi_ap" = 1 ] && {
-			append network_data "multi_ap_backhaul_sta=1" "$N$T"
-			wps_cred_add_sae=1
-		}
-
-		[ "$default_disabled" = 1 ] && append network_data "disabled=1" "$N$T"
-	}
 
 	case "$auth_type" in
 		none) ;;
@@ -815,25 +749,6 @@ wpa_supplicant_add_network() {
 				passphrase="psk=\"${key}\""
 			fi
 			append network_data "$passphrase" "$N$T"
-
-			if [ $ieee80211w -gt 0 ] && [ $beacon_prot -gt 0 ]; then
-					[[ "$_w_mode" == "sta" ]] && append network_data "beacon_prot=1" "$N$T"
-			fi
-		;;
-		sae-mixed)
-			local passphrase
-
-			key_mgmt="WPA-PSK SAE WPA-PSK-SHA256"
-			if [ ${#key} -eq 64 ]; then
-				passphrase="psk=${key}"
-			else
-				passphrase="psk=\"${key}\""
-			fi
-			append network_data "$passphrase" "$N$T"
-			append network_data "ieee80211w=1" "$N$T"
-			if [ $beacon_prot -gt 0 ]; then
-				[[ "$_w_mode" == "sta" ]] && append network_data "beacon_prot=1" "$N$T"
-			fi
 		;;
 		eap)
 			key_mgmt='WPA-EAP'
@@ -869,10 +784,6 @@ wpa_supplicant_add_network() {
 			fi
 			append network_data "$passphrase" "$N$T"
 			append network_data "ieee80211w=2" "$N$T"
-
-			if [ $beacon_prot -gt 0 ]; then
-				[[ "$_w_mode" == "sta" ]] && append network_data "beacon_prot=1" "$N$T"
-			fi
 		;;
 	esac
 
@@ -941,9 +852,6 @@ wpa_supplicant_add_network() {
 		serial_number="serial_number=$wps_serial_number"
 		config_methods="config_methods=$config_methods"
 	}
-	[ "$wps_cred_add_sae" -gt 0 ] && {
-		echo "wps_cred_add_sae=$wps_cred_add_sae" >> "$_config"
-	}
 
 	cat >> "$_config" <<EOF
 $mesh_ctrl_interface
@@ -958,7 +866,6 @@ $serial_number
 $config_methods
 $saepwe
 $disable_csa_dfs
-$freq_list
 
 network={
 	$scan_ssid
@@ -970,7 +877,6 @@ network={
 	enable_320mhz_bw=$enable_320mhz_bw
 	$ru_punct_str
 	ccfs=$ccfs
-	$freq_list
 }
 EOF
 	return 0

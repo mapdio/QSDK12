@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2024 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for any
  * purpose with or without fee is hereby granted, provided that the above
@@ -21,22 +21,31 @@
 #define PPE_DRV_IFACE_FLAG_PORT_VALID	0x2
 #define PPE_DRV_IFACE_FLAG_VSI_VALID	0x4
 #define PPE_DRV_IFACE_FLAG_L3_IF_VALID	0x8
+#define PPE_DRV_IFACE_VLAN_OVER_BRIDGE  0x10
+#define PPE_DRV_IFACE_FLAG_WAN_IF_VALID 0x20
+#define PPE_DRV_IFACE_FLAG_MHT_SWITCH_VALID 0x40
+
+/*
+ * ppe-iface cleanup function callback
+ */
+typedef ppe_drv_ret_t (*ppe_drv_iface_cleanup_cb)(struct ppe_drv_iface *iface);
 
 /*
  * ppe_drv_iface
- *	 PPE interface information
+ *	PPE interface information
  */
 struct ppe_drv_iface {
 	struct ppe_drv_iface *base_if;		/* Base list for hierarchy creation */
 	struct ppe_drv_iface *parent;		/* Pointer to parent ppe-if– used for bridge/lag slaves */
-	struct ppe_drv_port *port;  		/* Pointer to port structure */
-	struct ppe_drv_vsi *vsi;    		/* Pointer to vsi structure */
-	struct ppe_drv_l3_if *l3;   		/* Pointer to l3_if structure */
-	struct kref ref;            		/* Reference count */
-	struct net_device *dev;   		/* Corresponding net-device */
-	uint16_t flags;         		/* Flag to indicate valid handles */
+	struct ppe_drv_port *port;		/* Pointer to port structure */
+	struct ppe_drv_vsi *vsi;		/* Pointer to vsi structure */
+	struct ppe_drv_l3_if *l3;		/* Pointer to l3_if structure */
+	struct kref ref;			/* Reference count */
+	struct net_device *dev;			/* Corresponding net-device */
+	uint16_t flags;				/* Flag to indicate valid handles */
 	uint16_t index;				/* Interface index */
 	enum ppe_drv_iface_type type;		/* Interface type */
+	ppe_drv_iface_cleanup_cb cleanup_cb;	/* cleanup callback */
 };
 
 bool ppe_drv_iface_deref_internal(struct ppe_drv_iface *iface);
@@ -44,6 +53,8 @@ struct ppe_drv_iface *ppe_drv_iface_ref(struct ppe_drv_iface *iface);
 
 struct ppe_drv_iface *ppe_drv_iface_get_by_dev_internal(struct net_device *dev);
 struct ppe_drv_iface *ppe_drv_iface_get_by_idx(ppe_drv_iface_t idx);
+int32_t ppe_drv_iface_vsi_idx_get(struct ppe_drv_iface *iface);
+int32_t ppe_drv_iface_l3_if_idx_get(struct ppe_drv_iface *iface);
 
 bool ppe_drv_iface_parent_set(struct ppe_drv_iface *iface, struct ppe_drv_iface *parent);
 struct ppe_drv_iface *ppe_drv_iface_parent_get(struct ppe_drv_iface *iface);

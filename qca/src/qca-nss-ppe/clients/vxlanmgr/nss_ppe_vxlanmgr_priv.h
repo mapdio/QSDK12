@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2024 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for any
  * purpose with or without fee is hereby granted, provided that the above
@@ -21,7 +21,12 @@
 #ifndef __NSS_PPE_VXLANMGR_PRIV_H
 #define __NSS_PPE_VXLANMGR_PRIV_H
 
-union vxlan_addr;
+#include <net/vxlan.h>
+#include <nss_ppe_vxlanmgr.h>
+
+#define NSS_PPE_VXLANMGR_DST_PORT_MIN 1
+#define NSS_PPE_VXLANMGR_DST_PORT_MAX 65535
+
 struct ppe_drv_tun_cmn_ctx;
 
 /*
@@ -54,31 +59,78 @@ struct ppe_drv_tun_cmn_ctx;
 #endif
 #endif /* CONFIG_DYNAMIC_DEBUG */
 
+#define nss_ppe_vxlanmgr_assert(c) BUG_ON(!(c))
+
+#define NSS_PPE_VXLAN_MGR_O_DSCP_GET(x, y) (x >> y)
+
+/*
+ * VXLAN global context.
+ */
 struct nss_ppe_vxlanmgr_ctx {
-	struct list_head list;			/* VxLAN tunnel list */
-	struct dentry *dentry;			/* debugfs entry for qca-nss-vxlanmgr */
-	uint32_t tun_count;				/* Number of VxLAN tunnels in the list */
+	struct dentry *dentry;			/* per tunnel debugfs entry */
+	uint16_t nack_limit;	/* nack limit */
 	spinlock_t tun_lock;			/* lock to protect the tunnel list */
 };
 
+/*
+ * VXLAN remote information.
+ */
+struct nss_ppe_vxlanmgr_remote_info {
+	struct kref mac_address_ref;			/* reference count to keep track of number of clients connected to a remote */
+	union vxlan_addr remote_ip;	/* Remote IP address */
+	struct net_device *nss_netdev;	/* The child/dummy netdevice */
+	struct net_device *pdev;	/* The parent netdevice */
+	uint32_t vp_status_nack;		/* The nack limit for the remote */
+	bool bridge_joined;	/* NSS netdevice is in the bridge */
+};
+
+/*
+ * VXLAN RTM_NEIGH event data.
+ * RTM_NEIGH event is an irq context hence the below data-structure is used to store the information
+ * so that it will be used later in the work-queue.
+ */
+struct nss_ppe_vxlanmgr_rtm_neigh_event_data {
+	struct  net_device *parent_netdev;	/* Parent/linux netdevice of the tunnel */
+	union vxlan_addr rip;			/* Remote IP address received in SWITCHDEV_VXLAN_FDB_ADD_TO_DEVICE event */
+	uint8_t event;	/* SWITCHDEV_VXLAN_FDB_ADD_TO_DEVICE or SWITCHDEV_VXLAN_FDB_DEL_TO_DEVICE event */
+	struct list_head rtm_event_list;	/* list to maintain the RTM events */
+};
+
+/*
+ * VXLAN tunnel context for each tunnel (VXLAN remote).
+ */
 struct nss_ppe_vxlanmgr_tun_ctx {
-	struct list_head head;			/* tunnel context list entry */
-	struct net_device *dev;			/* tunnel netdevice pointer */
-	struct dentry *dentry;			/* per tunnel debugfs entry */
 	uint32_t vni;				/* vnet identifier */
+	struct net_device *parent_dev;			/* tunnel netdevice pointer */
+	struct dentry *dentry;			/* per tunnel debugfs entry */
 	uint32_t tunnel_flags;			/* vxlan tunnel flags */
 	uint16_t src_port_min;			/* minimum source port */
 	uint16_t src_port_max;			/* maximum source port*/
 	uint16_t dest_port;			/* destination port */
 	uint8_t tos;				/* tos value */
 	uint8_t ttl;				/* time to live */
-	struct nss_ppe_vxlanmgr_ctx *vxlan_ctx;	/* pointer to vxlanmgr context */
 	struct ppe_drv_tun_cmn_ctx *tun_hdr;	/* Outer tunnel header */
-	bool remote_detected;			/* Indicates whether the remote end point IP address is detected */
+	struct nss_ppe_vxlanmgr_remote_info remote_info;	/* The remote database */
+	enum nss_ppe_vxlanmgr_vp_creation vp_status;	/* VP creation status for each VXLAN tunnel */
+	struct nss_ppe_vxlanmgr_ctx *vxlan_ctx;	/* VXLAN global context */
+	struct hlist_node node;	/* Hash node for each VXLAN PPE tunnel */
 };
 
-extern int nss_ppe_vxlanmgr_tunnel_create(struct net_device *dev);
-extern int nss_ppe_vxlanmgr_tunnel_destroy(struct net_device *dev);
-extern int nss_ppe_vxlanmgr_tunnel_config(struct net_device *dev, struct ppe_drv_tun_cmn_ctx *tun_hdr);
-struct nss_ppe_vxlanmgr_tun_ctx *nss_ppe_vxlanmgr_tunnel_ctx_dev_get(struct net_device *dev);
+/*
+ * struct nss_ppe_vxlanmgr_nss_dev_priv
+ *	Private structure for the child/dummy nss-netdevice.
+ */
+struct nss_ppe_vxlanmgr_nss_dev_priv {
+	int pdev_ifindex;	/* Linux-kernel/Parent netdevice index */
+};
+
+struct net_device *nss_ppe_vxlanmgr_get_parent_netdev(struct net_device *nss_dev);
+void nss_ppe_vxlanmgr_all_remotes_set_mtu(struct net_device *pdev, unsigned int mtu);
+void nss_ppe_vxlanmgr_all_remotes_decap_enable(struct net_device *pdev);
+void nss_ppe_vxlanmgr_all_remotes_decap_disable(struct net_device *pdev);
+void nss_ppe_vxlanmgr_all_remotes_leave_bridge(struct net_device *pdev);
+void nss_ppe_vxlanmgr_all_remotes_join_bridge(struct net_device *pdev);
+void nss_ppe_vxlanmgr_delete_all_remotes(void);
+int nss_ppe_vxlanmgr_wq_init(void);
+int nss_ppe_vxlanmgr_wq_exit(void);
 #endif /* __NSS_VXLANMGR_PPE_PRIV_H */

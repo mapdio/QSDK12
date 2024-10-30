@@ -20,17 +20,18 @@ STAGING_SUBDIR_HOST := staging_dir/host
 STAGING_SUBDIR_TARGET := staging_dir/$(TARGET_DIR_NAME)
 STAGING_SUBDIR_TOOLCHAIN := staging_dir/toolchain-$(ARCH)$(ARCH_SUFFIX)_gcc-$(GCCV)_$(LIBC)$(if $(CONFIG_arm),_eabi)
 
-EXCLUDE_DIRS:=*/ccache/* \
+BUNDLER_PATH := $(subst $(space),:,$(filter-out $(TOPDIR)/%,$(subst :,$(space),$(PATH))))
+BUNDLER_COMMAND := PATH=$(BUNDLER_PATH) $(XARGS) $(SCRIPT_DIR)/bundle-libraries.sh $(SDK_BUILD_DIR)/$(STAGING_SUBDIR_HOST)
+
+EXCLUDE_DIRS:= \
 	*/stamp \
 	*/stampfiles \
 	*/man \
 	*/info \
 	*/root-* \
-	initial \
 	*.install.clean \
 	*.install.flags \
 	*.install \
-	*/doc \
 	*/share/locale
 
 SDK_DIRS = \
@@ -43,10 +44,10 @@ GIT_COMMIT:=$(shell git rev-parse HEAD 2>/dev/null)
 GIT_BRANCH:=$(filter-out master HEAD,$(shell git rev-parse --abbrev-ref HEAD 2>/dev/null))
 GIT_TAGNAME:=$(shell git show-ref --tags --dereference 2>/dev/null | sed -ne '/^$(GIT_COMMIT) / { s|^.*/||; s|\^.*||; p }')
 
-BASE_FEED:=$(if $(GIT_URL),src-git base $(GIT_URL)$(if $(GIT_BRANCH),;$(GIT_BRANCH),$(if $(GIT_TAGNAME),;$(GIT_TAGNAME))))
+BASE_FEED:=$(if $(GIT_URL),src-git-full base $(GIT_URL)$(if $(GIT_BRANCH),;$(GIT_BRANCH),$(if $(GIT_TAGNAME),;$(GIT_TAGNAME))))
 BASE_FEED:=$(if $(BASE_FEED),$(BASE_FEED),$(shell cd $(TOPDIR); LC_ALL=C git svn info 2>/dev/null | sed -ne 's/^URL: /src-gitsvn base /p'))
 BASE_FEED:=$(if $(BASE_FEED),$(BASE_FEED),$(shell cd $(TOPDIR); LC_ALL=C svn info 2>/dev/null | sed -ne 's/^URL: /src-svn base /p'))
-BASE_FEED:=$(if $(BASE_FEED),$(BASE_FEED),src-git base $(PROJECT_GIT)/openwrt/openwrt.git$(if $(GIT_BRANCH),;$(GIT_BRANCH),$(if $(GIT_TAGNAME),;$(GIT_TAGNAME))))
+BASE_FEED:=$(if $(BASE_FEED),$(BASE_FEED),src-git-full base $(PROJECT_GIT)/openwrt/openwrt.git$(if $(GIT_BRANCH),;$(GIT_BRANCH),$(if $(GIT_TAGNAME),;$(GIT_TAGNAME))))
 
 KDIR_BASE = $(patsubst $(TOPDIR)/%,%,$(LINUX_DIR))
 KDIR_ARCHES = $(LINUX_KARCH)
@@ -79,6 +80,18 @@ KERNEL_FILES_BASE := \
 
 KERNEL_FILES := $(patsubst $(TOPDIR)/%,%,$(wildcard $(addprefix $(LINUX_DIR)/,$(KERNEL_FILES_BASE))))
 
+# The kernel source hosts various userspace utilities sources.
+# These are packaged separately from the kernel and kernel modules.
+# The source has to be included here to be buildable by the SDK.
+#
+USERSPACE_UTILS_FILES := \
+	tools/build \
+	tools/scripts \
+	tools/usb/usbip \
+	tools/spi
+
+USERSPACE_FILES := $(patsubst $(TOPDIR)/%,%,$(wildcard $(addprefix $(LINUX_DIR)/,$(USERSPACE_UTILS_FILES))))
+
 all: compile
 
 $(BIN_DIR)/$(SDK_NAME).tar.xz: clean
@@ -97,14 +110,13 @@ $(BIN_DIR)/$(SDK_NAME).tar.xz: clean
 		$(SDK_DIRS) $(KERNEL_FILES) | \
 		$(TAR) -xf - -C $(SDK_BUILD_DIR)
 
-	# Copy usbip sources, this is required for the usbip userspace packages to be buildable by the SDK.
-	$(TAR) -cf - -C $(TOPDIR) $(KDIR_BASE)/tools/usb/usbip/ | \
+	$(TAR) -cf - -C $(TOPDIR) $(USERSPACE_FILES) | \
 		$(TAR) -xf - -C $(SDK_BUILD_DIR)
 
 	(cd $(SDK_BUILD_DIR); find $(STAGING_SUBDIR_HOST)/bin $(STAGING_SUBDIR_HOST)/usr/bin \
 		$(STAGING_SUBDIR_TOOLCHAIN)/bin $(STAGING_SUBDIR_TOOLCHAIN)/*/bin $(STAGING_SUBDIR_TOOLCHAIN)/libexec \
 		$(KDIR_BASE) \
-		-type f | $(XARGS) $(SCRIPT_DIR)/bundle-libraries.sh $(SDK_BUILD_DIR)/$(STAGING_SUBDIR_HOST))
+		-type f | $(BUNDLER_COMMAND))
 
 	@-( \
 		find \
@@ -127,24 +139,26 @@ $(BIN_DIR)/$(SDK_NAME).tar.xz: clean
 		$(SDK_BUILD_DIR)/target/linux/*/patches*
 	./convert-config.pl $(TOPDIR)/.config > $(SDK_BUILD_DIR)/Config-build.in
 	$(CP) -L \
-		$(TOPDIR)/LICENSE \
+		$(TOPDIR)/LICENSES \
+		$(TOPDIR)/COPYING \
 		$(TOPDIR)/rules.mk \
 		./files/Config.in \
 		./files/Makefile \
 		./files/include/prepare.mk \
-		./files/README.SDK \
+		./files/README.md \
 		$(SDK_BUILD_DIR)/
+	mkdir -p $(SDK_BUILD_DIR)/package/kernel
 	$(CP) \
 		$(TOPDIR)/package/Makefile \
 		$(TOPDIR)/package/libs/toolchain \
-		$(TOPDIR)/package/kernel/linux \
 		$(SDK_BUILD_DIR)/package/
+	$(CP) \
+		$(TOPDIR)/package/kernel/linux \
+		$(SDK_BUILD_DIR)/package/kernel/
 
-	-rm -rf \
-		$(SDK_BUILD_DIR)/$(STAGING_SUBDIR_HOST)/ccache \
-		$(SDK_BUILD_DIR)/$(STAGING_SUBDIR_TARGET)/ccache \
-		$(SDK_BUILD_DIR)/$(STAGING_SUBDIR_TOOLCHAIN)/ccache \
-		$(SDK_BUILD_DIR)/$(STAGING_SUBDIR_HOST)/.prereq-build
+	-rm -rf $(SDK_BUILD_DIR)/$(STAGING_SUBDIR_HOST)/.prereq-build
+	-rm -rf $(SDK_BUILD_DIR)/$(STAGING_SUBDIR_HOST)/doc
+	-rm -rf $(SDK_BUILD_DIR)/$(STAGING_SUBDIR_HOST)/share/doc
 
 	-rm -f $(SDK_BUILD_DIR)/feeds.conf.default
 	$(if $(BASE_FEED),echo "$(BASE_FEED)" > $(SDK_BUILD_DIR)/feeds.conf.default)
@@ -161,7 +175,8 @@ $(BIN_DIR)/$(SDK_NAME).tar.xz: clean
 	find $(SDK_BUILD_DIR) -name CVS | $(XARGS) rm -rf
 	-make -C $(SDK_BUILD_DIR)/scripts/config clean
 	(cd $(BUILD_DIR); \
-		tar -I 'xz -7e' -cf $@ $(SDK_NAME); \
+		tar -I '$(STAGING_DIR_HOST)/bin/xz -7e -T$(if $(filter 1,$(NPROC)),2,0)' -cf $@ $(SDK_NAME) \
+		--mtime="$(shell date --date=@$(SOURCE_DATE_EPOCH))"; \
 	)
 
 download:

@@ -46,6 +46,7 @@
 
 #if !defined(__IPQ_MEM_PROFILE_256_MB__) && !defined(__IPQ_MEM_PROFILE_512_MB__)
 &qcn9000_pcie0{
+	reg = <0x0 0x5C500000 0x0 0x01600000>;
 	status = "ok";
 };
 

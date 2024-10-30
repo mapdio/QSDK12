@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2022-2023 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2024 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for any
  * purpose with or without fee is hereby granted, provided that the above
@@ -17,6 +17,7 @@
 #include <linux/ip.h>
 #include <net/vxlan.h>
 #include <linux/in.h>
+#include <linux/version.h>
 #include <nat46/nat46-core.h>
 #include <nat46/nat46-netdev.h>
 
@@ -71,8 +72,18 @@ static struct ppe_drv_tun *ppe_drv_tun_ref(struct ppe_drv_tun *ptun)
 static void ppe_drv_tun_free(struct kref *kref)
 {
 	struct ppe_drv_tun *ptun = container_of(kref, struct ppe_drv_tun, ref);
+	struct ppe_drv *p = &ppe_drv_gbl;
 
-	ppe_drv_port_tun_set(ptun->pp, NULL);
+	if (ptun->pp) {
+		ppe_drv_port_tun_set(ptun->pp, NULL);
+	}
+
+	/*
+	 * Reset encap header control settings if configured
+	 */
+	if (ptun->encap_hdr_bitmap) {
+		ppe_drv_tun_encap_hdr_ctrl_reset(ptun->encap_hdr_bitmap);
+	}
 
 	/*
 	 * Release all the tables reserved for this tunnel context
@@ -87,6 +98,10 @@ static void ppe_drv_tun_free(struct kref *kref)
 
 	if (ptun->ptecxr) {
 		ppe_drv_tun_encap_xlate_rule_deref(ptun->ptecxr);
+	}
+
+	if (p->tun_gbl.tun_l2tp.l2tp_encap_rule && (!(kref_read(&p->tun_gbl.tun_l2tp.l2tp_encap_rule->ref)))) {
+		p->tun_gbl.tun_l2tp.l2tp_encap_rule = NULL;
 	}
 
 	if (ptun->ptdcxr[PPE_DRV_TUN_DECAP_REMOTE_ENTRY]) {
@@ -114,7 +129,7 @@ static void ppe_drv_tun_free(struct kref *kref)
  */
 static bool ppe_drv_tun_deref(struct ppe_drv_tun *ptun)
 {
-	uint8_t tun_idx = ptun->tun_idx;
+	uint8_t tun_idx __maybe_unused = ptun->tun_idx;
 
 	ppe_drv_assert(kref_read(&ptun->ref), "%p: ref count under run for tun", ptun);
 
@@ -136,14 +151,14 @@ static bool ppe_drv_tun_deactivate_mapt(struct ppe_drv_tun *tun)
 	sw_error_t err;
 	struct ppe_drv_tun_decap *ptdc = tun->ptdcm[PPE_DRV_TUN_DECAP_REMOTE_ENTRY];
 
-	err = fal_mapt_decap_en_set(PPE_DRV_SWITCH_ID, ptdc->tl_index, false);
+	err = fal_mapt_decap_en_set(PPE_DRV_SWITCH_ID, ptdc->tl_index, A_FALSE);
 	if (err != SW_OK) {
 		ppe_drv_warn("%p: decap entry %d disable failed", ptdc, ptdc->tl_index);
 		return false;
 	}
 
 	ptdc = tun->ptdcm[PPE_DRV_TUN_DECAP_LOCAL_ENTRY];
-	err = fal_mapt_decap_en_set(PPE_DRV_SWITCH_ID, ptdc->tl_index, false);
+	err = fal_mapt_decap_en_set(PPE_DRV_SWITCH_ID, ptdc->tl_index, A_FALSE);
 	if (err != SW_OK) {
 		ppe_drv_warn("%p: decap entry %d disable failed", ptdc, ptdc->tl_index);
 		return false;
@@ -189,14 +204,14 @@ static bool ppe_drv_tun_activate_mapt(struct ppe_drv_tun *ptun, struct ppe_drv_t
 	}
 
 	ptdc = ptun->ptdcm[PPE_DRV_TUN_DECAP_REMOTE_ENTRY];
-	err = fal_mapt_decap_en_set(PPE_DRV_SWITCH_ID, ptdc->tl_index, true);
+	err = fal_mapt_decap_en_set(PPE_DRV_SWITCH_ID, ptdc->tl_index, A_TRUE);
 	if (err != SW_OK) {
 		ppe_drv_warn("%p: decap entry %d enable failed", ptdc, ptdc->tl_index);
 		return false;
 	}
 
 	ptdc = ptun->ptdcm[PPE_DRV_TUN_DECAP_LOCAL_ENTRY];
-	err = fal_mapt_decap_en_set(PPE_DRV_SWITCH_ID, ptdc->tl_index, true);
+	err = fal_mapt_decap_en_set(PPE_DRV_SWITCH_ID, ptdc->tl_index, A_TRUE);
 	if (err != SW_OK) {
 		ppe_drv_warn("%p: decap entry %d enable failed", ptdc, ptdc->tl_index);
 		return false;
@@ -363,11 +378,11 @@ bool ppe_drv_tun_port_encap_disable(struct ppe_drv_port *pp)
 	/*
 	 * Ensure that VP Check enable is true
 	 */
-	ppe_drv_assert(vp_state.check_en == true, "%p: VP state check is not enabled on port %d",
+	ppe_drv_assert(vp_state.check_en == A_TRUE, "%p: VP state check is not enabled on port %d",
 						pp, pp->port);
 
-	vp_state.eg_data_valid = false;
-	vp_state.vp_active = false;
+	vp_state.eg_data_valid = A_FALSE;
+	vp_state.vp_active = A_FALSE;
 	err = fal_vport_state_check_set(PPE_DRV_SWITCH_ID, v_port, &vp_state);
 	if (err != SW_OK) {
 		ppe_drv_warn("%p: failed to reset vp state port vp %d", pp, pp->port);
@@ -386,7 +401,7 @@ bool ppe_drv_tun_port_reset_physical_port(struct ppe_drv_port *pp)
 	sw_error_t err;
 	uint32_t v_port = FAL_PORT_ID(FAL_PORT_TYPE_VPORT, pp->port);
 
-	err = fal_vport_physical_port_id_set(PPE_DRV_SWITCH_ID, v_port, 0);
+	err = fal_vport_physical_port_id_set(PPE_DRV_SWITCH_ID, v_port, PPE_DRV_PORT_CPU);
 	if (err != SW_OK) {
 		ppe_drv_warn("%p: failed to reset physical port for vp %d", pp, pp->port);
 		return false;
@@ -396,27 +411,18 @@ bool ppe_drv_tun_port_reset_physical_port(struct ppe_drv_port *pp)
 }
 
 /*
- * ppe_drv_tun_physical_port_from_xmit_port_get
- * 	Get Physical port associated with the xmit port
+ * ppe_drv_base_port_get
+ * 	Get base port associated with the xmit port
  */
-uint16_t ppe_drv_tun_physical_port_from_xmit_port_get(uint16_t xmit_port, struct ppe_drv_port *dp)
+uint8_t ppe_drv_tun_xmit_port_get(uint8_t xmit_port)
 {
-	uint16_t phy_port = PPE_DRV_PORT_CPU;
+	struct ppe_drv *p = &ppe_drv_gbl;
 
-	if (PPE_DRV_PHY_PORT_CHK(xmit_port)) {
-		phy_port = xmit_port;
-	} else if (PPE_DRV_VIRTUAL_PORT_CHK(xmit_port)) {
-		if (ppe_drv_port_flags_check(dp, PPE_DRV_PORT_FLAG_IDTLS) ||
-			ppe_drv_port_flags_check(dp, PPE_DRV_PORT_FLAG_IIPSEC)) {
-			phy_port = PPE_DRV_PORT_EIP197;
-		} else if (ppe_drv_port_flags_check(dp, PPE_DRV_PORT_FLAG_WIFI_DEV)) {
-			phy_port = PPE_DRV_PORT_CPU;
-		}
-	} else {
-		ppe_drv_warn("%p: Destination port is not Physical or Virtual port %d", dp, xmit_port);
+	while (xmit_port >= PPE_DRV_PHYSICAL_MAX) {
+		xmit_port = p->port[xmit_port].xmit_port;
 	}
 
-	return phy_port;
+	return xmit_port;
 }
 
 /*
@@ -454,25 +460,38 @@ bool ppe_drv_tun_port_configure(struct ppe_drv_tun *ptun, uint16_t xmit_port)
 	}
 
 	/*
-	 * Map destination port queue to tunnel port
-	 */
-	dp_queue_id = ppe_drv_port_ucast_queue_get(dp);
-	if (!ppe_drv_port_ucast_queue_set(ptun->pp, dp_queue_id)) {
-		ppe_drv_warn("%p: Failed to set queue %d for port", ptun, dp_queue_id);
-		return false;
-	}
-	ppe_drv_trace("%p: Destination port: %p:%d, queue_id:%d", ptun, dp, xmit_port, dp_queue_id);
-
-	/*
 	 * Set phyiscal port based on xmit_port value
 	 */
-	phy_port = ppe_drv_tun_physical_port_from_xmit_port_get(xmit_port, dp);
+	phy_port = ppe_drv_tun_xmit_port_get(xmit_port);
 
+	/*
+	 * Map destination port queue to tunnel port
+	 */
 	err = fal_vport_physical_port_id_set(PPE_DRV_SWITCH_ID, v_port, phy_port);
 	if (err != SW_OK) {
 		ppe_drv_warn("%p: failed to set physical port:%d for vp port:%d", pp,
 					xmit_port, pp->port);
 		return false;
+	}
+
+	if (ppe_drv_tun_dp_port_ds(dp)) {
+		/*
+		 * Set flag to denote tunnel end point is a WIFI vp with DS enabled
+		 * to configure the correct port profile
+		 */
+		ppe_drv_port_flags_set(ptun->pp, PPE_DRV_PORT_FLAG_TUN_ENDPOINT_DS);
+
+		/*
+		 * Map tunnel port queue to the destination port queue
+		 * Needs to be done after mapping the phy port to tun port and
+		 * for destination ports being a vp as phy ports are already initializaed with
+		 * correct profile and queues initially.
+		 */
+		dp_queue_id = ppe_drv_port_ucast_queue_get(dp);
+		if (!ppe_drv_port_ucast_queue_set(ptun->pp, dp_queue_id)) {
+			ppe_drv_warn("%p: Failed to set queue %d for port", ptun, dp_queue_id);
+			return false;
+		}
 	}
 
 	err = fal_vport_state_check_get(PPE_DRV_SWITCH_ID, v_port, &vp_state);
@@ -484,14 +503,14 @@ bool ppe_drv_tun_port_configure(struct ppe_drv_tun *ptun, uint16_t xmit_port)
 	/*
 	 * Ensure that VP Check enable is true
 	 */
-	ppe_drv_assert(vp_state.check_en == true, "%p: VP state check is not enabled on port %d",
+	ppe_drv_assert(vp_state.check_en == A_TRUE, "%p: VP state check is not enabled on port %d",
 						pp, pp->port);
 
 	/*
 	 * Set eg_data_valid and context enable
 	 */
-	vp_state.eg_data_valid = true;
-	vp_state.vp_active = true;
+	vp_state.eg_data_valid = A_TRUE;
+	vp_state.vp_active = A_TRUE;
 	err = fal_vport_state_check_set(PPE_DRV_SWITCH_ID, v_port, &vp_state);
 	if (err != SW_OK) {
 		ppe_drv_warn("%p: failed to set L2 vp port state for port %d", pp, pp->port);
@@ -597,9 +616,9 @@ bool ppe_drv_tun_decap_xmitport_cfg_set(struct ppe_drv_tun *ptun, uint16_t xmit_
 	}
 
 	if (l2_hdr->flags & PPE_DRV_TUN_CMN_CTX_L2_PPPOE_VALID) {
-		port_tnl_cfg.pppoe_en = PPE_DRV_TUN_FIELD_VALID;
+		port_tnl_cfg.pppoe_en = (a_bool_t)PPE_DRV_TUN_FIELD_VALID;
 	} else {
-		port_tnl_cfg.l3_if.l3_if_valid = true;
+		port_tnl_cfg.l3_if.l3_if_valid = A_TRUE;
 		port_tnl_cfg.l3_if.l3_if_index = tl_l3_if_idx;
 	}
 
@@ -790,7 +809,6 @@ static bool ppe_drv_tun_mapt_translate_v6_to_v4(bool is_flow_dir, struct net_dev
 		ppe_drv_trace("%p: Could not find translation pair for v4 address\n", pcf_v6);
 		return false;
 	}
-
 	tuple.flow_ip = ntohl(saddr_v4);
 	tuple.return_ip = ntohl(daddr_v4);
 	tuple.flow_ident = sport;
@@ -847,12 +865,10 @@ static bool ppe_drv_tun_detach_mapt_v6_to_v4(struct ppe_drv_v6_conn *conn_tun_v6
 		}
 		is_flow_dir = false;
 	}
-
 	if (!ppe_drv_tun_mapt_translate_v6_to_v4(is_flow_dir, netdev, conn_tun_v6, &pcf_v4, &pcr_v4)) {
 		ppe_drv_trace("%p: cant find pcf v4 corresponding to pcf v6 \n", pp);
 		return false;
 	}
-
 	ppe_drv_flow_v4_detach_mapt_v6_conn(pcf_v4);
 	ppe_drv_flow_v4_detach_mapt_v6_conn(pcr_v4);
 
@@ -1182,6 +1198,22 @@ disable_encap:
 		goto error;
 	}
 
+	/*
+	 * Delete FSE entry created for GRETAP tunnel if endpoint is a DS VP
+	 */
+	if (pth->type == PPE_DRV_TUN_CMN_CTX_TYPE_GRETAP &&
+			ppe_drv_tun_is_dest_port_wifi(ptun->xmit_port)) {
+		if (vdestroy_rule && is_ipv6) {
+			if (!ppe_drv_tun_v6_fse_entry_del(&cn_v6->pcf, &cn_v6->pcr)) {
+				goto error;
+			}
+		} else if (vdestroy_rule){
+			if (!ppe_drv_tun_v4_fse_entry_del(&cn_v4->pcf, &cn_v4->pcr)) {
+				goto error;
+			}
+		}
+	}
+
 skip_tunnel_deactivation:
 	/*
 	 * Delete all the instances of tunnel stored in cn list
@@ -1240,13 +1272,13 @@ void ppe_drv_tun_vxlan_deconfigure(struct ppe_drv *p)
 	ftue.udp_type = FAL_TUNNEL_L4_TYPE_UDP;
 	ftue.l4_port_type = FAL_TUNNEL_L4_PORT_TYPE_DST;
 	ftue.l4_port = IANA_VXLAN_UDP_PORT;
-	err = fal_vxlan_entry_del(FUNC_VXLAN_ENTRY_ADD, type, &ftue);
+	err = fal_vxlan_entry_del(PPE_DRV_SWITCH_ID, type, &ftue);
 	if (err != SW_OK) {
 		ppe_drv_warn("%p VXLAN: failed to delete UDP entry for IPV4 %d", p, err);
 	}
 
 	ftue.ip_ver = FAL_TUNNEL_IP_VER_V6;
-	err = fal_vxlan_entry_del(FUNC_VXLAN_ENTRY_ADD, type, &ftue);
+	err = fal_vxlan_entry_del(PPE_DRV_SWITCH_ID, type, &ftue);
 	if (err != SW_OK) {
 		ppe_drv_warn("%p VXLAN: failed to delete UDP entry for IPV6 %d", p, err);
 	}
@@ -1469,8 +1501,8 @@ bool ppe_drv_tun_activate(uint16_t port_num, void *vcreate_rule)
 
 	if (pth->type == PPE_DRV_TUN_CMN_CTX_TYPE_MAPT) {
 		/*
-	 	* Program EG_EDIT RULE table
-	 	*/
+		 * Program EG_EDIT RULE table
+		 */
 		status = ppe_drv_tun_encap_xlate_rule_configure(ptun->ptecxr, &pth->tun.mapt.remote, ppe_drv_tun_encap_get_len(ptun->ptec), l2_hdr->flags, true);
 		if (!status) {
 			ppe_drv_warn("%p: Failed to configure encap xlate map table", ptun);
@@ -1486,7 +1518,6 @@ bool ppe_drv_tun_activate(uint16_t port_num, void *vcreate_rule)
 	 *
 	 * TODO: Need to add PPPOE specific handling
 	 */
-	xmit_port = l2_hdr->xmit_port;
 
 	if (l2_hdr->flags & PPE_DRV_TUN_CMN_CTX_L2_PPPOE_VALID) {
 		pppoe = ppe_drv_pppoe_find_session(ntohs(l2_hdr->pppoe.ph.sid), l2_hdr->pppoe.server_mac);
@@ -1494,6 +1525,17 @@ bool ppe_drv_tun_activate(uint16_t port_num, void *vcreate_rule)
 			ppe_drv_warn("%p: Could not find pppoe session %x mac %pM", ptun, ntohs(l2_hdr->pppoe.ph.sid), l2_hdr->pppoe.server_mac);
 			goto err_fail;
 		}
+	}
+
+	xmit_port = ppe_drv_tun_xmit_port_get(l2_hdr->xmit_port);
+
+	if (xmit_port == PPE_DRV_PORT_CPU) {
+		/*
+		 * CPU port is not initialized so tl_l3_if get would fail.
+		 * Override xmit_port with destination port number in this case.
+		 * This condition is valid for cases where xmit_port is wifi/ds vp.
+		 */
+		xmit_port = l2_hdr->xmit_port;
 	}
 
 	/*
@@ -1541,6 +1583,24 @@ bool ppe_drv_tun_activate(uint16_t port_num, void *vcreate_rule)
 
 	ptun->xmit_port = xmit_port;
 
+	/*
+	 * For GRETAP tunnel endpoint on DS port push a 3 tuple
+	 * FSE entry. For now only GRETAP is supported and validated
+	 * can be extended for other tunnels in future
+	 */
+	if (pth->type == PPE_DRV_TUN_CMN_CTX_TYPE_GRETAP &&
+			ppe_drv_tun_is_dest_port_wifi(xmit_port)) {
+		if (vcreate_rule && is_ipv6) {
+			if (!ppe_drv_tun_v6_fse_entry_add(vcreate_rule, &cn_v6->pcf, &cn_v6->pcr)) {
+				goto err_fail;
+			}
+		} else if (vcreate_rule){
+			if (!ppe_drv_tun_v4_fse_entry_add(vcreate_rule, &cn_v4->pcf, &cn_v4->pcr)) {
+				goto err_fail;
+			}
+		}
+	}
+
 skip_tunnel_activation:
 	/*
 	 * Take reference
@@ -1556,6 +1616,7 @@ skip_tunnel_activation:
 		list_add(&cn_v6->list, &p->conn_tun_v6);
 		if (pth->type == PPE_DRV_TUN_CMN_CTX_TYPE_MAPT) {
 			ppe_drv_v6_conn_flags_set(cn_v6, PPE_DRV_V6_CONN_FLAG_TYPE_MAPT);
+
 			if (!ppe_drv_tun_attach_mapt_v6_to_v4(cn_v6)) {
 				ppe_drv_trace("%p: MAP-T v6 to v4 attach failed", ptun);
 			}
@@ -1584,6 +1645,7 @@ bool ppe_drv_tun_configure(uint16_t port_num, struct ppe_drv_tun_cmn_ctx *pth, v
 	struct ppe_drv *p = &ppe_drv_gbl;
 	struct ppe_drv_tun *ptun = NULL;
 	uint16_t decap_hwidx = PPE_DRV_TUN_DECAP_INVALID_IDX;
+	uint8_t rule_id;
 
 	struct ppe_drv_port *pp = ppe_drv_port_from_port_num(port_num);
 	if (!pp) {
@@ -1657,6 +1719,50 @@ bool ppe_drv_tun_configure(uint16_t port_num, struct ppe_drv_tun_cmn_ctx *pth, v
 		goto err_exit;
 	}
 
+	if (pth->type == PPE_DRV_TUN_CMN_CTX_TYPE_L2TP_V2) {
+		if (p->tun_gbl.tun_l2tp.l2tp_encap_rule == NULL) {
+			/*
+			 * Alloc encap EG table entry for L2TP
+			 * Alloc is called for first instance of l2tp tunnel only.
+			 */
+			 p->tun_gbl.tun_l2tp.l2tp_encap_rule = ppe_drv_tun_encap_xlate_rule_alloc(p);
+			 if (p->tun_gbl.tun_l2tp.l2tp_encap_rule == NULL) {
+				ppe_drv_warn("%p: couldn't get encap rule entry index for l2tp", p);
+				goto err_exit;
+			}
+		} else {
+			/*
+			 * Take ref on encap rule instance if another L2TP tunnel is already active.
+			 */
+			ppe_drv_tun_encap_xlate_rule_ref(p->tun_gbl.tun_l2tp.l2tp_encap_rule);
+		}
+
+		ptun->ptecxr = p->tun_gbl.tun_l2tp.l2tp_encap_rule;
+		rule_id = ppe_drv_tun_encap_xlate_rule_get_index(ptun->ptecxr);
+		ppe_drv_tun_encap_set_rule_id(ptun->ptec, rule_id);
+
+		/*
+		 * encap header control configuration for L2TP
+		 * protomap[1] and protomap[3] are used for ipv4 protocol
+		 * and ipv6 protocol update in PPP header
+		 */
+		if (!ppe_drv_tun_encap_hdr_ctrl_l2tp_configure(p, ptun)) {
+			ppe_drv_warn("%p L2TP: failed to configure encap header control", p);
+			goto err_exit;
+		}
+	}
+
+	if (pth->type == PPE_DRV_TUN_CMN_CTX_TYPE_VXLAN) {
+		/*
+		 * encap header control configuration for VXLAN.
+		 * UDP source port value is updated with a random value
+		 */
+		if (!ppe_drv_tun_encap_hdr_ctrl_vxlan_configure(p, ptun)) {
+			ppe_drv_warn("%p VXLAN: failed to configure encap header control", p);
+			goto err_exit;
+		}
+	}
+
 	ptun->ptec->port = pp;
 
 	ppe_drv_port_tun_set(pp, ptun);
@@ -1674,19 +1780,54 @@ err_exit:
 EXPORT_SYMBOL(ppe_drv_tun_configure);
 
 /*
+ * ppe_drv_tun_configure_vxlan_and_dport
+ *	Configure the VXLAN destination port.
+ */
+bool ppe_drv_tun_configure_vxlan_and_dport(uint16_t dport)
+{
+	fal_tunnel_udp_entry_t ftue = {0};
+	fal_vxlan_type_t type = FAL_VXLAN;
+	sw_error_t err;
+
+	ppe_drv_gbl.vxlan_dport = dport;
+
+	/*
+	 * VxLAN Decap port number match for IPV4 tunnel.
+	 */
+	ftue.ip_ver = FAL_TUNNEL_IP_VER_V4;
+	ftue.udp_type = FAL_TUNNEL_L4_TYPE_UDP;
+	ftue.l4_port_type = FAL_TUNNEL_L4_PORT_TYPE_DST;
+	ftue.l4_port = dport;
+	err = fal_vxlan_entry_add(PPE_DRV_SWITCH_ID, type, &ftue);
+	if (err != SW_OK) {
+		ppe_drv_warn("%p failed to add UDP entry for IPV4. err: %d", &ftue, err);
+		return false;
+	}
+
+	/*
+	 * VxLAN Decap port number match for IPV6 tunnel.
+	 */
+	ftue.ip_ver = FAL_TUNNEL_IP_VER_V6;
+	err = fal_vxlan_entry_add(PPE_DRV_SWITCH_ID, type, &ftue);
+	if (err != SW_OK) {
+		ppe_drv_warn("%p failed to add UDP entry for IPV6. err: %d", &ftue, err);
+		return false;
+	}
+
+	return true;
+}
+EXPORT_SYMBOL(ppe_drv_tun_configure_vxlan_and_dport);
+
+/*
  * ppe_drv_tun_global_init
  *	Initialize tables with values that does not require changes
  */
 bool ppe_drv_tun_global_init(struct ppe_drv *p)
 {
 	sw_error_t err;
-	fal_vxlan_type_t type = FAL_VXLAN;
 	fal_tunnel_decap_key_t ptdkcfg =  {0};
 	fal_tunnel_global_cfg_t ptglcfg =  {0};
 	fal_mapt_decap_ctrl_t ptmapglcfg = {0};
-	fal_tunnel_udp_entry_t ftue = {0};
-	fal_tunnel_program_entry_t pgm = {0};
-	fal_tunnel_program_cfg_t cfg = {0};
 	fal_tunnel_type_t tunnel_type;
 
 	spin_lock_bh(&p->lock);
@@ -1716,46 +1857,10 @@ bool ppe_drv_tun_global_init(struct ppe_drv *p)
 		return false;
 	}
 
-	ptdkcfg.tunnel_info_mask = ~FAL_TUNNEL_DECAP_TUNNEL_INFO_MASK;
-
-	tunnel_type = FAL_TUNNEL_TYPE_PROGRAM5;
-	err = fal_tunnel_decap_key_set(PPE_DRV_SWITCH_ID, tunnel_type, &ptdkcfg);
-	if (err != SW_OK) {
-		spin_unlock_bh(&p->lock);
-		ppe_drv_warn("%p: Tunnel Decap key set failed for GRE with error %d", p, err);
-		return false;
-	}
-
-	/*
-	 * Configure tunnel program entry for GRETAP without key
-	 */
-	pgm.outer_hdr_type = FAL_GRE_HDR;
-	pgm.protocol = ETH_P_TEB;
-	pgm.protocol_mask = FAL_TUNNEL_PROGRAM_GRE_PROTOCOL_MASK;
-	pgm.ip_ver = FAL_TUNNEL_PROGRAM_IPV4_IPV6;
-
-	err = fal_tunnel_program_entry_add(PPE_DRV_SWITCH_ID, FAL_TUNNEL_PROGRAM_TYPE_5, &pgm);
-	if (err != SW_OK) {
-		spin_unlock_bh(&p->lock);
-		ppe_drv_warn("%p: program entry add failed for GRE with error %d", p, err);
-		return false;
-	}
-
-	/*
-	 * Set program entry to PROGRAM5 for GRETAP without key
-	 */
-	err = fal_tunnel_program_cfg_set(PPE_DRV_SWITCH_ID, FAL_TUNNEL_PROGRAM_TYPE_5, &cfg);
-	if (err != SW_OK) {
-		spin_unlock_bh(&p->lock);
-		ppe_drv_warn("%p: program entry configuration failed for GRE with error %d", p, err);
-		return false;
-	}
-
 	/*
 	 * VxLAN IPv4/6 key configuration
 	 */
 	ptdkcfg.key_bmp |= PPE_DRV_TUN_BIT(FAL_TUNNEL_KEY_DPORT_EN);
-	ptdkcfg.tunnel_info_mask = FAL_TUNNEL_DECAP_TUNNEL_INFO_MASK;
 	tunnel_type = FAL_TUNNEL_TYPE_VXLAN_OVER_IPV4;
 	err = fal_tunnel_decap_key_set(PPE_DRV_SWITCH_ID, tunnel_type, &ptdkcfg);
 	if (err != SW_OK) {
@@ -1793,31 +1898,6 @@ bool ppe_drv_tun_global_init(struct ppe_drv *p)
 	}
 
 	/*
-	 * VxLAN Decap port number match for IPV4 tunnel.
-	 */
-	ftue.ip_ver = FAL_TUNNEL_IP_VER_V4;
-	ftue.udp_type = FAL_TUNNEL_L4_TYPE_UDP;
-	ftue.l4_port_type = FAL_TUNNEL_L4_PORT_TYPE_DST;
-	ftue.l4_port = IANA_VXLAN_UDP_PORT;
-	err = fal_vxlan_entry_add(0, type, &ftue);
-	if (err != SW_OK) {
-		spin_unlock_bh(&p->lock);
-		ppe_drv_warn("%p failed to add UDP entry for IPV4. err: %d", p, err);
-		return false;
-	}
-
-	/*
-	 * VxLAN Decap port number match for IPV6 tunnel.
-	 */
-	ftue.ip_ver = FAL_TUNNEL_IP_VER_V6;
-	err = fal_vxlan_entry_add(0, type, &ftue);
-	if (err != SW_OK) {
-		spin_unlock_bh(&p->lock);
-		ppe_drv_warn("%p failed to add UDP entry for IPV6. err: %d", p, err);
-		return false;
-	}
-
-	/*
 	 * IPv4 over IPv6
 	 */
 	ptdkcfg.key_bmp = 0;
@@ -1838,13 +1918,13 @@ bool ppe_drv_tun_global_init(struct ppe_drv *p)
 	 */
 	ptglcfg.deacce_action = FAL_MAC_RDT_TO_CPU;
 	ptglcfg.src_if_check_action = FAL_MAC_RDT_TO_CPU;
-	ptglcfg.src_if_check_deacce_en = true;
+	ptglcfg.src_if_check_deacce_en = A_TRUE;
 	ptglcfg.vlan_check_action = FAL_MAC_RDT_TO_CPU;
-	ptglcfg.vlan_check_deacce_en = true;
+	ptglcfg.vlan_check_deacce_en = A_TRUE;
 	ptglcfg.udp_csum_zero_action = FAL_MAC_RDT_TO_CPU;
-	ptglcfg.udp_csum_zero_deacce_en = false;
+	ptglcfg.udp_csum_zero_deacce_en = A_FALSE;
 	ptglcfg.pppoe_multicast_action = FAL_MAC_RDT_TO_CPU;
-	ptglcfg.pppoe_multicast_deacce_en = true;
+	ptglcfg.pppoe_multicast_deacce_en = A_TRUE;
 	ptglcfg.hash_mode[0] = PPE_DRV_TUN_TL_HASH_MODE_CRC10;
 	ptglcfg.hash_mode[1] = PPE_DRV_TUN_TL_HASH_MODE_XOR;
 	err = fal_tunnel_global_cfg_set(PPE_DRV_SWITCH_ID, &ptglcfg);
@@ -1868,6 +1948,8 @@ bool ppe_drv_tun_global_init(struct ppe_drv *p)
 		ppe_drv_warn("%p: Tunnel Map-t common configuration failed", p);
 		return false;
 	}
+
+	ppe_drv_tun_encap_hdr_ctrl_init(p);
 
 	spin_unlock_bh(&p->lock);
 	return true;

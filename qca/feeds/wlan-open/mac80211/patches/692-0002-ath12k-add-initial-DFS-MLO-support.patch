@@ -15,11 +15,11 @@ Signed-off-by: Aditya Kumar Singh <quic_adisi@quicinc.com>
 
 --- a/drivers/net/wireless/ath/ath12k/mac.c
 +++ b/drivers/net/wireless/ath/ath12k/mac.c
-@@ -10023,14 +10023,63 @@ static int ath12k_mac_mlo_vdev_start(str
+@@ -9995,14 +9995,64 @@ static int ath12k_mac_mlo_vdev_start(str
  	int ret = 0;
  	u16 links_map;
  	bool radar_enabled = arvif->chanctx.radar_enabled;
-+	bool radar_vdev_create = false;
++	bool radar_vdev_create = radar_enabled;
  
  	lockdep_assert_held(&ah->conf_mutex);
 -	/* TODO some changes are expected in this func wrt DFS statemachine */
@@ -28,29 +28,30 @@ Signed-off-by: Aditya Kumar Singh <quic_adisi@quicinc.com>
  	 * or FW should support dynamic partner add/remove support
  	 */
  
-+	/* check if we need to do CAC here and allow the link to start.
-+	 */
-+	ret = cfg80211_chandef_dfs_required(ah->hw->wiphy,
-+					    &arvif->chanctx.def,
-+					    NL80211_IFTYPE_AP);
-+	if (ret > 0) {
-+		ret = cfg80211_chandef_dfs_available(ah->hw->wiphy,
-+						     &arvif->chanctx.def);
-+		if (!ret) {
-+			ath12k_dbg(ar->ab, ATH12K_DBG_MAC,
-+				   "mac mlo vdev %d radar required",
-+				   arvif->vdev_id);
-+			radar_vdev_create = true;
-+		} else {
-+			ath12k_dbg(ar->ab, ATH12K_DBG_MAC,
-+				   "mac mlo vdev %d radar available, wait for sync",
-+				   arvif->vdev_id);
-+			radar_vdev_create = false;
-+			ret = 0;
++	/* radar_enabled flag will not be set during initial channel assignment,
++	 * hence need to explicitly check here */
++	if (!radar_enabled) {
++		ret = cfg80211_chandef_dfs_required(ah->hw->wiphy,
++						    &arvif->chanctx.def,
++						    NL80211_IFTYPE_AP);
++		if (ret > 0) {
++			ret = cfg80211_chandef_dfs_available(ah->hw->wiphy,
++							     &arvif->chanctx.def);
++			if (!ret) {
++				ath12k_dbg(ar->ab, ATH12K_DBG_MAC,
++					   "mac mlo vdev %d radar required",
++					   arvif->vdev_id);
++				radar_vdev_create = true;
++			} else {
++				ath12k_dbg(ar->ab, ATH12K_DBG_MAC,
++					   "mac mlo vdev %d radar available, wait for sync",
++					   arvif->vdev_id);
++				ret = 0;
++			}
++		} else if (WARN_ON(ret < 0)) {
++			/* should not reach here */
++			return -EINVAL;
 +		}
-+	} else if (WARN_ON(ret < 0)) {
-+		/* should not reach here */
-+		return -EINVAL;
 +	}
 +
 +	/* As per DFS state machine, vdev should be allowed to get created for
@@ -80,7 +81,7 @@ Signed-off-by: Aditya Kumar Singh <quic_adisi@quicinc.com>
  	/* we need to wait for all the link vdev in the vif to be created
  	 * before we start
  	 */
-@@ -10041,6 +10090,7 @@ static int ath12k_mac_mlo_vdev_start(str
+@@ -10013,6 +10063,7 @@ static int ath12k_mac_mlo_vdev_start(str
  	for_each_set_bit(link_id, &links_map, IEEE80211_MLD_MAX_NUM_LINKS) {
  		arvif_p = ahvif->link[link_id];
  		ar = arvif_p->ar;
@@ -88,7 +89,7 @@ Signed-off-by: Aditya Kumar Singh <quic_adisi@quicinc.com>
  
  		/* TODO cant hold rcu lock due to call of ath12k_mac_bss_info_changed
  		 * option is to take a backup if link info, anyways this function would
-@@ -11262,7 +11312,11 @@ ath12k_mac_op_assign_vif_chanctx(struct
+@@ -11231,7 +11282,11 @@ ath12k_mac_op_assign_vif_chanctx(struct
  			return -EINVAL;
  		}
  	} else if (vif->valid_links){

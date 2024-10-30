@@ -2,7 +2,7 @@
  * sfe_pppoe.c
  *     API for shortcut forwarding engine PPPoE flows
  *
- * Copyright (c) 2021-2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2021-2023 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for any
  * purpose with or without fee is hereby granted, provided that the above
@@ -167,6 +167,7 @@ bool sfe_pppoe_parse_hdr(struct sk_buff *skb, struct sfe_l2_info *l2_info)
 void sfe_pppoe_undo_parse(struct sk_buff *skb, struct sfe_l2_info *l2_info)
 {
 	if (sfe_l2_parse_flag_check(l2_info, SFE_L2_PARSE_FLAGS_PPPOE_INGRESS)) {
+		skb->protocol = htons(ETH_P_PPP_SES);
 		__skb_push(skb, (sizeof(struct pppoe_hdr) + sizeof(struct sfe_ppp_hdr)));
 	}
 }

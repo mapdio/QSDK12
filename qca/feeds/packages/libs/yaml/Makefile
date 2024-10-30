@@ -8,12 +8,12 @@
 include $(TOPDIR)/rules.mk
 
 PKG_NAME:=yaml
-PKG_VERSION:=0.2.2
+PKG_VERSION:=0.2.5
 PKG_RELEASE:=1
 
 PKG_SOURCE:=$(PKG_NAME)-$(PKG_VERSION).tar.gz
 PKG_SOURCE_URL:=https://pyyaml.org/download/libyaml/
-PKG_HASH:=4a9100ab61047fd9bd395bcef3ce5403365cafd55c1e0d0299cde14958e47be9
+PKG_HASH:=c642ae9b75fee120b2d96c712538bd2cf283228d2337df2cf2988e3c02678ef4
 
 PKG_MAINTAINER:=
 PKG_LICENSE:=MIT
@@ -24,6 +24,7 @@ PKG_INSTALL:=1
 PKG_BUILD_PARALLEL:=1
 
 include $(INCLUDE_DIR)/package.mk
+include $(INCLUDE_DIR)/host-build.mk
 
 define Package/libyaml
   SUBMENU:=Languages
@@ -34,6 +35,8 @@ define Package/libyaml
 endef
 
 TARGET_CFLAGS += $(FPIC)
+
+HOST_CONFIGURE_ARGS += --disable-shared
 
 define Build/InstallDev
 	$(INSTALL_DIR) $(1)/usr/include
@@ -50,3 +53,4 @@ define Package/libyaml/install
 endef
 
 $(eval $(call BuildPackage,libyaml))
+$(eval $(call HostBuild))

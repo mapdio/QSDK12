@@ -41,3 +41,6 @@ obj-$(CONFIG_QTI_LICENSE_MANAGER) += license_manager.o
 obj-$(CONFIG_QTI_LICENSE_MANAGER) += qwes.o
 obj-$(CONFIG_IPQ_REG_UPDATE) += ipq_reg_update.o
 obj-$(CONFIG_QTI_HW_KEY) += hw_key.o
+obj-$(CONFIG_QCOM_SOC_NETSTANDBY) += netstandby.o
+CFLAGS_qdss_bridge.o += -Wno-error=format
+obj-$(CONFIG_QCOM_QDSS_BRIDGE)	+= qdss_bridge.o

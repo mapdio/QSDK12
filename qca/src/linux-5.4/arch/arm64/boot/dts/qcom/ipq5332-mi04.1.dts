@@ -9,12 +9,7 @@
 /dts-v1/;
 
 #include "ipq5332.dtsi"
-
-#ifdef __IPQ_MEM_PROFILE_512_MB__
-#include "ipq5332-512MB-memory.dtsi"
-#else
-#include "ipq5332-default-memory.dtsi"
-#endif
+#include "ipq5332-memory.dtsi"
 
 / {
 	#address-cells = <0x2>;
@@ -22,6 +17,145 @@
 	model = "Qualcomm Technologies, Inc. IPQ5332/AP-MI04.1";
 	compatible = "qcom,ipq5332-ap-mi04.1", "qcom,ipq5332";
 	interrupt-parent = <&intc>;
+
+	/*     512M  Layout for IPQ5332 + QCN6432 + QCN6432
+	 * +==========+==============+========================+
+	 * |         |              |                         |
+	 * |  Region | Start Offset |          Size           |
+	 * |         |              |                         |
+	 * +---------+--------------+-------------------------+
+	 * |   Q6    |              |                         |
+	 * |  code/  |  0x4A900000  |          25MB           |
+	 * |  data   |              |                         |
+	 * +---------+--------------+-------------------------+
+	 * | IPQ5332 |              |                         |
+	 * |  data   |  0x4C200000  |          17MB           |
+	 * +---------+--------------+-------------------------+
+	 * | IPQ5332 |              |                         |
+	 * | M3 Dump |  0x4D300000  |           1MB           |
+	 * +---------+--------------+-------------------------+
+	 * | IPQ5332 |              |                         |
+	 * |  QDSS   |  0x4D400000  |           1MB           |
+	 * +---------+--------------+-------------------------+
+	 * | IPQ5332 |              |                         |
+	 * |  CALDB  |  0x4D500000  |           3MB           |
+	 * +---------+--------------+-------------------------+
+	 * |QCN6432_1|              |                         |
+	 * |  data   |  0x4D800000  |          16MB           |
+	 * +---------+--------------+-------------------------+
+	 * |QCN6432_1|              |                         |
+	 * | M3 Dump |  0x4E800000  |           1MB           |
+	 * +---------+--------------+-------------------------+
+	 * |QCN6432_1|              |                         |
+	 * |  QDSS   |  0x4E900000  |           1MB           |
+	 * +---------+--------------+-------------------------+
+	 * |QCN6432_1|              |                         |
+	 * |  CALDB  |  0x4EA00000  |           5MB           |
+	 * +---------+--------------+-------------------------+
+	 * |QCN6432_2|              |                         |
+	 * |  data   |  0x4EF00000  |          16MB           |
+	 * +---------+--------------+-------------------------+
+	 * |QCN6432_2|              |                         |
+	 * | M3 Dump |  0x4FF00000  |           1MB           |
+	 * +---------+--------------+-------------------------+
+	 * |QCN6432_2|              |                         |
+	 * |  QDSS   |  0x50000000  |           1MB           |
+	 * +---------+--------------+-------------------------+
+	 * |QCN6432_2|              |                         |
+	 * |  CALDB  |  0x50100000  |           5MB           |
+	 * +---------+--------------+-------------------------+
+	 * |         |              |                         |
+	 * |   MLO   |  0x50600000  |          12MB           |
+	 * +==================================================+
+	 * |                                                  |
+	 * |                                                  |
+	 * |                                                  |
+	 * |             Rest of memory for Linux             |
+	 * |                                                  |
+	 * |                                                  |
+	 * |                                                  |
+	 * +==================================================+
+	 */
+
+	reserved-memory {
+
+		/delete-node/ wcnss@4a900000;
+
+		q6_mem_regions: q6_mem_regions@4A900000  {
+			no-map;
+			reg = <0x0 0x4a900000 0x0 0x5D00000>;
+		};
+
+		q6_code_data: q6_code_data@4A900000 {
+			no-map;
+			reg = <0x0 0x4a900000 0x0 0x1900000>;
+		};
+
+		q6_ipq5332_data: q6_ipq5332_data@4C200000 {
+			no-map;
+			reg = <0x0 0x4C200000 0x0 0x1100000>;
+		};
+
+		m3_dump: m3_dump@4D300000 {
+			no-map;
+			reg = <0x0 0x4D300000 0x0 0x100000>;
+		};
+
+		q6_etr_region: q6_etr_dump@4D400000 {
+			no-map;
+			reg = <0x0 0x4D400000 0x0 0x100000>;
+		};
+
+		q6_ipq5332_caldb: q6_ipq5332_caldb@4D500000 {
+			no-map;
+			reg = <0x0 0x4D500000 0x0 0x300000>;
+		};
+
+		q6_qcn6432_data_1: q6_qcn6432_data_1@4D800000 {
+			no-map;
+			reg = <0x0 0x4D800000 0x0 0x1000000>;
+		};
+
+		m3_dump_qcn6432_1: m3_dump_qcn6432_1@4E800000 {
+			no-map;
+			reg = <0x0 0x4E800000 0x0 0x100000>;
+                };
+
+		q6_qcn6432_etr_1: q6_qcn6432_etr_1@4E900000 {
+			no-map;
+			reg = <0x0 0x4E900000 0x0 0x100000>;
+		};
+
+		q6_qcn6432_caldb_1: q6_qcn6432_caldb_1@4EA00000 {
+			no-map;
+			reg = <0x0 0x4EA00000 0x0 0x500000>;
+		};
+
+		q6_qcn6432_data_2: q6_qcn6432_data_2@4EF00000 {
+			no-map;
+			reg = <0x0 0x4EF00000 0x0 0x1000000>;
+		};
+
+		m3_dump_qcn6432_2: m3_dump_qcn6432_2@4FF00000 {
+			no-map;
+			reg = <0x0 0x4FF00000 0x0 0x100000>;
+                };
+
+		q6_qcn6432_etr_2: q6_qcn6432_etr_2@50000000 {
+			no-map;
+			reg = <0x0 0x50000000 0x0 0x100000>;
+		};
+
+		q6_qcn6432_caldb_2: q6_qcn6432_caldb_2@50100000 {
+			no-map;
+			reg = <0x0 0x50100000 0x0 0x500000>;
+		};
+
+		mlo_global_mem0: mlo_global_mem_0@50600000 {
+			no-map;
+			reg = <0x0 0x50600000 0x0 0xC00000>;
+		};
+	};
 
 	aliases {
 		serial0 = &blsp1_uart0;
@@ -141,7 +275,7 @@
 			phy-mode = "sgmii";
 		};
 
-		dp2 {
+		gmac2:dp2 {
 			device_type = "network";
 			compatible = "qcom,nss-dp";
 			qcom,id = <1>;
@@ -149,6 +283,9 @@
 			qcom,mactype = <1>;
 			local-mac-address = [000000000000];
 			phy-mode = "sgmii";
+			qcom,ppe-offload-disabled = <1>;
+			qcom,mht-dev = <1>;
+			qcom,is_switch_connected = <1>;
 		};
 
 		serial@78af000 {
@@ -212,6 +349,49 @@
 			phy4: ethernet-phy@4 {
 				reg = <12>;
 			};
+
+			switch0@10 {
+				compatible = "qca,qca8386";
+				#address-cells = <1>;
+				#size-cells = <0>;
+				reg = <0x10>;
+
+				ports {
+					#address-cells = <1>;
+					#size-cells = <0>;
+
+					port@0 {
+						reg = <0>;
+						label = "cpu";
+						ethernet = <&gmac2>;
+						phy-mode = "sgmii";
+					};
+
+					port@1 {
+						reg = <1>;
+						label = "lan1";
+						phy-handle = <&phy0>;
+					};
+
+					port@2 {
+						reg = <2>;
+						label = "lan2";
+						phy-handle = <&phy1>;
+					};
+
+					port@3 {
+						reg = <3>;
+						label = "lan3";
+						phy-handle = <&phy2>;
+					};
+
+					port@4 {
+						reg = <4>;
+						label = "lan4";
+						phy-handle = <&phy3>;
+					};
+				};
+			};
 		};
 
 		ess-instance {
@@ -247,6 +427,7 @@
 				switch_lan_bmp = <0x1e>; /* lan port bitmap */
 				switch_wan_bmp = <0x0>;  /* wan port bitmap */
 				link-polling-required = <0>;
+				fdb_sync = "interrupt";
 				link-intr-gpio = <&tlmm 23 0>;
 				qcom,port_phyinfo {
 					port@0 {
@@ -303,12 +484,20 @@
 			};
 		};
 
+		nss-macsec0 {
+			compatible = "qcom,nss-macsec";
+			phy_addr = <12>;
+			mdiobus = <&mdio>;
+		};
+
 		/* EDMA host driver configuration for the board */
 		edma@3ab00000 {
 			qcom,txdesc-ring-start = <4>;		/* Tx desc ring start ID */
 			qcom,txdesc-rings = <12>;		/* Total number of Tx desc rings to be provisioned */
+			qcom,mht-txdesc-rings = <8>;            /* Extra Tx desc rings to be provisioned for MHT SW ports. */
 			qcom,txcmpl-ring-start = <4>;		/* Tx complete ring start ID */
 			qcom,txcmpl-rings = <12>;		/* Total number of Tx complete rings to be provisioned */
+			qcom,mht-txcmpl-rings = <8>;            /* Extra Tx complete rings to be provisioned for mht sw ports. */
 			qcom,rxfill-ring-start = <4>;		/* Rx fill ring start ID */
 			qcom,rxfill-rings = <4>;		/* Total number of Rx fill rings to be provisioned */
 			qcom,rxdesc-ring-start = <12>;		/* Rx desc ring start ID */
@@ -321,9 +510,11 @@
 			qcom,ppeds-map = <1 1 1 1 32 8>,	/* PPEDS Node #1 ring and queue map */
 					<2 2 2 2 40 8>;		/* PPEDS Node #2 ring and queue map */
 			qcom,txdesc-map = <8 9 10 11>,		/* Port0 per-core Tx ring map */
-					  <12 13 14 15>,	/* Port1 per-core Tx ring map */
-					  <4 5 6 7>;		/* used only for packets from  vp*/
-			qcom,txdesc-fc-grp-map = <1 2>;		/* Per GMAC flow control group map */
+					  <12 13 14 15>,	/* MHT-Port1 per-core Tx ring map */
+					  <4 5 6 7>,            /* MHT-Port2 per-core Tx ring map/packets from  vp*/
+					  <16 17 18 19>,        /* MHT-Port3 per-core Tx ring map */
+					  <20 21 22 23>;        /* MHT-Port4 per-core Tx ring map */
+			qcom,txdesc-fc-grp-map = <1 2 3 4 5>;   /* Per GMAC flow control group map */
 			qcom,rxfill-map = <4 5 6 7>;		/* Per-core Rx fill ring map */
 			qcom,rxdesc-map = <12 13 14 15>;	/* Per-core Rx desc ring map */
 			qcom,rx-queue-start = <0>;		/* Rx queue start */
@@ -357,7 +548,15 @@
 				<0 152 4>,			/* PPEDS Node #1(RxFill Desc ring id #1) Rx Fill IRQ info */
 				<0 161 4>,			/* PPEDS Node #2(TxComp ring id #2) TxComplete IRQ info */
 				<0 129 4>,			/* PPEDS Node #2(Rx Desc ring id #2) Rx Desc IRQ info */
-				<0 153 4>;			/* PPEDS Node #2(RxFill Desc ring id #2) Rx Fill IRQ info */
+				<0 153 4>,			/* PPEDS Node #2(RxFill Desc ring id #2) Rx Fill IRQ info */
+				   <0 175 4>,			/* MHT port Tx complete ring id #16 IRQ info */
+				   <0 176 4>,			/* MHT port Tx complete ring id #17 IRQ info */
+				   <0 177 4>,			/* MHT port Tx complete ring id #18 IRQ info */
+				   <0 178 4>,			/* MHT port Tx complete ring id #19 IRQ info */
+				   <0 179 4>,			/* MHT port Tx complete ring id #20 IRQ info */
+				   <0 180 4>,			/* MHT port Tx complete ring id #21 IRQ info */
+				   <0 181 4>,			/* MHT port Tx complete ring id #22 IRQ info */
+				   <0 182 4>;			/* MHT port Tx complete ring id #23 IRQ info */
 		};
 		dma@7984000 {
 			status = "ok";
@@ -396,8 +595,10 @@
 		};
 
 		q6v5_wcss: remoteproc@d100000 {
-			boot-args = <0x1 0x4 0x3 0x1 0x2f 0x2>,
-					<0x1 0x4 0x4 0x2 0x2c 0x2>;
+			boot-args = <0x1 0x5 0x3 0x1 0x2f 0x2 0x0>,
+					<0x1 0x5 0x4 0x2 0x2c 0x2 0x0>;
+			memory-region = <&q6_mem_regions>,
+					<&mlo_global_mem0>;
 
 			/delete-node/ remoteproc_pd1;
 			/delete-node/ remoteproc_pd2;
@@ -409,11 +610,8 @@
 
 				q6_wcss_pd1: remoteproc_pd1 {
 					compatible = "qcom,ipq5332-wcss-ahb-mpd";
-					reg = <0x004ab000 0x20>;
-					reg-names = "rmb";
 					firmware = "IPQ5332/q6_fw1.mdt";
 					iu_firmware = "IPQ5332/iu_fw.mdt";
-					qcom,halt-regs = <&tcsr_q6_block 0xa000 0x18 0x0>;
 					interrupts-extended = <&wcss_smp2p_in 8 0>,
 							<&wcss_smp2p_in 9 0>,
 							<&wcss_smp2p_in 12 0>,
@@ -423,49 +621,24 @@
 							"spawn-ack",
 							"stop-ack";
 
-					resets = <&gcc GCC_WCSSAON_ARES>,
-						<&gcc GCC_WCSS_BCR>,
-						<&gcc GCC_CE_BCR>;
-					reset-names = "wcss_aon_reset",
-						"wcss_reset",
-						"ce_reset";
-
-					clocks = <&gcc GCC_WCSS_DBG_IFC_APB_BDG_CLK>,
-						<&gcc GCC_WCSS_DBG_IFC_NTS_CLK>,
-						<&gcc GCC_WCSS_AXIS_CLK>,
-						<&gcc GCC_WCSS_DBG_IFC_ATB_CLK>,
-						<&gcc GCC_WCSS_DBG_IFC_ATB_BDG_CLK>,
-						<&gcc GCC_WCSS_DBG_IFC_APB_CLK>,
-						<&gcc GCC_WCSS_AXIM_CLK>,
-						<&gcc GCC_WCSS_DBG_IFC_NTS_BDG_CLK>,
-						<&gcc GCC_CE_AXI_CLK>,
-						<&gcc GCC_CE_PCNOC_AHB_CLK>,
-						<&gcc GCC_CE_AHB_CLK>;
-
-					clock-names = "dbg-apb-bdg",
-							"dbg-nts",
-							"wcss_axi_s_clk",
-							"dbg-atb",
-							"dbg-atb-bdg",
-							"dbg-apb",
-							"wcss_axi_m_clk",
-							"dbg-nts-bdg",
-							"ce-axi",
-							"ce-pcnoc-ahb",
-							"ce-ahb";
 					qcom,smem-states = <&wcss_smp2p_out 8>,
 							<&wcss_smp2p_out 9>,
 							<&wcss_smp2p_out 10>;
 					qcom,smem-state-names = "shutdown",
 								"stop",
 								"spawn";
+					memory-region = <&q6_ipq5332_data>,
+							<&m3_dump>,
+							<&q6_etr_region>,
+							<&q6_ipq5332_caldb>,
+							<&mlo_global_mem0>;
 					qcom,offloaded_to_q6;
 				};
 
 				q6_wcss_pd2: remoteproc_pd2 {
 					compatible = "qcom,ipq5332-wcss-pcie-mpd";
 					firmware = "IPQ5332/q6_fw2.mdt";
-					qcom,halt-regs = <&tcsr_q6_block 0xa000 0x18 0x0>;
+					iu_firmware = "qcn6432/iu_fw.mdt";
 					interrupts-extended = <&wcss_smp2p_in 16 0>,
 							<&wcss_smp2p_in 17 0>,
 							<&wcss_smp2p_in 20 0>,
@@ -481,13 +654,17 @@
 					qcom,smem-state-names = "shutdown",
 								"stop",
 								"spawn";
+					memory-region = <&q6_qcn6432_data_1>,
+							<&m3_dump_qcn6432_1>,
+							<&q6_qcn6432_etr_1>,
+							<&q6_qcn6432_caldb_1>,
+							<&mlo_global_mem0>;
 					status = "ok";
 				};
 
 				q6_wcss_pd3: remoteproc_pd3 {
 					compatible = "qcom,ipq5332-wcss-pcie-mpd";
 					firmware = "IPQ5332/q6_fw3.mdt";
-					qcom,halt-regs = <&tcsr_q6_block 0xa000 0x18 0x0>;
 					interrupts-extended = <&wcss_smp2p_in 24 0>,
 							<&wcss_smp2p_in 25 0>,
 							<&wcss_smp2p_in 28 0>,
@@ -503,9 +680,57 @@
 					qcom,smem-state-names = "shutdown",
 								"stop",
 								"spawn";
+					memory-region = <&q6_qcn6432_data_2>,
+							<&m3_dump_qcn6432_2>,
+							<&q6_qcn6432_etr_2>,
+							<&q6_qcn6432_caldb_2>,
+							<&mlo_global_mem0>;
 					status = "ok";
 				};
 			};
 		};
 	};
+};
+
+&wifi0 {
+	qcom,multipd_arch;
+	qcom,rproc = <&q6_wcss_pd1>;
+	qcom,userpd-subsys-name = "q6v5_wcss_userpd1";
+	qcom,tgt-mem-mode = <1>;
+	qcom,bdf-addr = <0x4C200000 0x4C200000 0x4C200000 0x0 0x0 0x0>;
+	qcom,caldb-addr = <0x4D500000 0x4D500000 0x4D500000 0x0 0x0 0x0>;
+	qcom,caldb-size = <0x300000>;
+	qcom,board_id = <0x41>;
+	mem-region = <&q6_ipq5332_data>;
+	status = "ok";
+};
+
+&wifi4 {
+	qcom,multipd_arch;
+	qcom,rproc = <&q6_wcss_pd2>;
+	qcom,userpd-subsys-name = "q6v5_wcss_userpd2";
+	qcom,tgt-mem-mode = <1>;
+	qcom,bdf-addr = <0x4D800000 0x4D800000 0x4D800000 0x0 0x0 0x0>;
+	qcom,caldb-addr = <0x4EA00000 0x4EA00000 0x4EA00000 0x0 0x0 0x0>;
+	qcom,caldb-size = <0x500000>;
+	qcom,board_id = <0x052>;
+	mem-region = <&q6_qcn6432_data_1>;
+	qcom,pci_slot_id = <1>;
+	status = "ok";
+	interrupts = <0 410 1>;
+};
+
+&wifi5 {
+	qcom,multipd_arch;
+	qcom,rproc = <&q6_wcss_pd3>;
+	qcom,userpd-subsys-name = "q6v5_wcss_userpd3";
+	qcom,tgt-mem-mode = <1>;
+	qcom,bdf-addr = <0x4EF00000 0x4EF00000 0x4EF00000 0x0 0x0 0x0>;
+	qcom,caldb-addr = <0x50100000 0x50100000 0x50100000 0x0 0x0 0x0>;
+	qcom,caldb-size = <0x500000>;
+	qcom,board_id = <0x091>;
+	mem-region = <&q6_qcn6432_data_2>;
+	qcom,pci_slot_id = <2>;
+	status = "ok";
+	interrupts = <0 48 1>;
 };

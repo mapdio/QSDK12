@@ -1,6 +1,6 @@
 /*
  * Copyright (c) 2014, 2016-2017, 2021, The Linux Foundation. All rights reserved.
- * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2023 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
@@ -40,6 +40,13 @@ extern "C" {
 
 #define FAL_DEF_VLAN_STPID 0x88a8
 #define FAL_DEF_VLAN_CTPID 0x8100
+
+/*
+* Vlan frame type match in vlan translation
+*/
+#define FAL_PORT_VLAN_XLT_MATCH_UNTAGGED    0x1
+#define FAL_PORT_VLAN_XLT_MATCH_PRIO_TAG    0x2
+#define FAL_PORT_VLAN_XLT_MATCH_TAGGED      0x4
 
 /**
   @brief This enum defines 802.1q mode type.

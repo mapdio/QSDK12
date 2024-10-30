@@ -182,7 +182,7 @@ Signed-off-by: Aditya Kumar Singh <quic_adisi@quicinc.com>
  	struct ieee80211_local *local = hw_to_local(hw);
 +	struct channel_awgn_info *awgn_info;
 +
-+	awgn_info = kzalloc(sizeof(*awgn_info), GFP_ATOMIC);
++	awgn_info = kzalloc(sizeof(*awgn_info), GFP_KERNEL);
 +	if (!awgn_info)
 +		return;
 +

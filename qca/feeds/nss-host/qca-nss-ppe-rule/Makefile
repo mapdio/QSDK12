@@ -38,6 +38,11 @@ define KernelPackage/qca-nss-ppe-rule/Description
    Kernel module for PPE rule driver
 endef
 
+define KernelPackage/qca-nss-ppe-rule/install
+	$(INSTALL_DIR) $(1)/usr/bin
+	$(INSTALL_BIN) ./files/acl_dump.sh $(1)/usr/bin/
+endef
+
 define Build/InstallDev/qca-nss-ppe-rule
 	$(INSTALL_DIR) $(1)/usr/include/qca-nss-ppe
 	$(CP) $(PKG_BUILD_DIR)/drv/exports/* $(1)/usr/include/qca-nss-ppe/
@@ -52,13 +57,42 @@ EXTRA_CFLAGS+= \
 	-I$(STAGING_DIR)/usr/include/qca-ssdk/fal \
 	-I$(STAGING_DIR)/usr/include/qca-ssdk/init \
 
+ifeq ($(CONFIG_LOWMEM_FLASH),y)
+MAKE_OPTS+=PPE_LOWMEM_PROFILE_16M=y
+EXTRA_CFLAGS+= -DPPE_LOWMEM_PROFILE_16M
+endif
+
+ifeq ($(CONFIG_KERNEL_IPQ_MEM_PROFILE),256)
+MAKE_OPTS+=PPE_LOWMEM_PROFILE_256M=y
+EXTRA_CFLAGS+= -DPPE_MEM_PROFILE_LOW_256M
+endif
+
 MAKE_OPTS+=ppe-rule=y
 MAKE_OPTS+=PPE_RFS_ENABLED=y
 
+ifneq ($(CONFIG_LOWMEM_FLASH),y)
+MAKE_OPTS+=PPE_ACL_ENABLED=y
+MAKE_OPTS+=PPE_POLICER_ENABLED=y
+endif
+
+ifneq ($(CONFIG_KERNEL_IPQ_MEM_PROFILE),256)
+ifneq ($(CONFIG_LOWMEM_FLASH),y)
+MAKE_OPTS+=PPE_PRIORITY_ENABLED=y
+endif
+endif
+
+ifneq ($(CONFIG_TARGET_ipq53xx),)
+MAKE_OPTS+=PPE_RULE_IPQ53XX=y
+endif
+
+ifneq ($(CONFIG_KERNEL_IPQ_MEM_PROFILE),256)
+ifneq ($(CONFIG_LOWMEM_FLASH),y)
+MAKE_OPTS+=PPE_MIRROR_ENABLED=y
+endif
+endif
+
 define Build/Compile
-	$(MAKE) -C "$(LINUX_DIR)" $(strip $(MAKE_OPTS)) \
-		CROSS_COMPILE="$(TARGET_CROSS)" \
-		ARCH="$(LINUX_KARCH)" \
+	$(KERNEL_MAKE) $(strip $(MAKE_OPTS)) \
 		M="$(PKG_BUILD_DIR)" \
 		EXTRA_CFLAGS="$(EXTRA_CFLAGS)" \
 		SoC="$(subtarget)" \

@@ -165,7 +165,8 @@ static bool __cfg80211_unlink_bss(struct cfg80211_registered_device *rdev,
 
 	list_del_init(&bss->list);
 	list_del_init(&bss->pub.nontrans_list);
-	rb_erase(&bss->rbn, &rdev->bss_tree);
+	if (bss->in_rbtree)
+		rb_erase(&bss->rbn, &rdev->bss_tree);
 	rdev->bss_entries--;
 	WARN_ONCE((rdev->bss_entries == 0) ^ list_empty(&rdev->bss_list),
 		  "rdev bss entries[%d]/list[empty:%d] corruption\n",
@@ -181,6 +182,10 @@ bool cfg80211_is_element_inherited(const struct element *elem,
 	const u8 *list;
 
 	if (elem->id == WLAN_EID_MULTIPLE_BSSID)
+		return false;
+
+	if (elem->id == WLAN_EID_EXTENSION && elem->datalen > 1 &&
+	    elem->data[0] == 107)
 		return false;
 
 	if (!non_inherit_elem || non_inherit_elem->datalen < 2)
@@ -392,7 +397,8 @@ static size_t cfg80211_gen_new_ie(const u8 *ie, size_t ielen,
 	tmp_old = cfg80211_find_ie(WLAN_EID_SSID, ie, ielen);
 	tmp_old = (tmp_old) ? tmp_old + tmp_old[1] + 2 : ie;
 
-	while (tmp_old + tmp_old[1] + 2 - ie <= ielen) {
+	while (tmp_new + 2 - sub_copy <= subie_len &&
+	       tmp_new + tmp_new[1] + 2 - sub_copy <= subie_len) {
 		if (tmp_old[0] == 0) {
 			tmp_old++;
 			continue;
@@ -428,7 +434,8 @@ static size_t cfg80211_gen_new_ie(const u8 *ie, size_t ielen,
 			 * determine if they are the same ie.
 			 */
 			if (tmp_old[0] == WLAN_EID_VENDOR_SPECIFIC) {
-				if (!memcmp(tmp_old + 2, tmp + 2, 5)) {
+				if (tmp_old[1] >= 5 && tmp[1] >= 5 &&
+				    !memcmp(tmp_old + 2, tmp + 2, 5)) {
 					/* same vendor ie, copy from
 					 * subelement
 					 */
@@ -856,6 +863,14 @@ void cfg80211_bss_expire(struct cfg80211_registered_device *rdev)
 	__cfg80211_bss_expire(rdev, jiffies - IEEE80211_SCAN_RESULT_EXPIRE);
 }
 
+void cfg80211_bss_expire_entry(struct wiphy *wiphy, unsigned long expire_time)
+{
+	struct cfg80211_registered_device *rdev = wiphy_to_rdev(wiphy);
+
+	__cfg80211_bss_expire(rdev, expire_time);
+}
+EXPORT_SYMBOL(cfg80211_bss_expire_entry);
+
 const struct element *
 cfg80211_find_elem_match(u8 eid, const u8 *ies, unsigned int len,
 			 const u8 *match, unsigned int match_len,
@@ -1118,6 +1133,7 @@ static void rb_insert_bss(struct cfg80211_registered_device *rdev,
 
 		if (WARN_ON(!cmp)) {
 			/* will sort of leak this BSS */
+			bss->in_rbtree = false;
 			return;
 		}
 
@@ -1127,6 +1143,7 @@ static void rb_insert_bss(struct cfg80211_registered_device *rdev,
 			p = &(*p)->rb_right;
 	}
 
+	bss->in_rbtree = true;
 	rb_link_node(&bss->rbn, parent, p);
 	rb_insert_color(&bss->rbn, &rdev->bss_tree);
 }
@@ -1402,6 +1419,8 @@ cfg80211_bss_update(struct cfg80211_registered_device *rdev,
 
 		if (rdev->bss_entries >= bss_entries_limit &&
 		    !cfg80211_bss_expire_oldest(rdev)) {
+			if (!list_empty(&new->hidden_list))
+				list_del(&new->hidden_list);
 			bss_ref_put(rdev, new);
 			goto drop;
 		}
@@ -1729,6 +1748,8 @@ static void cfg80211_parse_mbssid_data(struct wiphy *wiphy,
 
 	for_each_element_id(elem, WLAN_EID_MULTIPLE_BSSID, ie, ielen) {
 		if (elem->datalen < 4)
+			continue;
+		if (elem->data[0] < 1 || (int)elem->data[0] > 8)
 			continue;
 		for_each_element(sub, elem->data + 1, elem->datalen - 1) {
 			u8 profile_len;
@@ -2227,7 +2248,8 @@ void cfg80211_update_assoc_bss_entry(struct wireless_dev *wdev,
 			rdev->bss_generation++;
 	}
 
-	rb_erase(&cbss->rbn, &rdev->bss_tree);
+	if (cbss->in_rbtree)
+		rb_erase(&cbss->rbn, &rdev->bss_tree);
 	rb_insert_bss(rdev, cbss);
 	rdev->bss_generation++;
 
@@ -2237,7 +2259,8 @@ void cfg80211_update_assoc_bss_entry(struct wireless_dev *wdev,
 		bss = container_of(nontrans_bss,
 				   struct cfg80211_internal_bss, pub);
 		bss->pub.channel = chan;
-		rb_erase(&bss->rbn, &rdev->bss_tree);
+		if (bss->in_rbtree)
+			rb_erase(&bss->rbn, &rdev->bss_tree);
 		rb_insert_bss(rdev, bss);
 		rdev->bss_generation++;
 	}

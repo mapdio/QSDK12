@@ -837,7 +837,7 @@ ipq9574_phy_power_on()
 	local board=$(ipq806x_board_name)
 	case "$board" in
 		ap-al01-c1 | ap-al02-c1 | ap-al02-c2 | db-al01-c1 | db-al01-c2 | db-al01-c3 |\
-			db-al02-c1 | db-al02-c2)
+			db-al02-c1 | db-al02-c2 | ap-al02-c20)
 			ssdk_sh port poweron set 2
 			ssdk_sh port poweron set 3
 			ssdk_sh port poweron set 4
@@ -858,7 +858,7 @@ ipq9574_phy_power_off()
 	local board=$(ipq806x_board_name)
 	case "$board" in
 		ap-al01-c1 | ap-al02-c1 | ap-al02-c2 | db-al01-c1 | db-al01-c2 | db-al01-c3 |\
-			db-al02-c1 | db-al02-c2)
+			db-al02-c1 | db-al02-c2 | ap-al02-c20)
 			ssdk_sh port poweroff set 2
 			ssdk_sh port poweroff set 3
 			ssdk_sh port poweroff set 4
@@ -887,7 +887,12 @@ ipq9574_ac_power()
 	ipq9574_phy_power_on
 # PCIe Power-UP Sequence
 	sleep 1
-	echo 1 > /sys/bus/pci/rcrescan
+	if [ -f /sys/bus/pci/rcrescan ]
+	then
+		echo 1 > /sys/bus/pci/rcrescan
+	else
+		echo 1 > /sys/bus/pci/rescan
+	fi
 	sleep 2
 
 # USB Power-UP Sequence
@@ -950,10 +955,14 @@ ipq9574_battery_power()
 	fi
 
 # PCIe Power-Down Sequence
-
-	[ -f /sys/bus/pci/rcremove ] && {
+	if [ -f /sys/bus/pci/rcremove ]
+	then
 		echo 1 > /sys/bus/pci/rcremove
-	}
+	else
+		for i in `ls /sys/bus/pci/devices/`; do
+			echo 1 > /sys/bus/pci/devices/${i}/remove
+		done
+	fi
 	sleep 1
 
 # Find scsi devices and remove it
@@ -1017,14 +1026,15 @@ ipq5332_phy_power_on()
 {
 	local board=$(ipq806x_board_name)
 	case "$board" in
-		ap-mi01.1 | ap-mi01.7)
+		ap-mi01.6 | ap-mi04.3)
 			echo 1 > /sys/ssdk/dev_id
 			ssdk_sh port poweron set 1
 			ssdk_sh port poweron set 2
 			ssdk_sh port poweron set 3
 			echo 0 > /sys/ssdk/dev_id
 			;;
-		ap-mi01.2 | ap-mi01.4 | ap-mi01.6)
+		ap-mi01.2 | ap-mi01.4 | ap-mi01.3 | ap-mi04.1 |\
+		ap-mi01.9 | ap-mi01.2-qcn9160-c1 | ap-mi04.1-c2)
 			echo 1 > /sys/ssdk/dev_id
 			ssdk_sh port poweron set 1
 			ssdk_sh port poweron set 2
@@ -1049,14 +1059,15 @@ ipq5332_phy_power_off()
 {
 	local board=$(ipq806x_board_name)
 	case "$board" in
-		ap-mi01.1 | ap-mi01.7)
+		ap-mi01.6 | ap-mi04.3)
 			echo 1 > /sys/ssdk/dev_id
 			ssdk_sh port poweroff set 1
 			ssdk_sh port poweroff set 2
 			ssdk_sh port poweroff set 3
 			echo 0 > /sys/ssdk/dev_id
 			;;
-		ap-mi01.2 | ap-mi01.4 | ap-mi01.6)
+		ap-mi01.2 | ap-mi01.4 | ap-mi01.3 | ap-mi04.1 |\
+		ap-mi01.9 | ap-mi01.2-qcn9160-c1 | ap-mi04.1-c2)
 			echo 1 > /sys/ssdk/dev_id
 			ssdk_sh port poweroff set 1
 			ssdk_sh port poweroff set 2
@@ -1089,10 +1100,13 @@ ipq5332_ac_power()
 # Power on PHYs of LAN ports
 	ipq5332_phy_power_on
 # PCIe Power-UP Sequence
-	[ -f /sys/bus/pci/rcrescan ] && {
-		sleep 1
+	sleep 1
+	if [ -f /sys/bus/pci/rcrescan ]
+	then
 		echo 1 > /sys/bus/pci/rcrescan
-	}
+	else
+		echo 1 > /sys/bus/pci/rescan
+	fi
 	sleep 2
 
 # USB Power-UP Sequence
@@ -1152,10 +1166,14 @@ ipq5332_battery_power()
 	fi
 
 # PCIe Power-Down Sequence
-
-	[ -f /sys/bus/pci/rcremove ] && {
+	if [ -f /sys/bus/pci/rcremove ]
+	then
 		echo 1 > /sys/bus/pci/rcremove
-	}
+	else
+		for i in `ls /sys/bus/pci/devices/`; do
+			echo 1 > /sys/bus/pci/devices/${i}/remove
+		done
+	fi
 	sleep 1
 
 # Find scsi devices and remove it

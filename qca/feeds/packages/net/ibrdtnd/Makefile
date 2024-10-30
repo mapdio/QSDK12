@@ -9,11 +9,12 @@ include $(TOPDIR)/rules.mk
 
 PKG_NAME:=ibrdtnd
 PKG_VERSION:=1.0.1
-PKG_RELEASE:=3
+PKG_RELEASE:=7
 
 PKG_SOURCE:=$(PKG_NAME)-$(PKG_VERSION).tar.gz
 PKG_SOURCE_URL:=http://www.ibr.cs.tu-bs.de/projects/ibr-dtn/releases
 PKG_HASH:=9bd79636154093ab6bf4fd10d6c62d67c6db45141460847b19def327c93771ed
+
 PKG_MAINTAINER:=Johannes Morgenroth <jm@m-network.de>
 PKG_LICENSE:=Apache-2.0
 
@@ -45,7 +46,7 @@ CONFIGURE_ARGS += \
 	--without-vmime \
 	--disable-libdaemon
 
-TARGET_CXXFLAGS += -std=gnu++03
+TARGET_CXXFLAGS += -std=c++11
 
 define Package/ibrdtnd/install
 	$(INSTALL_DIR) $(1)/usr/sbin/

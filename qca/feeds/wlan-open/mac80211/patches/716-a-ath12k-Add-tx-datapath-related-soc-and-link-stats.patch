@@ -1,4 +1,4 @@
-From 9e1755c16893db73dbfcfa30c3636ea8d76b701d Mon Sep 17 00:00:00 2001
+From 86844ac47dc1d6a036afb75d4ea01db9ac235296 Mon Sep 17 00:00:00 2001
 From: Balamurugan Mahalingam <quic_bmahalin@quicinc.com>
 Date: Mon, 27 Feb 2023 02:02:52 -0800
 Subject: [PATCH 1/2] ath12k: Add tx datapath related soc and link stats
@@ -7,21 +7,19 @@ The soc and link related transmit datapath stats helps
 understand the different metrics and helps in debug
 
 Signed-off-by: Balamurugan Mahalingam <quic_bmahalin@quicinc.com>
-Signed-off-by: Sidhanta Sahu <quic_sidhanta@quicinc.com>
 ---
- drivers/net/wireless/ath/ath12k/core.h     |  12 ++
- drivers/net/wireless/ath/ath12k/debugfs.c  | 217 ++++++++++++++++++++-
+ drivers/net/wireless/ath/ath12k/core.h     |   9 ++
+ drivers/net/wireless/ath/ath12k/debugfs.c  | 179 +++++++++++++++++++++
  drivers/net/wireless/ath/ath12k/dp.h       |  16 +-
- drivers/net/wireless/ath/ath12k/dp_tx.c    |  53 +++--
- drivers/net/wireless/ath/ath12k/hal_desc.h |   5 +
- drivers/net/wireless/ath/ath12k/mac.c      |   2 +-
- 6 files changed, 285 insertions(+), 20 deletions(-)
+ drivers/net/wireless/ath/ath12k/dp_tx.c    |  40 +++--
+ drivers/net/wireless/ath/ath12k/hal_desc.h |   4 +
+ 5 files changed, 234 insertions(+), 14 deletions(-)
 
 diff --git a/drivers/net/wireless/ath/ath12k/core.h b/drivers/net/wireless/ath/ath12k/core.h
-index 1d3a4f0..e21d360 100644
+index 179f3c3..ea54eee 100644
 --- a/drivers/net/wireless/ath/ath12k/core.h
 +++ b/drivers/net/wireless/ath/ath12k/core.h
-@@ -351,6 +351,7 @@ struct ath12k_link_vif {
+@@ -350,6 +350,7 @@ struct ath12k_link_vif {
  	struct ath12k_reg_tpc_power_info reg_tpc_info;
  	u8 vdev_stats_id;
  	struct ath12k_fw_vdev_ol_stats vdev_stats;
@@ -29,17 +27,7 @@ index 1d3a4f0..e21d360 100644
  	u8 nontransmitting_vif_count;
  	bool bcca_zero_sent;
  	bool do_not_send_tmpl;
-@@ -405,6 +406,9 @@ struct ath12k_vif {
- 	u8 num_vdev_started;
- 	struct ath12k_vif_cache cache[IEEE80211_MLD_MAX_NUM_LINKS];
- 	u8 last_scan_link;
-+#ifdef CPTCFG_ATH12K_DEBUGFS
-+	struct dentry *debugfs_linkstats;
-+#endif /* CPTCFG_ATH12K_DEBUGFS */
- };
- 
- struct ath12k_vif_iter {
-@@ -1046,6 +1050,14 @@ struct ath12k_soc_dp_stats {
+@@ -1009,6 +1010,14 @@ struct ath12k_soc_dp_stats {
  	u32 mon_drop_desc;
  	u32 hal_reo_cmd_drain;
  	u32 reo_cmd_cache_error;
@@ -55,7 +43,7 @@ index 1d3a4f0..e21d360 100644
  	struct ath12k_dp_ring_bp_stats bp_stats;
  };
 diff --git a/drivers/net/wireless/ath/ath12k/debugfs.c b/drivers/net/wireless/ath/ath12k/debugfs.c
-index cabb64d..a7b2e8c 100644
+index 877baee..d61bc1f 100644
 --- a/drivers/net/wireless/ath/ath12k/debugfs.c
 +++ b/drivers/net/wireless/ath/ath12k/debugfs.c
 @@ -1489,6 +1489,59 @@ static ssize_t ath12k_debugfs_dump_soc_dp_stats(struct file *file,
@@ -151,7 +139,7 @@ index cabb64d..a7b2e8c 100644
  	.open = simple_open,
  	.owner = THIS_MODULE,
  	.llseek = default_llseek,
-@@ -4058,6 +4135,105 @@ static const struct file_operations ath12k_fops_twt_resume_dialog = {
+@@ -3500,6 +3577,105 @@ static const struct file_operations ath12k_fops_twt_resume_dialog = {
  	.open = simple_open
  };
  
@@ -241,7 +229,7 @@ index cabb64d..a7b2e8c 100644
 +	const char *buf = file->private_data;
 +	size_t len = strlen(buf);
 +	int ret;
-+
++	
 +	ret = simple_read_from_buffer(user_buf, count, ppos, buf, len);
 +	return ret;
 +}
@@ -257,72 +245,18 @@ index cabb64d..a7b2e8c 100644
  int ath12k_debugfs_add_interface(struct ath12k_link_vif *arvif)
  {
  	struct ath12k_vif *ahvif = arvif->ahvif;
-@@ -4122,6 +4298,29 @@ int ath12k_debugfs_add_interface(struct ath12k_link_vif *arvif)
- 		}
- 	}
+@@ -3545,6 +3721,9 @@ int ath12k_debugfs_add_interface(struct ath12k_link_vif *arvif)
+ 	debugfs_create_file("resume_dialog", 0200, arvif->debugfs_twt,
+ 			    arvif, &ath12k_fops_twt_resume_dialog);
  
-+	if (ahvif->debugfs_linkstats)
-+		goto exit;
-+
-+	ahvif->debugfs_linkstats = debugfs_create_file("link_stats",
-+						       0200,
-+						       vif->debugfs_dir,
-+						       ahvif,
-+						       &ath12k_fops_link_stats);
-+	if (!ahvif->debugfs_linkstats ||
-+	    IS_ERR(ahvif->debugfs_linkstats)) {
-+		ath12k_warn(arvif->ar->ab,
-+			    "failed to create link_stats file");
-+		debugfs_remove_recursive(arvif->debugfs_twt);
-+		arvif->debugfs_twt = NULL;
-+
-+		if (hw->wiphy->num_hw) {
-+			debugfs_remove(arvif->debugfs_rtsthreshold);
-+			arvif->debugfs_rtsthreshold = NULL;
-+		}
-+
-+		ahvif->debugfs_linkstats = NULL;
-+	}
++	debugfs_create_file("link_stats", 0200, vif->debugfs_dir, ahvif,
++			    &ath12k_fops_link_stats);
 +
  exit:
  	return ret;
  }
-@@ -4132,21 +4331,27 @@ void ath12k_debugfs_remove_interface(struct ath12k_link_vif *arvif)
- 	struct ieee80211_vif *vif = ahvif->vif;
- 	u8 link_id = arvif->link_id;
- 
--	if (!arvif->debugfs_twt)
--		return;
--
--	if (!arvif->debugfs_rtsthreshold)
--		return;
--
- 	if (!vif || !vif->link_debugfs[link_id]) {
- 		arvif->debugfs_twt = NULL;
- 		arvif->debugfs_rtsthreshold = NULL;
-+		ahvif->debugfs_linkstats = NULL;
- 		return;
- 	}
- 
-+	if (ahvif->debugfs_linkstats) {
-+		debugfs_remove(ahvif->debugfs_linkstats);
-+		ahvif->debugfs_linkstats = NULL;
-+	}
-+
-+	if (!arvif->debugfs_twt)
-+		return;
-+
- 	debugfs_remove_recursive(arvif->debugfs_twt);
- 	arvif->debugfs_twt = NULL;
- 
-+	if (!arvif->debugfs_rtsthreshold)
-+		return;
-+
- 	debugfs_remove(arvif->debugfs_rtsthreshold);
- 	arvif->debugfs_rtsthreshold = NULL;
- }
 diff --git a/drivers/net/wireless/ath/ath12k/dp.h b/drivers/net/wireless/ath/ath12k/dp.h
-index 3409c35..2c23c1f 100644
+index ac17fe4..8ee21ed 100644
 --- a/drivers/net/wireless/ath/ath12k/dp.h
 +++ b/drivers/net/wireless/ath/ath12k/dp.h
 @@ -6,7 +6,7 @@
@@ -356,14 +290,14 @@ index 3409c35..2c23c1f 100644
 +	u32 tx_dropped;
 +	u32 tx_encap_type[HAL_TCL_ENCAP_TYPE_MAX];
 +	u32 tx_encrypt_type[HAL_ENCRYPT_TYPE_MAX];
-+	u32 tx_desc_type[HAL_TCL_DESC_TYPE_MAX];
++	u32 tx_desc_type[HAL_TCL_DESC_TYPE_EXT_DESC];
 +};
 +
  struct ath12k_dp {
  	struct ath12k_base *ab;
  	u8 num_bank_profiles;
 diff --git a/drivers/net/wireless/ath/ath12k/dp_tx.c b/drivers/net/wireless/ath/ath12k/dp_tx.c
-index e150831..6628e5e 100644
+index d79007b..30bb0d4 100644
 --- a/drivers/net/wireless/ath/ath12k/dp_tx.c
 +++ b/drivers/net/wireless/ath/ath12k/dp_tx.c
 @@ -412,6 +412,10 @@ tcl_ring_sel:
@@ -394,37 +328,22 @@ index e150831..6628e5e 100644
  	if (tcl_ring_retry)
  		goto tcl_ring_sel;
  
-@@ -483,12 +488,14 @@ ath12k_dp_tx_htt_tx_complete_buf(struct ath12k_base *ab,
- 	struct ath12k_skb_cb *skb_cb;
- 	struct ath12k *ar;
- 	struct ieee80211_vif *vif;
-+	struct ath12k_vif *ahvif;
- 	u8 flags = 0;
- 
- 	skb_cb = ATH12K_SKB_CB(msdu);
+@@ -489,6 +494,8 @@ ath12k_dp_tx_htt_tx_complete_buf(struct ath12k_base *ab,
  	info = IEEE80211_SKB_CB(msdu);
  
  	ar = skb_cb->ar;
 +	ab->soc_stats.tx_completed[tx_ring->tcl_data_ring_id]++;
++
  
  	if (atomic_dec_and_test(&ar->dp.num_tx_pending))
  		wake_up(&ar->dp.tx_empty_waitq);
-@@ -522,6 +529,14 @@ ath12k_dp_tx_htt_tx_complete_buf(struct ath12k_base *ab,
- 	}
- 
- 	vif = skb_cb->vif;
-+	ahvif = (void *)vif->drv_priv;
-+	if (ahvif->links_map & BIT(skb_cb->link_id))
-+		ahvif->link[skb_cb->link_id]->link_stats.tx_completed++;
-+	else
-+		ath12k_warn(ab,
-+			    "invalid linkid 0x%X in htt tx complete buf linkmap 0x%X\n",
-+			    skb_cb->link_id,
-+			    ahvif->links_map);
- 
- 	memset(&info->status, 0, sizeof(info->status));
- 
-@@ -551,18 +566,20 @@ ath12k_dp_tx_process_htt_tx_complete(struct ath12k_base *ab,
+@@ -547,22 +554,25 @@ ath12k_dp_tx_process_htt_tx_complete(struct ath12k_base *ab,
+ 				     void *desc, u8 mac_id,
+ 				     struct sk_buff *msdu,
+ 				     struct dp_tx_ring *tx_ring,
+-				     struct sk_buff *skb_ext_desc)
++				     struct sk_buff *skb_ext_desc,
++				     struct ath12k_tx_desc_info *tx_desc)
  {
  	struct htt_tx_wbm_completion *status_desc;
  	struct ath12k_dp_htt_wbm_tx_status ts = {0};
@@ -450,7 +369,7 @@ index e150831..6628e5e 100644
  		ts.ack_rssi = u32_get_bits(status_desc->info2,
  					   HTT_TX_WBM_COMP_INFO2_ACK_RSSI);
  		ath12k_dp_tx_htt_tx_complete_buf(ab, msdu, tx_ring, &ts, skb_ext_desc);
-@@ -577,7 +594,7 @@ ath12k_dp_tx_process_htt_tx_complete(struct ath12k_base *ab,
+@@ -577,7 +587,7 @@ ath12k_dp_tx_process_htt_tx_complete(struct ath12k_base *ab,
  		 */
  		break;
  	default:
@@ -459,7 +378,7 @@ index e150831..6628e5e 100644
  		break;
  	}
  }
-@@ -743,10 +760,9 @@ static void ath12k_dp_tx_complete_msdu(struct ath12k *ar,
+@@ -743,10 +753,9 @@ static void ath12k_dp_tx_complete_msdu(struct ath12k *ar,
  				       struct sk_buff *msdu,
  				       struct hal_wbm_release_ring *tx_status,
  				       enum hal_wbm_rel_src_module buf_rel_source,
@@ -471,15 +390,7 @@ index e150831..6628e5e 100644
  	struct ath12k_base *ab = ar->ab;
  	struct ieee80211_tx_info *info;
  	struct ath12k_skb_cb *skb_cb;
-@@ -757,6 +773,7 @@ static void ath12k_dp_tx_complete_msdu(struct ath12k *ar,
- 	enum hal_wbm_tqm_rel_reason rel_status;
- 	enum hal_wbm_htt_tx_comp_status wbm_status;
- 	struct ieee80211_vif *vif;
-+	struct ath12k_vif *ahvif;
- 	u8 flags = 0;
- 
- 
-@@ -766,7 +783,7 @@ static void ath12k_dp_tx_complete_msdu(struct ath12k *ar,
+@@ -766,7 +775,7 @@ static void ath12k_dp_tx_complete_msdu(struct ath12k *ar,
  	}
  
  	skb_cb = ATH12K_SKB_CB(msdu);
@@ -488,22 +399,7 @@ index e150831..6628e5e 100644
  	dma_unmap_single_attrs(ab->dev, skb_cb->paddr, msdu->len, DMA_TO_DEVICE,
  			     DMA_ATTR_SKIP_CPU_SYNC);
  	if (unlikely(skb_cb->paddr_ext_desc)) {
-@@ -812,6 +829,14 @@ static void ath12k_dp_tx_complete_msdu(struct ath12k *ar,
- 			       tx_status->info0);
- 
- 	vif = skb_cb->vif;
-+	ahvif = (void *)vif->drv_priv;
-+	if (ahvif->links_map & BIT(skb_cb->link_id))
-+		ahvif->link[skb_cb->link_id]->link_stats.tx_completed++;
-+	else
-+		ath12k_warn(ar->ab,
-+			    "invalid linkid 0x%X in tx complete msdu linkmap 0x%X\n",
-+			    skb_cb->link_id,
-+			    ahvif->links_map);
- 
- 	info = IEEE80211_SKB_CB(msdu);
- 	memset(&info->status, 0, sizeof(info->status));
-@@ -985,11 +1010,13 @@ void ath12k_dp_tx_completion_handler(struct ath12k_base *ab, int ring_id)
+@@ -985,11 +994,14 @@ void ath12k_dp_tx_completion_handler(struct ath12k_base *ab, int ring_id)
  		ath12k_dp_tx_release_txbuf(dp, tx_desc, tx_desc->pool_id);
  		buf_rel_source = FIELD_GET(HAL_WBM_RELEASE_INFO0_REL_SRC_MODULE,
  					   tx_status->info0);
@@ -514,11 +410,12 @@ index e150831..6628e5e 100644
  							     mac_id, msdu,
 -							     tx_ring, skb_ext_desc);
 +							     tx_ring,
-+							     skb_ext_desc);
++							     skb_ext_desc,
++							     tx_desc);
  			continue;
  		}
  
-@@ -998,7 +1025,9 @@ void ath12k_dp_tx_completion_handler(struct ath12k_base *ab, int ring_id)
+@@ -998,7 +1010,9 @@ void ath12k_dp_tx_completion_handler(struct ath12k_base *ab, int ring_id)
  		if (atomic_dec_and_test(&ar->dp.num_tx_pending))
  			wake_up(&ar->dp.tx_empty_waitq);
  
@@ -530,7 +427,7 @@ index e150831..6628e5e 100644
  }
  
 diff --git a/drivers/net/wireless/ath/ath12k/hal_desc.h b/drivers/net/wireless/ath/ath12k/hal_desc.h
-index fc02e06..21ea8fc 100644
+index 809fe5f..b6a148a 100644
 --- a/drivers/net/wireless/ath/ath12k/hal_desc.h
 +++ b/drivers/net/wireless/ath/ath12k/hal_desc.h
 @@ -1251,6 +1251,7 @@ struct hal_reo_flush_cache {
@@ -541,7 +438,7 @@ index fc02e06..21ea8fc 100644
  
  enum hal_encrypt_type {
  	HAL_ENCRYPT_TYPE_WEP_40,
-@@ -1272,11 +1273,13 @@ enum hal_tcl_encap_type {
+@@ -1272,6 +1273,7 @@ enum hal_tcl_encap_type {
  	HAL_TCL_ENCAP_TYPE_NATIVE_WIFI,
  	HAL_TCL_ENCAP_TYPE_ETHERNET,
  	HAL_TCL_ENCAP_TYPE_802_3 = 3,
@@ -549,13 +446,7 @@ index fc02e06..21ea8fc 100644
  };
  
  enum hal_tcl_desc_type {
- 	HAL_TCL_DESC_TYPE_BUFFER,
- 	HAL_TCL_DESC_TYPE_EXT_DESC,
-+	HAL_TCL_DESC_TYPE_MAX,
- };
- 
- enum hal_wbm_htt_tx_comp_status {
-@@ -1286,6 +1289,7 @@ enum hal_wbm_htt_tx_comp_status {
+@@ -1286,6 +1288,7 @@ enum hal_wbm_htt_tx_comp_status {
  	HAL_WBM_REL_HTT_TX_COMP_STATUS_REINJ,
  	HAL_WBM_REL_HTT_TX_COMP_STATUS_INSPECT,
  	HAL_WBM_REL_HTT_TX_COMP_STATUS_MEC_NOTIFY,
@@ -563,7 +454,7 @@ index fc02e06..21ea8fc 100644
  	HAL_WBM_REL_HTT_TX_COMP_STATUS_MAX,
  };
  
-@@ -1794,6 +1798,7 @@ enum hal_wbm_rel_src_module {
+@@ -1794,6 +1797,7 @@ enum hal_wbm_rel_src_module {
  	HAL_WBM_REL_SRC_MODULE_REO,
  	HAL_WBM_REL_SRC_MODULE_FW,
  	HAL_WBM_REL_SRC_MODULE_SW,
@@ -571,26 +462,6 @@ index fc02e06..21ea8fc 100644
  };
  
  enum hal_wbm_rel_desc_type {
-diff --git a/drivers/net/wireless/ath/ath12k/mac.c b/drivers/net/wireless/ath/ath12k/mac.c
-index ed5c470..f8652df 100644
---- a/drivers/net/wireless/ath/ath12k/mac.c
-+++ b/drivers/net/wireless/ath/ath12k/mac.c
-@@ -8498,6 +8498,7 @@ static void ath12k_mac_op_tx(struct ieee80211_hw *hw,
- 	}
- 
- 	arvif = ahvif->link[link];
-+	skb_cb->link_id = link;
- 
- 	if (!arvif || !arvif->ar) {
- 		ieee80211_free_txskb(hw, skb);
-@@ -8522,7 +8523,6 @@ static void ath12k_mac_op_tx(struct ieee80211_hw *hw,
- 	} else if (ieee80211_is_mgmt(hdr->frame_control)) {
- 		frm_type = FIELD_GET(IEEE80211_FCTL_STYPE, hdr->frame_control);
- 		is_prb_rsp = ieee80211_is_probe_resp(hdr->frame_control);
--		skb_cb->link_id = link;
- 		ret = ath12k_mac_mgmt_tx(ar, skb, is_prb_rsp);
- 		if (ret) {
- 			if (ret != -EBUSY)
 -- 
 2.17.1
 

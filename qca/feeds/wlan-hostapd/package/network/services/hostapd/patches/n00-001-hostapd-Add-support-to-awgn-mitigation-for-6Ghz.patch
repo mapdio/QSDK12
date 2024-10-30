@@ -134,7 +134,7 @@ Signed-off-by: Hari Chandrakanthan <quic_haric@quicinc.com>
  			break;
 --- /dev/null
 +++ b/src/ap/interference.c
-@@ -0,0 +1,397 @@
+@@ -0,0 +1,393 @@
 +/*
 + * AWGN - Additive white Gaussian Noise
 + * Copyright (c) 2002-2013, Jouni Malinen <j@w1.fi>
@@ -341,10 +341,6 @@ Signed-off-by: Hari Chandrakanthan <quic_haric@quicinc.com>
 +	*centre_freq = 0;
 +
 +	switch (chan_width) {
-+	case CHAN_WIDTH_20:
-+		if (chan_idx >= 1 && chan_idx <= 233)
-+			*centre_freq = ((chan_idx / 4) * 4 + 1) * 5 + BASE_6G_FREQ;
-+		break;
 +	case CHAN_WIDTH_40:
 +		if (chan_idx >= 1 && chan_idx <= 229)
 +			*centre_freq = ((chan_idx / 8) * 8 + 3) * 5 + BASE_6G_FREQ;

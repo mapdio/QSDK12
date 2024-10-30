@@ -6,17 +6,18 @@
 include $(TOPDIR)/rules.mk
 
 PKG_NAME:=libpciaccess
-PKG_VERSION:=0.14
+PKG_VERSION:=0.17
 PKG_RELEASE:=1
 
 PKG_SOURCE_URL:=https://www.x.org/releases/individual/lib/
-PKG_SOURCE:=$(PKG_NAME)-$(PKG_VERSION).tar.bz2
-PKG_HASH:=3df543e12afd41fea8eac817e48cbfde5aed8817b81670a4e9e493bb2f5bf2a4
-
-PKG_BUILD_PARALLEL:=1
-PKG_INSTALL:=1
+PKG_SOURCE:=$(PKG_NAME)-$(PKG_VERSION).tar.xz
+PKG_HASH:=74283ba3c974913029e7a547496a29145b07ec51732bbb5b5c58d5025ad95b73
 
 PKG_MAINTAINER:= Lucian Cristian <lucian.cristian@gmail.com>
+PKG_LICENSE_FILES:=COPYING
+
+PKG_INSTALL:=1
+PKG_BUILD_PARALLEL:=1
 
 include $(INCLUDE_DIR)/package.mk
 
@@ -27,10 +28,10 @@ define Package/libpciaccess
   URL:=https://xorg.freedesktop.org/
 endef
 
-TARGET_LDFLAGS += -Wl,--gc-sections,--as-needed
-
 CONFIGURE_ARGS += \
-    --prefix=/usr
+	--prefix=/usr
+
+TARGET_LDFLAGS += -Wl,--gc-sections,--as-needed
 
 define Build/InstallDev
 	$(INSTALL_DIR) \

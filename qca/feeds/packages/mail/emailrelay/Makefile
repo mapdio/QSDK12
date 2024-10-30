@@ -8,20 +8,20 @@
 include $(TOPDIR)/rules.mk
 
 PKG_NAME:=emailrelay
-PKG_VERSION:=2.0
-PKG_RELEASE:=4
+PKG_VERSION:=2.4.1
+PKG_RELEASE:=1
 
 PKG_SOURCE:=$(PKG_NAME)-$(PKG_VERSION)-src.tar.gz
 PKG_SOURCE_URL:=@SF/emailrelay/$(PKG_VERSION)
-PKG_HASH:=0b3a98edfdc8deaf2b3d14e2d2a7fa8402f6703d83ac7458653994124de6a587
+PKG_HASH:=cff8cf5bff19fd1721cefdbd6207da67af01d2b1b4a51d147c33f4429a79766e
+
 PKG_MAINTAINER:=Federico Di Marco <fededim@gmail.com>
-
-PKG_CONFIG_DEPENDS:=CONFIG_EMAILRELAY_SUPPORT_VERBOSE_DBG CONFIG_EMAILRELAY_SSL
-
-PKG_LICENSE:=GPL-3.0
+PKG_LICENSE:=GPL-3.0-or-later
 PKG_LICENSE_FILES:=COPYING
 
-#include $(INCLUDE_DIR)/uclibc++.mk   # $(CXX_DEPENDS)
+PKG_CONFIG_DEPENDS:=CONFIG_EMAILRELAY_SUPPORT_VERBOSE_DBG CONFIG_EMAILRELAY_SSL
+PKG_BUILD_FLAGS:=gc-sections lto
+
 include $(INCLUDE_DIR)/package.mk
 
 define Package/emailrelay
@@ -82,11 +82,6 @@ CONFIGURE_ARGS += \
 	--disable-testing \
 	--disable-windows
 
-# Workaround for https://sourceforge.net/p/emailrelay/bugs/38/
-# This should be fixed in the next release.
-CONFIGURE_VARS += \
-	ac_cv_search_pam_end=no
-
 ifeq ($(CONFIG_EMAILRELAY_SSL),y)
 	CONFIGURE_ARGS += \
 		--with-openssl
@@ -99,6 +94,8 @@ ifeq ($(CONFIG_EMAILRELAY_SUPPORT_VERBOSE_DBG),y)
 	CONFIGURE_ARGS += \
 		--enable-debug=yes
 endif
+
+TARGET_CXXFLAGS += -Wl,--as-needed
 
 define Package/emailrelay/install
 	$(INSTALL_DIR) $(1)/usr/bin

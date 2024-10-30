@@ -8,12 +8,12 @@
 include $(TOPDIR)/rules.mk
 
 PKG_NAME:=libupm
-PKG_VERSION:=1.7.1
-PKG_RELEASE:=1
+PKG_VERSION:=2.0.0
+PKG_RELEASE:=7
 
 PKG_SOURCE:=$(PKG_NAME)-$(PKG_VERSION).tar.gz
 PKG_SOURCE_URL:=https://codeload.github.com/intel-iot-devkit/upm/tar.gz/v$(PKG_VERSION)?
-PKG_HASH:=b253742b01146f4b86e20714aa24e75ca1e9d46629eab9aa8db070ce94cf3619
+PKG_HASH:=7dd2f4165b71e071d100b58d6a392f3cf57b0f257c82ffabf49e931b5ed6bc23
 PKG_BUILD_DIR:=$(BUILD_DIR)/upm-$(PKG_VERSION)
 
 PKG_MAINTAINER:=John Crispin <blogic@openwrt.org>, Hirokazu MORIKAWA <morikw2@gmail.com>
@@ -21,11 +21,12 @@ PKG_LICENSE:=MIT
 PKG_LICENSE_FILES:=LICENSE
 
 CMAKE_INSTALL:=1
-PKG_USE_MIPS16:=0
+CMAKE_BINARY_SUBDIR:=build
+PKG_BUILD_FLAGS:=no-mips16
+PYTHON3_PKG_BUILD:=0
 
 include $(INCLUDE_DIR)/package.mk
 include $(INCLUDE_DIR)/cmake.mk
-include ../../lang/python/python-package.mk
 include ../../lang/python/python3-package.mk
 
 UPM_MODULES:= \
@@ -33,9 +34,7 @@ UPM_MODULES:= \
 	adxrs610 am2315 apa102 apds9002 apds9930 at42qt1070 bh1749 bh1750 bh1792 biss0001 bma220 \
 	bma250e bmg160 bmi160 bmm150 bmp280 bmpx8x bmx055 bno055 button buzzer cjq4435 collision \
 	cwlsxxa dfrec dfrorp dfrph ds1307 ds1808lc ds18b20 ds2413 ecezo ecs1030 \
-	ehr eldriver electromagnet emg enc03r flex gas gp2y0a gprs grove grovecollision groveehr \
-	groveeldriver groveelectromagnet groveemg grovegprs grovegsr grovelinefinder grovemd \
-	grovemoisture groveo2 grovescam grovespeaker groveultrasonic grovevdiv grovewater grovewfs \
+	ehr eldriver electromagnet emg enc03r flex gas gp2y0a gprs \
 	gsr guvas12d h3lis331dl hcsr04 hdc1000 hdxxvxta hka5 hlg150h hm11 hmc5883l hmtrp hp20x \
 	ht9170 htu21d hx711 ili9341 ims ina132 interfaces isd1820 itg3200 jhd1313m1 joystick12 kx122 \
 	kxcjk1013 kxtj3 l298 l3gd20 lcd lcdks lcm1602 ldt0028 led lidarlitev3 light linefinder lis2ds12 \
@@ -51,6 +50,13 @@ UPM_MODULES:= \
 	veml6070 water waterlevel wfs wheelencoder wt5001 xbee yg1006 zfm20 \
 	vcap t3311 hwxpxx h803x ozw curieimu
 # (require libbacnet) tb7300 t8100 e50hx bacnetmstp
+# (require libtinyb) 2jciebu01_ble 2jciebu01_usb
+
+CMAKE_OPTIONS += \
+	-DBUILDSWIGNODE=OFF \
+	-DWERROR=OFF \
+	-DPYTHON2LIBS_FOUND=FALSE \
+	-DPYTHON2INTERP_FOUND=FALSE \
 
 define Package/libupm/Default
   SECTION:=libs
@@ -73,8 +79,6 @@ define Package/libupm
   TITLE:=Intel IoT sensor library - Full
   DEPENDS+=+libjpeg +libmodbus +openzwave
   DEPENDS+= $(foreach module, $(UPM_MODULES), +libupm-$(module))
-  DEPENDS+= $(foreach module, $(UPM_MODULES), +libupm-$(module)-node)
-  DEPENDS+= $(foreach module, $(UPM_MODULES), +libupm-$(module)-python)
   DEPENDS+= $(foreach module, $(UPM_MODULES), +libupm-$(module)-python3)
 endef
 
@@ -89,22 +93,9 @@ define Package/libupm/install/Default
 	$(CP) $(PKG_INSTALL_DIR)/usr/lib/libupm*-$(2).so* $(1)/usr/lib/ ;
 endef
 
-define Package/libupm/install/Default-node
-	$(INSTALL_DIR) $(1)/usr/lib/node/
-	$(CP) $(PKG_INSTALL_DIR)/usr/lib/node_modules/jsupm_$(2) $(1)/usr/lib/node/ ;
-endef
-
-define Package/libupm/install/Default-python
-	$(INSTALL_DIR) $(1)/usr/lib/python$(PYTHON_VERSION)/site-packages/upm
-	$(CP) $(PKG_BUILD_DIR)/src/$(2)/python$(PYTHON_VERSION)/pyupm_$(2).py \
-		$(1)/usr/lib/python$(PYTHON_VERSION)/site-packages/upm/
-	$(CP) $(PKG_INSTALL_DIR)/usr/lib/python$(PYTHON_VERSION)/site-packages/upm/_pyupm_$(2).so \
-		$(1)/usr/lib/python$(PYTHON_VERSION)/site-packages/upm/ ;
-endef
-
 define Package/libupm/install/Default-python3
 	$(INSTALL_DIR) $(1)/usr/lib/python$(PYTHON3_VERSION)/site-packages/upm
-	$(CP) $(PKG_BUILD_DIR)/src/$(2)/python$(PYTHON3_VERSION)/pyupm_$(2).py \
+	$(CP) $(CMAKE_BINARY_DIR)/$(if $(filter interfaces, $(2)),,src/)$(2)/python$(PYTHON3_VERSION)/pyupm_$(2).py \
 		$(1)/usr/lib/python$(PYTHON3_VERSION)/site-packages/upm/
 	$(CP) $(PKG_INSTALL_DIR)/usr/lib/python$(PYTHON3_VERSION)/site-packages/upm/_pyupm_$(2).so \
 		$(1)/usr/lib/python$(PYTHON3_VERSION)/site-packages/upm/ ;
@@ -113,8 +104,6 @@ endef
 define Package/libupm/install
 	$(foreach module, $(UPM_MODULES), \
 		$(call Package/libupm/install/Default,$(1),$(module)) \
-		$(call Package/libupm/install/Default-node,$(1),$(module)) \
-		$(call Package/libupm/install/Default-python,$(1),$(module)) \
 		$(call Package/libupm/install/Default-python3,$(1),$(module)))
 endef
 
@@ -350,32 +339,6 @@ $(call Package/libupm/Default/description)
 This package contains $(1) sensor C/C++ library
 endef
 
-define Package/libupm-$(1)-node
-  $(call Package/libupm/Default)
-  $(call UpmPackage/depends,$(1))
-  TITLE:=$(1) Node.js library
-  DEPENDS+=+libupm-$(1) +libmraa-node +node
-endef
-
-define Package/libupm-$(1)-node/description
-$(call Package/libupm/Default/description)
-
-This package contains $(1) sensor Node.js library
-endef
-
-define Package/libupm-$(1)-python
-  $(call Package/libupm/Default)
-  $(call UpmPackage/depends,$(1))
-  TITLE:=$(1) Python library
-  DEPENDS+=+libupm-$(1) +libmraa-python +python-light
-endef
-
-define Package/libupm-$(1)-python/description
-$(call Package/libupm/Default/description)
-
-This package contains $(1) sensor Python library
-endef
-
 define Package/libupm-$(1)-python3
   $(call Package/libupm/Default)
   $(call UpmPackage/depends,$(1))
@@ -392,12 +355,6 @@ endef
 define Package/libupm-$(1)/install
 	$(call Package/libupm/install/Default,$$(1),$(1))
 endef
-define Package/libupm-$(1)-node/install
-	$(call Package/libupm/install/Default-node,$$(1),$(1))
-endef
-define Package/libupm-$(1)-python/install
-	$(call Package/libupm/install/Default-python,$$(1),$(1))
-endef
 define Package/libupm-$(1)-python3/install
 	$(call Package/libupm/install/Default-python3,$$(1),$(1))
 endef
@@ -407,6 +364,4 @@ $(eval $(call BuildPackage,libupm))
 $(foreach module, $(UPM_MODULES), \
 	$(eval $(call UpmPackage,$(module))) \
 	$(eval $(call BuildPackage,libupm-$(module))) \
-	$(eval $(call BuildPackage,libupm-$(module)-node)) \
-	$(eval $(call BuildPackage,libupm-$(module)-python)) \
 	$(eval $(call BuildPackage,libupm-$(module)-python3)))

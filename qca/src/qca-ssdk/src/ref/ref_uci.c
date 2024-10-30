@@ -1,7 +1,7 @@
 /*
  * Copyright (c) 2013, 2015, 2017-2019, 2021, The Linux Foundation. All rights reserved.
  *
- * Copyright (c) 2022-2023 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2024 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for any
  * purpose with or without fee is hereby granted, provided that the above
@@ -4113,7 +4113,7 @@ parse_fdb_entry(struct switch_val *val)
 		if(!strcmp(ext_value_p->option_name, "name")) {
 			switch_ext_p = switch_ext_p->next;
 			continue;
-		} else if(!strcmp(ext_value_p->option_name, "addr")) {
+		}else if(!strcmp(ext_value_p->option_name, "addr")) {
 			val_ptr[0] = (char*)ext_value_p->option_value;
 		} else if(!strcmp(ext_value_p->option_name, "fid")) {
 			val_ptr[1] = (char*)ext_value_p->option_value;
@@ -4129,7 +4129,7 @@ parse_fdb_entry(struct switch_val *val)
 			val_ptr[6] = (char*)ext_value_p->option_value;
 		} else if(!strcmp(ext_value_p->option_name, "mirror")) {
 			val_ptr[7] = (char*)ext_value_p->option_value;
-		} else if(!strcmp(ext_value_p->option_name, "clone")) {
+		} else if(!strcmp(ext_value_p->option_name, "entry_ver")) {
 			val_ptr[8] = (char*)ext_value_p->option_value;
 		} else if(!strcmp(ext_value_p->option_name, "queue_override")) {
 			val_ptr[9] = (char*)ext_value_p->option_value;
@@ -4141,6 +4141,8 @@ parse_fdb_entry(struct switch_val *val)
 			val_ptr[12] = (char*)ext_value_p->option_value;
 		} else if(!strcmp(ext_value_p->option_name, "load_balance")) {
 			val_ptr[13] = (char*)ext_value_p->option_value;
+		} else if(!strcmp(ext_value_p->option_name, "type")) {
+			val_ptr[14] = (char*)ext_value_p->option_value;
 		}  else {
 			rv = -1;
 			break;
@@ -8824,8 +8826,8 @@ parse_acl_action_field(struct switch_ext *ext_value_p, fal_acl_rule_t *rule)
 			&tmpdata, sizeof(tmpdata));
 		rule->metadata_pri = tmpdata & 0xf;
 	} else if(!strcmp(ext_value_p->option_name, "cookie_val")) {
-		cmd_data_check_uint16((char*)ext_value_p->option_value,
-			&(tmpdata), sizeof(tmpdata));
+		cmd_data_check_uint64((char*)ext_value_p->option_value,
+			&(rule->cookie_val), sizeof(a_uint64_t));
 		rule->cookie_val = tmpdata & 0xffff;
 	} else if(!strcmp(ext_value_p->option_name, "cookie_pri")) {
 		cmd_data_check_uint8((char*)ext_value_p->option_value,
@@ -12403,6 +12405,7 @@ parse_fdb(const char *command_name, struct switch_val *val)
 #endif
 
 #ifdef IN_RSS_HASH
+
 static int
 parse_rsshash(const char *command_name, struct switch_val *val)
 {
@@ -12410,6 +12413,7 @@ parse_rsshash(const char *command_name, struct switch_val *val)
 	if (!strcmp(command_name, "Config")) {
 		rv = parse_rsshash_config(val);
 	}
+
 
 	return rv;
 }
@@ -13293,49 +13297,6 @@ parse_vsi(const char *command_name, struct switch_val *val)
 }
 #endif
 
-static int
-parse_debug_module_func(struct switch_val *val)
-{
-	struct switch_ext *switch_ext_p, *ext_value_p;
-	int rv = 0;
-
-	switch_ext_p = val->value.ext_val;
-	while (switch_ext_p) {
-		ext_value_p = switch_ext_p;
-
-		if (!strcmp(ext_value_p->option_name, "name")) {
-			switch_ext_p = switch_ext_p->next;
-			continue;
-		} else if (!strcmp(ext_value_p->option_name, "module")) {
-			val_ptr[0] = (char*)ext_value_p->option_value;
-		} else if (!strcmp(ext_value_p->option_name, "bitmap0")) {
-			val_ptr[1] = (char*)ext_value_p->option_value;
-		} else if (!strcmp(ext_value_p->option_name, "bitmap1")) {
-			val_ptr[2] = (char*)ext_value_p->option_value;
-		} else if (!strcmp(ext_value_p->option_name, "bitmap2")) {
-			val_ptr[3] = (char*)ext_value_p->option_value;
-		} else {
-			rv = -1;
-			break;
-		}
-
-		parameter_length++;
-		switch_ext_p = switch_ext_p->next;
-	}
-
-	return rv;
-}
-
-static int
-parse_debug(const char *command_name, struct switch_val *val)
-{
-	int rv = -1;
-	if (!strcmp(command_name, "Module_func")) {
-		rv = parse_debug_module_func(val);
-	}
-	return rv;
-}
-
 #ifdef IN_VXLAN
 static int
 parse_vxlan_entry(struct switch_val *val)
@@ -13371,6 +13332,7 @@ parse_vxlan_entry(struct switch_val *val)
 	return rv;
 }
 
+#ifndef IN_VXLAN_MINI
 static int
 parse_vxlan_gpeprotocfg(struct switch_val *val)
 {
@@ -13400,6 +13362,7 @@ parse_vxlan_gpeprotocfg(struct switch_val *val)
 
 	return rv;
 }
+#endif
 
 static int
 parse_vxlan(const char *command_name, struct switch_val *val)
@@ -13407,8 +13370,10 @@ parse_vxlan(const char *command_name, struct switch_val *val)
 	int rv = -1;
 	if (!strcmp(command_name, "Entry")) {
 		rv = parse_vxlan_entry(val);
+#ifndef IN_VXLAN_MINI
 	} else if (!strcmp(command_name, "GpeProtoCfg")) {
 		rv = parse_vxlan_gpeprotocfg(val);
+#endif
 	}
 	return rv;
 }
@@ -13903,8 +13868,6 @@ qca_ar8327_sw_switch_ext(struct switch_dev *dev,
 #ifdef IN_VSI
 		rv = parse_vsi(command_name, val);
 #endif
-	} else if(!strcmp(module_name, "Debug")) {
-		rv = parse_debug(command_name, val);
 	} else if(!strcmp(module_name, "Vxlan")) {
 #ifdef IN_VXLAN
 		rv = parse_vxlan(command_name, val);

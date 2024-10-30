@@ -1,7 +1,7 @@
 /*
  * Copyright (c) 2021, The Linux Foundation. All rights reserved.
  *
- * Copyright (c) 2022-2023 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2024 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for any
  * purpose with or without fee is hereby granted, provided that the above
@@ -31,6 +31,9 @@
 uint32_t edma_cfg_rx_fc_enable = EDMA_RX_FC_ENABLE;
 uint32_t edma_cfg_rx_queue_tail_drop_enable = EDMA_RX_QUEUE_TAIL_DROP_ENABLE;
 uint32_t edma_cfg_rx_rps_num_cores = NR_CPUS;
+uint32_t edma_cfg_rx_sec_desc_inval = 0;
+uint32_t edma_cfg_rx_rps_bitmap_cores = EDMA_RX_DEFAULT_BITMAP;
+extern uint32_t nss_dp_capwap_vp_rx_core;
 
 /*
  * Rx ring queue offset
@@ -51,13 +54,13 @@ uint32_t edma_cfg_rx_rps_num_cores = NR_CPUS;
 static void edma_cfg_rx_fill_ring_cleanup(struct edma_gbl_ctx *egc,
 				struct edma_rxfill_ring *rxfill_ring)
 {
-	uint16_t cons_idx, curr_idx;
+	uint16_t cons_idx, curr_idx, cons_idx_prev;
 	uint32_t reg_data;
 
 	/*
 	 * Get RXFILL ring producer index
 	 */
-	curr_idx = rxfill_ring->prod_idx & EDMA_RXFILL_PROD_IDX_MASK;
+	cons_idx_prev = curr_idx = rxfill_ring->prod_idx & EDMA_RXFILL_PROD_IDX_MASK;
 
 	/*
 	 * Get RXFILL ring consumer index
@@ -87,6 +90,8 @@ static void edma_cfg_rx_fill_ring_cleanup(struct edma_gbl_ctx *egc,
 		}
 		dev_kfree_skb_any(skb);
 	}
+
+	edma_reg_write(EDMA_REG_RXFILL_PROD_IDX(rxfill_ring->ring_id), cons_idx_prev);
 
 	/*
 	 * Free RXFILL ring descriptors
@@ -619,6 +624,7 @@ static int32_t edma_cfg_rx_mapped_queue_ac_fc_configure(uint16_t threshold,
  */
 static void edma_cfg_rx_desc_ring_configure(struct edma_rxdesc_ring *rxdesc_ring)
 {
+	struct edma_gbl_ctx *egc = &edma_gbl_ctx;
 	uint32_t data;
 
 	edma_reg_write(EDMA_REG_RXDESC_BA(rxdesc_ring->ring_id),
@@ -628,8 +634,15 @@ static void edma_cfg_rx_desc_ring_configure(struct edma_rxdesc_ring *rxdesc_ring
 			(uint32_t)(rxdesc_ring->sdma & EDMA_RXDESC_PREHEADER_BA_MASK));
 
 	data = rxdesc_ring->count & EDMA_RXDESC_RING_SIZE_MASK;
+
+	/*
+	 * For SOC's where Rxdesc ring register do not contain PL offset
+	 * fields, skip writing that data into the Register.
+	 */
+#if !defined(NSS_DP_EDMA_SKIP_PL_OFFSET)
 	data |= (EDMA_RXDESC_PL_DEFAULT_VALUE & EDMA_RXDESC_PL_OFFSET_MASK)
 		 << EDMA_RXDESC_PL_OFFSET_SHIFT;
+#endif
 	edma_reg_write(EDMA_REG_RXDESC_RING_SIZE(rxdesc_ring->ring_id), data);
 
 	/*
@@ -659,7 +672,7 @@ static void edma_cfg_rx_desc_ring_configure(struct edma_rxdesc_ring *rxdesc_ring
 	/*
 	 * Configure the Mitigation timer
 	 */
-	data = MICROSEC_TO_TIMER_UNIT(nss_dp_rx_mitigation_timer);
+	data = MICROSEC_TO_TIMER_UNIT(nss_dp_rx_mitigation_timer, egc->edma_timer_rate);
 	data = ((data & EDMA_RX_MOD_TIMER_INIT_MASK)
 			<< EDMA_RX_MOD_TIMER_INIT_SHIFT);
 	edma_info("EDMA Rx mitigation timer value: %d\n", data);
@@ -691,7 +704,7 @@ static void edma_cfg_rx_fill_ring_configure(struct edma_rxfill_ring *rxfill_ring
 			(uint32_t)(rxfill_ring->dma & EDMA_RING_DMA_MASK));
 
 	ring_sz = rxfill_ring->count & EDMA_RXFILL_RING_SIZE_MASK;
-	edma_reg_write(EDMA_REG_RXFILL_RING_SIZE(rxfill_ring->ring_id), ring_sz);
+	edma_reg_write(EDMA_RXFILL_RING_SIZE(rxfill_ring->ring_id), ring_sz);
 
 	/*
 	 * Alloc Rx buffers
@@ -777,6 +790,35 @@ static void edma_cfg_rx_point_offload_rings_to_rx_fill_mapping(struct edma_gbl_c
 	edma_debug("EDMA_REG_RXDESC2FILL_MAP_2: 0x%x\n", edma_reg_read(EDMA_REG_RXDESC2FILL_MAP_2));
 }
 #endif
+
+/*
+ * edma_cfg_rx_mcast_qid_to_core_mapping
+ *	Configure mcast queue to core mapping.
+ */
+void edma_cfg_rx_mcast_qid_to_core_mapping(struct edma_gbl_ctx *egc, uint8_t core_id)
+{
+	uint32_t desc_index, q_id;
+	uint32_t reg_index, data;
+
+	/*
+	 * Map PPE multicast queues to the Rx ring according to the core.
+	 */
+	desc_index = egc->rxdesc_ring_map[0][core_id];
+	for (q_id = EDMA_CPU_PORT_MCAST_QUEUE_START;
+		q_id <= EDMA_CPU_PORT_MCAST_QUEUE_END;
+			q_id += EDMA_QID2RID_NUM_PER_REG) {
+		reg_index = q_id/EDMA_QID2RID_NUM_PER_REG;
+		data = EDMA_RX_RING_ID_QUEUE0_SET(desc_index) |
+			EDMA_RX_RING_ID_QUEUE1_SET(desc_index) |
+			EDMA_RX_RING_ID_QUEUE2_SET(desc_index) |
+			EDMA_RX_RING_ID_QUEUE3_SET(desc_index);
+
+		edma_reg_write(EDMA_QID2RID_TABLE_MEM(reg_index), data);
+
+		edma_info("Configure QID2RID(%d) reg:0x%x to 0x%x\n",
+				q_id, EDMA_QID2RID_TABLE_MEM(reg_index), data);
+	}
+}
 
 /*
  * edma_cfg_rx_qid_to_rx_desc_ring_mapping()
@@ -911,6 +953,62 @@ void edma_cfg_rx_rings_enable(struct edma_gbl_ctx *egc)
 		data |= EDMA_RXFILL_RING_EN;
 		edma_reg_write(EDMA_REG_RXFILL_RING_EN(i), data);
 	}
+}
+
+/*
+ * edma_cfg_rx_ring_en_mapped_queues()
+ *	Enable / Disable the queues associated to the RX rings.
+ */
+bool edma_cfg_rx_ring_en_mapped_queues(struct edma_gbl_ctx *egc, uint16_t ring_id, bool enable)
+{
+	uint16_t ring_idx, queue_id, i;
+	sw_error_t ret;
+	a_bool_t en = enable;
+
+	ring_idx = ring_id - egc->rxdesc_ring_start;
+	for (i = 0; i < EDMA_MAX_PRI_PER_CORE; i++) {
+		queue_id = egc->rx_ring_queue_map[i][ring_idx];
+		ret = fal_qm_enqueue_ctrl_set(0, queue_id, en);
+		if (ret != SW_OK) {
+			edma_err("%px: Failed queue operation en %d", egc, enable);
+			return false;
+		}
+
+		ret = fal_scheduler_dequeue_ctrl_set(0, queue_id, en);
+		if (ret != SW_OK) {
+			edma_err("%px: Failed dequeue operation en %d", egc, enable);
+			return false;
+		}
+	}
+
+	return true;
+}
+
+/*
+ * edma_cfg_rx_ring_reset()
+ *	API to reset the individual RX ring
+ *	NOTE: Caller is expected to ensure that the corresponding
+ *	PPE queue is stopped and the ring is disabled.
+ */
+void edma_cfg_rx_ring_reset(struct edma_rxdesc_ring *ring)
+{
+	uint32_t data = 0;
+
+	/*
+	 * Reset the ring - wait untill the reset operation is done.
+	 */
+	data = edma_reg_read(EDMA_REG_RXDESC_RESET(ring->ring_id));
+	data |= EDMA_RXDESC_RX_RESET;
+	edma_reg_write(EDMA_REG_RXDESC_RESET(ring->ring_id), data);
+
+	do {
+		data = edma_reg_read(EDMA_REG_RXDESC_RESET(ring->ring_id));
+	} while (data);
+
+	/*
+	 * Reset the software consumer index.
+	 */
+	ring->cons_idx = 0;
 }
 
 /*
@@ -1392,8 +1490,25 @@ void edma_cfg_rx_napi_add(struct edma_gbl_ctx *egc, struct net_device *netdev)
 
 	for (i = 0; i < egc->num_rxdesc_rings; i++) {
 		struct edma_rxdesc_ring *rxdesc_ring = &egc->rxdesc_rings[i];
-		netif_napi_add(netdev, &rxdesc_ring->napi,
+#if (LINUX_VERSION_CODE < KERNEL_VERSION(6, 1, 0))
+		if (nss_dp_capwap_vp_rx_core == i) {
+			edma_info("Adding capwap napi for ring_id %d for core3\n", nss_dp_capwap_vp_rx_core);
+			netif_napi_add(netdev, &rxdesc_ring->napi,
+				edma_rx_napi_capwap_poll, nss_dp_rx_napi_budget);
+		} else {
+			netif_napi_add(netdev, &rxdesc_ring->napi,
 				edma_rx_napi_poll, nss_dp_rx_napi_budget);
+		}
+#else
+		if (nss_dp_capwap_vp_rx_core == i) {
+			edma_info("Adding capwap napi for ring_id %d for core3\n", nss_dp_capwap_vp_rx_core);
+			netif_napi_add_weight(netdev, &rxdesc_ring->napi,
+				edma_rx_napi_capwap_poll, nss_dp_rx_napi_budget);
+		} else {
+			netif_napi_add_weight(netdev, &rxdesc_ring->napi,
+				 edma_rx_napi_poll, nss_dp_rx_napi_budget);
+		}
+#endif
 		rxdesc_ring->napi_added = true;
 	}
 	edma_info("%s: Rx NAPI budget: %d\n", netdev->name, nss_dp_rx_napi_budget);
@@ -1531,8 +1646,50 @@ int edma_cfg_rx_rps(struct ctl_table *table, int write,
 			       " value: %d", edma_cfg_rx_rps_num_cores, NR_CPUS);
 		edma_cfg_rx_rps_num_cores = NR_CPUS;
 	}
+
+	/*
+	 * Set bitmap based on given number of cores.
+	 */
+	edma_cfg_rx_rps_bitmap_cores = (1 << edma_cfg_rx_rps_num_cores) - 1;
 	edma_configure_rps_hash_map(&edma_gbl_ctx);
 
 	edma_warn("EDMA RPS configured to use %d cores\n", edma_cfg_rx_rps_num_cores);
+	return ret;
+}
+
+/*
+ * edma_cfg_rx_rps_bitmap()
+ * 	API to configure RPS hash mapping based on bitmap
+ *
+ * The core to use is selected on the basis of set bit in the function
+ * edma_configure_rps_hash_map. We are using edma_cfg_rx_rps_bitmap as it will help
+ * us to distinguish between rps_num_core and rps_bitmap_core as both
+ * are calling the same configure hash function.
+ */
+int edma_cfg_rx_rps_bitmap(struct ctl_table *table, int write,
+		void __user *buffer, size_t *lenp, loff_t *ppos)
+{
+	int ret;
+
+	ret = proc_dointvec(table, write, buffer, lenp, ppos);
+
+	if (!write) {
+		return ret;
+	}
+
+	/*
+	 * Check for a valid bitmap core value
+	 * Set to use 4 cores in case of invalid core
+	 */
+	if (!edma_cfg_rx_rps_bitmap_cores ||
+			(edma_cfg_rx_rps_bitmap_cores > EDMA_RX_DEFAULT_BITMAP)) {
+		edma_err("Incorrect CPU bitmap: %d. Setting it to default"
+				" value: %d", edma_cfg_rx_rps_bitmap_cores, EDMA_RX_DEFAULT_BITMAP);
+		edma_cfg_rx_rps_bitmap_cores = EDMA_RX_DEFAULT_BITMAP;
+	}
+
+	edma_configure_rps_hash_map(&edma_gbl_ctx);
+
+	edma_warn("EDMA RPS bitmap value: %d\n", edma_cfg_rx_rps_bitmap_cores);
 	return ret;
 }

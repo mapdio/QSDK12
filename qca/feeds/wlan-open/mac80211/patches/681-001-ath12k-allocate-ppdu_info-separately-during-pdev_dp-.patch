@@ -18,9 +18,11 @@ Signed-off-by: Sidhanta Sahu <quic_sidhanta@quicinc.com>
  drivers/net/wireless/ath/ath12k/dp_rx.h  |  1 +
  5 files changed, 43 insertions(+), 8 deletions(-)
 
+diff --git a/drivers/net/wireless/ath/ath12k/dp.c b/drivers/net/wireless/ath/ath12k/dp.c
+index 4c0205f..db4cd94 100644
 --- a/drivers/net/wireless/ath/ath12k/dp.c
 +++ b/drivers/net/wireless/ath/ath12k/dp.c
-@@ -1032,6 +1032,7 @@ void ath12k_dp_pdev_free(struct ath12k_b
+@@ -1032,6 +1032,7 @@ void ath12k_dp_pdev_free(struct ath12k_base *ab)
  	for (i = 0; i < ab->num_radios; i++) {
  		ar = ab->pdevs[i].ar;
  		ath12k_dp_rx_pdev_free(ab, i);
@@ -28,6 +30,8 @@ Signed-off-by: Sidhanta Sahu <quic_sidhanta@quicinc.com>
  		ath12k_debugfs_unregister(ar);
  	}
  }
+diff --git a/drivers/net/wireless/ath/ath12k/dp.h b/drivers/net/wireless/ath/ath12k/dp.h
+index 861b4ca..1bc1422 100644
 --- a/drivers/net/wireless/ath/ath12k/dp.h
 +++ b/drivers/net/wireless/ath/ath12k/dp.h
 @@ -131,7 +131,7 @@ struct ath12k_pdev_dp {
@@ -39,9 +43,11 @@ Signed-off-by: Sidhanta Sahu <quic_sidhanta@quicinc.com>
  };
  
  #define DP_NUM_CLIENTS_MAX 64
+diff --git a/drivers/net/wireless/ath/ath12k/dp_mon.c b/drivers/net/wireless/ath/ath12k/dp_mon.c
+index 0c4a776..b95326e 100644
 --- a/drivers/net/wireless/ath/ath12k/dp_mon.c
 +++ b/drivers/net/wireless/ath/ath12k/dp_mon.c
-@@ -3597,7 +3597,7 @@ int ath12k_dp_mon_srng_process(struct at
+@@ -3596,7 +3596,7 @@ int ath12k_dp_mon_srng_process(struct ath12k *ar, int mac_id, int *budget,
  {
  	struct hal_mon_dest_desc *mon_dst_desc;
  	struct ath12k_pdev_dp *pdev_dp = &ar->dp;
@@ -50,7 +56,7 @@ Signed-off-by: Sidhanta Sahu <quic_sidhanta@quicinc.com>
  	struct ath12k_base *ab = ar->ab;
  	struct ath12k_dp *dp = &ab->dp;
  	struct sk_buff *skb;
-@@ -3743,7 +3743,7 @@ int ath12k_dp_mon_rx_process_stats(struc
+@@ -3742,7 +3742,7 @@ int ath12k_dp_mon_rx_process_stats(struct ath12k *ar, int mac_id,
  {
  	struct ath12k_base *ab = ar->ab;
  	struct ath12k_pdev_dp *pdev_dp = &ar->dp;
@@ -59,9 +65,11 @@ Signed-off-by: Sidhanta Sahu <quic_sidhanta@quicinc.com>
  	struct hal_rx_mon_ppdu_info *ppdu_info = &pmon->mon_ppdu_info;
  	struct ath12k_dp *dp = &ab->dp;
  	struct hal_mon_dest_desc *mon_dst_desc;
+diff --git a/drivers/net/wireless/ath/ath12k/dp_rx.c b/drivers/net/wireless/ath/ath12k/dp_rx.c
+index 82cc283..72cde24 100644
 --- a/drivers/net/wireless/ath/ath12k/dp_rx.c
 +++ b/drivers/net/wireless/ath/ath12k/dp_rx.c
-@@ -4773,10 +4773,34 @@ out:
+@@ -4769,10 +4769,34 @@ out:
  	return 0;
  }
  
@@ -75,7 +83,7 @@ Signed-off-by: Sidhanta Sahu <quic_sidhanta@quicinc.com>
 +		return -EINVAL;
 +	}
 +
-+	vfree(pmon);
++	kfree(pmon);
 +	dp->mon_data = NULL;
 +
 +	return 0;
@@ -87,7 +95,7 @@ Signed-off-by: Sidhanta Sahu <quic_sidhanta@quicinc.com>
 -	struct ath12k_mon_data *pmon = (struct ath12k_mon_data *)&dp->mon_data;
 +	struct ath12k_mon_data *pmon;
 +
-+	pmon = vzalloc(sizeof(*pmon));
++	pmon = kzalloc(sizeof(*pmon), GFP_KERNEL);
 +	if (!pmon) {
 +		ath12k_warn(ar->ab, "pmon allocation failed \n");
 +		return -ENOMEM;
@@ -97,7 +105,7 @@ Signed-off-by: Sidhanta Sahu <quic_sidhanta@quicinc.com>
  
  	skb_queue_head_init(&pmon->rx_status_q);
  
-@@ -4790,7 +4814,6 @@ static int ath12k_dp_rx_pdev_mon_status_
+@@ -4786,7 +4810,6 @@ static int ath12k_dp_rx_pdev_mon_status_attach(struct ath12k *ar)
  int ath12k_dp_rx_pdev_mon_attach(struct ath12k *ar)
  {
  	struct ath12k_pdev_dp *dp = &ar->dp;
@@ -105,7 +113,7 @@ Signed-off-by: Sidhanta Sahu <quic_sidhanta@quicinc.com>
  	int ret = 0;
  
  	ret = ath12k_dp_rx_pdev_mon_status_attach(ar);
-@@ -4805,13 +4828,23 @@ int ath12k_dp_rx_pdev_mon_attach(struct
+@@ -4801,13 +4824,23 @@ int ath12k_dp_rx_pdev_mon_attach(struct ath12k *ar)
  	if (!ar->ab->hw_params->rxdma1_enable)
  		return 0;
  
@@ -132,9 +140,11 @@ Signed-off-by: Sidhanta Sahu <quic_sidhanta@quicinc.com>
  int ath12k_dp_rx_pktlog_start(struct ath12k_base *ab)
  {
  	/* start reap timer */
+diff --git a/drivers/net/wireless/ath/ath12k/dp_rx.h b/drivers/net/wireless/ath/ath12k/dp_rx.h
+index dcefa20..8cd200d 100644
 --- a/drivers/net/wireless/ath/ath12k/dp_rx.h
 +++ b/drivers/net/wireless/ath/ath12k/dp_rx.h
-@@ -126,6 +126,7 @@ int ath12k_dp_htt_tlv_iter(struct ath12k
+@@ -126,6 +126,7 @@ int ath12k_dp_htt_tlv_iter(struct ath12k_base *ab, const void *ptr, size_t len,
  				       const void *ptr, void *data),
  			   void *data);
  int ath12k_dp_rx_pdev_mon_attach(struct ath12k *ar);
@@ -142,3 +152,6 @@ Signed-off-by: Sidhanta Sahu <quic_sidhanta@quicinc.com>
  int ath12k_dp_rx_peer_frag_setup(struct ath12k *ar, const u8 *peer_mac, int vdev_id);
  
  int ath12k_dp_rx_pktlog_start(struct ath12k_base *ab);
+-- 
+2.17.1
+

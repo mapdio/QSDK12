@@ -2,7 +2,7 @@ include $(TOPDIR)/rules.mk
 
 PKG_NAME:=luajit
 PKG_VERSION:=2.1.0-beta3
-PKG_RELEASE:=8
+PKG_RELEASE:=7
 
 PKG_SOURCE:=LuaJIT-$(PKG_VERSION).tar.gz
 PKG_SOURCE_URL:=https://luajit.org/download
@@ -13,7 +13,7 @@ PKG_MAINTAINER:=Morteza Milani <milani@pichak.co>
 PKG_LICENSE:=MIT
 PKG_LICENSE_FILES:=COPYRIGHT
 
-PKG_USE_MIPS16:=0
+PKG_BUILD_FLAGS:=no-mips16
 
 include $(INCLUDE_DIR)/package.mk
 include $(INCLUDE_DIR)/host-build.mk

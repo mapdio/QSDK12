@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2022, Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2024, Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for any
  * purpose with or without fee is hereby granted, provided that the above
@@ -37,6 +37,17 @@
 struct eip_ipsec_drv eip_ipsec_drv_g;
 
 /*
+ * Module params
+ */
+uint8_t eip_ipsec_core_id = 0x2;
+module_param(eip_ipsec_core_id, byte, S_IRUSR | S_IWUSR | S_IRGRP);
+MODULE_PARM_DESC(eip_ipsec_core_id, "CPU id for IPsec processing");
+
+bool disable_v4_offload = false;
+module_param(disable_v4_offload, bool, S_IRUSR | S_IWUSR | S_IRGRP);
+MODULE_PARM_DESC(disable_v4_offload, "Disable ipv4 acceleration");
+
+/*
  * eip_ipsec_ppe_init()
  *	Initialize PPE port if enabled.
  */
@@ -47,6 +58,13 @@ static int eip_ipsec_ppe_init(void)
 	struct ppe_drv_iface *iface;
 	ppe_drv_ret_t ret;
 
+	if (!eip_is_inline_supported()) {
+		return 0;
+	}
+
+	/*
+	 * Allocate and initialize the inline port
+	 */
 	iface = ppe_drv_iface_alloc(PPE_DRV_IFACE_TYPE_EIP, NULL);
 	if (!iface) {
 		pr_err("%px: failed to allocate PPE interface for init", drv);
@@ -78,6 +96,10 @@ static void eip_ipsec_ppe_deinit(void)
 	struct eip_ipsec_drv *drv = &eip_ipsec_drv_g;
 	ppe_drv_ret_t ret;
 
+	if (!eip_is_inline_supported()) {
+		return;
+	}
+
 	/*
 	 * Should we do BUG_ON()?
 	 */
@@ -92,6 +114,7 @@ static void eip_ipsec_ppe_deinit(void)
 	pr_debug("%px: PPE is not enabled", &eip_ipsec_drv_g);
 #endif
 }
+
 /*
  * eip_ipsec_drv_final()
  *	Mark final deref completion.
@@ -110,6 +133,7 @@ void eip_ipsec_drv_final(struct kref *kref)
 int __init eip_ipsec_init_module(void)
 {
 	struct eip_ipsec_drv *drv = &eip_ipsec_drv_g;
+	enum eip_svc svc;
 	int err = 0;
 	int i;
 
@@ -120,6 +144,11 @@ int __init eip_ipsec_init_module(void)
 		pr_info("IPsec Module can't be loaded as EIP is unavailable\n");
 		return -1;
 	}
+
+	/*
+	 * Assign the EIP service code.
+	 */
+	svc = eip_is_inline_supported() ? EIP_SVC_HYBRID_IPSEC : EIP_SVC_IPSEC;
 
 	/*
 	 * Initialize the global object.
@@ -149,7 +178,7 @@ int __init eip_ipsec_init_module(void)
 	/*
 	 * Create DMA context.
 	 */
-	drv->ctx = eip_ctx_alloc(EIP_IPSEC_DEFAULT_SVC, &drv->dentry);
+	drv->ctx = eip_ctx_alloc(svc, &drv->dentry);
 	if (!drv->ctx) {
 		pr_err("%px: Failed to create DMA context\n", drv);
 		err = -ENOSYS;

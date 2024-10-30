@@ -8,17 +8,17 @@
 include $(TOPDIR)/rules.mk
 
 PKG_NAME:=snort
-PKG_VERSION:=2.9.11.1
-PKG_RELEASE:=8
+PKG_VERSION:=2.9.19
+PKG_RELEASE:=2
 
 PKG_LICENSE:=GPL-2.0
 PKG_MAINTAINER:=W. Michael Petullo <mike@flyn.org>
 PKG_CPE_ID:=cpe:/a:snort:snort
 
 PKG_SOURCE:=$(PKG_NAME)-$(PKG_VERSION).tar.gz
-PKG_SOURCE_URL:=https://www.snort.org/downloads/snort/ \
+PKG_SOURCE_URL:=https://www.snort.org/downloads/archive/snort/ \
 	@SF/$(PKG_NAME)
-PKG_HASH:=9f6b3aeac5a109f55504bd370564ac431cb1773507929dc461626898f33f46cd
+PKG_HASH:=b12fc6db72afb58987a2bf1954b8f45bde02047c235513c7663857b9506369c7
 
 PKG_BUILD_DEPENDS:=libtirpc
 PKG_BUILD_DIR:=$(BUILD_DIR)/$(PKG_NAME)/$(PKG_NAME)-$(PKG_VERSION)
@@ -31,9 +31,10 @@ define Package/snort
   SUBMENU:=Firewall
   SECTION:=net
   CATEGORY:=Network
-  DEPENDS:=+libdaq +libdnet +libnghttp2 +libopenssl +libpcap +libpcre +libpthread +libuuid +zlib +SNORT_LZMA:liblzma
+  DEPENDS:=+libdaq +libdnet +libnghttp2 +libopenssl +libpcap +libpcre +libpthread +libtirpc +libuuid +zlib +luajit +SNORT_LZMA:liblzma
   TITLE:=Lightweight Network Intrusion Detection System
   URL:=http://www.snort.org/
+  CONFLICTS:=snort3
   MENU:=1
 endef
 
@@ -58,8 +59,8 @@ CONFIGURE_ARGS += \
 	--with-libpcap-libraries="$(STAGING_DIR)/usr/lib" \
 	--with-libpcre-includes="$(STAGING_DIR)/usr/include" \
 	--with-libpcre-libraries="$(STAGING_DIR)/usr/lib" \
-	--with-daq-includes="$(STAGING_DIR)/usr/include" \
-	--with-daq-libraries="$(STAGING_DIR)/usr/lib" \
+	--with-daq-includes="$(STAGING_DIR)/usr/include/daq2" \
+	--with-daq-libraries="$(STAGING_DIR)/usr/lib/daq2" \
 	--disable-static-daq
 
 ifeq ($(CONFIG_SNORT_LZMA),)

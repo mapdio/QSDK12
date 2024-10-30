@@ -1,0 +1,41 @@
+From 9292234460d28bbee8e1c2e4bf3e2260612e8a4b Mon Sep 17 00:00:00 2001
+From: Amutha Ravikumar <quic_aravikum@quicinc.com>
+Date: Thu, 19 Jan 2023 15:00:05 +0530
+Subject: ath12k : add support to advertise max txpower to cfg for RRM
+
+This support is done to advertise max txpower to
+user-space for RRM link Measurement request/report.
+
+Signed-off-by: Amutha Ravikumar <quic_aravikum@quicinc.com>
+---
+ drivers/net/wireless/ath/ath12k/mac.c | 4 ++++
+ 1 file changed, 4 insertions(+)
+
+--- a/drivers/net/wireless/ath/ath12k/mac.c
++++ b/drivers/net/wireless/ath/ath12k/mac.c
+@@ -13924,10 +13924,12 @@ static int __ath12k_mac_register(struct
+ {
+ 	struct ieee80211_hw *hw;
+ 	struct ath12k_pdev_cap *cap;
++	struct ath12k_hw_group *ag;
+ 	int ret;
+ 	u32 ht_cap = 0;
+ 
+ 	hw = ar->ah->hw;
++	ag = ar->ah->ag;
+ 	init_waitqueue_head(&ar->txmgmt_empty_waitq);
+ 	idr_init(&ar->txmgmt_idr);
+ 	spin_lock_init(&ar->txmgmt_idr_lock);
+@@ -13963,6 +13965,12 @@ static int __ath12k_mac_register(struct
+ 				      NL80211_EXT_FEATURE_UNSOL_BCAST_PROBE_RESP);
+ 	}
+ 
++	if (!ag->mlo_capable) {
++		hw->wiphy->rdev_max_txpower = ar->max_tx_power / 2;
++		wiphy_ext_feature_set(hw->wiphy,
++				      NL80211_EXT_FEATURE_TX_POWER_REPORTING);
++	}
++
+ 	if ((ar->pdev->cap.supported_bands & WMI_HOST_WLAN_5G_CAP) &&
+ 	    test_bit(ar->cfg_rx_chainmask, &cap->adfs_chain_mask))
+ 		wiphy_ext_feature_set(hw->wiphy,

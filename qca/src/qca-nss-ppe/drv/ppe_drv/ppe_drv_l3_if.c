@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2022-2023 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2024 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for any
  * purpose with or without fee is hereby granted, provided that the above
@@ -20,6 +20,8 @@
 #include <fal/fal_tunnel.h>
 #include <fal/fal_api.h>
 #include "ppe_drv.h"
+
+#include <linux/etherdevice.h>
 
 #if (PPE_DRV_DEBUG_LEVEL == 3)
 /*
@@ -163,7 +165,7 @@ static bool ppe_drv_l3_if_ig_mac_addr_set(struct ppe_drv_l3_if *l3_if, uint8_t *
 	}
 
 	l3_if->is_ig_mac_set = true;
-	memcpy(l3_if->ig_mac_addr, mac_addr, ETH_ALEN);
+	ether_addr_copy(l3_if->ig_mac_addr, mac_addr);
 	ppe_drv_trace("%p: setting mac addr(%pM) to l3_if %u", l3_if, mac_addr, l3_if->l3_if_index);
 	ppe_drv_l3_if_dump(l3_if);
 	return true;
@@ -179,6 +181,7 @@ static bool ppe_drv_l3_if_ig_mac_addr_clear(struct ppe_drv_l3_if *l3_if)
 	fal_intf_macaddr_t mac_cfg = {0};
 
 	mac_cfg.direction = FAL_IP_INGRESS;
+	memcpy(&mac_cfg.mac_addr, l3_if->ig_mac_addr, sizeof(mac_cfg.mac_addr));
 	err = fal_ip_intf_macaddr_del(PPE_DRV_SWITCH_ID, l3_if->l3_if_index, &mac_cfg);
 	if (err != SW_OK) {
 		ppe_drv_warn("%p: Error in clearing mac addr for l3_if %u", l3_if, l3_if->l3_if_index);
@@ -186,7 +189,7 @@ static bool ppe_drv_l3_if_ig_mac_addr_clear(struct ppe_drv_l3_if *l3_if)
 	}
 
 	l3_if->is_ig_mac_set = false;
-	memset(l3_if->ig_mac_addr, 0, ETH_ALEN);
+	eth_zero_addr(l3_if->ig_mac_addr);
 	ppe_drv_trace("%p: clearing mac addr of l3_if %u", l3_if, l3_if->l3_if_index);
 	ppe_drv_l3_if_dump(l3_if);
 	return true;
@@ -242,7 +245,7 @@ bool ppe_drv_l3_if_ig_mac_deref(struct ppe_drv_l3_if *l3_if)
  * ppe_drv_l3_if_eg_mac_addr_set()
  *	Programs the given MAC address to L3 interface in PPE Egress table
  */
-bool ppe_drv_l3_if_eg_mac_addr_set(struct ppe_drv_l3_if *l3_if, uint8_t *mac_addr)
+bool ppe_drv_l3_if_eg_mac_addr_set(struct ppe_drv_l3_if *l3_if, const uint8_t *mac_addr)
 {
 	sw_error_t err;
 	fal_intf_macaddr_t mac_cfg = {0};
@@ -256,7 +259,7 @@ bool ppe_drv_l3_if_eg_mac_addr_set(struct ppe_drv_l3_if *l3_if, uint8_t *mac_add
 	}
 
 	l3_if->is_eg_mac_set = true;
-	memcpy(l3_if->eg_mac_addr, mac_addr, ETH_ALEN);
+	ether_addr_copy(l3_if->eg_mac_addr, mac_addr);
 	ppe_drv_trace("%p: setting mac addr(%pM) to l3_if %u", l3_if, mac_addr, l3_if->l3_if_index);
 	ppe_drv_l3_if_dump(l3_if);
 	return true;
@@ -272,6 +275,7 @@ bool ppe_drv_l3_if_eg_mac_addr_clear(struct ppe_drv_l3_if *l3_if)
 	fal_intf_macaddr_t mac_cfg = {0};
 
 	mac_cfg.direction = FAL_IP_EGRESS;
+	memcpy(&mac_cfg.mac_addr, l3_if->eg_mac_addr, sizeof(mac_cfg.mac_addr));
 	err = fal_ip_intf_macaddr_del(PPE_DRV_SWITCH_ID, l3_if->l3_if_index, &mac_cfg);
 	if (err != SW_OK) {
 		ppe_drv_warn("%p: Error in clearing mac addr for l3_if %u", l3_if, l3_if->l3_if_index);
@@ -279,7 +283,7 @@ bool ppe_drv_l3_if_eg_mac_addr_clear(struct ppe_drv_l3_if *l3_if)
 	}
 
 	l3_if->is_eg_mac_set = false;
-	memset(l3_if->eg_mac_addr, 0, ETH_ALEN);
+	eth_zero_addr(l3_if->eg_mac_addr);
 	ppe_drv_trace("%p: clearing mac addr of l3_if %u", l3_if, l3_if->l3_if_index);
 	ppe_drv_l3_if_dump(l3_if);
 	return true;
@@ -289,7 +293,7 @@ bool ppe_drv_l3_if_eg_mac_addr_clear(struct ppe_drv_l3_if *l3_if)
  * ppe_drv_l3_if_mac_addr_set()
  *	Programs the given MAC address to L3 interface in PPE
  */
-bool ppe_drv_l3_if_mac_addr_set(struct ppe_drv_l3_if *l3_if, uint8_t *mac_addr)
+bool ppe_drv_l3_if_mac_addr_set(struct ppe_drv_l3_if *l3_if, const uint8_t *mac_addr)
 {
 	sw_error_t err;
 	struct ppe_drv *p = &ppe_drv_gbl;
@@ -300,6 +304,8 @@ bool ppe_drv_l3_if_mac_addr_set(struct ppe_drv_l3_if *l3_if, uint8_t *mac_addr)
 	 * mac address and reconfigure the new mac address
 	 */
 	if (l3_if->is_mac_set) {
+		mac_cfg.direction = FAL_IP_BOTH;
+		memcpy(&mac_cfg.mac_addr, l3_if->ig_mac_addr, sizeof(mac_cfg.mac_addr));
 		err = fal_ip_intf_macaddr_del(PPE_DRV_SWITCH_ID, l3_if->l3_if_index, &mac_cfg);
 		if (err != SW_OK) {
 			ppe_drv_warn("%p: Error in clearing mac addr for l3_if %u", l3_if, l3_if->l3_if_index);
@@ -318,8 +324,8 @@ bool ppe_drv_l3_if_mac_addr_set(struct ppe_drv_l3_if *l3_if, uint8_t *mac_addr)
 	l3_if->is_mac_set = true;
 	l3_if->is_ig_mac_set = true;
 	l3_if->is_eg_mac_set = true;
-	memcpy(l3_if->ig_mac_addr, mac_addr, ETH_ALEN);
-	memcpy(l3_if->eg_mac_addr, mac_addr, ETH_ALEN);
+	ether_addr_copy(l3_if->ig_mac_addr, mac_addr);
+	ether_addr_copy(l3_if->eg_mac_addr, mac_addr);
 
 	ppe_drv_trace("%p: setting mac addr(%pM) to l3_if %u", l3_if, mac_addr, l3_if->l3_if_index);
 	ppe_drv_l3_if_dump(l3_if);
@@ -344,6 +350,7 @@ bool ppe_drv_l3_if_mac_addr_clear(struct ppe_drv_l3_if *l3_if)
 	}
 
 	mac_cfg.direction = FAL_IP_BOTH;
+	memcpy(&mac_cfg.mac_addr, l3_if->ig_mac_addr, sizeof(mac_cfg.mac_addr));
 	err = fal_ip_intf_macaddr_del(PPE_DRV_SWITCH_ID, l3_if->l3_if_index, &mac_cfg);
 	if (err != SW_OK) {
 		ppe_drv_warn("%p: Error in clearing mac addr for l3_if %u", l3_if, l3_if->l3_if_index);
@@ -353,8 +360,8 @@ bool ppe_drv_l3_if_mac_addr_clear(struct ppe_drv_l3_if *l3_if)
 	l3_if->is_mac_set = false;
 	l3_if->is_ig_mac_set = false;
 	l3_if->is_eg_mac_set = false;
-	memset(l3_if->ig_mac_addr, 0, ETH_ALEN);
-	memset(l3_if->eg_mac_addr, 0, ETH_ALEN);
+	eth_zero_addr(l3_if->ig_mac_addr);
+	eth_zero_addr(l3_if->eg_mac_addr);
 
 	ppe_drv_trace("%p: clearing mac addr of l3_if %u", l3_if, l3_if->l3_if_index);
 	ppe_drv_l3_if_dump(l3_if);
@@ -500,6 +507,32 @@ void ppe_drv_l3_if_dmac_check_set(struct ppe_drv_l3_if *l3_if, bool enable)
 }
 
 /*
+ * ppe_drv_l3_if_disable_ttl_dec()
+ *	Disables the TTL decrementing operation on the L3 interface.
+ */
+bool ppe_drv_l3_if_disable_ttl_dec(struct ppe_drv_l3_if *l3_if, bool disable_ttl_dec)
+{
+	fal_intf_entry_t in_l3_if_cfg = {0};
+	sw_error_t err;
+
+	err = fal_ip_intf_get(PPE_DRV_SWITCH_ID, l3_if->l3_if_index, &in_l3_if_cfg);
+	if (err != SW_OK) {
+		ppe_drv_warn("%p: L3_IF interface query failed for l3_if index: %u err: %d\n", l3_if, l3_if->l3_if_index, err);
+		return false;
+	}
+
+	in_l3_if_cfg.ttl_dec_bypass_en = disable_ttl_dec;
+
+	err = fal_ip_intf_set(PPE_DRV_SWITCH_ID, l3_if->l3_if_index, &in_l3_if_cfg);
+	if (err != SW_OK) {
+		ppe_drv_warn("%p: L3_IF configuration failed(%d)\n", l3_if, PPE_DRV_L3_IF_TYPE_PORT);
+		return false;
+	}
+
+	return true;
+}
+
+/*
  * ppe_drv_l3_if_alloc()
  *	Allocates a free L3 interface and takes a reference.
  */
@@ -529,14 +562,14 @@ struct ppe_drv_l3_if *ppe_drv_l3_if_alloc(enum ppe_drv_l3_if_type type)
 	/*
 	 * Set basic provisioning bits for L3 IF.
 	 */
-	in_l3_if_cfg.ttl_dec_bypass_en = false;
-	in_l3_if_cfg.ipv4_uc_route_en = true;
-	in_l3_if_cfg.ipv6_uc_route_en = true;
-	in_l3_if_cfg.ttl_exceed_deacclr_en = true;
-	in_l3_if_cfg.icmp_trigger_en = false;
+	in_l3_if_cfg.ttl_dec_bypass_en = A_FALSE;
+	in_l3_if_cfg.ipv4_uc_route_en = A_TRUE;
+	in_l3_if_cfg.ipv6_uc_route_en = A_TRUE;
+	in_l3_if_cfg.ttl_exceed_deacclr_en = A_TRUE;
+	in_l3_if_cfg.icmp_trigger_en = A_FALSE;
 	in_l3_if_cfg.ttl_exceed_action = FAL_MAC_RDT_TO_CPU;
 	in_l3_if_cfg.mac_addr_bitmap = 0;
-	in_l3_if_cfg.dmac_check_en = true;
+	in_l3_if_cfg.dmac_check_en = A_TRUE;
 	in_l3_if_cfg.udp_zero_csum_action = FAL_UDP_ZERO_CSUM_RECALC_MAPT;
 	in_l3_if_cfg.vpn_id = 0;
 

@@ -1,5 +1,5 @@
 #
-# Copyright (C) 2019 CZ.NIC, z. s. p. o. (https://www.nic.cz/)
+# Copyright (C) 2019-2O21 CZ.NIC, z. s. p. o. (https://www.nic.cz/)
 #
 # This is free software, licensed under the GNU General Public License v2.
 # See /LICENSE for more information.
@@ -8,19 +8,17 @@
 include $(TOPDIR)/rules.mk
 
 PKG_NAME:=python-markdown
-PKG_VERSION:=3.1.1
+PKG_VERSION:=3.4.4
 PKG_RELEASE:=1
 
-PKG_SOURCE:=Markdown-$(PKG_VERSION).tar.gz
-PKG_SOURCE_URL:=https://files.pythonhosted.org/packages/source/m/markdown/
-PKG_HASH:=2e50876bcdd74517e7b71f3e7a76102050edec255b3983403f1a63e7c8a41e7a
+PYPI_NAME:=Markdown
+PKG_HASH:=225c6123522495d4119a90b3a3ba31a1e87a70369e03f14799ea9c0d7183a3d6
 
-PKG_BUILD_DIR:=$(BUILD_DIR)/Markdown-$(PKG_VERSION)
-
-PKG_MAINTAINER:=Josef Schlehofer <josef.schlehofer@nic.cz>
+PKG_MAINTAINER:=Josef Schlehofer <pepe.schlehofer@gmail.com>
 PKG_LICENSE:=BSD-3-Clause
 PKG_LICENSE_FILES:=LICENSE.md
 
+include ../pypi.mk
 include $(INCLUDE_DIR)/package.mk
 include ../python3-package.mk
 
@@ -28,17 +26,19 @@ define Package/python3-markdown
   SECTION:=lang
   CATEGORY:=Languages
   SUBMENU:=Python
-  TITLE:=Markdown implementation in Python
+  TITLE:=Implementation of John Gruber's Markdown
   URL:=https://python-markdown.github.io/
   DEPENDS:= \
 	+python3-light \
-	+python3-setuptools \
-	+python3-logging
-  VARIANT:=python3
+	+python3-codecs \
+	+python3-logging \
+	+python3-xml
 endef
 
 define Package/python3-markdown/description
-  A fast and complete Python implementation of Markdown.
+This is a Python implementation of John Gruber’s Markdown. It is almost
+completely compliant with the reference implementation, though there are
+a few very minor differences.
 endef
 
 $(eval $(call Py3Package,python3-markdown))

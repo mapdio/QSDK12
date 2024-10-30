@@ -48,10 +48,17 @@ endif
 
 EXTRA_CFLAGS+= -I$(PKG_BUILD_DIR)/exports
 
+ifeq ($(CONFIG_LOWMEM_FLASH),y)
+SFE_MAKE_OPTS+=SFE_16M_PROFILE=y
+endif
+
 ifeq ($(CONFIG_KERNEL_IPQ_MEM_PROFILE),256)
+SFE_MAKE_OPTS+=SFE_256M_PROFILE=y
 EXTRA_CFLAGS+= -DSFE_MEM_PROFILE_LOW
-else ifeq ($(CONFIG_LOWMEM_FLASH),y)
-EXTRA_CFLAGS+= -DSFE_MEM_PROFILE_LOW
+ifneq ($(CONFIG_TARGET_ipq53xx),)
+EXTRA_CFLAGS+= -I$(STAGING_DIR)/usr/include/qca-nss-ppe
+SFE_MAKE_OPTS+=SFE_RFS_SUPPORTED=y
+endif
 else ifeq ($(CONFIG_KERNEL_IPQ_MEM_PROFILE),512)
 EXTRA_CFLAGS+= -DSFE_MEM_PROFILE_MEDIUM
 ifneq ($(CONFIG_TARGET_ipq95xx)$(CONFIG_TARGET_ipq53xx),)
@@ -65,15 +72,25 @@ SFE_MAKE_OPTS+=SFE_RFS_SUPPORTED=y
 endif
 endif
 
+#PPE_QOS is supported only if PPE Qdisc is enabled
+ifeq ($(CONFIG_PACKAGE_kmod-qca-nss-ppe-qdisc),y)
+SFE_MAKE_OPTS+=SFE_PPE_QOS_SUPPORTED=y
+endif
+
 #TSO is supported only on Alder and Miami
 ifeq ($(CONFIG_TARGET_ipq95xx)$(CONFIG_TARGET_ipq53xx), y)
 EXTRA_CFLAGS+= -DSFE_TSO_MAX_SEG_LIMIT_ENABLE
 endif
 
+#L2TPv3 is supported only on Alder and Miami Premium and 512M profile
+ifeq ($(CONFIG_TARGET_ipq95xx)$(CONFIG_TARGET_ipq53xx), y)
+ifneq ($(CONFIG_KERNEL_IPQ_MEM_PROFILE),256)
+SFE_MAKE_OPTS+=SFE_L2TPV3_SUPPORTED=y
+endif
+endif
+
 define Build/Compile
-	$(MAKE) -C "$(LINUX_DIR)"  $(strip $(SFE_MAKE_OPTS))\
-		CROSS_COMPILE="$(TARGET_CROSS)" \
-		ARCH="$(LINUX_KARCH)" \
+	$(KERNEL_MAKE)  $(strip $(SFE_MAKE_OPTS))\
 		M="$(PKG_BUILD_DIR)" \
 		EXTRA_CFLAGS="$(EXTRA_CFLAGS)" \
 		modules

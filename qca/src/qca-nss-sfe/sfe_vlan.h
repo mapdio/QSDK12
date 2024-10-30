@@ -2,7 +2,7 @@
  * sfe_vlan.h
  *	Shortcut flow acceleration for 802.1AD/802.1Q flow
  *
- * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2024 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for any
  * purpose with or without fee is hereby granted, provided that the above
@@ -34,7 +34,6 @@
  *   skb->protocol = ntohs(ETH_P_8021AD)
  *   skb->vlan_proto = 0
  *   skb->vlan_tci = 0
- *   skb->vlan_present = 0
  * When exiting:
  * ----+-----------------+-----------+-----------+-----+---------
  *     |DMAC    |SMAC    |88|a8|00|32|81|00|00|01|08|00|45|00|
@@ -43,7 +42,6 @@
  *   skb->protocol = ntohs(ETH_P_IP)
  *   skb->vlan_proto = 0
  *   skb->vlan_tci = 0
- *   skb->vlan_present = 0
  *   l2_info->vlan_hdr_cnt = 2
  *   l2_info->vlan_hdr[0].tpid = ntohs(ETH_P_8021AD)
  *   l2_info->vlan_hdr[0].tci = 0x0032
@@ -60,7 +58,6 @@
  *   skb->protocol = ntohs(ETH_P_8021Q)
  *   skb->vlan_proto = 0
  *   skb->vlan_tci = 0
- *   skb->vlan_present = 0
  * When exiting:
  * ----+-----------------+-----------+-----+---------
  *     |DMAC    |SMAC    |81|00|00|01|08|00|45|00|
@@ -69,7 +66,6 @@
  *   skb->protocol = ntohs(ETH_P_IP)
  *   skb->vlan_proto = 0
  *   skb->vlan_tci = 0
- *   skb->vlan_present = 0
  *   l2_info->vlan_hdr_cnt = 1
  *   l2_info->vlan_hdr[0].tpid = ntohs(ETH_P_8021Q)
  *   l2_info->vlan_hdr[0].tci = 0x0001
@@ -84,7 +80,6 @@
  *   skb->protocol = ntohs(ETH_P_IP)
  *   skb->vlan_proto = 0
  *   skb->vlan_tci = 0
- *   skb->vlan_present = 0
  * When exiting:
  * ----+-----------------+-----|---------------------
  *     |DMAC    |SMAC    |08|00|45|00|
@@ -93,7 +88,6 @@
  *   skb->protocol = ntohs(ETH_P_IP)
  *   skb->vlan_proto = 0
  *   skb->vlan_tci = 0
- *   skb->vlan_present = 0
  *   l2_info->vlan_hdr_cnt = 0
  *   l2_info->protocol = ETH_P_IP
  */
@@ -128,12 +122,86 @@ static inline bool sfe_vlan_check_and_parse_tag(struct sk_buff *skb, struct sfe_
  */
 static inline void sfe_vlan_undo_parse(struct sk_buff *skb, struct sfe_l2_info *l2_info)
 {
-	if (l2_info->vlan_hdr_cnt == 0) {
+
+	if ((l2_info->vlan_hdr_cnt == 0)) {
+		return;
+	}
+
+	if ((sfe_l2_parse_flag_check(l2_info, SFE_L2_PARSE_FLAGS_VLAN_HW_TAG_SET))) {
+#if (LINUX_VERSION_CODE < KERNEL_VERSION(6, 6, 0))
+		skb->vlan_present = 1;
+#else
+		/*
+		 * We will be returning this packet to Linux.
+		 * Hence restore the original skb->vlan_tci and skb->tpid values.
+		 */
+		__vlan_hwaccel_put_tag(skb, htons(l2_info->vlan_hdr[0].tpid), l2_info->vlan_hdr[0].tci);
+#endif
+		return;
+	}
+
+	if ((sfe_l2_parse_flag_check(l2_info, SFE_L2_PARSE_FLAGS_VLAN_LINUX_UNTAGGED))) {
 		return;
 	}
 
 	skb->protocol = l2_info->vlan_hdr[0].tpid;
 	__skb_push(skb, l2_info->vlan_hdr_cnt * VLAN_HLEN);
+}
+
+static inline bool sfe_vlan_dev_check_and_parse_tag(struct sk_buff *skb, struct sfe_l2_info *l2_info)
+{
+	struct net_device *vlan_dev = skb->dev;
+	struct sfe_l2_info l2_info_temp;
+	l2_info_temp.vlan_hdr_cnt = 0;
+
+	/*
+	 * Vlan tag would be present for ports where VLAN filtering is enabled.
+	 * Read the vlan tag from skb header vlan field.
+	 */
+	if (skb_vlan_tag_present(skb)) {
+		l2_info_temp.vlan_hdr[l2_info_temp.vlan_hdr_cnt].tci = skb_vlan_tag_get(skb);
+		l2_info_temp.vlan_hdr[l2_info_temp.vlan_hdr_cnt].tpid = skb->vlan_proto;
+		l2_info_temp.vlan_hdr_cnt++;
+		__vlan_hwaccel_clear_tag(skb);
+		sfe_l2_parse_flag_set(l2_info, SFE_L2_PARSE_FLAGS_VLAN_HW_TAG_SET);
+	}
+
+	/*
+	 * VLAN processing is done by linux and hence skb->dev is updated to
+	 * corresponding vlan dev, so extract the vlan info from vlan dev.
+	 */
+	while (is_vlan_dev(vlan_dev)) {
+		if (unlikely(l2_info_temp.vlan_hdr_cnt > SFE_MAX_VLAN_DEPTH)) {
+			if ((sfe_l2_parse_flag_check(l2_info, SFE_L2_PARSE_FLAGS_VLAN_HW_TAG_SET))) {
+#if (LINUX_VERSION_CODE < KERNEL_VERSION(6, 6, 0))
+				skb->vlan_present = 1;
+#else
+				/*
+				 * We will be returning this packet to Linux.
+				 * Hence restore the original skb->vlan_tci and skb->tpid values.
+				 */
+				__vlan_hwaccel_put_tag(skb, htons(l2_info->vlan_hdr[0].tpid), l2_info->vlan_hdr[0].tci);
+#endif
+			}
+			return false;
+		}
+
+		l2_info_temp.vlan_hdr[l2_info_temp.vlan_hdr_cnt].tci = vlan_dev_vlan_id(vlan_dev);
+		l2_info_temp.vlan_hdr[l2_info_temp.vlan_hdr_cnt].tpid = vlan_dev_vlan_proto(vlan_dev);
+		l2_info_temp.vlan_hdr_cnt++;
+		vlan_dev = vlan_dev_next_dev(vlan_dev);
+	}
+
+	while ((l2_info_temp.vlan_hdr_cnt > 0) && l2_info->vlan_hdr_cnt < SFE_MAX_VLAN_DEPTH) {
+		l2_info_temp.vlan_hdr_cnt--;
+		l2_info->vlan_hdr[l2_info->vlan_hdr_cnt].tci = l2_info_temp.vlan_hdr[l2_info_temp.vlan_hdr_cnt].tci;
+		l2_info->vlan_hdr[l2_info->vlan_hdr_cnt].tpid = l2_info_temp.vlan_hdr[l2_info_temp.vlan_hdr_cnt].tpid;
+		l2_info->vlan_hdr_cnt++;
+		sfe_l2_parse_flag_set(l2_info, SFE_L2_PARSE_FLAGS_VLAN_LINUX_UNTAGGED);
+	}
+
+	l2_info->protocol = htons(skb->protocol);
+	return true;
 }
 
 /*

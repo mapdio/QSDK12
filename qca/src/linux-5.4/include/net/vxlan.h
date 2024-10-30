@@ -301,6 +301,7 @@ struct vxlan_fdb_event {
 extern void vxlan_fdb_register_notify(struct notifier_block *nb);
 extern void vxlan_fdb_unregister_notify(struct notifier_block *nb);
 extern void vxlan_fdb_update_mac(struct vxlan_dev *vxlan, const u8 *mac, uint32_t vni);
+extern int vxlan_find_remote_ip(struct vxlan_dev *vxlan, const u8 *mac, __be32 vni, union vxlan_addr *rip);
 
 struct net_device *vxlan_dev_create(struct net *net, const char *name,
 				    u8 name_assign_type, struct vxlan_config *conf);

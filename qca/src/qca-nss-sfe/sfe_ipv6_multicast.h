@@ -18,4 +18,4 @@
  */
 int sfe_ipv6_recv_multicast(struct sfe_ipv6 *si, struct sk_buff *skb,
 		unsigned int ihl, unsigned int len, struct sfe_ipv6_connection_match *cm,
-		struct sfe_l2_info *l2_info, bool tun_outer);
+		struct sfe_l2_info *l2_info, bool tun_outer, bool udph_valid);

@@ -11,7 +11,7 @@ include $(INCLUDE_DIR)/package.mk
 
 define Package/$(PKG_NAME)
   SECTION:=QTI
-  CATEGORY:=$(QTI_SOFTWARE_CATEGORY)
+  CATEGORY:=QTI software
   URL:=http://www.qualcomm.com
   MAINTAINER:=Qualcomm Technologies, Inc.
   TITLE:= NSS UDP SpeedTest

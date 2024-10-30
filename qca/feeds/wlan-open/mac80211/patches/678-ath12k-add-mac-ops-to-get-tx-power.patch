@@ -76,7 +76,7 @@ Signed-off-by: Ramya Gnanasekar <quic_rgnanase@quicinc.com>
  	int ret;
 --- a/drivers/net/wireless/ath/ath12k/core.h
 +++ b/drivers/net/wireless/ath/ath12k/core.h
-@@ -665,9 +665,6 @@ struct ath12k_debug {
+@@ -662,9 +662,6 @@ struct ath12k_debug {
  	struct dentry *debugfs_pdev;
  	struct ath12k_dbg_htt_stats htt_stats;
  	u32 extd_tx_stats;
@@ -86,7 +86,7 @@ Signed-off-by: Ramya Gnanasekar <quic_rgnanase@quicinc.com>
  	u32 extd_rx_stats;
  	u32 pktlog_filter;
  	u32 pktlog_mode;
-@@ -866,6 +863,12 @@ struct ath12k {
+@@ -863,6 +860,10 @@ struct ath12k {
  
  	struct completion mlo_setup_done;
  	u32 mlo_setup_status;
@@ -94,12 +94,10 @@ Signed-off-by: Ramya Gnanasekar <quic_rgnanase@quicinc.com>
 +	struct ath12k_fw_stats fw_stats;
 +	struct completion fw_stats_complete;
 +	bool fw_stats_done;
-+
-+	unsigned long last_tx_power_update;
  };
  
  struct ath12k_band_cap {
-@@ -1315,6 +1318,11 @@ void ath12k_core_put_hw_group(struct ath
+@@ -1311,6 +1312,11 @@ void ath12k_core_put_hw_group(struct ath
  
  const struct firmware *ath12k_core_firmware_request(struct ath12k_base *ab,
  						    const char *filename);
@@ -349,7 +347,7 @@ Signed-off-by: Ramya Gnanasekar <quic_rgnanase@quicinc.com>
  	mutex_unlock(&ar->conf_mutex);
  
  	return simple_read_from_buffer(ubuf, count, ppos, buf, len);
-@@ -1301,7 +1234,7 @@ void ath12k_debugfs_fw_stats_init(struct
+@@ -1291,7 +1224,7 @@ void ath12k_debugfs_fw_stats_init(struct
  	struct dentry *fwstats_dir = debugfs_create_dir("fw_stats",
  							ar->debug.debugfs_pdev);
  
@@ -358,7 +356,7 @@ Signed-off-by: Ramya Gnanasekar <quic_rgnanase@quicinc.com>
  
  	/* all stats debugfs files created are under "fw_stats" directory
  	 * created per PDEV
-@@ -1315,11 +1248,6 @@ void ath12k_debugfs_fw_stats_init(struct
+@@ -1305,11 +1238,6 @@ void ath12k_debugfs_fw_stats_init(struct
  	debugfs_create_file("en_vdev_stats_ol", 0600, fwstats_dir, ar,
  			    &fops_vdev_stats_offload);
  
@@ -395,15 +393,7 @@ Signed-off-by: Ramya Gnanasekar <quic_rgnanase@quicinc.com>
  
 --- a/drivers/net/wireless/ath/ath12k/mac.c
 +++ b/drivers/net/wireless/ath/ath12k/mac.c
-@@ -8166,6 +8166,7 @@ static int ath12k_mac_radio_start(struct
- 	ar->num_created_vdevs = 0;
- 	ar->num_peers = 0;
- 	ar->allocated_vdev_map = 0;
-+	ar->chan_tx_pwr = ATH12K_PDEV_TX_POWER_INVALID;
- 
- 	spin_lock_bh(&ar->data_lock);
-         ar->awgn_intf_handling_in_prog = false;
-@@ -8594,7 +8595,7 @@ static int ath12k_mac_vdev_create(struct
+@@ -8420,7 +8420,7 @@ static int ath12k_mac_vdev_create(struct
  	/* Send vdev stats offload commands to firmware before first vdev
  	 * creation. ie., when num_created_vdevs = 0
  	 */
@@ -412,31 +402,7 @@ Signed-off-by: Ramya Gnanasekar <quic_rgnanase@quicinc.com>
  		ret = ath12k_dp_tx_htt_h2t_vdev_stats_ol_req(ar, 0);
  		if (ret) {
  			ath12k_warn(ar->ab, "failed to request vdev stats offload: %d\n", ret);
-@@ -9254,6 +9255,7 @@ static int ath12k_mac_op_add_chanctx(str
- 	ar->rx_channel = ctx->def.chan;
- 	spin_unlock_bh(&ar->data_lock);
- 
-+	ar->chan_tx_pwr = ATH12K_PDEV_TX_POWER_INVALID;
- 	mutex_unlock(&ar->conf_mutex);
- 
- 	return 0;
-@@ -9285,6 +9287,7 @@ static void ath12k_mac_op_remove_chanctx
- 	ar->rx_channel = NULL;
- 	spin_unlock_bh(&ar->data_lock);
- 
-+	ar->chan_tx_pwr = ATH12K_PDEV_TX_POWER_INVALID;
- 	mutex_unlock(&ar->conf_mutex);
- }
- 
-@@ -9870,6 +9873,7 @@ static void ath12k_mac_update_rx_channel
-                 ar->rx_channel = NULL;
-         }
-         rcu_read_unlock();
-+	ar->chan_tx_pwr = ATH12K_PDEV_TX_POWER_INVALID;
- }
- 
- static void
-@@ -12213,6 +12217,127 @@ static void ath12k_mac_op_sta_statistics
+@@ -12000,6 +12000,106 @@ static void ath12k_mac_op_sta_statistics
  	sinfo->filled |= BIT_ULL(NL80211_STA_INFO_SIGNAL);
  }
  
@@ -502,20 +468,6 @@ Signed-off-by: Ramya Gnanasekar <quic_rgnanase@quicinc.com>
 +		goto err_fallback;
 +	}
 +
-+	mutex_lock(&ar->conf_mutex);
-+	if (test_bit(ATH12K_CAC_RUNNING, &ar->dev_flags)) {
-+		mutex_unlock(&ar->conf_mutex);
-+		mutex_unlock(&ah->conf_mutex);
-+		*dbm = 0;
-+		return 0;
-+	}
-+
-+	/* Limit the requests to Firmware for fetching the tx power */
-+	if (ar->chan_tx_pwr != ATH12K_PDEV_TX_POWER_INVALID &&
-+	    time_before(jiffies, msecs_to_jiffies(ATH12K_PDEV_TX_POWER_REFRESH_TIME_MSECS) +
-+							ar->last_tx_power_update))
-+		goto get_tx_power;
-+
 +	req_param.pdev_id = ar->pdev->pdev_id;
 +	req_param.vdev_id = 0;
 +	req_param.stats_id = WMI_REQUEST_PDEV_STAT;
@@ -523,7 +475,6 @@ Signed-off-by: Ramya Gnanasekar <quic_rgnanase@quicinc.com>
 +	ret = ath12k_fw_stats_request(ar, &req_param);
 +	if (ret) {
 +		ath12k_warn(ab, "failed to request fw pdev stats: %d\n", ret);
-+		mutex_unlock(&ar->conf_mutex);
 +		goto err_fallback;
 +	}
 +
@@ -533,23 +484,17 @@ Signed-off-by: Ramya Gnanasekar <quic_rgnanase@quicinc.com>
 +					list);
 +	if (!pdev) {
 +		spin_unlock_bh(&ar->data_lock);
-+		mutex_unlock(&ar->conf_mutex);
 +		goto err_fallback;
 +	}
 +
 +	/* tx power is set as 2 units per dBm in FW. */
-+	ar->chan_tx_pwr = pdev->chan_tx_power/2;
-+	ar->last_tx_power_update = jiffies;
++	*dbm = pdev->chan_tx_power/2;
 +
 +	spin_unlock_bh(&ar->data_lock);
-+
-+get_tx_power:
-+	*dbm = ar->chan_tx_pwr;
-+
-+	mutex_unlock(&ar->conf_mutex);
 +	mutex_unlock(&ah->conf_mutex);
 +
-+	ath12k_dbg(ab, ATH12K_DBG_MAC, "txpower reported %d dBm\n", *dbm);
++	ath12k_dbg(ab, ATH12K_DBG_MAC, "txpower from firmware %d, reported %d dBm\n",
++		   pdev->chan_tx_power, *dbm);
 +	return 0;
 +
 +err_fallback:
@@ -564,7 +509,7 @@ Signed-off-by: Ramya Gnanasekar <quic_rgnanase@quicinc.com>
  static const struct ieee80211_ops ath12k_ops = {
  	.tx				= ath12k_mac_op_tx,
  	.start                          = ath12k_mac_op_start,
-@@ -12254,6 +12379,7 @@ static const struct ieee80211_ops ath12k
+@@ -12041,6 +12141,7 @@ static const struct ieee80211_ops ath12k
  #ifdef CPTCFG_ATH12K_DEBUGFS
  	.sta_add_debugfs		= ath12k_debugfs_sta_op_add,
  #endif
@@ -572,7 +517,7 @@ Signed-off-by: Ramya Gnanasekar <quic_rgnanase@quicinc.com>
  };
  
  static void ath12k_mac_update_ch_list(struct ath12k *ar,
-@@ -12977,6 +13103,11 @@ static int ath12k_mac_hw_register(struct
+@@ -12656,6 +12757,11 @@ static int ath12k_mac_hw_register(struct
  			goto err_unregister_hw;
  		}
  
@@ -586,7 +531,7 @@ Signed-off-by: Ramya Gnanasekar <quic_rgnanase@quicinc.com>
  			ath12k_err(ar->ab, "debugfs registration failed: %d\n", ret);
 --- a/drivers/net/wireless/ath/ath12k/wmi.c
 +++ b/drivers/net/wireless/ath/ath12k/wmi.c
-@@ -6867,7 +6867,7 @@ void ath12k_wmi_fw_stats_fill(struct ath
+@@ -6861,7 +6861,7 @@ void ath12k_wmi_fw_stats_fill(struct ath
  	spin_lock_bh(&ar->data_lock);
  
  	if (stats_id == WMI_REQUEST_PDEV_STAT) {
@@ -595,7 +540,7 @@ Signed-off-by: Ramya Gnanasekar <quic_rgnanase@quicinc.com>
  						struct ath12k_fw_stats_pdev, list);
  		if (!pdev) {
  			ath12k_warn(ar->ab, "failed to get pdev stats\n");
-@@ -7929,7 +7929,52 @@ static void ath12k_peer_assoc_conf_event
+@@ -7923,7 +7923,52 @@ static void ath12k_peer_assoc_conf_event
  
  static void ath12k_update_stats_event(struct ath12k_base *ab, struct sk_buff *skb)
  {
@@ -649,15 +594,3 @@ Signed-off-by: Ramya Gnanasekar <quic_rgnanase@quicinc.com>
  }
  
  /* PDEV_CTL_FAILSAFE_CHECK_EVENT is received from FW when the frequency scanned
---- a/drivers/net/wireless/ath/ath12k/mac.h
-+++ b/drivers/net/wireless/ath/ath12k/mac.h
-@@ -128,6 +128,9 @@ struct ath12k_generic_iter {
- #define ATH12K_OBSS_PD_SRG_EN				BIT(30)
- #define ATH12K_OBSS_PD_NON_SRG_EN			BIT(31)
- 
-+#define ATH12K_PDEV_TX_POWER_INVALID	(-1)
-+#define ATH12K_PDEV_TX_POWER_REFRESH_TIME_MSECS 5000 /* msecs */
-+
- extern const struct htt_rx_ring_tlv_filter ath12k_mac_mon_status_filter_default;
- 
- void ath12k_mac_ap_ps_recalc(struct ath12k *ar);

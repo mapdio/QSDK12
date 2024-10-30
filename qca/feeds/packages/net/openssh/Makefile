@@ -8,18 +8,19 @@
 include $(TOPDIR)/rules.mk
 
 PKG_NAME:=openssh
-PKG_VERSION:=8.9p1
-PKG_RELEASE:=$(AUTORELEASE)
+PKG_VERSION:=9.6p1
+PKG_RELEASE:=1
 
 PKG_SOURCE:=$(PKG_NAME)-$(PKG_VERSION).tar.gz
-PKG_SOURCE_URL:=https://ftp.openbsd.org/pub/OpenBSD/OpenSSH/portable/ \
-		https://ftp.spline.de/pub/OpenBSD/OpenSSH/portable/
-PKG_HASH:=fd497654b7ab1686dac672fb83dfb4ba4096e8b5ffcdaccd262380ae58bec5e7
+PKG_SOURCE_URL:=https://cdn.openbsd.org/pub/OpenBSD/OpenSSH/portable/ \
+		https://ftp.openbsd.org/pub/OpenBSD/OpenSSH/portable/
+PKG_HASH:=910211c07255a8c5ad654391b40ee59800710dd8119dd5362de09385aa7a777c
 
 PKG_LICENSE:=BSD ISC
 PKG_LICENSE_FILES:=LICENCE
 PKG_CPE_ID:=cpe:/a:openssh:openssh
 
+#While bumping new version, make sure that it works without it, so it can be removed.
 PKG_FIXUP:=autoreconf
 PKG_REMOVE_FILES:=
 PKG_CONFIG_DEPENDS := \
@@ -32,12 +33,11 @@ include $(INCLUDE_DIR)/package.mk
 define Package/openssh/Default
 	SECTION:=net
 	CATEGORY:=Network
-	DEPENDS:=+libopenssl +zlib
+	DEPENDS:=
 	TITLE:=OpenSSH
 	MAINTAINER:=Peter Wagner <tripolar@gmx.at>
-	URL:=http://www.openssh.com/
+	URL:=https://www.openssh.com/
 	SUBMENU:=SSH
-	VARIANT:=without-pam
 endef
 
 define Package/openssh-moduli
@@ -52,6 +52,7 @@ endef
 
 define Package/openssh-client
 	$(call Package/openssh/Default)
+	DEPENDS+= +libopenssl +zlib
 	TITLE+= client
 	ALTERNATIVES:=\
 		200:/usr/bin/ssh:/usr/libexec/ssh-openssh \
@@ -68,7 +69,7 @@ endef
 
 define Package/openssh-client-utils
 	$(call Package/openssh/Default)
-	DEPENDS+= +openssh-client +openssh-keygen
+	DEPENDS+= +libopenssl +zlib +openssh-client +openssh-keygen
 	TITLE+= client utilities
 endef
 
@@ -78,6 +79,7 @@ endef
 
 define Package/openssh-keygen
 	$(call Package/openssh/Default)
+	DEPENDS+= +libopenssl +zlib
 	TITLE+= keygen
 endef
 
@@ -87,9 +89,10 @@ endef
 
 define Package/openssh-server
 	$(call Package/openssh/Default)
-	DEPENDS+= +openssh-keygen +OPENSSH_LIBFIDO2:libfido2
+	DEPENDS+= +libopenssl +zlib +openssh-keygen +OPENSSH_LIBFIDO2:libfido2
 	TITLE+= server
 	USERID:=sshd=22:sshd=22
+	VARIANT:=without-pam
 endef
 
 define Package/openssh-server/config
@@ -102,15 +105,17 @@ endef
 
 define Package/openssh-server/conffiles
 /etc/ssh/sshd_config
+/etc/ssh/sshd_config.d/
 /etc/ssh/ssh_host_ed25519_key
 /etc/ssh/ssh_host_ed25519_key.pub
 /etc/ssh/ssh_host_rsa_key
 /etc/ssh/ssh_host_rsa_key.pub
+/root/.ssh/authorized_keys
 endef
 
 define Package/openssh-server-pam
 	$(call Package/openssh/Default)
-	DEPENDS+= +libpthread +openssh-keygen +libpam
+	DEPENDS+= +libopenssl +zlib +libpthread +openssh-keygen +libpam
 	TITLE+= server (with PAM support)
 	VARIANT:=with-pam
 	USERID:=sshd=22:sshd=22
@@ -221,7 +226,7 @@ define Package/openssh-keygen/install
 endef
 
 define Package/openssh-server/install
-	install -d -m0700 $(1)/etc/ssh
+	install -d -m0700 $(1)/etc/ssh $(1)/etc/ssh/sshd_config.d
 	$(INSTALL_DATA) $(PKG_INSTALL_DIR)/etc/ssh/sshd_config $(1)/etc/ssh/
 	sed -r -i 's,^#(HostKey /etc/ssh/ssh_host_(rsa|ed25519)_key)$$$$,\1,' $(1)/etc/ssh/sshd_config
 	$(INSTALL_DIR) $(1)/etc/init.d

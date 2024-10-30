@@ -6,20 +6,17 @@
 include $(TOPDIR)/rules.mk
 
 PKG_NAME:=snort3
-PKG_VERSION:=3.1.0.0
-PKG_RELEASE:=3
+PKG_VERSION:=3.1.81.0
+PKG_RELEASE:=2
 
-PKG_SOURCE:=$(PKG_NAME)-$(PKG_VERSION).tar.gz
-PKG_SOURCE_URL:=https://www.snort.org/downloads/snortplus/
-PKG_HASH:=c4e2e78e3afa879d7e35e482afe42a6c4b96ed26198a9979edf7953b5151ccbf
-PKG_BUILD_DIR:=$(BUILD_DIR)/$(PKG_NAME)/$(PKG_NAME)-$(PKG_VERSION)
+PKG_SOURCE:=$(PKG_VERSION).tar.gz
+PKG_SOURCE_URL:=https://github.com/snort3/snort3/archive/refs/tags/
+PKG_HASH:=d4093b0bfde013b3ad246cbc87bbd6c0cc09dfb9b4978b1a76b4ab27abf6d03a
 
 PKG_MAINTAINER:=W. Michael Petullo <mike@flyn.org>
 PKG_LICENSE:=GPL-2.0-only
 PKG_LICENSE_FILES:=COPYING
 PKG_CPE_ID:=cpe:/a:snort:snort
-
-PKG_BUILD_PARALLEL:=1
 
 include $(INCLUDE_DIR)/package.mk
 include $(INCLUDE_DIR)/cmake.mk
@@ -28,7 +25,12 @@ define Package/snort3
   SUBMENU:=Firewall
   SECTION:=net
   CATEGORY:=Network
-  DEPENDS:=+libstdcpp +libdaq3 +libdnet +libopenssl +libpcap +libpcre +libpthread +libuuid +zlib +libhwloc +libtirpc +luajit
+  DEPENDS:= \
+	    +(TARGET_x86||TARGET_x86_64):hyperscan-runtime \
+	    +(TARGET_x86||TARGET_x86_64):gperftools-runtime \
+	    +libstdcpp +libdaq3 +libdnet +libopenssl +libpcap +libpcre +libpthread \
+	    +libuuid +zlib +libhwloc +libtirpc @HAS_LUAJIT_ARCH +luajit +libatomic \
+	    +kmod-nft-queue +liblzma +ucode +ucode-mod-fs +ucode-mod-uci
   TITLE:=Lightweight Network Intrusion Detection System
   URL:=http://www.snort.org/
   MENU:=1
@@ -42,11 +44,24 @@ define Package/snort3/description
   attacks.
 endef
 
+# Hyperscan and gperftools only builds for x86
+ifdef CONFIG_TARGET_x86_64
+	CMAKE_OPTIONS += -DHS_INCLUDE_DIRS=$(STAGING_DIR)/usr/include/hs
+endif
+
+# Hyperscan and gperftools only builds for x86
+ifdef CONFIG_TARGET_x86_64
+	CMAKE_OPTIONS += -DHS_INCLUDE_DIRS=$(STAGING_DIR)/usr/include/hs \
+			 -DENABLE_TCMALLOC=ON \
+			 -DTCMALLOC_LIBRARIES=$(STAGING_DIR)/usr/lib/libtcmalloc.so
+endif
+
 CMAKE_OPTIONS += \
 	-DUSE_TIRPC:BOOL=YES \
 	-DENABLE_STATIC_DAQ:BOOL=NO \
 	-DDAQ_INCLUDE_DIR=$(STAGING_DIR)/usr/include/daq3 \
 	-DDAQ_LIBRARIES_DIR_HINT:PATH=$(STAGING_DIR)/usr/lib/daq3 \
+	-DFLEX_INCLUDES:PATH=$(STAGING_DIR_HOST)/include \
 	-DENABLE_COREFILES:BOOL=NO \
 	-DENABLE_GDB:BOOL=NO \
 	-DMAKE_DOC:BOOL=NO \
@@ -80,11 +95,11 @@ define Package/snort3/install
 
 	$(INSTALL_DIR) $(1)/usr/lib/snort
 	$(CP) \
-		$(PKG_INSTALL_DIR)/usr/lib/snort/daqs/daq_hext.so \
+		$(PKG_INSTALL_DIR)/usr/lib/snort/daq/daq_hext.so \
 		$(1)/usr/lib/snort/
 
 	$(CP) \
-		$(PKG_INSTALL_DIR)/usr/lib/snort/daqs/daq_file.so \
+		$(PKG_INSTALL_DIR)/usr/lib/snort/daq/daq_file.so \
 		$(1)/usr/lib/snort/
 
 	$(INSTALL_DIR) $(1)/usr/share/lua
@@ -92,9 +107,13 @@ define Package/snort3/install
 		$(PKG_INSTALL_DIR)/usr/include/snort/lua/snort_plugin.lua \
 		$(1)/usr/share/lua/
 
-	$(INSTALL_DIR) $(1)/etc/snort
+	$(INSTALL_DIR) $(1)/etc/snort/{rules,lists,builtin_rules,so_rules}
+
 	$(INSTALL_CONF) \
 		$(PKG_INSTALL_DIR)/usr/etc/snort/*.lua \
+		$(1)/etc/snort
+	$(INSTALL_CONF) \
+		$(PKG_INSTALL_DIR)/usr/etc/snort/file_magic.rules \
 		$(1)/etc/snort
 
 	$(INSTALL_DIR) $(1)/etc/init.d
@@ -106,6 +125,25 @@ define Package/snort3/install
 	$(INSTALL_CONF) \
 		./files/snort.config \
 		$(1)/etc/config/snort
+	$(INSTALL_CONF) \
+		./files/local.lua \
+		$(1)/etc/snort
+	$(INSTALL_CONF) \
+		./files/homenet.lua \
+		$(1)/etc/snort
+	sed \
+		-i -e "/^EXTERNAL_NET\\s\\+=/ a include 'homenet.lua'" \
+		-e "/^HOME_NET\\s\\+=/ i -- we set HOME_NET and EXTERNAL_NET here or via an included file" \
+		-e 's/^\(HOME_NET\s\+=\)/--\1/g' \
+		-e 's/^\(EXTERNAL_NET\s\+=\)/--\1/g' \
+		$(1)/etc/snort/snort.lua
+	sed \
+		-i -e "s/^\\(RULE_PATH\\s\\+=\\).*/\\1 'rules'/g" \
+		-e "s/^\\(BUILTIN_RULE_PATH\\s\\+=\\).*/\\1 'builtin_rules'/g" \
+		-e "s/^\\(PLUGIN_RULE_PATH\\s\\+=\\).*/\\1 'so_rules'/g" \
+		-e "s/^\\(WHITE_LIST_PATH\\s\\+=\\).*/\\1 'lists'/g" \
+		-e "s/^\\(BLACK_LIST_PATH\\s\\+=\\).*/\\1 'lists'/g" \
+		$(1)/etc/snort/snort_defaults.lua
 endef
 
 $(eval $(call BuildPackage,snort3))

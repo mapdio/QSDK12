@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2022-2023 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2024 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for any
  * purpose with or without fee is hereby granted, provided that the above
@@ -61,6 +61,7 @@ ppe_drv_ret_t ppe_drv_dp_set_mirror_if(struct ppe_drv_iface *iface,
 		break;
 
 	default:
+		spin_unlock_bh(&p->lock);
 		ppe_drv_warn("Failed to set Mirror direction: %u direction \
 				is not supported\n", direction);
 		return PPE_DRV_RET_SET_MIRROR_FAIL;
@@ -104,7 +105,7 @@ ppe_drv_ret_t ppe_drv_dp_set_mirr_analysis_port(struct ppe_drv_iface *iface,
 	}
 
 	analysis_cfg.priority = priority;
-	err = fal_mirr_analysis_config_set(PPE_DRV_SWITCH_ID, direction,
+	err = fal_mirr_analysis_config_set(PPE_DRV_SWITCH_ID, (fal_mirr_direction_t)direction,
 			&analysis_cfg);
 	if (err != SW_OK) {
 		spin_unlock_bh(&p->lock);
@@ -134,7 +135,7 @@ ppe_drv_ret_t ppe_drv_dp_get_mirr_analysis_port(
 	fal_mirr_analysis_config_t analysis_cfg = {0};
 
 	spin_lock_bh(&p->lock);
-	err = fal_mirr_analysis_config_get(PPE_DRV_SWITCH_ID, direction,
+	err = fal_mirr_analysis_config_get(PPE_DRV_SWITCH_ID, (fal_mirr_direction_t)direction,
 			&analysis_cfg);
 	if (err != SW_OK) {
 		spin_unlock_bh(&p->lock);
@@ -204,7 +205,8 @@ EXPORT_SYMBOL(ppe_drv_dp_deinit);
  * ppe_drv_dp_init()
  *	Initialize a physical port.
  */
-ppe_drv_ret_t ppe_drv_dp_init(struct ppe_drv_iface *iface, uint32_t macid)
+ppe_drv_ret_t ppe_drv_dp_init(struct ppe_drv_iface *iface, uint32_t macid,
+				bool mht_dev)
 {
 	struct ppe_drv *p = &ppe_drv_gbl;
 	struct ppe_drv_l3_if *l3_if;
@@ -242,8 +244,46 @@ ppe_drv_ret_t ppe_drv_dp_init(struct ppe_drv_iface *iface, uint32_t macid)
 	ppe_drv_iface_port_set(iface, port);
 	ppe_drv_iface_l3_if_set(iface, l3_if);
 
+	/*
+	 * If MHT device is set, configure iface with mht flag.
+	 */
+	if (mht_dev)
+		iface->flags |= PPE_DRV_IFACE_FLAG_MHT_SWITCH_VALID;
+
 	spin_unlock_bh(&p->lock);
 
 	return PPE_DRV_RET_SUCCESS;
 }
 EXPORT_SYMBOL(ppe_drv_dp_init);
+
+/*
+ * ppe_drv_dp_set_ppe_offload_enable_flag()
+ *	API to set PPE offload enable flag in PPE port
+ */
+ppe_drv_ret_t ppe_drv_dp_set_ppe_offload_enable_flag(struct ppe_drv_iface *iface,
+		bool disable)
+{
+	struct ppe_drv *p = &ppe_drv_gbl;
+	struct ppe_drv_port *port;
+
+	spin_lock_bh(&p->lock);
+	port = ppe_drv_iface_port_get(iface);
+	if (!port) {
+		spin_unlock_bh(&p->lock);
+		ppe_drv_warn("%p: unable to get port from iface\n", iface);
+		return PPE_DRV_RET_PORT_NOT_FOUND;
+	}
+
+	/*
+	 * Set the OFFLOAD enabled flag in the PPE port if the input
+	 * flag indicates so.
+	 */
+	if (!disable) {
+		port->flags |= PPE_DRV_PORT_FLAG_OFFLOAD_ENABLED;
+		if_bm_to_offload |= (1 << (port->port - 1));
+	}
+
+	spin_unlock_bh(&p->lock);
+	return PPE_DRV_RET_SUCCESS;
+}
+EXPORT_SYMBOL(ppe_drv_dp_set_ppe_offload_enable_flag);

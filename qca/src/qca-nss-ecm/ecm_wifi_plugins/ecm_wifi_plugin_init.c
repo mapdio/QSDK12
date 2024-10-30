@@ -33,12 +33,6 @@ int __init ecm_wifi_plugin_init_module(void)
 {
 	int ret = 0;
 
-	ret = ecm_wifi_plugin_mscs_register();
-	if (ret) {
-		ecm_wifi_plugin_warning("MSCS callback registration failed\n");
-		return ret;
-	}
-
 	ret = ecm_wifi_plugin_emesh_register();
 	if (ret) {
 		ecm_wifi_plugin_warning("EMESH callback registration failed\n");
@@ -47,10 +41,41 @@ int __init ecm_wifi_plugin_init_module(void)
 
 	ret = ecm_wifi_plugin_fse_cb_register();
 	if (ret) {
+		ecm_wifi_plugin_emesh_unregister();
 		ecm_wifi_plugin_warning("FSE callback registration failed\n");
 		return ret;
 	}
 
+#ifndef ECM_WIFI_PLUGIN_OPEN_PROFILE_ENABLE
+	ret = ecm_wifi_plugin_mscs_register();
+	if (ret) {
+		ecm_wifi_plugin_emesh_unregister();
+		ecm_wifi_plugin_fse_cb_unregister();
+		ecm_wifi_plugin_warning("MSCS callback registration failed\n");
+		return ret;
+	}
+
+	ret = ecm_wifi_plugin_adm_ctrl_cb_register();
+	if (ret) {
+		ecm_wifi_plugin_emesh_unregister();
+		ecm_wifi_plugin_fse_cb_unregister();
+		ecm_wifi_plugin_mscs_unregister();
+		ecm_wifi_plugin_warning("Admission control callback registration failed\n");
+		return ret;
+	}
+#endif
+
+#ifdef ECM_CLASSIFIER_WIFI_ENABLE
+	ret = ecm_wifi_plugin_wifi_cb_register();
+	if (ret) {
+		ecm_wifi_plugin_emesh_unregister();
+		ecm_wifi_plugin_fse_cb_unregister();
+		ecm_wifi_plugin_mscs_unregister();
+		ecm_wifi_plugin_adm_ctrl_cb_unregister();
+		ecm_wifi_plugin_warning("WIFI callback registration failed\n");
+		return ret;
+	}
+#endif
 	ecm_wifi_plugin_info("ECM_WIFI_PLUGIN module loaded");
 	return 0;
 }
@@ -61,9 +86,16 @@ int __init ecm_wifi_plugin_init_module(void)
  */
 static void __exit ecm_wifi_plugin_exit_module(void)
 {
-	ecm_wifi_plugin_mscs_unregister();
 	ecm_wifi_plugin_emesh_unregister();
 	ecm_wifi_plugin_fse_cb_unregister();
+#ifndef ECM_WIFI_PLUGIN_OPEN_PROFILE_ENABLE
+	ecm_wifi_plugin_mscs_unregister();
+	ecm_wifi_plugin_adm_ctrl_cb_unregister();
+#endif
+
+#ifdef ECM_CLASSIFIER_WIFI_ENABLE
+	ecm_wifi_plugin_wifi_cb_unregister();
+#endif
 	ecm_wifi_plugin_info("ECM_WIFI_PLUGIN unloaded\n");
 }
 

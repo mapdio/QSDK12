@@ -1,6 +1,6 @@
 /*
  * Copyright (c) 2014-2019, 2021, The Linux Foundation. All rights reserved.
- * Copyright (c) 2021-2023, Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2021-2024, Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for any
  * purpose with or without fee is hereby granted, provided that the above
@@ -194,9 +194,9 @@ struct cmd_des_t gcmd_des[] =
             {"wolstatus", "get", "get wol status of a port", "<port_id>",
                 SW_API_PT_WOL_STATUS_GET, NULL},
 /*qca808x_end*/
-            {"interfaceMode", "set", "set interface mode of phy", "<port_id> <psgmii_baset|\
-                psgmii_bx1000|psgmii_fx100|psgmii_amdet|sgmii_baset|qsgmii|usxgmii|sgmii_plus|\
-                10gbase_r |sgmii_fiber|psgmii_fiber|interfacemode_max>",\
+            {"interfaceMode", "set", "set interface mode of phy",
+            "<port_id> <psgmii_baset|psgmii_bx1000|psgmii_fx100|psgmii_amdet|sgmii_baset|qsgmii"
+            "|usxgmii|sgmii_plus|10gbase_r |sgmii_fiber|psgmii_fiber|auto|interfacemode_max>",
                 SW_API_PT_INTERFACE_MODE_SET, NULL},
             {"interfaceMode", "get", "get interface mode of phy", "<port_id>",
                 SW_API_PT_INTERFACE_MODE_GET, NULL},
@@ -256,6 +256,8 @@ struct cmd_des_t gcmd_des[] =
                 "<port_id>", SW_API_PT_CNT_FLUSH, NULL},
             {"combolinkstatus", "get", "get link status of a combo port", "<port_id>",
                 SW_API_PT_COMBO_LINK_STATUS_GET, NULL},
+            {"erppowermode", "set", "set port erp power mode", "<port_id> <0:active|1:low_power>",
+                SW_API_PT_ERP_POWER_MODE_SET, NULL},
 /*qca808x_start*/
             {NULL, NULL, NULL, NULL, SW_API_INVALID, NULL},/*end of desc*/
         },
@@ -476,7 +478,7 @@ struct cmd_des_t gcmd_des[] =
             {"entry", "add", "add a FDB entry", "", SW_API_FDB_ADD, NULL},
             {"entry", "del", "delete a FDB entry", "", SW_API_FDB_DELMAC, NULL},
             {"entry", "flush", "flush all FDB entries", "<0:dynamic only|1:dynamic and static>", SW_API_FDB_DELALL, NULL},
-            {"entry", "show", "show whole FDB entries", "", SW_CMD_FDB_SHOW, cmd_show_fdb},
+            {"entry", "show", "show whole FDB entries", "<0:hardware table, 1: software table>", SW_CMD_FDB_SHOW, cmd_show_fdb},
             {"entry", "find", "find a FDB entry", "", SW_API_FDB_FIND, NULL},
             {"entry", "iterate", "iterate all FDB entries", "<iterator>", SW_API_FDB_ITERATE, NULL},
             {"entry", "extendnext", "find next FDB entry in extend mode", "", SW_API_FDB_EXTEND_NEXT, NULL},
@@ -569,6 +571,7 @@ struct cmd_des_t gcmd_des[] =
             {"vpgroup", "get", "get vpgroup", "<vport_id> <vport_type>",
                     SW_API_ACL_VPGROUP_GET, NULL},
             {"macentry", "set", "set mac entry", "<entry>", SW_API_ACL_MAC_ENTRY_SET, NULL},
+            {"counter", "get", "get acl counter", "<entry_index>", SW_API_ACL_COUNTER_GET, NULL},
             {NULL, NULL, NULL, NULL, SW_API_INVALID, NULL}/*end of desc*/
         },
     },
@@ -826,6 +829,8 @@ struct cmd_des_t gcmd_des[] =
         {
             {"ctrlpattern", "set", "set led control pattern", "<group_id> <led_id>", SW_API_LED_PATTERN_SET, NULL},
             {"ctrlpattern", "get", "get led control pattern", "<group_id> <led_id>", SW_API_LED_PATTERN_GET, NULL},
+            {"ptsrcpattern", "set", "set led port source pattern", "<port_id> <source_id>", SW_API_LED_PT_SRC_PATTERN_SET, NULL},
+            {"ptsrcpattern", "get", "get led port source pattern", "<port_id> <source_id>", SW_API_LED_PT_SRC_PATTERN_GET, NULL},
             {NULL, NULL, NULL, NULL, SW_API_INVALID, NULL}/*end of desc*/
         },
     },
@@ -1102,6 +1107,15 @@ struct cmd_des_t gcmd_des[] =
 		    SW_API_FLOW_QOS_SET, NULL},
             {"qos", "get", "get flow qos", "<flow_index>",
 		    SW_API_FLOW_QOS_GET, NULL},
+            {"npt66_prefix", "add", "add flow npt66_prefix entry", "<if_index> <ip6_addr> <prefix_len>",
+            SW_API_FLOW_NPT66_PREFIX_ADD, NULL},
+            {"npt66_prefix", "get", "get flow npt66_prefix entry", "<if_index>", SW_API_FLOW_NPT66_PREFIX_GET, NULL},
+            {"npt66_prefix", "del", "del flow npt66_prefix entry", "<if_index>", SW_API_FLOW_NPT66_PREFIX_DEL, NULL},
+            {"npt66_iid", "cal", "cal flow npt66_iid entry", "", SW_API_FLOW_NPT66_IID_CAL, NULL},
+            {"npt66_iid", "add", "add flow npt66_iid entry", "<flow_index>", SW_API_FLOW_NPT66_IID_ADD, NULL},
+            {"npt66_iid", "get", "get flow npt66_iid entry", "<flow_index>", SW_API_FLOW_NPT66_IID_GET, NULL},
+            {"npt66_iid", "del", "del flow npt66_iid entry", "<flow_index>", SW_API_FLOW_NPT66_IID_DEL, NULL},
+
             {NULL, NULL, NULL, NULL, SW_API_INVALID, NULL}/*end of desc*/
         },
     },
@@ -1182,8 +1196,6 @@ struct cmd_des_t gcmd_des[] =
         {
             {"macmode", "set", "set mac mode info", "<port_id>", SW_API_MAC_MODE_SET, NULL},
             {"macmode", "get", "get mac mode info", "<port_id>", SW_API_MAC_MODE_GET, NULL},
-            {"pt3azstatus", "set", "get mac mode info", "<port_id> <enable/disable>", SW_API_PORT_3AZ_STATUS_SET, NULL},
-            {"pt3azstatus", "get", "get mac mode info", "<port_id>", SW_API_PORT_3AZ_STATUS_GET, NULL},
             {"phymode", "set", "set phy mode info", "<phy_id>", SW_API_PHY_MODE_SET, NULL},
             {"phymode", "get", "get phy mode info", "<phy_id>", SW_API_PHY_MODE_GET, NULL},
             {"fx100ctrl", "set", "set fx100 config", "", SW_API_FX100_CTRL_SET, NULL},
@@ -1319,6 +1331,22 @@ struct cmd_des_t gcmd_des[] =
 		{
 			{"Config", "set", "set ipv4/ipv6 rss hash code", "<ipv4v6|ipv4|ipv6>", SW_API_RSS_HASH_CONFIG_SET, NULL},
 			{"Config", "get", "get ipv4/ipv6 rss hash code", "<ipv4v6|ipv4|ipv6>", SW_API_RSS_HASH_CONFIG_GET, NULL},
+			{"hashalgm", "set", "set rss hash algorithm", "", SW_API_TOEPLITZ_HASH_RSS_ALGM_SET, NULL},
+			{"hashalgm", "get", "get rss hash algorithm", "", SW_API_TOEPLITZ_HASH_RSS_ALGM_GET, NULL},
+			{"toeplitzseckey", "set", "set 44 bytes toeplitzhash secret key",
+					"", SW_API_TOEPLITZ_HASH_SECRET_KEY_SET, NULL},
+			{"toeplitzseckey", "get", "get 44 bytes toeplitzhash secret key",
+					"", SW_API_TOEPLITZ_HASH_SECRET_KEY_GET, NULL},
+			{"toeplitzconfig", "add", "add one toeplitzhash config",
+					"", SW_API_TOEPLITZ_HASH_CONFIG_ADD, NULL},
+			{"toeplitzconfig", "del", "delete one toeplitzhash config",
+					"", SW_API_TOEPLITZ_HASH_CONFIG_DEL, NULL},
+			{"toeplitzconfig", "getfirst", "get first toeplitzhash config",
+					"", SW_API_TOEPLITZ_HASH_CONFIG_GETFIRST, NULL},
+			{"toeplitzconfig", "getnext", "get next toeplitzhash config",
+					"", SW_API_TOEPLITZ_HASH_CONFIG_GETNEXT, NULL},
+			{"toeplitzconfig", "show", "show all toeplitzhash config",
+					"", SW_CMD_TOEPLITZ_HASH_CONFIG_SHOW, cmd_show_toeplitz_hash_config},
 			{NULL, NULL, NULL, NULL, SW_API_INVALID, NULL}/*end of desc*/
 		},
 	},
@@ -1427,8 +1455,6 @@ struct cmd_des_t gcmd_des[] =
             {"aclRule", "dump", "dump all acl rule", "", SW_API_ACL_RULE_DUMP, NULL},
 	    {"aclMacEntry", "dump", "dump all acl mac entry", "", SW_API_ACL_MAC_ENTRY_DUMP, NULL},
             {"device",  "reset", "reset device",     "", SW_API_SWITCH_RESET, NULL},
-            {"module_func",  "set", "set the module function bitmap", "<module>", SW_API_MODULE_FUNC_CTRL_SET, NULL},
-            {"module_func",  "get", "set the module function bitmap", "<module>", SW_API_MODULE_FUNC_CTRL_GET, NULL},
             {"ssdk",  "config", "show ssdk configuration",     "", SW_API_SSDK_CFG, NULL},
 /*qca808x_start*/
             {"phycounter",  "set", "set counter status of a port",   "<port_id> <enable|disable>", SW_API_DEBUG_PHYCOUNTER_SET, NULL},
@@ -1877,6 +1903,20 @@ struct cmd_des_t gcmd_des[] =
 					"<port_id>", SW_API_PORT_ATHTAG_TX_SET, NULL},
 			{"tx", "get", "get athtag tx configuration base on port",
 					"<port_id>", SW_API_PORT_ATHTAG_TX_GET, NULL},
+			{NULL, NULL, NULL, NULL, SW_API_INVALID, NULL}/*end of desc*/
+		},
+	},
+#endif
+
+/* PKTEDIT */
+#ifdef IN_PKTEDIT
+	{
+		"pktedit", "config pktedit",
+		{
+			{"padding", "set", "set padding configurations", "padding",
+				SW_API_PKTEDIT_PADDING_SET, NULL},
+			{"padding", "get", "get padding configurations", "",
+				SW_API_PKTEDIT_PADDING_GET, NULL},
 			{NULL, NULL, NULL, NULL, SW_API_INVALID, NULL}/*end of desc*/
 		},
 	},

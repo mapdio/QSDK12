@@ -44,6 +44,7 @@
 
 #define QTI_CMD_AES_CLEAR_KEY		10
 #define QTI_CMD_AES_DERIVE_KEY		9
+#define QTI_CMD_AES_DERIVE_128_KEY	0xE
 #define CLIENT_CMD_CRYPTO_AES_DECRYPT	8
 #define CLIENT_CMD_CRYPTO_AES_ENCRYPT	7
 #define CLIENT_CMD_CRYPTO_AES_64	6
@@ -69,9 +70,13 @@
 #define QSEE_64				64
 #define QSEE_32				32
 #define AES_BLOCK_SIZE			16
-#define MAX_CONTEXT_BUFFER_LEN		64
+#define MAX_CONTEXT_BUFFER_LEN_V1	64
+#define MAX_CONTEXT_BUFFER_LEN_V2	128
 #define MAX_KEY_HANDLE_SIZE		8
 
+#define QCOM_SCM_SVC_INFO       0x06
+#define QCOM_SCM_IS_FEATURE_AVAIL   0x03
+#define QCOM_SCM_SW_CONTEXT_FEATURE_ID	0x5
 #define MAX_ENCRYPTED_DATA_SIZE  (2072 * sizeof(uint8_t))
 #define MAX_PLAIN_DATA_SIZE	 (2048 * sizeof(uint8_t))
 #define MAX_RSA_PLAIN_DATA_SIZE  (8192 * sizeof(uint8_t))
@@ -133,6 +138,7 @@ enum qti_storage_service_rsa_cmd_t {
 	QTI_STOR_SVC_RSA_SIGN_DATA         = 0x00000003,
 	QTI_STOR_SVC_RSA_VERIFY_SIGNATURE  = 0x00000004,
 	QTI_STOR_SVC_RSA_IMPORT_KEY        = 0x00000005,
+	CRYPTO_STORAGE_UPDATE_KEYBLOB	   = 0x00000006,
 };
 
 enum qti_storage_service_digest_pad_algo_t {
@@ -154,19 +160,34 @@ struct qti_storage_service_hwkey_policy {
 	uint32_t destination;
 };
 
-struct qti_storage_service_hwkey_bindings {
+struct qti_storage_service_hwkey_bindings_v1 {
 	uint32_t bindings;
 	uint32_t context_len;
-	uint8_t context[MAX_CONTEXT_BUFFER_LEN];
+	uint8_t context[MAX_CONTEXT_BUFFER_LEN_V1];
 };
 
-struct qti_storage_service_derive_key_cmd_t {
+struct qti_storage_service_hwkey_bindings_v2 {
+	uint32_t bindings;
+	uint32_t context_len;
+	uint8_t context[MAX_CONTEXT_BUFFER_LEN_V2];
+};
+
+struct qti_storage_service_derive_key_cmd_t_v1 {
 	struct qti_storage_service_hwkey_policy policy;
-	struct qti_storage_service_hwkey_bindings hw_key_bindings;
+	struct qti_storage_service_hwkey_bindings_v1 hw_key_bindings;
 	uint32_t source;
 	uint64_t mixing_key;
 	uint64_t key;
 };
+
+struct qti_storage_service_derive_key_cmd_t_v2 {
+	struct qti_storage_service_hwkey_policy policy;
+	struct qti_storage_service_hwkey_bindings_v2 hw_key_bindings;
+	uint32_t source;
+	uint64_t mixing_key;
+	uint64_t key;
+};
+
 struct qti_storage_service_key_blob_t {
 	uint64_t key_material;
 	uint32_t key_material_len;
@@ -337,6 +358,18 @@ struct qti_storage_service_rsa_verify_data_resp_t {
 	int32_t status;
 };
 
+struct qti_storage_service_rsa_update_keyblob_cmd_t {
+	enum qti_storage_service_rsa_cmd_t cmd_id;
+	struct qti_storage_service_rsa_key_blob_t key_blob;
+	enum qti_storage_service_digest_pad_algo_t pad_algo;
+};
+
+struct qti_storage_service_rsa_update_keyblob_data_resp_t {
+	enum qti_storage_service_rsa_cmd_t cmd_id;
+	int32_t status;
+	uint32_t key_blob_size;
+};
+
 struct qsee_64_send_cmd {
 	uint32_t cmd_id;
 	uint64_t data;
@@ -431,7 +464,7 @@ static uint64_t aes_encrypted_len;
 static uint8_t *aes_unsealed_buf;
 static uint64_t aes_decrypted_len;
 static uint8_t *aes_ivdata;
-static uint8_t aes_context_data[MAX_CONTEXT_BUFFER_LEN];
+static uint8_t aes_context_data[MAX_CONTEXT_BUFFER_LEN_V1];
 static dma_addr_t __aligned(sizeof(dma_addr_t) * 8) aes_source_data;
 static dma_addr_t __aligned(sizeof(dma_addr_t) * 8) aes_bindings_data;
 static uint64_t aes_ivdata_len;
@@ -455,6 +488,7 @@ static uint64_t rsa_padding_type;
 static uint64_t fuse_addr;
 static uint64_t fuse_value;
 static uint64_t is_fec_enable;
+static uint32_t cur_rsa_pad_scheme = QTI_STOR_SVC_RSA_DIGEST_PAD_PKCS115_SHA2_256;
 
 static uint8_t *key_handle;
 dma_addr_t dma_key_handle;
@@ -473,7 +507,7 @@ static size_t unseal_len;
 static uint64_t encrypted_len;
 static uint64_t decrypted_len;
 static uint8_t *ivdata;
-static uint8_t context_data[MAX_CONTEXT_BUFFER_LEN];
+static uint8_t context_data[MAX_CONTEXT_BUFFER_LEN_V2];
 static dma_addr_t __aligned(sizeof(dma_addr_t) * 8) source_data;
 static dma_addr_t __aligned(sizeof(dma_addr_t) * 8) bindings_data;
 static uint64_t type;
@@ -493,6 +527,7 @@ static uint8_t *rsa_sign_data_buf;
 static size_t rsa_sign_data_len;
 static uint8_t *rsa_plain_data_buf;
 static size_t rsa_plain_data_len;
+static int rsa_key_blob_buf_valid;
 
 
 void *buf_rsa_key_blob = NULL;
@@ -601,6 +636,9 @@ static ssize_t generate_key_blob(struct device *dev,
 static ssize_t show_aes_derive_key(struct device *dev,
 				struct device_attribute *attr, char *buf);
 
+static ssize_t show_aes_derive_128_byte_key(struct device *dev,
+				struct device_attribute *attr, char *buf);
+
 static ssize_t store_aes_derive_key(struct device *dev,
 				struct device_attribute *attr,
 				const char *buf, size_t count);
@@ -698,6 +736,17 @@ static ssize_t store_rsa_signed_data(struct device *dev,
 
 static ssize_t verify_rsa_signed_data(struct device *dev,
 				     struct device_attribute *attr, char *buf);
+
+static ssize_t store_rsa_pad_scheme(struct device *dev,
+				   struct device_attribute *attr,
+				   const char *buf, size_t count);
+
+static ssize_t show_rsa_pad_scheme(struct device *dev,
+				  struct device_attribute *attr, char *buf);
+
+static ssize_t show_rsa_update_keyblob(struct device *dev,
+				       struct device_attribute *attr,
+				       char *buf);
 
 static ssize_t mdt_write(struct file *filp, struct kobject *kobj,
 			struct bin_attribute *bin_attr,
@@ -898,6 +947,8 @@ static DEVICE_ATTR(blow, 0644, NULL, store_blow_fuse_write_qtiapp);
 
 static DEVICE_ATTR(generate, 0644, generate_key_blob, NULL);
 static DEVICE_ATTR(derive_aes_key, 0644, show_aes_derive_key, store_aes_derive_key);
+static DEVICE_ATTR(derive_aes_max_ctxt_key, 0644,
+		show_aes_derive_128_byte_key, store_aes_derive_key);
 static DEVICE_ATTR(clear_key, 0644, NULL, store_aes_clear_key);
 static DEVICE_ATTR(import, 0644, import_key_blob, store_key);
 static DEVICE_ATTR(key_blob, 0644, NULL, store_key_blob);
@@ -919,6 +970,8 @@ static DEVICE_ATTR(rsa_sign, 0644, show_rsa_signed_data,
 		   store_rsa_plain_data);
 static DEVICE_ATTR(rsa_verify, 0644, verify_rsa_signed_data,
 		   store_rsa_signed_data);
+static DEVICE_ATTR(rsa_pad_scheme, 0644, show_rsa_pad_scheme, store_rsa_pad_scheme);
+static DEVICE_ATTR(rsa_update_keyblob, 0644, show_rsa_update_keyblob, NULL);
 
 static struct attribute *sec_key_attrs[] = {
 	&dev_attr_generate.attr,
@@ -931,6 +984,7 @@ static struct attribute *sec_key_attrs[] = {
 
 static struct attribute *sec_key_aesv2_attrs[] = {
 	&dev_attr_derive_aes_key.attr,
+	&dev_attr_derive_aes_max_ctxt_key.attr,
 	&dev_attr_clear_key.attr,
 	&dev_attr_context_data.attr,
 	&dev_attr_source_data.attr,
@@ -949,6 +1003,8 @@ static struct attribute *rsa_sec_key_attrs[] = {
 	&dev_attr_rsa_import.attr,
 	&dev_attr_rsa_sign.attr,
 	&dev_attr_rsa_verify.attr,
+	&dev_attr_rsa_pad_scheme.attr,
+	&dev_attr_rsa_update_keyblob.attr,
 	NULL,
 };
 

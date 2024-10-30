@@ -1,6 +1,6 @@
 /*
  * Copyright (c) 2021, The Linux Foundation. All rights reserved.
- * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2023 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for any
  * purpose with or without fee is hereby granted, provided that the above
@@ -14,7 +14,6 @@
  * ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  */
-
 
 /**
 * @defgroup fal_gen _FAL_TUNNEL_H_
@@ -32,54 +31,6 @@ extern "C" {
 
 #define FAL_TUNNEL_DECAP_ENTRY_MAX     128
 #define FAL_TUNNEL_ENCAP_ENTRY_MAX     128
-enum {
-	FUNC_TUNNEL_INTF_SET = 0,
-	FUNC_TUNNEL_INTF_GET,
-	FUNC_TUNNEL_ENCAP_RULE_ENTRY_SET,
-	FUNC_TUNNEL_ENCAP_RULE_ENTRY_GET,
-	FUNC_TUNNEL_ENCAP_RULE_ENTRY_DEL,
-	FUNC_TUNNEL_ENCAP_INTF_TUNNELID_SET,
-	FUNC_TUNNEL_ENCAP_INTF_TUNNELID_GET,
-	FUNC_TUNNEL_VLAN_INTF_ADD,
-	FUNC_TUNNEL_VLAN_INTF_GETFIRST,
-	FUNC_TUNNEL_VLAN_INTF_GETNEXT,
-	FUNC_TUNNEL_VLAN_INTF_DEL,
-	FUNC_TUNNEL_ENCAP_PORT_TUNNELID_SET,
-	FUNC_TUNNEL_ENCAP_PORT_TUNNELID_GET,
-	FUNC_TUNNEL_DECAP_ENTRY_ADD,
-	FUNC_TUNNEL_DECAP_ENTRY_GET,
-	FUNC_TUNNEL_DECAP_ENTRY_GETNEXT,
-	FUNC_TUNNEL_DECAP_ENTRY_DEL,
-	FUNC_TUNNEL_DECAP_ENTRY_FLUSH,
-	FUNC_TUNNEL_ENCAP_ENTRY_ADD,
-	FUNC_TUNNEL_ENCAP_ENTRY_GET,
-	FUNC_TUNNEL_ENCAP_ENTRY_GETNEXT,
-	FUNC_TUNNEL_ENCAP_ENTRY_DEL,
-	FUNC_TUNNEL_GLOBAL_CFG_SET,
-	FUNC_TUNNEL_GLOBAL_CFG_GET,
-	FUNC_TUNNEL_ENCAP_HEADER_CTRL_SET,
-	FUNC_TUNNEL_ENCAP_HEADER_CTRL_GET,
-	FUNC_TUNNEL_PORT_INTF_SET,
-	FUNC_TUNNEL_PORT_INTF_GET,
-	FUNC_TUNNEL_DECAP_ECN_SET,
-	FUNC_TUNNEL_DECAP_ECN_GET,
-	FUNC_TUNNEL_ENCAP_ECN_SET,
-	FUNC_TUNNEL_ENCAP_ECN_GET,
-	FUNC_TUNNEL_UDF_PROFILE_ENTRY_ADD,
-	FUNC_TUNNEL_UDF_PROFILE_ENTRY_DEL,
-	FUNC_TUNNEL_UDF_PROFILE_ENTRY_GETFIRST,
-	FUNC_TUNNEL_UDF_PROFILE_ENTRY_GETNEXT,
-	FUNC_TUNNEL_UDF_PROFILE_CFG_SET,
-	FUNC_TUNNEL_UDF_PROFILE_CFG_GET,
-	FUNC_TUNNEL_EXP_DECAP_SET,
-	FUNC_TUNNEL_EXP_DECAP_GET,
-	FUNC_TUNNEL_DECAP_KEY_SET,
-	FUNC_TUNNEL_DECAP_KEY_GET,
-	FUNC_TUNNEL_DECAP_EN_SET,
-	FUNC_TUNNEL_DECAP_EN_GET,
-	FUNC_TUNNEL_DECAP_ACTION_UPDATE,
-	FUNC_TUNNEL_DECAP_COUNTER_GET,
-};
 
 /* tunnel type */
 typedef enum {
@@ -687,6 +638,8 @@ fal_tunnel_port_intf_set(a_uint32_t dev_id,
 sw_error_t
 fal_tunnel_port_intf_get(a_uint32_t dev_id,
 		fal_port_t port_id, fal_tunnel_port_intf_t *port_cfg);
+
+#ifndef IN_TUNNEL_MINI
 sw_error_t
 fal_tunnel_vlan_intf_add(a_uint32_t dev_id,
 		fal_tunnel_vlan_intf_t *vlan_cfg);
@@ -699,6 +652,8 @@ fal_tunnel_vlan_intf_getnext(a_uint32_t dev_id,
 sw_error_t
 fal_tunnel_vlan_intf_del(a_uint32_t dev_id,
 		fal_tunnel_vlan_intf_t *vlan_cfg);
+#endif
+
 sw_error_t
 fal_tunnel_intf_set(a_uint32_t dev_id,
 		a_uint32_t l3_if, fal_tunnel_intf_t *intf_t);
@@ -738,6 +693,7 @@ fal_tunnel_encap_rule_entry_get(a_uint32_t dev_id, a_uint32_t rule_id,
 sw_error_t
 fal_tunnel_encap_rule_entry_del(a_uint32_t dev_id, a_uint32_t rule_id,
 		fal_tunnel_encap_rule_t *rule_entry);
+
 sw_error_t
 fal_tunnel_udf_profile_entry_add(a_uint32_t dev_id, a_uint32_t profile_id,
 		fal_tunnel_udf_profile_entry_t * entry);
@@ -763,6 +719,7 @@ fal_tunnel_encap_header_ctrl_set(a_uint32_t dev_id, fal_tunnel_encap_header_ctrl
 sw_error_t
 fal_tunnel_encap_header_ctrl_get(a_uint32_t dev_id, fal_tunnel_encap_header_ctrl_t *header_ctrl);
 
+#ifndef IN_TUNNEL_MINI
 sw_error_t
 fal_tunnel_decap_ecn_mode_set(a_uint32_t dev_id, fal_tunnel_decap_ecn_rule_t *ecn_rule,
 		fal_tunnel_decap_ecn_action_t *ecn_action);
@@ -778,6 +735,7 @@ fal_tunnel_encap_ecn_mode_set(a_uint32_t dev_id, fal_tunnel_encap_ecn_t *ecn_rul
 sw_error_t
 fal_tunnel_encap_ecn_mode_get(a_uint32_t dev_id, fal_tunnel_encap_ecn_t *ecn_rule,
 		fal_tunnel_ecn_val_t *ecn_value);
+#endif
 
 sw_error_t
 fal_tunnel_exp_decap_set(a_uint32_t dev_id, fal_port_t port_id, a_bool_t *enable);

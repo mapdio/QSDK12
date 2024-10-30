@@ -1,6 +1,6 @@
 /*
  * Copyright (c) 2017, 2019, 2021, The Linux Foundation. All rights reserved.
- * Copyright (c) 2022-2023 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2024 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
@@ -214,8 +214,8 @@ char *cpucode[] = {
 
 "L2 PRE-ACL action",/*index 172, cpu code 210*/
 "TUNNEL L2 context invalid",
-"reserve0",
-"reserve1",
+"TUNNEL decap inner ipv4 padding",
+"TUNNEL decap inner ipv6 padding",
 "TUNNEL decap ECN",
 "TUNNEL inner packet too short",
 "TUNNEL VXLAN header",
@@ -234,6 +234,7 @@ char *cpucode[] = {
 "TUNNEL PROGRAM3",
 "TUNNEL PROGRAM4",
 "TUNNEL PROGRAM5",/*index 193, cpu code 231*/
+"bypass l2 flooding and redirect to CPU",/*index 194, cpu code 232*/
 #endif
 };
 
@@ -520,11 +521,11 @@ adpt_hppe_debug_counter_set(a_uint32_t dev_id)
 	a_uint32_t i;
 
 	/* clear PRX DROP_CNT */
-	for (i = 0; i < DROP_CNT_MAX_ENTRY; i++)
+	for (i = 0; i < PPE_BM_PHY_PORT_OFFSET; i++)
 		hppe_drop_cnt_drop_cnt_set(dev_id, i, 0);
 
 	/* clear PRX DROP_PKT_STAT */
-	for (i = 0; i < DROP_PKT_STAT_MAX_ENTRY; i++) {
+	for (i = 0; i < DROP_STAT_NUM; i++) {
 		hppe_drop_stat_pkts_set(dev_id, i, 0);
 		hppe_drop_stat_bytes_set(dev_id, i, 0);
 	}
@@ -577,7 +578,7 @@ adpt_hppe_debug_counter_set(a_uint32_t dev_id)
 		hppe_drop_cpu_cnt_tbl_set(dev_id, i, &drop_cpu_cnt_tbl);
 
 #ifdef APPE
-	if(adpt_chip_type_get (dev_id) == CHIP_APPE)
+	if(adpt_chip_type_get(dev_id) == CHIP_APPE)
 	{
 		/* clear VP_RX_COUNTER_TBL and VP_RX_DROP_CNT_TBL */
 		for (i = 0; i < PORT_RX_CNT_TBL_NUM; i++)
@@ -598,7 +599,7 @@ adpt_hppe_debug_prx_drop_cnt_get(a_uint32_t dev_id)
 
 	sign = tags = 0;
 	printk("%-35s", "PRX_DROP_CNT RX:");
-	for (i = 0; i < DROP_CNT_MAX_ENTRY; i++)
+	for (i = 0; i < PPE_BM_PHY_PORT_OFFSET; i++)
 	{
 		hppe_drop_cnt_drop_cnt_get(dev_id, i, &value);
 		if (value > 0)
@@ -625,7 +626,7 @@ adpt_hppe_debug_prx_drop_pkt_stat_get(a_uint32_t dev_id, a_bool_t show_type)
 
 	sign = tags = 0;
 	printk("%-35s", "PRX_DROP_PKT_STAT RX:");
-	for (i = 0; i < DROP_PKT_STAT_MAX_ENTRY; i++)
+	for (i = 0; i < DROP_STAT_NUM; i++)
 	{
 		if (show_type == A_FALSE)
 		{
@@ -998,7 +999,7 @@ adpt_hppe_debug_cpu_code_counter_get(a_uint32_t dev_id, a_bool_t show_type)
 				printk(KERN_CONT "%15llu(%s),cpucode:%d", value, cpucode[i + 49], i);
 			else if (i >= 181 && i <= 198)
 				printk(KERN_CONT "%15llu(%s),cpucode:%d", value, cpucode[i - 27], i);
-			else if (i >= 210 && i <= 231)
+			else if (i >= 210 && i <= 232)
 				printk(KERN_CONT "%15llu(%s),cpucode:%d", value, cpucode[i - 38], i);
 #endif
 			else if (i >= 254 && i <= 255)
@@ -1216,7 +1217,7 @@ adpt_hppe_debug_counter_get(a_uint32_t dev_id, a_bool_t show_type)
 	/* show DROP_CPU_CNT_TBL */
 	adpt_hppe_debug_drop_cpu_counter_get(dev_id, show_type);
 #ifdef APPE
-	if(adpt_chip_type_get (dev_id) == CHIP_APPE)
+	if(adpt_chip_type_get(dev_id) == CHIP_APPE)
 	{
 		/* show VP_PORT_RX_COUNTER_TBL*/
 		adpt_appe_debug_vp_rx_counter_get(dev_id, show_type);

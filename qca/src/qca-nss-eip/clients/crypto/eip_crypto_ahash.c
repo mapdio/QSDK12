@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2022-2023, Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2024, Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for any
  * purpose with or without fee is hereby granted, provided that the above
@@ -14,9 +14,15 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  */
 
+#include <linux/version.h>
 #include <linux/crypto.h>
 
+#if (LINUX_VERSION_CODE < KERNEL_VERSION(6, 1, 0))
 #include <crypto/sha.h>
+#else
+#include <crypto/sha1.h>
+#include <crypto/sha2.h>
+#endif
 #include <crypto/hash.h>
 #include <crypto/md5.h>
 #include <crypto/algapi.h>
@@ -37,6 +43,10 @@ struct eip_crypto_ahash_req_ctx {
 	unsigned long flags;			/* Update the result in final completion function */
 	uint8_t digest[SHA512_DIGEST_SIZE];	/* Storage for resultant digest */
 	struct scatterlist res;			/* Resultant scatterlist */
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(6, 6, 0))
+	crypto_completion_t complete;		/* Callback function for finup */
+	void *data;				/* Data for the callback function */
+#endif
 };
 
 /*
@@ -57,6 +67,10 @@ int eip_crypto_ahash_export(struct ahash_request *req, void *out);
 int eip_crypto_ahash_import(struct ahash_request *req, const void *in);
 int eip_crypto_ahash_setkey(struct crypto_ahash *ahash, const u8 *key, unsigned int keylen);
 
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(6, 6, 0))
+int eip_crypto_ahash_finup(struct ahash_request *req);
+#endif
+
 /*
  * eip_crypto_ahash_algo.
  *	Template for ahash algorithms.
@@ -69,6 +83,9 @@ static struct ahash_alg eip_crypto_ahash_algo[] = {
 		.init   = eip_crypto_ahash_tfm_init,
 		.update = eip_crypto_ahash_update,
 		.final  = eip_crypto_ahash_final,
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(6, 6, 0))
+		.finup = eip_crypto_ahash_finup,
+#endif
 		.export = eip_crypto_ahash_export,
 		.import = eip_crypto_ahash_import,
 		.digest = eip_crypto_ahash_digest,
@@ -84,7 +101,6 @@ static struct ahash_alg eip_crypto_ahash_algo[] = {
 				.cra_blocksize   = MD5_HMAC_BLOCK_SIZE,
 				.cra_ctxsize     = sizeof(struct eip_crypto_tfm_ctx),
 				.cra_alignmask   = 0,
-				.cra_type        = &crypto_ahash_type,
 				.cra_module      = THIS_MODULE,
 				.cra_init        = eip_crypto_ahash_cra_init,
 				.cra_exit        = eip_crypto_ahash_cra_exit,
@@ -95,6 +111,9 @@ static struct ahash_alg eip_crypto_ahash_algo[] = {
 		.init   = eip_crypto_ahash_tfm_init,
 		.update = eip_crypto_ahash_update,
 		.final  = eip_crypto_ahash_final,
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(6, 6, 0))
+		.finup = eip_crypto_ahash_finup,
+#endif
 		.export = eip_crypto_ahash_export,
 		.import = eip_crypto_ahash_import,
 		.digest = eip_crypto_ahash_digest,
@@ -110,7 +129,6 @@ static struct ahash_alg eip_crypto_ahash_algo[] = {
 				.cra_blocksize   = SHA1_BLOCK_SIZE,
 				.cra_ctxsize     = sizeof(struct eip_crypto_tfm_ctx),
 				.cra_alignmask   = 0,
-				.cra_type        = &crypto_ahash_type,
 				.cra_module      = THIS_MODULE,
 				.cra_init        = eip_crypto_ahash_cra_init,
 				.cra_exit        = eip_crypto_ahash_cra_exit,
@@ -121,6 +139,9 @@ static struct ahash_alg eip_crypto_ahash_algo[] = {
 		.init   = eip_crypto_ahash_tfm_init,
 		.update = eip_crypto_ahash_update,
 		.final  = eip_crypto_ahash_final,
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(6, 6, 0))
+		.finup = eip_crypto_ahash_finup,
+#endif
 		.export = eip_crypto_ahash_export,
 		.import = eip_crypto_ahash_import,
 		.digest = eip_crypto_ahash_digest,
@@ -136,7 +157,6 @@ static struct ahash_alg eip_crypto_ahash_algo[] = {
 				.cra_blocksize   = SHA224_BLOCK_SIZE,
 				.cra_ctxsize     = sizeof(struct eip_crypto_tfm_ctx),
 				.cra_alignmask   = 0,
-				.cra_type        = &crypto_ahash_type,
 				.cra_module      = THIS_MODULE,
 				.cra_init        = eip_crypto_ahash_cra_init,
 				.cra_exit        = eip_crypto_ahash_cra_exit,
@@ -147,6 +167,9 @@ static struct ahash_alg eip_crypto_ahash_algo[] = {
 		.init   = eip_crypto_ahash_tfm_init,
 		.update = eip_crypto_ahash_update,
 		.final  = eip_crypto_ahash_final,
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(6, 6, 0))
+		.finup = eip_crypto_ahash_finup,
+#endif
 		.export = eip_crypto_ahash_export,
 		.import = eip_crypto_ahash_import,
 		.digest = eip_crypto_ahash_digest,
@@ -162,7 +185,6 @@ static struct ahash_alg eip_crypto_ahash_algo[] = {
 				.cra_blocksize   = SHA256_BLOCK_SIZE,
 				.cra_ctxsize     = sizeof(struct eip_crypto_tfm_ctx),
 				.cra_alignmask   = 0,
-				.cra_type        = &crypto_ahash_type,
 				.cra_module      = THIS_MODULE,
 				.cra_init        = eip_crypto_ahash_cra_init,
 				.cra_exit        = eip_crypto_ahash_cra_exit,
@@ -173,6 +195,9 @@ static struct ahash_alg eip_crypto_ahash_algo[] = {
 		.init   = eip_crypto_ahash_tfm_init,
 		.update = eip_crypto_ahash_update,
 		.final  = eip_crypto_ahash_final,
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(6, 6, 0))
+		.finup = eip_crypto_ahash_finup,
+#endif
 		.export = eip_crypto_ahash_export,
 		.import = eip_crypto_ahash_import,
 		.digest = eip_crypto_ahash_digest,
@@ -188,7 +213,6 @@ static struct ahash_alg eip_crypto_ahash_algo[] = {
 				.cra_blocksize   = SHA384_BLOCK_SIZE,
 				.cra_ctxsize     = sizeof(struct eip_crypto_tfm_ctx),
 				.cra_alignmask   = 0,
-				.cra_type        = &crypto_ahash_type,
 				.cra_module      = THIS_MODULE,
 				.cra_init        = eip_crypto_ahash_cra_init,
 				.cra_exit        = eip_crypto_ahash_cra_exit,
@@ -199,6 +223,9 @@ static struct ahash_alg eip_crypto_ahash_algo[] = {
 		.init   = eip_crypto_ahash_tfm_init,
 		.update = eip_crypto_ahash_update,
 		.final  = eip_crypto_ahash_final,
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(6, 6, 0))
+		.finup = eip_crypto_ahash_finup,
+#endif
 		.export = eip_crypto_ahash_export,
 		.import = eip_crypto_ahash_import,
 		.digest = eip_crypto_ahash_digest,
@@ -214,7 +241,6 @@ static struct ahash_alg eip_crypto_ahash_algo[] = {
 				.cra_blocksize   = SHA512_BLOCK_SIZE,
 				.cra_ctxsize     = sizeof(struct eip_crypto_tfm_ctx),
 				.cra_alignmask   = 0,
-				.cra_type        = &crypto_ahash_type,
 				.cra_module      = THIS_MODULE,
 				.cra_init        = eip_crypto_ahash_cra_init,
 				.cra_exit        = eip_crypto_ahash_cra_exit,
@@ -229,6 +255,9 @@ static struct ahash_alg eip_crypto_ahash_algo[] = {
 		.init   = eip_crypto_ahash_tfm_init,
 		.update = eip_crypto_ahash_update,
 		.final  = eip_crypto_ahash_final,
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(6, 6, 0))
+		.finup = eip_crypto_ahash_finup,
+#endif
 		.export = eip_crypto_ahash_export,
 		.import = eip_crypto_ahash_import,
 		.digest = eip_crypto_ahash_digest,
@@ -244,7 +273,6 @@ static struct ahash_alg eip_crypto_ahash_algo[] = {
 				.cra_blocksize   = MD5_HMAC_BLOCK_SIZE,
 				.cra_ctxsize     = sizeof(struct eip_crypto_tfm_ctx),
 				.cra_alignmask   = 0,
-				.cra_type        = &crypto_ahash_type,
 				.cra_module      = THIS_MODULE,
 				.cra_init        = eip_crypto_ahash_cra_init,
 				.cra_exit        = eip_crypto_ahash_cra_exit,
@@ -255,6 +283,9 @@ static struct ahash_alg eip_crypto_ahash_algo[] = {
 		.init   = eip_crypto_ahash_tfm_init,
 		.update = eip_crypto_ahash_update,
 		.final  = eip_crypto_ahash_final,
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(6, 6, 0))
+		.finup = eip_crypto_ahash_finup,
+#endif
 		.export = eip_crypto_ahash_export,
 		.import = eip_crypto_ahash_import,
 		.digest = eip_crypto_ahash_digest,
@@ -270,7 +301,6 @@ static struct ahash_alg eip_crypto_ahash_algo[] = {
 				.cra_blocksize   = SHA1_BLOCK_SIZE,
 				.cra_ctxsize     = sizeof(struct eip_crypto_tfm_ctx),
 				.cra_alignmask   = 0,
-				.cra_type        = &crypto_ahash_type,
 				.cra_module      = THIS_MODULE,
 				.cra_init        = eip_crypto_ahash_cra_init,
 				.cra_exit        = eip_crypto_ahash_cra_exit,
@@ -281,6 +311,9 @@ static struct ahash_alg eip_crypto_ahash_algo[] = {
 		.init   = eip_crypto_ahash_tfm_init,
 		.update = eip_crypto_ahash_update,
 		.final  = eip_crypto_ahash_final,
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(6, 6, 0))
+		.finup = eip_crypto_ahash_finup,
+#endif
 		.export = eip_crypto_ahash_export,
 		.import = eip_crypto_ahash_import,
 		.digest = eip_crypto_ahash_digest,
@@ -296,7 +329,6 @@ static struct ahash_alg eip_crypto_ahash_algo[] = {
 				.cra_blocksize   = SHA224_BLOCK_SIZE,
 				.cra_ctxsize     = sizeof(struct eip_crypto_tfm_ctx),
 				.cra_alignmask   = 0,
-				.cra_type        = &crypto_ahash_type,
 				.cra_module      = THIS_MODULE,
 				.cra_init        = eip_crypto_ahash_cra_init,
 				.cra_exit        = eip_crypto_ahash_cra_exit,
@@ -307,6 +339,9 @@ static struct ahash_alg eip_crypto_ahash_algo[] = {
 		.init   = eip_crypto_ahash_tfm_init,
 		.update = eip_crypto_ahash_update,
 		.final  = eip_crypto_ahash_final,
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(6, 6, 0))
+		.finup = eip_crypto_ahash_finup,
+#endif
 		.export = eip_crypto_ahash_export,
 		.import = eip_crypto_ahash_import,
 		.digest = eip_crypto_ahash_digest,
@@ -322,7 +357,6 @@ static struct ahash_alg eip_crypto_ahash_algo[] = {
 				.cra_blocksize   = SHA256_BLOCK_SIZE,
 				.cra_ctxsize     = sizeof(struct eip_crypto_tfm_ctx),
 				.cra_alignmask   = 0,
-				.cra_type        = &crypto_ahash_type,
 				.cra_module      = THIS_MODULE,
 				.cra_init        = eip_crypto_ahash_cra_init,
 				.cra_exit        = eip_crypto_ahash_cra_exit,
@@ -333,6 +367,9 @@ static struct ahash_alg eip_crypto_ahash_algo[] = {
 		.init   = eip_crypto_ahash_tfm_init,
 		.update = eip_crypto_ahash_update,
 		.final  = eip_crypto_ahash_final,
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(6, 6, 0))
+		.finup = eip_crypto_ahash_finup,
+#endif
 		.export = eip_crypto_ahash_export,
 		.import = eip_crypto_ahash_import,
 		.digest = eip_crypto_ahash_digest,
@@ -348,7 +385,6 @@ static struct ahash_alg eip_crypto_ahash_algo[] = {
 				.cra_blocksize   = SHA384_BLOCK_SIZE,
 				.cra_ctxsize     = sizeof(struct eip_crypto_tfm_ctx),
 				.cra_alignmask   = 0,
-				.cra_type        = &crypto_ahash_type,
 				.cra_module      = THIS_MODULE,
 				.cra_init        = eip_crypto_ahash_cra_init,
 				.cra_exit        = eip_crypto_ahash_cra_exit,
@@ -359,6 +395,9 @@ static struct ahash_alg eip_crypto_ahash_algo[] = {
 		.init   = eip_crypto_ahash_tfm_init,
 		.update = eip_crypto_ahash_update,
 		.final  = eip_crypto_ahash_final,
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(6, 6, 0))
+		.finup = eip_crypto_ahash_finup,
+#endif
 		.export = eip_crypto_ahash_export,
 		.import = eip_crypto_ahash_import,
 		.digest = eip_crypto_ahash_digest,
@@ -374,7 +413,6 @@ static struct ahash_alg eip_crypto_ahash_algo[] = {
 				.cra_blocksize   = SHA512_BLOCK_SIZE,
 				.cra_ctxsize     = sizeof(struct eip_crypto_tfm_ctx),
 				.cra_alignmask   = 0,
-				.cra_type        = &crypto_ahash_type,
 				.cra_module      = THIS_MODULE,
 				.cra_init        = eip_crypto_ahash_cra_init,
 				.cra_exit        = eip_crypto_ahash_cra_exit,
@@ -607,7 +645,8 @@ void eip_crypto_ahash_done(void *app_data, eip_req_t eip_req)
 	/*
 	 * Signal linux about completion.
 	 */
-	req->base.complete(&req->base, 0);
+	ahash_request_complete(req, 0);
+
 	/*
 	 * Decrement tfm usage count and signal complete
 	 * once usage count becomes zero.
@@ -682,7 +721,9 @@ int eip_crypto_ahash_setkey(struct crypto_ahash *tfm, const u8 *key, unsigned in
 	tr = eip_tr_alloc(ahash.dma_ctx, &info);
 	if (!tr) {
 		pr_warn("%px: Unable to allocate new TR.\n", tfm_ctx);
+#if (LINUX_VERSION_CODE < KERNEL_VERSION(6, 1, 0))
 		crypto_ahash_set_flags(tfm, CRYPTO_TFM_RES_BAD_FLAGS);
+#endif
 		tfm_stats->tr_alloc_err++;
 		ahash_stats->tr_alloc_err++;
 		return -EBUSY;
@@ -760,7 +801,9 @@ int eip_crypto_ahash_tfm_init(struct ahash_request *req)
 	tr = eip_tr_alloc(ahash.dma_ctx, &info);
 	if (!tr) {
 		pr_warn("%px: Unable to allocate new TR.\n", tfm_ctx);
+#if (LINUX_VERSION_CODE < KERNEL_VERSION(6, 1, 0))
 		crypto_ahash_set_flags(crypto_ahash_reqtfm(req), CRYPTO_TFM_RES_BAD_FLAGS);
+#endif
 		tfm_stats->tr_alloc_err++;
 		ahash_stats->tr_alloc_err++;
 		return -EBUSY;
@@ -892,6 +935,69 @@ int eip_crypto_ahash_final(struct ahash_request *req)
 	return 0;
 }
 
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(6, 6, 0))
+/*
+ * eip_crypto_ahash_finup_done
+ * Ahash finup completion callback
+ */
+static void eip_crypto_ahash_finup_done(void *data, int err)
+{
+	struct ahash_request *req = data;
+	struct eip_crypto_ahash_req_ctx *rctx = ahash_request_ctx(req);
+
+	/*
+	 * Call final if there are no errors
+	 */
+	if (!err) {
+		err = eip_crypto_ahash_final(req);
+	}
+
+	/*
+	 * Restore the original complete callback and data in the req
+	 */
+	req->base.complete = rctx->complete;
+	req->base.data = rctx->data;
+	ahash_request_complete(req, err);
+
+	return;
+}
+
+/*
+ * eip_crypto_ahash_finup
+ * Ahash .finup operation
+ */
+int eip_crypto_ahash_finup(struct ahash_request *req)
+{
+	struct eip_crypto_ahash_req_ctx *rctx = ahash_request_ctx(req);
+	int err;
+
+	/*
+	 * Store the original complete callback and data in rctx
+	 */
+	rctx->complete = req->base.complete;
+	rctx->data = req->base.data;
+
+	req->base.complete = eip_crypto_ahash_finup_done;
+	req->base.data = req;
+
+	/*
+	 * If update returns -EINPROGRESS, return the same to user
+	 */
+	err = eip_crypto_ahash_update(req);
+	if (err == -EINPROGRESS) {
+		return err;
+	}
+
+	/*
+	 * In case of errors, restore the complete callback and data in req
+	 */
+	req->base.complete = rctx->complete;
+	req->base.data = rctx->data;
+
+	return err;
+}
+#endif
+
 /*
  * eip_crypto_ahash_digest()
  *	Ahash digest operation.
@@ -935,7 +1041,7 @@ int eip_crypto_ahash_export(struct ahash_request *req, void *out)
 {
 	struct eip_crypto_tfm_ctx *tfm_ctx __attribute__((unused)) = crypto_tfm_ctx(req->base.tfm);
 
-	pr_info("%px: ahash .export is not supported", tfm_ctx);
+	pr_debug("%px: ahash .export is not supported", tfm_ctx);
 	return -ENOSYS;
 };
 
@@ -950,7 +1056,7 @@ int eip_crypto_ahash_import(struct ahash_request *req, const void *in)
 {
 	struct eip_crypto_tfm_ctx *tfm_ctx __attribute__((unused)) = crypto_tfm_ctx(req->base.tfm);
 
-	pr_info("%px: ahash .import is not supported", tfm_ctx);
+	pr_debug("%px: ahash .import is not supported", tfm_ctx);
 	return -ENOSYS;
 }
 
